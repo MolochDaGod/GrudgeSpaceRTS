@@ -151,6 +151,8 @@ export interface SpaceShip extends GameEntity {
   empChance?: number;
   deathPhase?: boolean;
   deathPhaseActive?: boolean;
+  roleTimer: number;            // role behavior tick timer
+  lastTargetId?: number | null; // star splitter ambush tracking
 }
 
 export type ShipAnimState =
@@ -354,6 +356,8 @@ export interface SpaceGameState {
   activeVoidEffects: VoidEffect[];
   aiDifficulty: number;
   commanders: Map<number, Commander>;
+  fleets: Map<string, Fleet>;
+  tacticalOrders: TacticalOrder[];
   towers: Map<number, OrbitalTower>;
   projectiles: Map<number, Projectile>;
   spriteEffects: SpriteEffect[];
@@ -734,7 +738,74 @@ export interface VoidEffect {
   done: boolean;
 }
 
-export const CAPTURE_TIME = 100;         // progress needed to capture
-export const CAPTURE_RATE_PER_UNIT = 5;  // per second per unit orbiting
-export const NEUTRAL_DEFENDERS = 3;      // neutral ships guarding unclaimed planet
-export const DOMINATION_TIME = 60;       // seconds holding all planets to win
+export const CAPTURE_TIME = 100;
+export const CAPTURE_RATE_PER_UNIT = 5;
+export const NEUTRAL_DEFENDERS = 3;
+export const DOMINATION_TIME = 60;
+
+// ── Ship Roles (RTS archetypes integrated into existing ships) ───
+// repair = sustain healer, void_caster = ability/spell support
+// juggernaut = tank + group shield, star_splitter = glass cannon DPS/stealth
+export type ShipRoleType = 'repair' | 'void_caster' | 'juggernaut' | 'star_splitter';
+
+export const SHIP_ROLE_LABELS: Record<ShipRoleType, string> = {
+  repair:       'Repair',
+  void_caster:  'Void Caster',
+  juggernaut:   'Juggernaut',
+  star_splitter:'Star Splitter',
+};
+
+export const SHIP_ROLE_COLORS: Record<ShipRoleType, string> = {
+  repair:       '#44ee88',
+  void_caster:  '#aa44ff',
+  juggernaut:   '#ff8822',
+  star_splitter:'#ff4488',
+};
+
+export const SHIP_ROLES: Partial<Record<string, ShipRoleType>> = {
+  // Repair — heal-aura sustains nearby allies each 2s
+  interstellar_runner: 'repair', star_marine_trooper: 'repair',
+  transtellar: 'repair', cf_frigate_01: 'repair',
+  // Void Casters — −25% ability cooldowns, +30% ability radius
+  camo_stellar_jet: 'void_caster', infrared_furtive: 'void_caster',
+  cf_corvette_04: 'void_caster', vanguard_prime: 'void_caster',
+  // Juggernauts — −30% incoming damage, passive mini-shield pulse to nearby allies
+  warship: 'juggernaut', pyramid_ship: 'juggernaut',
+  cf_light_cruiser_02: 'juggernaut', boss_ship_01: 'juggernaut',
+  boss_ship_02: 'juggernaut', iron_bastion: 'juggernaut',
+  cf_destroyer_04: 'juggernaut',
+  // Star Splitters — +80% bonus damage on first strike vs new target
+  galactix_racer: 'star_splitter', meteor_slicer: 'star_splitter',
+  cf_corvette_01: 'star_splitter', cf_corvette_05: 'star_splitter',
+  shadow_reaper: 'star_splitter', storm_herald: 'star_splitter',
+  cf_destroyer_05: 'star_splitter', micro_recon: 'star_splitter',
+};
+
+// ── Fleet (named ship groups for tactical planning) ─────────────
+export interface Fleet {
+  name: string;
+  color: string;           // CSS color
+  shipIds: number[];
+  rallyPlanetId: number | null;
+  order: 'idle' | 'attack' | 'defend' | 'patrol' | 'follow';
+  orderTargetPlanetId: number | null;
+}
+
+// ── Tactical Orders (if/then automation for player) ─────────
+export type OrderTrigger = 'planet_attacked' | 'planet_captured' | 'fleet_below_half' | 'manual';
+export type OrderAction  = 'attack_planet' | 'defend_planet' | 'rally_fleet' | 'focus_class';
+export interface TacticalOrder {
+  id: number;
+  label: string;
+  enabled: boolean;
+  trigger: OrderTrigger;
+  triggerPlanetId: number | null;
+  triggerFleetName: string | null;
+  action: OrderAction;
+  actionPlanetId: number | null;
+  fleetName: string | null;
+  focusClass?: ShipClass;
+  priority: number;           // 1–5
+  cooldown: number;
+  cooldownRemaining: number;
+}

@@ -12,7 +12,7 @@ import {
   HERO_DEFINITIONS, HERO_SHIPS, getShipDef, PLANET_TYPE_DATA,
   defaultTechBonuses,
   COMMANDER_NAMES, COMMANDER_XP_LEVELS, COMMANDER_TRAIN_TIME, COMMANDER_TRAIN_COST,
-  COMMANDER_SPEC_PLANET,
+  COMMANDER_SPEC_PLANET, SHIP_ROLES, type Fleet, type TacticalOrder,
 } from './space-types';
 import {
   ALL_TECH_TREES, VOID_POWERS, PLANET_TYPE_TO_TECH, TURRET_DEFS,
@@ -84,6 +84,8 @@ export class SpaceEngine {
       techState, voidCooldowns: voidCds, activeVoidEffects: [],
       aiDifficulty: this.aiDifficulty,
       commanders: new Map(),
+      fleets: new Map(),
+      tacticalOrders: [],
       towers: new Map(), projectiles: new Map(),
       spriteEffects: [], glbEffects: [], alerts: [],
       resources, upgrades,
@@ -307,7 +309,15 @@ export class SpaceEngine {
       workerCargoType: def.class === 'worker' ? 'minerals' : undefined,
       workerHarvestTimer: def.class === 'worker' ? 0 : undefined,
       xp: 0, rank: 0,
+      roleTimer: 0,
     };
+    // Apply void_caster cooldown reduction at spawn
+    const role = SHIP_ROLES[def.class === 'worker' ? '' : type];
+    if (role === 'void_caster') {
+      for (const ab of ship.abilities) {
+        ab.ability = { ...ab.ability, cooldown: ab.ability.cooldown * 0.75 };
+      }
+    }
     this.state.ships.set(id, ship);
     const r = this.state.resources[team];
     if (r) r.supply += s.supplyCost;
@@ -321,6 +331,8 @@ export class SpaceEngine {
     this.updateResourceNodes(dt);
     this.updateWorkers(dt);
     this.updateCommanderTraining(dt);
+    this.updateShipRoles(dt);
+    this.updateTacticalOrders(dt);
     this.updateShips(dt);
     this.updateProjectiles(dt);
     this.updateEffects(dt);
@@ -434,10 +446,16 @@ export class SpaceEngine {
     const id = this.state.nextId++;
     const a = Math.atan2(tgt.y - src.y, tgt.x - src.x);
     const spd = src.attackType === 'missile' ? 300 : src.attackType === 'railgun' ? 600 : 400;
+    // Star Splitter ambush: +80% damage on first hit against a new target
+    let dmgMult = 1;
+    if (SHIP_ROLES[src.shipType] === 'star_splitter' && src.lastTargetId !== tgt.id) {
+      dmgMult = 1.80;
+      src.lastTargetId = tgt.id;
+    }
     this.state.projectiles.set(id, {
       id, x: src.x, y: src.y, z: src.z,
       vx: Math.cos(a) * spd, vy: Math.sin(a) * spd, vz: 0,
-      team: src.team, damage: src.attackDamage, type: src.attackType as Projectile['type'],
+      team: src.team, damage: Math.round(src.attackDamage * dmgMult), type: src.attackType as Projectile['type'],
       sourceId: src.id, targetId: tgt.id, speed: spd,
       lifetime: 0, maxLifetime: 3,
       homing: src.attackType === 'missile', homingStrength: 3,
@@ -466,10 +484,23 @@ export class SpaceEngine {
         const ht: HitFxType[] = ['hits-1', 'hits-2', 'hits-3', 'hits-4', 'hits-5', 'hits-6'];
         this.spawnSpriteEffect(t.x, t.y, 0, ht[Math.floor(Math.random() * 6)], 0.6);
         if (t.dead) {
-          const et: ExplosionType = t.shipClass === 'battleship' ? 'explosion-1-e'
-            : t.shipClass === 'cruiser' || t.shipClass === 'destroyer' ? 'explosion-1-d' : 'explosion-1-b';
-          const sc = t.shipClass === 'battleship' ? 4 : t.shipClass === 'cruiser' ? 2 : 1;
+          // ─ Layered death explosions scaled by ship class ─
+          const isMega = t.shipClass === 'dreadnought' || t.shipClass === 'battleship';
+          const isMed  = t.shipClass === 'cruiser' || t.shipClass === 'destroyer' || t.shipClass === 'light_cruiser';
+          const sc = isMega ? 6 : isMed ? 3 : 1.2;
+          const et: ExplosionType = isMega ? 'explosion-1-e' : isMed ? 'explosion-1-d' : 'explosion-1-b';
+          // Primary blast
           this.spawnSpriteEffect(t.x, t.y, 0, et, sc);
+          // Secondary debris cloud (offset)
+          if (isMed || isMega) {
+            this.spawnSpriteEffect(t.x + 30, t.y - 20, 0, 'explosion-1-c', sc * 0.6);
+            this.spawnSpriteEffect(t.x - 20, t.y + 25, 0, 'explosion-1-a', sc * 0.5);
+          }
+          // Mega ships: third wave + shockwave ring
+          if (isMega) {
+            this.spawnSpriteEffect(t.x, t.y, 0, 'explosion-b', sc * 0.8);
+            this.spawnSpriteEffect(t.x + 60, t.y + 40, 0, 'explosion-1-f', sc * 0.4);
+          }
           // Grant XP to killing ship
           const killer = this.state.ships.get(p.sourceId);
           if (killer && !killer.dead) {
@@ -484,6 +515,8 @@ export class SpaceEngine {
 
   private applyDamage(ship: SpaceShip, damage: number) {
     let r = damage;
+    // Juggernaut role: 30% incoming damage reduction
+    if (SHIP_ROLES[ship.shipType] === 'juggernaut') r *= 0.70;
     if (ship.shield > 0) { const ab = Math.min(ship.shield, r); ship.shield -= ab; r -= ab; }
     r = Math.max(0, r - ship.armor);
     ship.hp -= r;
@@ -1129,6 +1162,137 @@ export class SpaceEngine {
           if (this.state.dominationTimer >= DOMINATION_TIME) { this.state.gameOver = true; this.state.winner = o; this.state.winCondition = 'domination'; }
         } else { this.state.dominationTeam = o; this.state.dominationTimer = 0; }
       } else { this.state.dominationTimer = 0; this.state.dominationTeam = null; }
+    }
+  }
+
+  // ── Ship Role Behaviors ─────────────────────────────────────────
+  private updateShipRoles(dt: number) {
+    const REPAIR_TICK   = 2.0;   // seconds between heals
+    const REPAIR_AMOUNT = 18;    // HP healed per tick
+    const REPAIR_RANGE  = 220;   // game units
+    const JUG_PULSE_TICK    = 4.0;  // juggernaut shield pulse interval
+    const JUG_PULSE_SHIELD  = 12;   // shield restored to allies
+    const JUG_PULSE_RANGE   = 180;
+
+    for (const [, ship] of this.state.ships) {
+      if (ship.dead || ship.shipClass === 'worker') continue;
+      ship.roleTimer += dt;
+      const role = SHIP_ROLES[ship.shipType];
+      if (!role) continue;
+
+      // ── Repair: periodically heal nearby allies ────────────────
+      if (role === 'repair' && ship.roleTimer >= REPAIR_TICK) {
+        ship.roleTimer = 0;
+        for (const [, ally] of this.state.ships) {
+          if (ally.dead || ally.team !== ship.team || ally.id === ship.id) continue;
+          const d = Math.sqrt((ally.x - ship.x) ** 2 + (ally.y - ship.y) ** 2);
+          if (d <= REPAIR_RANGE && ally.hp < ally.maxHp) {
+            ally.hp = Math.min(ally.maxHp, ally.hp + REPAIR_AMOUNT);
+          }
+        }
+        // Tiny visual spark
+        this.spawnSpriteEffect(ship.x, ship.y, 0, 'bolt', 0.5);
+      }
+
+      // ── Juggernaut: take less damage (handled in applyDamage) +
+      //              pulse mini-shield to nearby allies ─────────
+      if (role === 'juggernaut' && ship.roleTimer >= JUG_PULSE_TICK) {
+        ship.roleTimer = 0;
+        for (const [, ally] of this.state.ships) {
+          if (ally.dead || ally.team !== ship.team) continue;
+          const d = Math.sqrt((ally.x - ship.x) ** 2 + (ally.y - ship.y) ** 2);
+          if (d <= JUG_PULSE_RANGE) {
+            ally.shield = Math.min(ally.maxShield, ally.shield + JUG_PULSE_SHIELD);
+          }
+        }
+        this.spawnSpriteEffect(ship.x, ship.y, 0, 'waveform', 1.8);
+      }
+
+      // Void Caster: already handled via cooldown reduction at spawn
+      // Star Splitter: handled in applyDamage / fireProjectile
+    }
+  }
+
+  // ── Tactical Orders ─────────────────────────────────────────
+  addTacticalOrder(order: Omit<TacticalOrder, 'id' | 'cooldownRemaining'>) {
+    const full: TacticalOrder = { ...order, id: this.state.nextId++, cooldownRemaining: 0 };
+    this.state.tacticalOrders.push(full);
+  }
+
+  removeTacticalOrder(id: number) {
+    this.state.tacticalOrders = this.state.tacticalOrders.filter(o => o.id !== id);
+  }
+
+  addFleet(name: string, color: string): Fleet {
+    const fleet: Fleet = { name, color, shipIds: [], rallyPlanetId: null, order: 'idle', orderTargetPlanetId: null };
+    this.state.fleets.set(name, fleet);
+    return fleet;
+  }
+
+  assignShipsToFleet(fleetName: string, shipIds: number[]) {
+    // Remove from any existing fleet first
+    for (const [, f] of this.state.fleets) {
+      f.shipIds = f.shipIds.filter(id => !shipIds.includes(id));
+    }
+    const fleet = this.state.fleets.get(fleetName);
+    if (fleet) fleet.shipIds.push(...shipIds);
+  }
+
+  private updateTacticalOrders(dt: number) {
+    for (const order of this.state.tacticalOrders) {
+      if (!order.enabled) continue;
+      if (order.cooldownRemaining > 0) { order.cooldownRemaining -= dt; continue; }
+
+      let triggered = false;
+
+      if (order.trigger === 'planet_attacked' && order.triggerPlanetId !== null) {
+        // Triggered if enemies are near the watched planet
+        const planet = this.state.planets.find(p => p.id === order.triggerPlanetId);
+        if (planet) {
+          const enemyCount = [...this.state.ships.values()]
+            .filter(s => !s.dead && s.team !== 1 && s.team !== 0 &&
+              Math.sqrt((s.x - planet.x)**2 + (s.y - planet.y)**2) < planet.captureRadius * 1.5)
+            .length;
+          triggered = enemyCount >= 2;
+        }
+      } else if (order.trigger === 'planet_captured') {
+        const planet = this.state.planets.find(p => p.id === order.triggerPlanetId);
+        triggered = !!(planet && planet.owner !== 1 && planet.owner !== 0);
+      } else if (order.trigger === 'fleet_below_half' && order.triggerFleetName) {
+        const fleet = this.state.fleets.get(order.triggerFleetName);
+        if (fleet) {
+          const alive = fleet.shipIds.filter(id => {
+            const s = this.state.ships.get(id); return s && !s.dead;
+          }).length;
+          triggered = alive > 0 && alive <= fleet.shipIds.length / 2;
+        }
+      }
+
+      if (!triggered) continue;
+      order.cooldownRemaining = order.cooldown;
+
+      // Execute action
+      const fleet = order.fleetName ? this.state.fleets.get(order.fleetName) : null;
+      const ships = fleet
+        ? fleet.shipIds.map(id => this.state.ships.get(id)).filter((s): s is SpaceShip => !!(s && !s.dead))
+        : [...this.state.ships.values()].filter(s => !s.dead && s.team === 1);
+
+      if (order.action === 'attack_planet' || order.action === 'defend_planet') {
+        const tgt = this.state.planets.find(p => p.id === order.actionPlanetId);
+        if (tgt) {
+          for (const s of ships) {
+            s.moveTarget = { x: tgt.x + (Math.random()-0.5)*200, y: tgt.y + (Math.random()-0.5)*200, z:0 };
+            s.isAttackMoving = order.action === 'attack_planet';
+          }
+        }
+      } else if (order.action === 'focus_class' && order.focusClass) {
+        // Mark nearby enemies of given class as priority targets for all ships in fleet
+        const enemyOfClass = [...this.state.ships.values()]
+          .find(s => !s.dead && s.team !== 1 && s.shipClass === order.focusClass);
+        if (enemyOfClass) {
+          for (const s of ships) s.targetId = enemyOfClass.id;
+        }
+      }
     }
   }
 
