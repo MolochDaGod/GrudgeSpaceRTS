@@ -5,7 +5,12 @@ import { fileURLToPath } from 'url';
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
 
+// When VITE_BASE_PATH is set (GitHub Pages CI), all asset references use that
+// sub-path so the game works correctly under /GrudgeSpaceRTS/game/
+const base = process.env.VITE_BASE_PATH ?? '/';
+
 export default defineConfig({
+  base,
   plugins: [react()],
   build: {
     rollupOptions: {
