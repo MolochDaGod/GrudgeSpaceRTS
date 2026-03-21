@@ -256,8 +256,19 @@ export function SpaceHUD({ renderer, onQuit }: SpaceHUDProps) {
         display: 'flex', alignItems: 'center', padding: '0 16px', gap: 24,
         pointerEvents: 'auto', zIndex: 10,
       }}>
-        <span style={{ color: '#4488ff', fontWeight: 700, fontSize: 14 }}>GRUDA ARMADA</span>
-        <span style={{ fontSize: 8, color: '#8ac', opacity: 0.6, letterSpacing: 1 }}>SOLAR SYSTEM SCRIM</span>
+        <img src='/assets/space/ui/logo.png' alt='Gruda Armada'
+          style={{ height: 26, imageRendering: 'auto',
+            filter: 'drop-shadow(0 0 8px rgba(68,136,255,0.5))' }}
+          onError={e => {
+            const t = e.target as HTMLImageElement;
+            t.style.display = 'none';
+            // Fallback text if logo not yet placed
+            const span = document.createElement('span');
+            span.textContent = 'GRUDA ARMADA';
+            Object.assign(span.style, { color:'#4488ff', fontWeight:'700', fontSize:'14px', letterSpacing:'3px' });
+            t.parentNode?.insertBefore(span, t);
+          }}
+        />
         <ResourceItem icon={RES_ICONS.credits} label="Credits" value={Math.floor(res.credits)} color="#fc4" />
         <ResourceItem icon={RES_ICONS.energy} label="Energy" value={Math.floor(res.energy)} color="#4df" />
         <ResourceItem icon={RES_ICONS.minerals} label="Minerals" value={Math.floor(res.minerals)} color="#4f8" />

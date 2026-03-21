@@ -70,11 +70,12 @@ export function StarMapOverlay({ renderer, onClose }: { renderer: SpaceRenderer;
 
         {/* Game logo + title */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <Icon src="/assets/space/ui/hud/Ability01.png" size={28} />
-          <div>
-            <div style={{ fontSize: 20, fontWeight: 900, color: C.accent, letterSpacing: 4 }}>GRUDA ARMADA</div>
-            <div style={{ fontSize: 9, color: C.muted, letterSpacing: 3 }}>STAR MAP · TACTICAL COMMAND</div>
-          </div>
+          <img src='/assets/space/ui/logo.png' alt='Gruda Armada'
+            style={{ height: 36, imageRendering: 'auto',
+              filter: 'drop-shadow(0 0 12px rgba(68,136,255,0.55))' }}
+            onError={e => { (e.target as HTMLImageElement).style.display='none'; }}
+          />
+          <div style={{ fontSize: 9, color: C.muted, letterSpacing: 3 }}>STAR MAP · TACTICAL COMMAND</div>
         </div>
 
         {/* Tabs */}
