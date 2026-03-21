@@ -606,9 +606,12 @@ function Minimap({ state, renderer }: { state: SpaceGameState; renderer: SpaceRe
 
   const toWorld = useCallback((clientX: number, clientY: number, canvas: HTMLCanvasElement) => {
     const rect = canvas.getBoundingClientRect();
-    const px = clientX - rect.left;
-    const py = clientY - rect.top;
-    // Use actual engine map size so minimap is accurate for all modes
+    // Account for CSS scaling: the canvas buffer may differ from its CSS size
+    // (e.g. on HiDPI displays or when the container rescales it)
+    const scaleX = canvas.width  / rect.width;
+    const scaleY = canvas.height / rect.height;
+    const px = (clientX - rect.left) * scaleX;
+    const py = (clientY - rect.top)  * scaleY;
     const mapW = renderer.engine.mapW;
     const mapH = renderer.engine.mapH;
     return {
@@ -671,13 +674,25 @@ function Minimap({ state, renderer }: { state: SpaceGameState; renderer: SpaceRe
       if (ship.dead) continue;
       const sx = scale(ship.x, mapW, w);
       const sy = scale(ship.y, mapH, h);
-      const size = ship.shipClass === 'battleship' || ship.shipClass === 'cruiser' ? 3 : 2;
+      // Larger dots on minimap so ships are actually visible
+      const sz = ship.shipClass === 'dreadnought' ? 5
+        : ship.shipClass === 'battleship' ? 4
+        : ship.shipClass === 'cruiser' || ship.shipClass === 'light_cruiser' ? 3.5
+        : ship.shipClass === 'worker' ? 1.5 : 2.5;
       const tc = TEAM_COLORS[ship.team];
-      ctx.fillStyle = tc ? `#${tc.toString(16).padStart(6, '0')}` : '#44ff44';
-      if (ship.selected) {
-        ctx.fillStyle = '#ffffff';
+      ctx.fillStyle = ship.selected ? '#ffffff'
+        : tc ? `#${tc.toString(16).padStart(6, '0')}` : '#44ff44';
+      // Triangle for player ships, square for enemies — easier to read
+      if (ship.team === 1) {
+        ctx.beginPath();
+        ctx.moveTo(sx, sy - sz);
+        ctx.lineTo(sx + sz * 0.7, sy + sz * 0.5);
+        ctx.lineTo(sx - sz * 0.7, sy + sz * 0.5);
+        ctx.closePath();
+        ctx.fill();
+      } else {
+        ctx.fillRect(sx - sz / 2, sy - sz / 2, sz, sz);
       }
-      ctx.fillRect(sx - size / 2, sy - size / 2, size, size);
     }
 
     // Stations
@@ -704,17 +719,41 @@ function Minimap({ state, renderer }: { state: SpaceGameState; renderer: SpaceRe
       ctx.globalAlpha = 1;
     }
 
+    // Camera viewport indicator
+    const cam = renderer.controls.cameraState;
+    const camX = scale(cam.x, mapW, w);
+    const camY = scale(cam.y, mapH, h);
+    // Viewport width in map units depends on zoom angle
+    const visGameUnits = cam.zoom * 1.5; // approximate visible game units at current zoom
+    const vw = (visGameUnits / mapW) * w;
+    const vh = (visGameUnits / mapH) * h;
+    ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([3, 2]);
+    ctx.strokeRect(camX - vw / 2, camY - vh / 2, vw, vh);
+    ctx.setLineDash([]);
+
     // Border
     ctx.strokeStyle = '#1a3050';
     ctx.lineWidth = 1;
     ctx.strokeRect(0, 0, w, h);
+
+    // Label: LMB = camera, RMB = move
+    ctx.fillStyle = 'rgba(160,200,255,0.35)';
+    ctx.font = '7px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('LMB: camera  RMB: move', 3, h - 3);
   });
 
   return (
     <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <canvas
         ref={canvasRef} width={192} height={150}
-        style={{ imageRendering: 'pixelated', cursor: 'crosshair', pointerEvents: 'auto' }}
+        style={{ imageRendering: 'pixelated', cursor: 'crosshair',
+          pointerEvents: 'auto', display: 'block',
+          // Explicit CSS size avoids browser-side canvas rescaling that
+          // would misalign click coordinates with drawn pixels.
+          width: 192, height: 150 }}
         onMouseDown={handleMouseDown}
         onContextMenu={e => e.preventDefault()}
       />

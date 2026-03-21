@@ -419,19 +419,54 @@ export class SpaceRenderer {
     return result.clone();
   }
 
+  /** SHIP_Y_OFFSET: ships float this many Three.js units above the scene
+   * ground plane so they always render visibly above planet spheres (r≈14)
+   * when viewed from the 55° camera angle. */
+  private static readonly SHIP_Y = 3.0;
+
   private createPlaceholder(team: Team, shipClass: string): THREE.Group {
     const group = new THREE.Group();
-    const size = shipClass === 'battleship' ? 3 : shipClass === 'cruiser' ? 2 : shipClass === 'destroyer' ? 1.5 : 0.6;
-    const geo = new THREE.ConeGeometry(size * 0.5, size, 6);
+
+    // Sizes chosen so ships are visible from orbital zoom (~160 units).
+    // At zoom 160, visible width ≈ 264 Three.js units; a 3-unit ship = ~1.1%
+    // of screen width ≈ 21px at 1920×1080 — clearly clickable.
+    const size =
+      shipClass === 'dreadnought' ? 8
+      : shipClass === 'battleship' ? 7
+      : shipClass === 'carrier'   ? 6
+      : shipClass === 'cruiser'   ? 5.5
+      : shipClass === 'light_cruiser' ? 5
+      : shipClass === 'destroyer' ? 4.5
+      : shipClass === 'frigate'   ? 4
+      : shipClass === 'corvette'  ? 3.5
+      : shipClass === 'worker'    ? 2.5
+      : 3; // fighters, scouts, etc.
+
+    // Forward-pointing cone (rotated to face +Z = ship’s “forward”)
+    const geo = new THREE.ConeGeometry(size * 0.4, size * 1.2, 5);
     geo.rotateX(Math.PI / 2);
+
+    const col = TEAM_COLORS[team] ?? 0x4488ff;
     const mat = new THREE.MeshStandardMaterial({
-      color: TEAM_COLORS[team] ?? 0x4488ff,
-      emissive: TEAM_COLORS[team] ?? 0x4488ff,
-      emissiveIntensity: 0.5,
-      metalness: 0.4, roughness: 0.4,
+      color: col,
+      emissive: col,
+      emissiveIntensity: 0.8,  // bright glow so ships are always visible
+      metalness: 0.3, roughness: 0.5,
+      depthTest: true,
     });
     const mesh = new THREE.Mesh(geo, mat);
+    // Ships must render on top of the ground plane and resource nodes
+    mesh.renderOrder = 2;
     group.add(mesh);
+
+    // Engine glow dot at rear
+    const glowGeo = new THREE.SphereGeometry(size * 0.25, 6, 6);
+    const glowMat = new THREE.MeshBasicMaterial({ color: 0x88ccff, transparent: true, opacity: 0.7 });
+    const glow = new THREE.Mesh(glowGeo, glowMat);
+    glow.position.z = -size * 0.6; // behind the ship
+    glow.renderOrder = 2;
+    group.add(glow);
+
     return group;
   }
 
@@ -458,23 +493,31 @@ export class SpaceRenderer {
         this.shipMeshes.set(id, meshData);
 
         // Add selection ring
-        const ringGeo = new THREE.RingGeometry(0.8, 1.0, 32);
-        const ringMat = new THREE.MeshBasicMaterial({ color: 0x44ff44, transparent: true, opacity: 0, side: THREE.DoubleSide });
+        // Selection ring — size scales with ship tier for visibility
+        const shipDef = SHIP_DEFINITIONS[ship.shipType];
+        const ringR = shipDef?.stats.tier ?? 1;
+        const ringGeo = new THREE.RingGeometry(ringR * 0.8 + 0.5, ringR * 0.8 + 0.8, 32);
+        const ringMat = new THREE.MeshBasicMaterial({
+          color: 0x44ff44, transparent: true, opacity: 0,
+          side: THREE.DoubleSide, depthTest: false,
+        });
         const ring = new THREE.Mesh(ringGeo, ringMat);
         ring.rotation.x = -Math.PI / 2;
-        ring.position.y = -0.2;
+        ring.position.y = -SpaceRenderer.SHIP_Y + 0.2; // ground level ring
+        ring.renderOrder = 3;
         group.add(ring);
         meshData.selectionRing = ring;
 
-        // Add health bar
-        const hbBg = new THREE.Mesh(new THREE.PlaneGeometry(1.5, 0.15), new THREE.MeshBasicMaterial({ color: 0x333333, depthTest: false }));
-        hbBg.position.y = 1.5;
+        // Add health bar — positioned above ship, always faces camera
+        const barW = Math.max(1.5, (shipDef?.stats.tier ?? 1) * 0.8);
+        const hbBg = new THREE.Mesh(new THREE.PlaneGeometry(barW, 0.18), new THREE.MeshBasicMaterial({ color: 0x222233, depthTest: false }));
+        hbBg.position.y = 2.2; // above the elevated ship
         hbBg.renderOrder = 999;
         group.add(hbBg);
         meshData.healthBg = hbBg;
 
-        const hb = new THREE.Mesh(new THREE.PlaneGeometry(1.5, 0.15), new THREE.MeshBasicMaterial({ color: TEAM_COLORS[ship.team], depthTest: false }));
-        hb.position.y = 1.5;
+        const hb = new THREE.Mesh(new THREE.PlaneGeometry(barW, 0.18), new THREE.MeshBasicMaterial({ color: TEAM_COLORS[ship.team], depthTest: false }));
+        hb.position.y = 2.2;
         hb.renderOrder = 1000;
         group.add(hb);
         meshData.healthBar = hb;
@@ -494,8 +537,14 @@ export class SpaceRenderer {
         }
       }
 
-      // Update position
-      meshData.group.position.set(ship.x * WORLD_SCALE, ship.z * WORLD_SCALE, ship.y * WORLD_SCALE);
+      // Update position — ships float SHIP_Y units above the scene plane
+      // so they are always visible above planet spheres (which sit at y=0)
+      // and the 55° camera never depth-buffers them behind terrain.
+      meshData.group.position.set(
+        ship.x * WORLD_SCALE,
+        SpaceRenderer.SHIP_Y + ship.z * WORLD_SCALE,  // elevated above ground
+        ship.y * WORLD_SCALE,
+      );
       meshData.group.rotation.y = -ship.facing;
 
       // Apply procedural animation
