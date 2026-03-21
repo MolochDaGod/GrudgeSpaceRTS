@@ -1,4 +1,4 @@
-import type { SpaceGameState, SpaceShip, SpaceStation, Planet, OrbitalTower, Projectile, SpriteEffect, PlayerResources, Team, Vec3, ExplosionType, ExplosionScale, HitFxType } from './space-types';
+import type { SpaceGameState, SpaceShip, SpaceStation, Planet, OrbitalTower, Projectile, SpriteEffect, PlayerResources, Team, Vec3, ExplosionType, ExplosionScale, HitFxType, ShipAbilityState } from './space-types';
 import { SHIP_DEFINITIONS, TEAM_COLORS, EXPLOSION_SCALE_VALUES, MAP_WIDTH, MAP_HEIGHT } from './space-types';
 
 export class SpaceEngine {
@@ -37,12 +37,22 @@ export class SpaceEngine {
     this.spawnShip('dual_striker', 1 as Team, p0.x - 60, p0.y + 100);
     this.spawnShip('warship', 1 as Team, p0.x - 200, p0.y + 100);
 
-    // Enemy starting fleet
+    // Enemy starting fleet — IDENTICAL to player (fair, modern RTS)
     const pLast = this.state.planets[this.state.planets.length - 1];
     this.spawnShip('red_fighter', 2 as Team, pLast.x + 100, pLast.y - 80);
     this.spawnShip('red_fighter', 2 as Team, pLast.x + 100, pLast.y - 120);
-    this.spawnShip('dual_striker', 2 as Team, pLast.x + 150, pLast.y - 100);
+    this.spawnShip('red_fighter', 2 as Team, pLast.x + 100, pLast.y - 160);
+    this.spawnShip('galactix_racer', 2 as Team, pLast.x + 150, pLast.y - 100);
+    this.spawnShip('micro_recon', 2 as Team, pLast.x + 180, pLast.y - 130);
+    this.spawnShip('dual_striker', 2 as Team, pLast.x + 60, pLast.y - 100);
     this.spawnShip('warship', 2 as Team, pLast.x + 200, pLast.y - 100);
+
+    // Enable autocast on all enemy abilities for competent AI play
+    for (const [, ship] of this.state.ships) {
+      if (ship.team === 2) {
+        for (const ab of ship.abilities) ab.autoCast = true;
+      }
+    }
   }
 
   private generatePlanets(): Planet[] {
@@ -79,7 +89,7 @@ export class SpaceEngine {
       attackDamage: s.attackDamage, attackRange: s.attackRange,
       attackCooldown: s.attackCooldown, attackTimer: 0, attackType: s.attackType,
       supplyCost: s.supplyCost,
-      abilities: (s.abilities || []).map(a => ({ ability: a, cooldownRemaining: 0, active: false, activeTimer: 0 })),
+      abilities: (s.abilities || []).map(a => ({ ability: a, cooldownRemaining: 0, active: false, activeTimer: 0, autoCast: false })),
       animState: 'idle', animTimer: Math.random() * 10,
       selected: false, controlGroup: 0, stationId: null,
       orbitTarget: null, orbitRadius: 0, orbitAngle: 0,
@@ -97,7 +107,7 @@ export class SpaceEngine {
     this.updateProjectiles(dt);
     this.updateEffects(dt);
     this.updateResources(dt);
-    this.updateAIWaves(dt);
+    this.updateAIBehavior(dt);
     this.cleanupDead();
   }
 
@@ -167,12 +177,36 @@ export class SpaceEngine {
         }
       }
 
-      // Ability cooldowns
+      // Ability cooldowns + autocast
       for (const ab of ship.abilities) {
         ab.cooldownRemaining = Math.max(0, ab.cooldownRemaining - dt);
         if (ab.active) {
           ab.activeTimer -= dt;
           if (ab.activeTimer <= 0) ab.active = false;
+        }
+        // Autocast: fire ability when off cooldown, in combat, and has energy
+        if (ab.autoCast && !ab.active && ab.cooldownRemaining <= 0 && ship.targetId !== null) {
+          const res = this.state.resources[ship.team];
+          if (res && res.energy >= ab.ability.energyCost) {
+            ab.active = true;
+            ab.activeTimer = ab.ability.duration;
+            ab.cooldownRemaining = ab.ability.cooldown;
+            res.energy -= ab.ability.energyCost;
+            // Apply ability animation state
+            if (ab.ability.type === 'barrel_roll') ship.animState = 'barrel_roll';
+            else if (ab.ability.type === 'speed_boost') ship.animState = 'speed_boost';
+            else if (ab.ability.type === 'cloak') ship.animState = 'cloaked';
+            else if (ab.ability.type === 'warp') ship.animState = 'warping';
+            else if (ab.ability.type === 'iron_dome') {
+              this.spawnSpriteEffect(ship.x, ship.y, 0, 'waveform', 3.0);
+            } else if (ab.ability.type === 'emp') {
+              this.spawnSpriteEffect(ship.x, ship.y, 0, 'spark', 2.5);
+            } else if (ab.ability.type === 'ram') {
+              ship.speed *= 2.5;
+              setTimeout(() => { ship.speed = SHIP_DEFINITIONS[ship.shipType]?.stats.speed ?? ship.speed; }, ab.ability.duration * 1000);
+            }
+            ship.animTimer = 0;
+          }
         }
       }
     }
@@ -320,24 +354,38 @@ export class SpaceEngine {
     }
   }
 
-  private updateAIWaves(dt: number) {
+  /** AI behavior — no spawning, just smart use of existing units */
+  private updateAIBehavior(dt: number) {
     this.aiWaveTimer -= dt;
     if (this.aiWaveTimer <= 0) {
-      this.aiWaveTimer = 25 + Math.random() * 15;
-      // Spawn enemy wave
-      const pLast = this.state.planets[this.state.planets.length - 1];
-      const types = ['red_fighter', 'red_fighter', 'dual_striker', 'galactix_racer'];
-      for (const type of types) {
-        this.spawnShip(type, 2 as Team,
-          pLast.x + 50 + Math.random() * 100,
-          pLast.y - 50 + Math.random() * 100,
-        );
+      this.aiWaveTimer = 8 + Math.random() * 6;
+
+      // Count forces
+      let aiCount = 0, playerCount = 0;
+      for (const [, s] of this.state.ships) {
+        if (s.dead) continue;
+        if (s.team === 2) aiCount++;
+        if (s.team === 1) playerCount++;
       }
-      // AI ships attack-move toward player area
-      const p0 = this.state.planets[0];
+
+      // Find nearest player ship to rally toward
+      let rallyX = 0, rallyY = 0;
+      let found = false;
+      for (const [, s] of this.state.ships) {
+        if (s.dead || s.team !== 1) continue;
+        rallyX = s.x; rallyY = s.y; found = true; break;
+      }
+      if (!found) return; // player has no ships
+
+      // AI attack-moves idle ships toward nearest player unit
       for (const [, ship] of this.state.ships) {
-        if (ship.team === 2 && !ship.moveTarget) {
-          ship.moveTarget = { x: p0.x + (Math.random() - 0.5) * 200, y: p0.y + (Math.random() - 0.5) * 200, z: 0 };
+        if (ship.dead || ship.team !== 2) continue;
+        if (!ship.moveTarget && !ship.targetId) {
+          ship.moveTarget = {
+            x: rallyX + (Math.random() - 0.5) * 200,
+            y: rallyY + (Math.random() - 0.5) * 200,
+            z: 0,
+          };
           ship.isAttackMoving = true;
         }
       }

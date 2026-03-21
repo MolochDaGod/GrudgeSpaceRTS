@@ -106,6 +106,7 @@ export interface ShipAbilityState {
   cooldownRemaining: number;
   active: boolean;
   activeTimer: number;
+  autoCast: boolean;
 }
 
 // ── Space Station ───────────────────────────────────────────────
