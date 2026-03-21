@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import type { SpaceRenderer } from './space-renderer';
-import type { SpaceShip, ShipAbilityState, PlayerResources, SpaceGameState } from './space-types';
-import { SHIP_DEFINITIONS } from './space-types';
+import type { SpaceShip, SpaceStation, ShipAbilityState, PlayerResources, SpaceGameState, TeamUpgrades } from './space-types';
+import { SHIP_DEFINITIONS, BUILDABLE_SHIPS, UPGRADE_COSTS, UPGRADE_BONUSES, TEAM_COLORS, CAPTURE_TIME, DOMINATION_TIME, HERO_DEFINITIONS, HERO_SHIPS, getShipDef, type UpgradeType } from './space-types';
 
 // ── Ability SVG Icons ─────────────────────────────────────────────
 const ABILITY_ICONS: Record<string, React.ReactNode> = {
@@ -138,9 +138,10 @@ const STAT_ICONS = {
 
 interface SpaceHUDProps {
   renderer: SpaceRenderer | null;
+  onQuit?: () => void;
 }
 
-export function SpaceHUD({ renderer }: SpaceHUDProps) {
+export function SpaceHUD({ renderer, onQuit }: SpaceHUDProps) {
   const [, forceUpdate] = useState(0);
   const animRef = useRef(0);
 
@@ -158,7 +159,8 @@ export function SpaceHUD({ renderer }: SpaceHUDProps) {
 
   if (!renderer?.engine?.state) return null;
   const state = renderer.engine.state;
-  const res = state.resources[1 as 1]; // player resources
+  const res = state.resources[1]; // player resources
+  const upg = state.upgrades[1];
 
   // Get selected ships
   const selectedShips: SpaceShip[] = [];
@@ -167,21 +169,49 @@ export function SpaceHUD({ renderer }: SpaceHUDProps) {
     if (ship && !ship.dead) selectedShips.push(ship);
   }
 
+  // Selected station?
+  let selectedStation: SpaceStation | null = null;
+  // Check if any station is close to click (simple: check if station is 'selected')
+  for (const [, st] of state.stations) {
+    if (st.selected && !st.dead && st.team === 1) { selectedStation = st; break; }
+  }
+
   // Primary selected ship (for portrait/command card)
   const primary = selectedShips[0] ?? null;
   const def = primary ? SHIP_DEFINITIONS[primary.shipType] : null;
 
-  // Count alive ships
-  let playerAlive = 0, enemyAlive = 0;
+  // Count alive ships per team
+  const teamCounts = new Map<number, number>();
   for (const [, s] of state.ships) {
     if (s.dead) continue;
-    if (s.team === 1) playerAlive++;
-    if (s.team === 2) enemyAlive++;
+    teamCounts.set(s.team, (teamCounts.get(s.team) ?? 0) + 1);
   }
+  const playerAlive = teamCounts.get(1) ?? 0;
+  const enemyAlive = (teamCounts.get(2) ?? 0) + (teamCounts.get(3) ?? 0) + (teamCounts.get(4) ?? 0);
 
   return (
     <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', fontFamily: "'Segoe UI', monospace", color: '#cde' }}>
-      {/* ── Top Resource Bar ─────────────────────────────── */}
+      {/* ── Game Over Overlay ─────────────────────────── */}
+      {state.gameOver && (
+        <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.8)', zIndex: 200, pointerEvents: 'auto' }}>
+          <div style={{ fontSize: 56, fontWeight: 800, color: state.winner === 1 ? '#44ff44' : '#ff4444', marginBottom: 8 }}>
+            {state.winner === 1 ? 'VICTORY' : 'DEFEAT'}
+          </div>
+          <div style={{ fontSize: 16, opacity: 0.6, marginBottom: 32 }}>
+            {state.winCondition === 'domination' ? 'Won by Domination' : 'Won by Elimination'}
+          </div>
+          {onQuit && <button onClick={onQuit} style={{ padding: '12px 40px', fontSize: 16, fontWeight: 700, color: '#fff', background: '#2266cc', border: 'none', borderRadius: 6, cursor: 'pointer' }}>BACK TO MENU</button>}
+        </div>
+      )}
+
+      {/* ── Domination Warning ────────────────────────── */}
+      {state.dominationTeam !== null && state.dominationTimer > 0 && !state.gameOver && (
+        <div style={{ position: 'absolute', top: 44, left: '50%', transform: 'translateX(-50%)', background: state.dominationTeam === 1 ? 'rgba(68,255,68,0.2)' : 'rgba(255,68,68,0.2)', border: `1px solid ${state.dominationTeam === 1 ? '#4f4' : '#f44'}`, padding: '6px 20px', borderRadius: 6, fontSize: 13, fontWeight: 700, color: state.dominationTeam === 1 ? '#4f4' : '#f44', pointerEvents: 'none', zIndex: 20 }}>
+          DOMINATION: {Math.ceil(DOMINATION_TIME - state.dominationTimer)}s remaining
+        </div>
+      )}
+
+      {/* ── Top Resource Bar ───────────────────────────── */}
       <div style={{
         position: 'absolute', top: 0, left: 0, right: 0, height: 36,
         background: 'linear-gradient(180deg, rgba(8,14,24,0.95) 0%, rgba(8,14,24,0.7) 100%)',
@@ -189,10 +219,11 @@ export function SpaceHUD({ renderer }: SpaceHUDProps) {
         display: 'flex', alignItems: 'center', padding: '0 16px', gap: 24,
         pointerEvents: 'auto', zIndex: 10,
       }}>
-        <span style={{ color: '#4488ff', fontWeight: 700, fontSize: 14 }}>GRUDGE RTS</span>
+        <span style={{ color: '#4488ff', fontWeight: 700, fontSize: 14 }}>NEXUS NEMESIS</span>
         <ResourceItem icon={RES_ICONS.credits} label="Credits" value={Math.floor(res.credits)} color="#fc4" />
         <ResourceItem icon={RES_ICONS.energy} label="Energy" value={Math.floor(res.energy)} color="#4df" />
         <ResourceItem icon={RES_ICONS.minerals} label="Minerals" value={Math.floor(res.minerals)} color="#4f8" />
+        <span style={{ fontSize: 10, opacity: 0.5 }}>{Math.floor(res.supply)}/{res.maxSupply} supply</span>
         <div style={{ flex: 1 }} />
         <div style={{ fontSize: 11, opacity: 0.6, display: 'flex', alignItems: 'center', gap: 6 }}>
           <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#4488ff', display: 'inline-block' }} />
@@ -202,6 +233,7 @@ export function SpaceHUD({ renderer }: SpaceHUDProps) {
           {enemyAlive}
         </div>
         <span style={{ fontSize: 11, opacity: 0.5 }}>{formatTime(state.gameTime)}</span>
+        {onQuit && <button onClick={onQuit} style={{ fontSize: 10, padding: '2px 10px', background: 'transparent', border: '1px solid #333', color: '#888', borderRadius: 4, cursor: 'pointer' }}>QUIT</button>}
       </div>
 
       {/* ── Bottom Panel (StarCraft-style) ───────────────── */}
@@ -230,14 +262,18 @@ export function SpaceHUD({ renderer }: SpaceHUDProps) {
           )}
         </div>
 
-        {/* ── Command Card (center-right) ─────────────────── */}
-        <div style={{ flex: 1, height: '100%', padding: '8px 12px' }}>
-          {primary && primary.abilities.length > 0 ? (
+        {/* ── Command Card / Build Panel (center-right) ──── */}
+        <div style={{ flex: 1, height: '100%', padding: '8px 12px', overflowY: 'auto' }}>
+          {selectedStation ? (
+            <BuildPanel station={selectedStation} renderer={renderer} res={res} />
+          ) : primary && primary.abilities.length > 0 ? (
             <CommandCard ship={primary} renderer={renderer} allSelected={selectedShips} />
           ) : primary ? (
             <div style={{ opacity: 0.4, fontSize: 12, marginTop: 50, textAlign: 'center' }}>
               {def?.displayName ?? primary.shipType} — No abilities
             </div>
+          ) : upg ? (
+            <UpgradePanel upg={upg} res={res} renderer={renderer} />
           ) : null}
         </div>
       </div>
@@ -488,8 +524,8 @@ function Minimap({ state }: { state: SpaceGameState }) {
 
     const w = canvas.width;
     const h = canvas.height;
-    const mapW = 3200;
-    const mapH = 3200;
+    const mapW = 8000;
+    const mapH = 8000;
     const scale = (v: number, max: number, dim: number) => ((v + max / 2) / max) * dim;
 
     ctx.fillStyle = '#080c14';
@@ -513,11 +549,36 @@ function Minimap({ state }: { state: SpaceGameState }) {
       const sx = scale(ship.x, mapW, w);
       const sy = scale(ship.y, mapH, h);
       const size = ship.shipClass === 'battleship' || ship.shipClass === 'cruiser' ? 3 : 2;
-      ctx.fillStyle = ship.team === 1 ? '#4488ff' : ship.team === 2 ? '#ff4444' : '#44ff44';
+      const tc = TEAM_COLORS[ship.team];
+      ctx.fillStyle = tc ? `#${tc.toString(16).padStart(6, '0')}` : '#44ff44';
       if (ship.selected) {
         ctx.fillStyle = '#ffffff';
       }
       ctx.fillRect(sx - size / 2, sy - size / 2, size, size);
+    }
+
+    // Stations
+    for (const [, st] of state.stations) {
+      if (st.dead) continue;
+      const sx = scale(st.x, mapW, w), sy = scale(st.y, mapH, h);
+      const stc = TEAM_COLORS[st.team];
+      ctx.fillStyle = stc ? `#${stc.toString(16).padStart(6, '0')}` : '#4488ff';
+      ctx.fillRect(sx - 2, sy - 2, 4, 1);
+      ctx.fillRect(sx - 1, sy - 3, 2, 5); // cross
+    }
+
+    // Planet owner rings
+    for (const p of state.planets) {
+      if (p.owner === 0) continue;
+      const px = scale(p.x, mapW, w), py = scale(p.y, mapH, h);
+      const oc = TEAM_COLORS[p.owner];
+      ctx.strokeStyle = oc ? `#${oc.toString(16).padStart(6, '0')}` : '#fff';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.arc(px, py, Math.max(4, p.radius * 0.04), 0, Math.PI * 2);
+      ctx.globalAlpha = 0.6;
+      ctx.stroke();
+      ctx.globalAlpha = 1;
     }
 
     // Border
@@ -533,7 +594,142 @@ function Minimap({ state }: { state: SpaceGameState }) {
   );
 }
 
-// ── Helpers ───────────────────────────────────────────────────────
+// ── Build Panel (when station selected) ─────────────────────────
+function BuildPanel({ station, renderer, res }: { station: SpaceStation; renderer: SpaceRenderer; res: PlayerResources }) {
+  const tiers = [1, 2, 3, 4, 5];
+  return (
+    <div>
+      <div style={{ fontSize: 11, fontWeight: 600, marginBottom: 4, color: '#4df' }}>BUILD SHIPS</div>
+
+      {/* Auto-produce selector (swarm style) */}
+      <div style={{ marginBottom: 6, display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center' }}>
+        <span style={{ fontSize: 9, opacity: 0.5 }}>Auto:</span>
+        <div onClick={() => renderer.engine.setAutoProduction(station.id, null)} style={{
+          fontSize: 8, padding: '2px 6px', borderRadius: 3, cursor: 'pointer',
+          background: !station.autoProduceType ? '#2266cc' : '#1a2a40', border: '1px solid #1a3050',
+        }}>OFF</div>
+        {['red_fighter', 'galactix_racer', 'dual_striker'].map(key => {
+          const d = SHIP_DEFINITIONS[key];
+          return d ? (
+            <div key={key} onClick={() => renderer.engine.setAutoProduction(station.id, key)} style={{
+              fontSize: 8, padding: '2px 6px', borderRadius: 3, cursor: 'pointer',
+              background: station.autoProduceType === key ? '#2266cc' : '#1a2a40', border: '1px solid #1a3050',
+            }}>{d.displayName}</div>
+          ) : null;
+        })}
+      </div>
+
+      {/* Build queue */}
+      {station.buildQueue.length > 0 && (
+        <div style={{ marginBottom: 6 }}>
+          {station.buildQueue.map((item, i) => {
+            const itemDef = getShipDef(item.shipType);
+            return (
+              <div key={i} style={{ fontSize: 10, display: 'flex', gap: 6, marginBottom: 2 }}>
+                <span style={{ color: HERO_SHIPS.includes(item.shipType) ? '#fc4' : '#fff', fontWeight: 600 }}>{itemDef?.displayName ?? item.shipType}</span>
+                <span style={{ color: '#fc4' }}>{item.buildTimeRemaining.toFixed(0)}s</span>
+                {i === 0 && <div style={{ flex: 1, height: 4, background: '#1a1a2a', borderRadius: 2, alignSelf: 'center' }}>
+                  <div style={{ height: '100%', width: `${(1 - item.buildTimeRemaining / item.totalBuildTime) * 100}%`, background: '#4488ff', borderRadius: 2 }} />
+                </div>}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Stock ships */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, maxHeight: 90, overflowY: 'auto', marginBottom: 6 }}>
+        {tiers.flatMap(tier => (BUILDABLE_SHIPS[tier] ?? []).map(key => {
+          const def = SHIP_DEFINITIONS[key];
+          if (!def) return null;
+          const s = def.stats;
+          const canAfford = res.credits >= s.creditCost && res.energy >= s.energyCost && res.minerals >= s.mineralCost;
+          return (
+            <div key={key} onClick={() => canAfford && renderer.engine.queueBuild(station.id, key)} style={{
+              width: 68, padding: '4px 2px', border: '1px solid #1a3050', borderRadius: 4,
+              background: canAfford ? 'rgba(16,24,40,0.8)' : 'rgba(16,24,40,0.3)',
+              opacity: canAfford ? 1 : 0.4, cursor: canAfford ? 'pointer' : 'default',
+              textAlign: 'center', fontSize: 8,
+            }}>
+              <div style={{ fontSize: 9, fontWeight: 700, color: '#fff', marginBottom: 2 }}>{def.displayName}</div>
+              <div style={{ color: '#fc4' }}>{s.creditCost}c</div>
+              <div style={{ color: '#4df' }}>{s.energyCost}e</div>
+              <div style={{ color: '#4f8' }}>{s.mineralCost}m</div>
+            </div>
+          );
+        }))}
+      </div>
+
+      {/* Hero ships (only if station can build heroes) */}
+      {station.canBuildHeroes && (
+        <>
+          <div style={{ fontSize: 10, fontWeight: 700, color: '#fc4', marginBottom: 4, borderTop: '1px solid #1a3050', paddingTop: 4 }}>HERO SHIPS</div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+            {HERO_SHIPS.map(key => {
+              const def = HERO_DEFINITIONS[key];
+              if (!def) return null;
+              const s = def.stats;
+              const canAfford = res.credits >= s.creditCost && res.energy >= s.energyCost && res.minerals >= s.mineralCost;
+              return (
+                <div key={key} onClick={() => canAfford && renderer.engine.queueBuild(station.id, key)} style={{
+                  width: 78, padding: '4px 2px', border: '1px solid #443300', borderRadius: 4,
+                  background: canAfford ? 'rgba(40,30,10,0.9)' : 'rgba(20,15,5,0.5)',
+                  opacity: canAfford ? 1 : 0.4, cursor: canAfford ? 'pointer' : 'default',
+                  textAlign: 'center', fontSize: 8,
+                }}>
+                  <div style={{ fontSize: 9, fontWeight: 700, color: '#fc4', marginBottom: 2 }}>{def.displayName}</div>
+                  <div style={{ color: '#fc4' }}>{s.creditCost}c</div>
+                  <div style={{ color: '#4df' }}>{s.energyCost}e</div>
+                  <div style={{ color: '#4f8' }}>{s.mineralCost}m</div>
+                  <div style={{ color: '#888', fontSize: 7, marginTop: 1 }}>{s.buildTime}s</div>
+                </div>
+              );
+            })}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ── Upgrade Panel (when nothing selected) ───────────────────────
+function UpgradePanel({ upg, res, renderer }: { upg: TeamUpgrades; res: PlayerResources; renderer: SpaceRenderer }) {
+  const types: { key: keyof TeamUpgrades; label: string; color: string }[] = [
+    { key: 'attack', label: 'Attack', color: '#f44' },
+    { key: 'armor', label: 'Armor', color: '#8ac' },
+    { key: 'speed', label: 'Speed', color: '#fa0' },
+    { key: 'health', label: 'Health', color: '#4f4' },
+    { key: 'shield', label: 'Shield', color: '#4df' },
+  ];
+  return (
+    <div>
+      <div style={{ fontSize: 11, fontWeight: 600, marginBottom: 6, color: '#fa0' }}>GLOBAL UPGRADES</div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+        {types.map(t => {
+          const level = upg[t.key];
+          const maxed = level >= 5;
+          const cost = !maxed ? UPGRADE_COSTS[level] : null;
+          const canAfford = cost ? res.credits >= cost.credits && res.minerals >= cost.minerals && res.energy >= cost.energy : false;
+          return (
+            <div key={t.key} onClick={() => canAfford && renderer.engine.purchaseUpgrade(1 as any, t.key)} style={{
+              width: 80, padding: 6, border: '1px solid #1a3050', borderRadius: 4,
+              background: maxed ? 'rgba(68,255,68,0.1)' : canAfford ? 'rgba(16,24,40,0.8)' : 'rgba(16,24,40,0.3)',
+              opacity: maxed ? 0.6 : canAfford ? 1 : 0.5, cursor: canAfford ? 'pointer' : 'default',
+              textAlign: 'center',
+            }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: t.color }}>{t.label}</div>
+              <div style={{ fontSize: 12, fontWeight: 800, color: '#fff', margin: '2px 0' }}>Lv {level}/5</div>
+              {!maxed && cost && <div style={{ fontSize: 8, opacity: 0.7 }}>{cost.credits}c {cost.minerals}m {cost.energy}e</div>}
+              {maxed && <div style={{ fontSize: 8, color: '#4f4' }}>MAX</div>}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ── Helpers ─────────────────────────────────────────────────
 function formatTime(seconds: number): string {
   const m = Math.floor(seconds / 60);
   const s = Math.floor(seconds % 60);
