@@ -13,11 +13,9 @@ import type {
   SpaceGameState, SpaceShip, Team, Vec3,
 } from './space-types';
 import {
-  BUILDABLE_SHIPS, TEAM_COLORS, getShipDef,
+  BUILDABLE_SHIPS, getShipDef,
 } from './space-types';
-import {
-  ALL_TECH_TREES, VOID_POWERS, PLANET_TYPE_TO_TECH,
-} from './space-techtree';
+import { VOID_POWERS } from './space-techtree';
 
 // ── Helpers ─────────────────────────────────────────────────────────
 function dist2d(a: { x: number; y: number }, b: { x: number; y: number }) {

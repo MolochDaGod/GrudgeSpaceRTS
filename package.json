@@ -9,14 +9,11 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@tailwindcss/vite": "^4.2.2",
     "@types/howler": "^2.2.12",
     "@types/three": "^0.183.1",
-    "cannon-es": "^0.20.0",
     "howler": "^2.2.4",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
-    "tailwindcss": "^4.2.2",
     "three": "^0.183.2"
   },
   "devDependencies": {

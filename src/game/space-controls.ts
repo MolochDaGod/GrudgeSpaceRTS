@@ -24,7 +24,8 @@ export class SpaceControls {
   private keys = new Set<string>();
   private mouseDown = false;
   private rightMouseDown = false;
-  private commandMode: 'normal' | 'attack_move' | 'patrol' = 'normal';
+  /** Public so HUD action buttons can activate attack-move / patrol modes. */
+  commandMode: 'normal' | 'attack_move' | 'patrol' = 'normal';
 
   constructor(container: HTMLElement, camera: THREE.PerspectiveCamera, state: SpaceGameState, renderer: THREE.WebGLRenderer) {
     this.container = container;
