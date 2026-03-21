@@ -77,7 +77,9 @@ export class SpaceRenderer {
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0x020408);
 
-    this.camera = new THREE.PerspectiveCamera(50, this.container.clientWidth / this.container.clientHeight, 1, 5000);
+    // Far plane 12 000: supports camera distance up to ~2400 zoom (≈1966 height)
+    // + star field radius up to 6000 + margin (max camera-to-star ≈ 8400 < 12 000).
+    this.camera = new THREE.PerspectiveCamera(50, this.container.clientWidth / this.container.clientHeight, 0.5, 12000);
     this.camera.position.set(0, 120, 80);
     this.camera.lookAt(0, 0, 0);
 
@@ -130,7 +132,8 @@ export class SpaceRenderer {
 
     for (let i = 0; i < count; i++) {
       const i3 = i * 3;
-      const r = 1000 + Math.random() * 2000;
+      // Pushed to r=2000-6000 so stars stay behind the scene even at max zoom.
+      const r = 2000 + Math.random() * 4000;
       const theta = Math.random() * Math.PI * 2;
       const phi = Math.acos(2 * Math.random() - 1);
       positions[i3]     = r * Math.sin(phi) * Math.cos(theta);
@@ -164,7 +167,7 @@ export class SpaceRenderer {
     const twinkleOffsets = new Float32Array(count2);
     for (let i = 0; i < count2; i++) {
       const i3 = i * 3;
-      const r = 800 + Math.random() * 700;
+      const r = 1800 + Math.random() * 1200;  // twinkling layer in front of far stars
       const theta = Math.random() * Math.PI * 2;
       const phi = Math.acos(2 * Math.random() - 1);
       pos2[i3]     = r * Math.sin(phi) * Math.cos(theta);
@@ -470,15 +473,21 @@ export class SpaceRenderer {
       // Apply procedural animation
       applyShipAnimation(meshData.group, ship, dt);
 
-      // Update health bar
+      // Update health bar — hide at extreme zoom (ships are sub-pixel)
       if (meshData.healthBar) {
-        const pct = ship.hp / ship.maxHp;
-        meshData.healthBar.scale.x = Math.max(0.01, pct);
-        meshData.healthBar.position.x = -(1 - pct) * 0.75;
-        (meshData.healthBar.material as THREE.MeshBasicMaterial).color.setHex(pct > 0.5 ? 0x44ff44 : pct > 0.25 ? 0xffaa00 : 0xff4444);
-        // Face camera
-        meshData.healthBar.lookAt(this.camera.position);
-        meshData.healthBg!.lookAt(this.camera.position);
+        const zoom = this.controls.cameraState.zoom;
+        const showBar = zoom < 600;
+        meshData.healthBar.visible = showBar;
+        meshData.healthBg!.visible  = showBar;
+        if (showBar) {
+          const pct = ship.hp / ship.maxHp;
+          meshData.healthBar.scale.x = Math.max(0.01, pct);
+          meshData.healthBar.position.x = -(1 - pct) * 0.75;
+          (meshData.healthBar.material as THREE.MeshBasicMaterial).color.setHex(
+            pct > 0.5 ? 0x44ff44 : pct > 0.25 ? 0xffaa00 : 0xff4444);
+          meshData.healthBar.lookAt(this.camera.position);
+          meshData.healthBg!.lookAt(this.camera.position);
+        }
       }
 
       // Selection ring

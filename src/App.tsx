@@ -108,9 +108,9 @@ function MainMenu({ onStart, onCodex, onHowTo, mode, setMode }: {
   mode: GameMode; setMode: (m: GameMode) => void;
 }) {
   const modes: { key: GameMode; label: string; desc: string }[] = [
-    { key: '1v1',  label: '1 vs 1',       desc: '2 players, 7 planets, tactical map' },
-    { key: '2v2',  label: '2 vs 2',       desc: '4 players, 14 planets, epic scale' },
-    { key: 'ffa4', label: 'Free For All', desc: '4 players, 14 planets, last one standing' },
+    { key: '1v1',  label: 'INNER SYSTEM',  desc: '2 commanders · 7 planets · Solar System Scrim' },
+    { key: '2v2',  label: 'OUTER SYSTEM',  desc: '4 commanders · 14 planets · Solar System Scrim' },
+    { key: 'ffa4', label: 'FULL SECTOR',   desc: '4 commanders · 14 planets · Free-for-All Scrim' },
   ];
   return (
     <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#010308', color: '#cde', zIndex: 100 }}>
