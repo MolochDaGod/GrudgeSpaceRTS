@@ -2,14 +2,25 @@ import type {
   SpaceGameState, SpaceShip, SpaceStation, Planet,
   Projectile, SpriteEffect, PlayerResources, Team, Vec3,
   ExplosionType, HitFxType, ShipAbilityState, GameMode, TeamUpgrades,
-  ResourceNode, PlanetType,
+  ResourceNode, PlanetType, PlanetTurret, TeamTechState, VoidEffect,
+  Commander, CommanderSpec,
 } from './space-types';
 import {
   SHIP_DEFINITIONS, TEAM_COLORS,
   CAPTURE_TIME, CAPTURE_RATE_PER_UNIT, NEUTRAL_DEFENDERS, DOMINATION_TIME,
   BUILDABLE_SHIPS, UPGRADE_COSTS, UPGRADE_BONUSES, getMapSize,
   HERO_DEFINITIONS, HERO_SHIPS, getShipDef, PLANET_TYPE_DATA,
+  defaultTechBonuses,
+  COMMANDER_NAMES, COMMANDER_XP_LEVELS, COMMANDER_TRAIN_TIME, COMMANDER_TRAIN_COST,
+  COMMANDER_SPEC_PLANET,
 } from './space-types';
+import {
+  ALL_TECH_TREES, VOID_POWERS, PLANET_TYPE_TO_TECH, TURRET_DEFS,
+  XP_THRESHOLDS, RANK_STAT_BONUS,
+} from './space-techtree';
+import {
+  createAIBrain, updateAIBrain, type AIBrain,
+} from './space-ai';
 
 // ── Helpers ──────────────────────────────────────────────────────
 function lerpAngle(a: number, b: number, t: number): number {
@@ -36,8 +47,11 @@ export class SpaceEngine {
   private aiTimers = new Map<number, number>();
   private aiBuildTimers = new Map<number, number>();
   private winCheckTimer = 0;
+  private aiBrains = new Map<number, AIBrain>();
+  private techResearchTimer = new Map<number, number>();
   mapW = 8000;
   mapH = 8000;
+  aiDifficulty = 3; // default D3
 
   initGame(mode: GameMode = '1v1') {
     const map = getMapSize(mode);
@@ -54,10 +68,22 @@ export class SpaceEngine {
     const upgrades: Record<number, TeamUpgrades> = { 0: makeUpg() };
     for (const t of activePlayers) { resources[t] = makeRes(); upgrades[t] = makeUpg(); }
 
+    // Init tech state per team
+    const techState = new Map<number, TeamTechState>();
+    const voidCds   = new Map<number, Map<string, number>>();
+    for (const t of activePlayers) {
+      techState.set(t, { researchedNodes: new Set(), inResearch: null, researchTimeRemaining: 0, unlockedShips: new Set(), unlockedTurrets: new Set(['laser_turret', 'missile_turret']), bonuses: defaultTechBonuses() });
+      voidCds.set(t, new Map());
+    }
+
     this.state = {
       gameMode: mode, ships: new Map(), stations: new Map(),
       planets: this.generatePlanets(mode, activePlayers),
       resourceNodes: new Map(),
+      planetTurrets: new Map(),
+      techState, voidCooldowns: voidCds, activeVoidEffects: [],
+      aiDifficulty: this.aiDifficulty,
+      commanders: new Map(),
       towers: new Map(), projectiles: new Map(),
       spriteEffects: [], glbEffects: [], alerts: [],
       resources, upgrades,
@@ -71,6 +97,9 @@ export class SpaceEngine {
     for (const team of activePlayers) {
       this.aiTimers.set(team, 0);
       this.aiBuildTimers.set(team, 0);
+      if (team !== 1) {
+        this.aiBrains.set(team, createAIBrain(team, this.aiDifficulty));
+      }
       const start = this.state.planets.find(p => p.isStartingPlanet && p.owner === team);
       if (!start) continue;
       const station = this.buildStation(start, team);
@@ -203,7 +232,14 @@ export class SpaceEngine {
     if (station.buildQueue.length >= station.maxBuildSlots) return false;
     // Hero ships only from starting planet stations
     const isHero = HERO_SHIPS.includes(shipType);
+    const isDreadnought = getShipDef(shipType)?.class === 'dreadnought';
     if (isHero && !station.canBuildHeroes) return false;
+    // Dreadnought/Hero ships require an idle commander
+    if (isDreadnought) {
+      const hasCommander = [...this.state.commanders.values()]
+        .some(c => c.team === station.team && c.state === 'idle');
+      if (!hasCommander) return false;
+    }
     const def = getShipDef(shipType);
     if (!def) return false;
     const res = this.state.resources[station.team];
@@ -270,6 +306,7 @@ export class SpaceEngine {
       workerCargo: def.class === 'worker' ? 0 : undefined,
       workerCargoType: def.class === 'worker' ? 'minerals' : undefined,
       workerHarvestTimer: def.class === 'worker' ? 0 : undefined,
+      xp: 0, rank: 0,
     };
     this.state.ships.set(id, ship);
     const r = this.state.resources[team];
@@ -283,13 +320,18 @@ export class SpaceEngine {
     this.state.gameTime += dt;
     this.updateResourceNodes(dt);
     this.updateWorkers(dt);
+    this.updateCommanderTraining(dt);
     this.updateShips(dt);
     this.updateProjectiles(dt);
     this.updateEffects(dt);
     this.updateStations(dt);
     this.updateCapture(dt);
     this.updateResources(dt);
-    this.updateAI(dt);
+    this.updateTechResearch(dt);
+    this.updatePlanetTurrets(dt);
+    this.updateVoidEffects(dt);
+    this.updateVoidCooldowns(dt);
+    this.updateAdvancedAI(dt);
     this.updateWinCondition(dt);
     this.cleanupDead();
   }
@@ -428,6 +470,13 @@ export class SpaceEngine {
             : t.shipClass === 'cruiser' || t.shipClass === 'destroyer' ? 'explosion-1-d' : 'explosion-1-b';
           const sc = t.shipClass === 'battleship' ? 4 : t.shipClass === 'cruiser' ? 2 : 1;
           this.spawnSpriteEffect(t.x, t.y, 0, et, sc);
+          // Grant XP to killing ship
+          const killer = this.state.ships.get(p.sourceId);
+          if (killer && !killer.dead) {
+            const xpGain = t.shipClass === 'battleship' || t.shipClass === 'dreadnought' ? 60
+              : t.shipClass === 'destroyer' || t.shipClass === 'cruiser' ? 30 : 15;
+            this.grantXP(killer, xpGain);
+          }
         }
       }
     }
@@ -442,6 +491,18 @@ export class SpaceEngine {
       ship.hp = 0; ship.dead = true; ship.animState = 'death_spiral';
       const res = this.state.resources[ship.team];
       if (res) res.supply = Math.max(0, res.supply - ship.supplyCost);
+      // Release or lose commander when ship dies
+      for (const [, cmd] of this.state.commanders) {
+        if (cmd.equippedShipId === ship.id) {
+          if (ship.shipClass === 'dreadnought') {
+            // Commander dies with the Dreadnought (permadeath)
+            this.state.commanders.delete(cmd.id);
+          } else {
+            cmd.state = 'idle'; cmd.equippedShipId = null;
+          }
+          break;
+        }
+      }
     }
   }
 
@@ -453,13 +514,18 @@ export class SpaceEngine {
       // Build queue processing
       if (st.buildQueue.length > 0) {
         const item = st.buildQueue[0];
-        item.buildTimeRemaining -= dt;
+        const bsMult = this.state.techState.get(st.team)?.bonuses.buildSpeedMult ?? 1;
+        item.buildTimeRemaining -= dt * bsMult;
         if (item.buildTimeRemaining <= 0) {
           st.buildQueue.shift();
           const rally = st.rallyPoint ?? { x: st.x + 200, y: st.y, z: 0 };
           const ship = this.spawnShip(item.shipType, st.team, st.x + 50, st.y - 50, st.id);
           ship.moveTarget = rally;
           if (st.team !== 1) for (const ab of ship.abilities) ab.autoCast = true;
+          // Equip idle commander to hero/dreadnought ships
+          if (ship.shipClass === 'dreadnought' || HERO_SHIPS.includes(item.shipType)) {
+            this.equipCommanderToShip(ship);
+          }
           const shipDef = getShipDef(item.shipType);
           this.state.alerts.push({
             id: this.state.nextId++, x: st.x, y: st.y, z: 0,
@@ -660,7 +726,382 @@ export class SpaceEngine {
     }
   }
 
-  // ── Win ────────────────────────────────────────────────────────
+  // ── Tech Research ───────────────────────────────────────────
+  startResearch(team: Team, nodeId: string): boolean {
+    const st = this.state.techState.get(team);
+    if (!st || st.inResearch) return false;
+    // Check all trees for this node
+    for (const tree of Object.values(ALL_TECH_TREES)) {
+      const node = tree.nodes.find(n => n.id === nodeId);
+      if (!node) continue;
+      // Check prerequisites
+      if (!node.requires.every(r => st.researchedNodes.has(r))) return false;
+      const res = this.state.resources[team];
+      if (!res) return false;
+      if (res.credits < node.cost.credits || res.energy < node.cost.energy || res.minerals < node.cost.minerals) return false;
+      res.credits -= node.cost.credits; res.energy -= node.cost.energy; res.minerals -= node.cost.minerals;
+      st.inResearch = nodeId;
+      st.researchTimeRemaining = node.researchTime;
+      return true;
+    }
+    return false;
+  }
+
+  private updateTechResearch(dt: number) {
+    for (const [team, st] of this.state.techState) {
+      if (!st.inResearch) continue;
+      st.researchTimeRemaining -= dt;
+      if (st.researchTimeRemaining > 0) continue;
+      // Research complete — apply effects
+      const nodeId = st.inResearch;
+      st.inResearch = null;
+      st.researchTimeRemaining = 0;
+      st.researchedNodes.add(nodeId);
+      for (const tree of Object.values(ALL_TECH_TREES)) {
+        const node = tree.nodes.find(n => n.id === nodeId);
+        if (!node) continue;
+        for (const eff of node.effects) {
+          if (eff.kind === 'stat_bonus' && eff.stat && eff.value != null) {
+            const b = st.bonuses;
+            if (eff.stat === 'attack') b.attackMult  = Math.max(b.attackMult,  1 + eff.value);
+            if (eff.stat === 'armor')  b.armorBonus  += eff.value;
+            if (eff.stat === 'shield') b.shieldMult  = Math.max(b.shieldMult,  1 + eff.value);
+            if (eff.stat === 'speed')  b.speedMult   = Math.max(b.speedMult,   1 + eff.value);
+            if (eff.stat === 'health') b.healthMult  = Math.max(b.healthMult,  1 + eff.value);
+            if (eff.stat === 'all') {
+              b.attackMult *= (1 + eff.value); b.shieldMult *= (1 + eff.value);
+              b.speedMult  *= (1 + eff.value); b.healthMult *= (1 + eff.value);
+            }
+          } else if (eff.kind === 'resource_bonus' && eff.value != null) {
+            st.bonuses.resourceMult += eff.value;
+          } else if (eff.kind === 'build_speed' && eff.value != null) {
+            st.bonuses.buildSpeedMult = Math.min(3.0, st.bonuses.buildSpeedMult + eff.value);
+          } else if (eff.kind === 'unlock_ship' && eff.shipType) {
+            st.unlockedShips.add(eff.shipType);
+          } else if (eff.kind === 'turret_unlock' && eff.turretType) {
+            st.unlockedTurrets.add(eff.turretType);
+          } else if (eff.kind === 'void_power') {
+            // Void power already available via researchedNodes check
+          }
+        }
+        this.state.alerts.push({
+          id: this.state.nextId++, x: 0, y: 0, z: 0, type: 'build_complete',
+          time: this.state.gameTime,
+          message: `Team ${team}: ${node.name} researched!`,
+        });
+      }
+    }
+  }
+
+  // ── Void Powers ───────────────────────────────────────────────
+  castVoidPower(team: Team, powerId: string, targetX: number, targetY: number): boolean {
+    const st = this.state.techState.get(team);
+    if (!st) return false;
+    const pwr = VOID_POWERS[powerId];
+    if (!pwr) return false;
+    if (!st.researchedNodes.has(pwr.techNodeId)) return false;
+    const cds = this.state.voidCooldowns.get(team) ?? new Map<string, number>();
+    if ((cds.get(powerId) ?? 0) > 0) return false;
+    const res = this.state.resources[team];
+    if (!res || res.credits < pwr.cost.credits || res.energy < pwr.cost.energy || res.minerals < pwr.cost.minerals) return false;
+    res.credits -= pwr.cost.credits; res.energy -= pwr.cost.energy; res.minerals -= pwr.cost.minerals;
+    cds.set(powerId, pwr.cooldown);
+    this.state.voidCooldowns.set(team, cds);
+
+    if (pwr.effect === 'aoe_damage' || pwr.effect === 'aoe_scatter') {
+      // Immediate AoE damage
+      for (const [, s] of this.state.ships) {
+        if (s.dead || s.team === team) continue;
+        const d = Math.sqrt((s.x - targetX)**2 + (s.y - targetY)**2);
+        if (d < pwr.radius) this.applyDamage(s, (pwr.damage ?? 300) * (1 - d / pwr.radius));
+      }
+      this.spawnSpriteEffect(targetX, targetY, 0, 'explosion-1-e', 8);
+    } else if (pwr.effect === 'push') {
+      // Push enemies away from planet
+      const planet = this.state.planets.find(p => p.owner === team);// nearest owned planet
+      const px = planet?.x ?? targetX, py = planet?.y ?? targetY;
+      for (const [, s] of this.state.ships) {
+        if (s.dead || s.team === team) continue;
+        const d = Math.sqrt((s.x - px)**2 + (s.y - py)**2);
+        if (d < pwr.radius) {
+          const a = Math.atan2(s.y - py, s.x - px);
+          const force = pwr.pushForce ?? 800;
+          s.x += Math.cos(a) * force * 0.1; s.y += Math.sin(a) * force * 0.1;
+          s.moveTarget = { x: s.x + Math.cos(a)*force, y: s.y + Math.sin(a)*force, z:0 };
+        }
+      }
+    } else if (pwr.effect === 'teleport_fleet') {
+      for (const id of this.state.selectedIds) {
+        const s = this.state.ships.get(id);
+        if (!s || s.dead || s.team !== team) continue;
+        const spread = this.state.selectedIds.size;
+        const idx = [...this.state.selectedIds].indexOf(id);
+        s.x = targetX + (idx % 5 - 2) * 80;
+        s.y = targetY + Math.floor(idx / 5) * 80;
+        s.moveTarget = null;
+      }
+    } else if (pwr.effect === 'pull_damage') {
+      // Create a lingering void rift effect
+      this.state.activeVoidEffects.push({
+        id: this.state.nextId++, powerId, x: targetX, y: targetY,
+        radius: pwr.radius, damage: pwr.damage ?? 80,
+        lifetime: 0, maxLifetime: pwr.duration ?? 8,
+        team, done: false,
+      });
+    } else if (pwr.effect === 'destroy_planet') {
+      const planetIdx = this.state.planets.findIndex(p =>
+        Math.sqrt((p.x - targetX)**2 + (p.y - targetY)**2) < p.radius * 3);
+      if (planetIdx >= 0) {
+        const p = this.state.planets[planetIdx];
+        // Kill all ships orbiting/near it
+        for (const [, s] of this.state.ships) {
+          if (Math.sqrt((s.x - p.x)**2 + (s.y - p.y)**2) < p.captureRadius) this.applyDamage(s, 99999);
+        }
+        // Remove station
+        if (p.stationId) { this.state.stations.delete(p.stationId); }
+        // Remove planet
+        this.state.planets.splice(planetIdx, 1);
+        this.spawnSpriteEffect(p.x, p.y, 0, 'explosion-1-e', 12);
+      }
+    }
+    return true;
+  }
+
+  private updateVoidEffects(dt: number) {
+    for (const eff of this.state.activeVoidEffects) {
+      if (eff.done) continue;
+      eff.lifetime += dt;
+      if (eff.lifetime >= eff.maxLifetime) { eff.done = true; continue; }
+      // Pull + damage ships each tick
+      for (const [, s] of this.state.ships) {
+        if (s.dead) continue;
+        const d = Math.sqrt((s.x - eff.x)**2 + (s.y - eff.y)**2);
+        if (d < eff.radius) {
+          // Pull toward center
+          const a = Math.atan2(eff.y - s.y, eff.x - s.x);
+          const pull = (1 - d / eff.radius) * 200;
+          s.x += Math.cos(a) * pull * dt;
+          s.y += Math.sin(a) * pull * dt;
+          // Damage per second (damage / maxLifetime * dt)
+          const dps = (eff.damage ?? 80);
+          this.applyDamage(s, dps * dt);
+        }
+      }
+    }
+    this.state.activeVoidEffects = this.state.activeVoidEffects.filter(e => !e.done);
+  }
+
+  private updateVoidCooldowns(dt: number) {
+    for (const [, cdMap] of this.state.voidCooldowns) {
+      for (const [key, val] of cdMap) {
+        if (val > 0) cdMap.set(key, Math.max(0, val - dt));
+      }
+    }
+  }
+
+  // ── Planet Turrets ────────────────────────────────────────────
+  buildPlanetTurret(team: Team, planetId: number, turretType: string): boolean {
+    const planet = this.state.planets.find(p => p.id === planetId);
+    if (!planet || planet.owner !== team) return false;
+    const st = this.state.techState.get(team);
+    if (!st || !st.unlockedTurrets.has(turretType)) return false;
+    const existing = [...this.state.planetTurrets.values()].filter(t => t.planetId === planetId && !t.dead);
+    if (existing.length >= 4) return false;
+    const def = TURRET_DEFS[turretType];
+    if (!def) return false;
+    const res = this.state.resources[team];
+    if (!res || res.credits < def.cost.credits || res.energy < def.cost.energy || res.minerals < def.cost.minerals) return false;
+    res.credits -= def.cost.credits; res.energy -= def.cost.energy; res.minerals -= def.cost.minerals;
+    // Place in orbit
+    const angle = (existing.length / 4) * Math.PI * 2;
+    const orbitR = planet.radius * 1.5;
+    const id = this.state.nextId++;
+    const turret: PlanetTurret = {
+      id, planetId, team, turretType,
+      x: planet.x + Math.cos(angle) * orbitR,
+      y: planet.y + Math.sin(angle) * orbitR,
+      z: 20, orbitAngle: angle, orbitRadius: orbitR,
+      hp: def.maxHp, maxHp: def.maxHp, dead: false,
+      attackCooldown: def.attackCooldown, attackTimer: 0, targetId: null,
+    };
+    this.state.planetTurrets.set(id, turret);
+    return true;
+  }
+
+  private updatePlanetTurrets(dt: number) {
+    for (const [id, t] of this.state.planetTurrets) {
+      if (t.dead) continue;
+      t.attackTimer = Math.max(0, t.attackTimer - dt);
+      // Update orbit position
+      const planet = this.state.planets.find(p => p.id === t.planetId);
+      if (planet) {
+        t.orbitAngle += 0.1 * dt;
+        t.x = planet.x + Math.cos(t.orbitAngle) * t.orbitRadius;
+        t.y = planet.y + Math.sin(t.orbitAngle) * t.orbitRadius;
+      }
+      // Find and attack nearest enemy
+      const def = TURRET_DEFS[t.turretType];
+      if (!def) continue;
+      if (!t.targetId || t.attackTimer > 0) {
+        if (!t.targetId) {
+          let best: SpaceShip | null = null; let bd = Infinity;
+          for (const [, s] of this.state.ships) {
+            if (s.dead || s.team === t.team) continue;
+            const d = Math.sqrt((s.x - t.x)**2 + (s.y - t.y)**2);
+            if (d < def.attackRange && d < bd) { bd = d; best = s; }
+          }
+          t.targetId = best?.id ?? null;
+        }
+      }
+      if (t.targetId && t.attackTimer <= 0) {
+        const target = this.state.ships.get(t.targetId);
+        if (!target || target.dead || Math.sqrt((target.x - t.x)**2 + (target.y - t.y)**2) > def.attackRange) {
+          t.targetId = null;
+        } else {
+          this.applyDamage(target, def.attackDamage);
+          this.spawnSpriteEffect(target.x, target.y, 0, 'hits-3', 0.6);
+          t.attackTimer = def.attackCooldown;
+        }
+      }
+    }
+  }
+
+  // ── Commander System ─────────────────────────────────────────────
+  /** Start training a new commander at a planet. Spec is inferred from planet type. */
+  trainCommander(team: Team, planetId: number): boolean {
+    const planet = this.state.planets.find(p => p.id === planetId);
+    if (!planet || planet.owner !== team) return false;
+    // Only one commander training per planet at a time
+    const alreadyTraining = [...this.state.commanders.values()]
+      .some(c => c.trainingPlanetId === planetId && c.state === 'training');
+    if (alreadyTraining) return false;
+    const res = this.state.resources[team];
+    if (!res) return false;
+    const cost = COMMANDER_TRAIN_COST[1]; // cost to recruit level 1
+    if (res.credits < cost.credits || res.energy < cost.energy || res.minerals < cost.minerals) return false;
+    res.credits -= cost.credits; res.energy -= cost.energy; res.minerals -= cost.minerals;
+    // Derive spec from planet type
+    const specMap: Record<string, CommanderSpec> = {
+      volcanic: 'forge', oceanic: 'tide', crystalline: 'prism',
+      gas_giant: 'vortex', barren: 'void', frozen: 'void',
+    };
+    const spec: CommanderSpec = specMap[planet.planetType] ?? 'forge';
+    const portraitIdx = Math.floor(Math.random() * 6) + 1;
+    const portrait = `/assets/space/ui/scifi-gui/avatars/${portraitIdx}.png`;
+    const name = COMMANDER_NAMES[Math.floor(Math.random() * COMMANDER_NAMES.length)];
+    const id = this.state.nextId++;
+    const totalTime = COMMANDER_TRAIN_TIME[1];
+    const cmd: Commander = {
+      id, name, portrait, spec, level: 0, xp: 0,
+      xpToNextLevel: COMMANDER_XP_LEVELS[1],
+      team, state: 'training',
+      trainingPlanetId: planetId,
+      trainingTimeRemaining: totalTime,
+      trainingTotalTime: totalTime,
+      equippedShipId: null,
+      attackBonus: 0, defenseBonus: 0, speedBonus: 0, specialBonus: 0,
+    };
+    this.state.commanders.set(id, cmd);
+    return true;
+  }
+
+  /** Level up an existing idle commander (costs resources, takes time). */
+  upgradeCommander(commanderId: number): boolean {
+    const cmd = this.state.commanders.get(commanderId);
+    if (!cmd || cmd.state !== 'idle' || cmd.level >= 5) return false;
+    const res = this.state.resources[cmd.team];
+    if (!res) return false;
+    const nextLevel = cmd.level + 1;
+    const cost = COMMANDER_TRAIN_COST[nextLevel];
+    if (!cost || res.credits < cost.credits || res.energy < cost.energy || res.minerals < cost.minerals) return false;
+    res.credits -= cost.credits; res.energy -= cost.energy; res.minerals -= cost.minerals;
+    cmd.state = 'training';
+    cmd.trainingTimeRemaining = COMMANDER_TRAIN_TIME[nextLevel];
+    cmd.trainingTotalTime = COMMANDER_TRAIN_TIME[nextLevel];
+    return true;
+  }
+
+  private updateCommanderTraining(dt: number) {
+    for (const [, cmd] of this.state.commanders) {
+      if (cmd.state !== 'training') continue;
+      cmd.trainingTimeRemaining -= dt;
+      if (cmd.trainingTimeRemaining > 0) continue;
+      // Training complete
+      cmd.trainingTimeRemaining = 0;
+      cmd.level = Math.min(5, cmd.level + 1);
+      cmd.xpToNextLevel = COMMANDER_XP_LEVELS[Math.min(5, cmd.level + 1)] ?? 99999;
+      // Calculate bonuses based on level and spec
+      const pct = cmd.level * 0.05; // +5% per level
+      cmd.attackBonus  = pct;
+      cmd.defenseBonus = pct;
+      cmd.speedBonus   = pct;
+      cmd.specialBonus = pct * 1.5; // spec bonus is 50% stronger
+      cmd.state = 'idle';
+      cmd.trainingPlanetId = null;
+      this.state.alerts.push({
+        id: this.state.nextId++, x: 0, y: 0, z: 0, type: 'build_complete',
+        time: this.state.gameTime,
+        message: `Commander ${cmd.name} promoted to Level ${cmd.level}!`,
+      });
+    }
+  }
+
+  /** Equip an idle commander to a hero ship. Called after ship is built. */
+  private equipCommanderToShip(ship: SpaceShip) {
+    const idleCmd = [...this.state.commanders.values()].find(
+      c => c.team === ship.team && c.state === 'idle',
+    );
+    if (!idleCmd) return;
+    idleCmd.state = 'onship';
+    idleCmd.equippedShipId = ship.id;
+    // Apply commander bonuses on top of ship stats
+    ship.attackDamage = Math.round(ship.attackDamage * (1 + idleCmd.attackBonus));
+    ship.maxHp = Math.round(ship.maxHp * (1 + idleCmd.defenseBonus));
+    ship.hp    = ship.maxHp;
+    ship.maxShield = Math.round(ship.maxShield * (1 + idleCmd.defenseBonus));
+    ship.speed *= (1 + idleCmd.speedBonus);
+  }
+
+  // ── XP & Rank ──────────────────────────────────────────────────
+  grantXP(ship: SpaceShip, amount: number) {
+    if (ship.dead || ship.rank >= 5) return;
+    ship.xp += amount;
+    const threshold = XP_THRESHOLDS[ship.rank + 1] ?? 99999;
+    if (ship.xp >= threshold && ship.rank < 5) {
+      ship.rank++;
+      // Apply +5% to all stats compounding
+      const mult = 1 + RANK_STAT_BONUS;
+      ship.maxHp        = Math.round(ship.maxHp * mult);
+      ship.hp           = Math.min(ship.hp + Math.round(ship.maxHp * 0.1), ship.maxHp);
+      ship.maxShield    = Math.round(ship.maxShield * mult);
+      ship.attackDamage = Math.round(ship.attackDamage * mult);
+      ship.speed       *= mult;
+      ship.armor        = Math.round(ship.armor * mult);
+      this.state.alerts.push({
+        id: this.state.nextId++, x: ship.x, y: ship.y, z: 0,
+        type: 'build_complete', time: this.state.gameTime,
+        message: `${ship.shipType} promoted to Rank ${ship.rank}!`,
+      });
+    }
+  }
+
+  // ── Advanced AI (replaces old aiBuild/aiTactics) ──────────────────
+  private updateAdvancedAI(dt: number) {
+    for (const team of this.state.activePlayers) {
+      if (team === 1) continue;
+      const brain = this.aiBrains.get(team);
+      if (!brain) continue;
+      updateAIBrain(
+        brain, this.state, dt,
+        (stId, type) => this.queueBuild(stId, type),
+        (t, nodeId) => this.startResearch(t as Team, nodeId),
+        (t, pwrId, x, y) => this.castVoidPower(t as Team, pwrId, x, y),
+        (t, pId, tType) => this.buildPlanetTurret(t as Team, pId, tType),
+      );
+    }
+  }
+
+  // ── Win ────────────────────────────────────────────────────
   private updateWinCondition(dt: number) {
     this.winCheckTimer += dt;
     if (this.winCheckTimer < 2) return;

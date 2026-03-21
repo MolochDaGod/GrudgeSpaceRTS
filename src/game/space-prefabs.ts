@@ -140,7 +140,40 @@ export const SHIP_PREFABS: Record<string, SpacePrefab> = {
   },
 };
 
-// ── Capital Ships (FBX) ─────────────────────────────────────────
+// ── Craftpix Battle Fleet (FBX) ───────────────────────────────────────
+export const BATTLE_SHIP_PREFABS: Record<string, SpacePrefab> = {
+  cf_corvette_01: { modelPath:'/assets/space/models/battle-ships/Corvette_01.fbx', format:'fbx', scale:0.010, offset:S(0,0,0), enginePoints:[S(0,0,-0.5)], weaponPoints:[S(0,0,0.6)] },
+  cf_corvette_02: { modelPath:'/assets/space/models/battle-ships/Corvette_02.fbx', format:'fbx', scale:0.010, offset:S(0,0,0), enginePoints:[S(0,0,-0.5)], weaponPoints:[S(0,0,0.6)] },
+  cf_corvette_03: { modelPath:'/assets/space/models/battle-ships/Corvette_03.fbx', format:'fbx', scale:0.010, offset:S(0,0,0), enginePoints:[S(0,0,-0.5)], weaponPoints:[S(0,0,0.6)] },
+  cf_corvette_04: { modelPath:'/assets/space/models/battle-ships/Corvette_04.fbx', format:'fbx', scale:0.010, offset:S(0,0,0), enginePoints:[S(0,0,-0.5)], weaponPoints:[S(0,0,0.6)] },
+  cf_corvette_05: { modelPath:'/assets/space/models/battle-ships/Corvette_05.fbx', format:'fbx', scale:0.010, offset:S(0,0,0), enginePoints:[S(0,0,-0.5)], weaponPoints:[S(0,0,0.6)] },
+  cf_frigate_01:  { modelPath:'/assets/space/models/battle-ships/Frigate_01.fbx',  format:'fbx', scale:0.009, offset:S(0,0,0), enginePoints:[S(-0.4,0,-0.8),S(0.4,0,-0.8)], weaponPoints:[S(0,0.2,0.8)] },
+  cf_frigate_02:  { modelPath:'/assets/space/models/battle-ships/Frigate_02.fbx',  format:'fbx', scale:0.009, offset:S(0,0,0), enginePoints:[S(-0.4,0,-0.8),S(0.4,0,-0.8)], weaponPoints:[S(0,0.2,0.8)] },
+  cf_frigate_03:  { modelPath:'/assets/space/models/battle-ships/Frigate_03.fbx',  format:'fbx', scale:0.009, offset:S(0,0,0), enginePoints:[S(-0.5,0,-1),S(0.5,0,-1)], weaponPoints:[S(-0.4,0.2,0.9),S(0.4,0.2,0.9)] },
+  cf_frigate_04:  { modelPath:'/assets/space/models/battle-ships/Frigate_04.fbx',  format:'fbx', scale:0.009, offset:S(0,0,0), enginePoints:[S(0,0,-0.9)], weaponPoints:[S(0,0.2,0.8)] },
+  cf_frigate_05:  { modelPath:'/assets/space/models/battle-ships/Frigate_05.fbx',  format:'fbx', scale:0.009, offset:S(0,0,0), enginePoints:[S(-0.5,0,-0.9),S(0.5,0,-0.9)], weaponPoints:[S(0,0.2,1.0)] },
+  cf_light_cruiser_01: { modelPath:'/assets/space/models/battle-ships/Light cruiser_01.fbx', format:'fbx', scale:0.008, offset:S(0,0,0), enginePoints:[S(-0.6,0,-1.5),S(0,0,-1.5),S(0.6,0,-1.5)], weaponPoints:[S(-0.5,0.2,1),S(0.5,0.2,1)] },
+  cf_light_cruiser_02: { modelPath:'/assets/space/models/battle-ships/Light cruiser_02.fbx', format:'fbx', scale:0.008, offset:S(0,0,0), enginePoints:[S(-0.6,0,-1.5),S(0,0,-1.5),S(0.6,0,-1.5)], weaponPoints:[S(-0.5,0.2,1),S(0.5,0.2,1)] },
+  cf_light_cruiser_03: { modelPath:'/assets/space/models/battle-ships/Light cruiser_03.fbx', format:'fbx', scale:0.008, offset:S(0,0,0), enginePoints:[S(-0.6,0,-1.5),S(0.6,0,-1.5)], weaponPoints:[S(0,0.2,1.2)] },
+  cf_light_cruiser_04: { modelPath:'/assets/space/models/battle-ships/Light cruiser_04.fbx', format:'fbx', scale:0.008, offset:S(0,0,0), enginePoints:[S(-0.6,0,-1.5),S(0.6,0,-1.5)], weaponPoints:[S(-0.5,0.2,1),S(0.5,0.2,1)] },
+  cf_light_cruiser_05: { modelPath:'/assets/space/models/battle-ships/Light cruiser_05.fbx', format:'fbx', scale:0.008, offset:S(0,0,0), enginePoints:[S(-0.6,0,-1.5),S(0,0,-1.5),S(0.6,0,-1.5)], weaponPoints:[S(-0.5,0.2,1),S(0.5,0.2,1)] },
+  cf_destroyer_01: { modelPath:'/assets/space/models/battle-ships/Destroyer_01.fbx', format:'fbx', scale:0.009, offset:S(0,0,0), enginePoints:[S(-0.5,0,-1.4),S(0.5,0,-1.4)], weaponPoints:[S(0,0.2,1.1)] },
+  cf_destroyer_02: { modelPath:'/assets/space/models/battle-ships/Destroyer_02.fbx', format:'fbx', scale:0.009, offset:S(0,0,0), enginePoints:[S(-0.5,0,-1.4),S(0.5,0,-1.4)], weaponPoints:[S(0,0.2,1.1)] },
+  cf_destroyer_03: { modelPath:'/assets/space/models/battle-ships/Destroyer_03.fbx', format:'fbx', scale:0.009, offset:S(0,0,0), enginePoints:[S(-0.5,0,-1.4),S(0.5,0,-1.4)], weaponPoints:[S(0,0.2,1.1)] },
+  cf_destroyer_04: { modelPath:'/assets/space/models/battle-ships/Destroyer_04.fbx', format:'fbx', scale:0.009, offset:S(0,0,0), enginePoints:[S(-0.5,0,-1.4),S(0.5,0,-1.4)], weaponPoints:[S(0,0.2,1.2)] },
+  cf_destroyer_05: { modelPath:'/assets/space/models/battle-ships/Destroyer_05.fbx', format:'fbx', scale:0.009, offset:S(0,0,0), enginePoints:[S(-0.5,0,-1.4),S(0,0,-1.4),S(0.5,0,-1.4)], weaponPoints:[S(-0.4,0.2,1),S(0.4,0.2,1)] },
+  boss_ship_01: { modelPath:'/assets/space/models/new-ships/Ship_Boos_01_Hull.fbx', format:'fbx', scale:0.015, offset:S(0,0,0), enginePoints:[S(-1,0,-2),S(0,0,-2),S(1,0,-2)], weaponPoints:[S(-0.8,0.3,1.5),S(0,0.5,2),S(0.8,0.3,1.5)] },
+  boss_ship_02: { modelPath:'/assets/space/models/new-ships/Ship_Boss_02_Hull.fbx', format:'fbx', scale:0.015, offset:S(0,0,0), enginePoints:[S(-1.2,0,-2.2),S(0,0,-2.2),S(1.2,0,-2.2)], weaponPoints:[S(-1,0.3,1.8),S(0,0.5,2.2),S(1,0.3,1.8)] },
+};
+
+// ── Planet Defense Turrets (FBX) ─────────────────────────────────
+export const TURRET_PREFABS: Record<string, SpacePrefab> = {
+  laser_turret:   { modelPath:'/assets/space/models/turrets/_Turel_01.fbx', format:'fbx', scale:0.020, offset:S(0,0,0), weaponPoints:[S(0,0.5,0)] },
+  missile_turret: { modelPath:'/assets/space/models/turrets/_Turel_02.fbx', format:'fbx', scale:0.018, offset:S(0,0,0), weaponPoints:[S(0,0.5,0)] },
+  railgun_turret: { modelPath:'/assets/space/models/turrets/_Turel_03.fbx', format:'fbx', scale:0.022, offset:S(0,0,0), weaponPoints:[S(0,0.6,0)] },
+};
+
+// ── Capital Ships (FBX) ─────────────────────────────────────────────
 export const CAPITAL_PREFABS: Record<string, SpacePrefab> = {
   battleship: {
     modelPath: '/assets/space/models/capital/Battleships/Battleship.fbx',
@@ -404,6 +437,7 @@ export const AUDIO_ASSETS = {
 export function getShipPrefab(shipType: string): SpacePrefab | null {
   return SHIP_PREFABS[shipType]
     ?? CAPITAL_PREFABS[shipType]
+    ?? BATTLE_SHIP_PREFABS[shipType]
     ?? ENEMY_PREFABS[shipType]
     ?? VOXEL_FLEET_PREFABS[shipType]
     ?? null;
