@@ -45,7 +45,7 @@ export class SpaceRenderer {
   private starField!: THREE.Points;
 
   private controls!: SpaceControls;
-  private engine!: SpaceEngine;
+  public engine!: SpaceEngine;
   private effectsRenderer!: SpaceEffectsRenderer;
 
   private disposed = false;
@@ -414,6 +414,46 @@ export class SpaceRenderer {
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(w, h);
   };
+
+  /** Activate a specific ability on all selected ships (called from UI) */
+  activateAbility(abilityIndex: number) {
+    const state = this.engine.state;
+    for (const id of state.selectedIds) {
+      const ship = state.ships.get(id);
+      if (!ship || ship.dead) continue;
+      const ab = ship.abilities[abilityIndex];
+      if (!ab || ab.active || ab.cooldownRemaining > 0) continue;
+      const res = state.resources[ship.team];
+      if (res.energy < ab.ability.energyCost) continue;
+      ab.active = true;
+      ab.activeTimer = ab.ability.duration;
+      ab.cooldownRemaining = ab.ability.cooldown;
+      res.energy -= ab.ability.energyCost;
+      ship.animTimer = 0;
+    }
+  }
+
+  /** Toggle autocast on a specific ability for all selected ships */
+  toggleAutoCast(abilityIndex: number) {
+    const state = this.engine.state;
+    // Determine majority state to flip
+    let onCount = 0, total = 0;
+    for (const id of state.selectedIds) {
+      const ship = state.ships.get(id);
+      if (!ship || ship.dead) continue;
+      const ab = ship.abilities[abilityIndex];
+      if (!ab) continue;
+      total++;
+      if (ab.autoCast) onCount++;
+    }
+    const newState = onCount <= total / 2;
+    for (const id of state.selectedIds) {
+      const ship = state.ships.get(id);
+      if (!ship || ship.dead) continue;
+      const ab = ship.abilities[abilityIndex];
+      if (ab) ab.autoCast = newState;
+    }
+  }
 
   dispose() {
     this.disposed = true;
