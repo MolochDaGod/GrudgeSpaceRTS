@@ -11,7 +11,7 @@ import {
 
 type Screen = 'menu' | 'codex' | 'howto' | 'playing';
 
-// ── Animated Starfield Canvas (shared by all menu screens) ────────
+// ── Space Background: stars + nebulae + comets ────────────────────
 const StarfieldCanvas = memo(function StarfieldCanvas() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
@@ -21,37 +21,134 @@ const StarfieldCanvas = memo(function StarfieldCanvas() {
     if (!ctx) return;
     let w = (canvas.width = window.innerWidth);
     let h = (canvas.height = window.innerHeight);
-    interface Star { x:number;y:number;r:number;alpha:number;phase:number;spd:number;vx:number;vy:number; }
-    const stars: Star[] = Array.from({ length: 240 }, () => ({
-      x: Math.random()*w, y: Math.random()*h,
-      r: Math.random()*1.6+0.3, alpha: Math.random()*0.55+0.25,
-      phase: Math.random()*Math.PI*2, spd: 0.006+Math.random()*0.018,
-      vx: (Math.random()-0.5)*0.13, vy: (Math.random()-0.5)*0.07,
+
+    // ─ Stars ───────────────────────────────────────
+    interface Star { x:number;y:number;r:number;a:number;ph:number;sp:number;vx:number;vy:number; }
+    const stars: Star[] = Array.from({length:260},()=>({
+      x:Math.random()*w, y:Math.random()*h,
+      r:Math.random()*1.8+0.2, a:Math.random()*0.6+0.2,
+      ph:Math.random()*Math.PI*2, sp:0.004+Math.random()*0.016,
+      vx:(Math.random()-0.5)*0.11, vy:(Math.random()-0.5)*0.06,
     }));
-    let t=0, raf=0, na=0;
+
+    // ─ Space lights (nebula orbs) ────────────────────────
+    interface NebLight { x:number;y:number;vx:number;vy:number;r:number;rgb:[number,number,number];alpha:number;ph:number;sp:number; }
+    const nebLights: NebLight[] = [
+      { x:w*0.12, y:h*0.18, vx:0.14,  vy:0.07,  r:Math.max(w,h)*0.30, rgb:[10,60,200],   alpha:0.055, ph:0,           sp:0.0008 },
+      { x:w*0.88, y:h*0.25, vx:-0.11, vy:0.055, r:Math.max(w,h)*0.24, rgb:[110,10,200],  alpha:0.045, ph:Math.PI*0.7, sp:0.0010 },
+      { x:w*0.50, y:h*0.82, vx:0.07,  vy:-0.09, r:Math.max(w,h)*0.32, rgb:[180,30,10],   alpha:0.040, ph:Math.PI*1.4, sp:0.0012 },
+      { x:w*0.28, y:h*0.62, vx:-0.09, vy:-0.06, r:Math.max(w,h)*0.22, rgb:[0,130,110],   alpha:0.038, ph:Math.PI*2.1, sp:0.0007 },
+      { x:w*0.75, y:h*0.70, vx:0.06,  vy:0.08,  r:Math.max(w,h)*0.18, rgb:[80,10,160],   alpha:0.030, ph:Math.PI*3.0, sp:0.0009 },
+    ];
+
+    // ─ Comets ──────────────────────────────────────
+    interface Comet { x:number;y:number;vx:number;vy:number;life:number;maxLife:number;width:number;active:boolean;timer:number;delay:number; }
+    const comets: Comet[] = Array.from({length:6},(_,i)=>({
+      x:0,y:0,vx:0,vy:0,life:0,maxLife:1.5,width:2,active:false,
+      timer: i*1.8 + Math.random()*3,
+      delay: 6 + Math.random()*14,
+    }));
+
+    function spawnComet(c: Comet) {
+      const edge = Math.floor(Math.random()*4);
+      const spd  = 350 + Math.random()*350;
+      const spread = 0.6;
+      if (edge===0) { c.x=Math.random()*w; c.y=-30; const a=Math.PI*0.5+(Math.random()-0.5)*spread; c.vx=Math.cos(a)*spd; c.vy=Math.sin(a)*spd; }
+      else if (edge===1) { c.x=w+30; c.y=Math.random()*h; const a=Math.PI+(Math.random()-0.5)*spread; c.vx=Math.cos(a)*spd; c.vy=Math.sin(a)*spd; }
+      else if (edge===2) { c.x=Math.random()*w; c.y=h+30; const a=-Math.PI*0.5+(Math.random()-0.5)*spread; c.vx=Math.cos(a)*spd; c.vy=Math.sin(a)*spd; }
+      else { c.x=-30; c.y=Math.random()*h; const a=(Math.random()-0.5)*spread; c.vx=Math.cos(a)*spd; c.vy=Math.sin(a)*spd; }
+      c.maxLife = 1.0 + Math.random()*1.2;
+      c.life    = 0;
+      c.width   = 1.2 + Math.random()*3;
+      c.active  = true;
+    }
+
+    let lastMs = performance.now(), raf = 0;
     ctx.fillStyle='#010308'; ctx.fillRect(0,0,w,h);
-    const draw = () => {
-      ctx.fillStyle='rgba(1,3,8,0.14)'; ctx.fillRect(0,0,w,h);
-      na+=0.0004;
-      const nx=w*0.5+Math.cos(na)*w*0.22, ny=h*0.5+Math.sin(na*0.6)*h*0.18;
-      const grd=ctx.createRadialGradient(nx,ny,0,nx,ny,Math.max(w,h)*0.55);
-      grd.addColorStop(0,'rgba(12,24,72,0.035)');
-      grd.addColorStop(0.4,'rgba(6,12,48,0.018)');
-      grd.addColorStop(1,'rgba(0,0,0,0)');
-      ctx.fillStyle=grd; ctx.fillRect(0,0,w,h);
+
+    const draw = (now: number) => {
+      const dt = Math.min((now - lastMs) * 0.001, 0.05);
+      lastMs = now;
+
+      // Partial clear — leaves gentle comet trails
+      ctx.fillStyle = 'rgba(1,3,8,0.18)';
+      ctx.fillRect(0, 0, w, h);
+
+      // ─ Nebula space lights ───────────────────────
+      for (const nl of nebLights) {
+        nl.x = (nl.x + nl.vx + w*3) % (w*3) - w;
+        nl.y = (nl.y + nl.vy + h*3) % (h*3) - h;
+        const px = nl.x < 0 ? nl.x + w : nl.x > w ? nl.x - w : nl.x;
+        const py = nl.y < 0 ? nl.y + h : nl.y > h ? nl.y - h : nl.y;
+        const pulse = 0.65 + 0.35 * Math.sin(now * 0.001 * nl.sp * 6283 + nl.ph);
+        const grd = ctx.createRadialGradient(px, py, 0, px, py, nl.r * pulse);
+        const [r,g,b] = nl.rgb;
+        grd.addColorStop(0,   `rgba(${r},${g},${b},${nl.alpha*pulse})`);
+        grd.addColorStop(0.35,`rgba(${r},${g},${b},${nl.alpha*0.35*pulse})`);
+        grd.addColorStop(1,   'rgba(0,0,0,0)');
+        ctx.fillStyle = grd;
+        ctx.fillRect(0, 0, w, h);
+      }
+
+      // ─ Comets ─────────────────────────────────
+      for (const c of comets) {
+        if (!c.active) {
+          c.timer -= dt;
+          if (c.timer <= 0) { spawnComet(c); c.timer = c.delay; }
+          continue;
+        }
+        c.life += dt;
+        const pr = c.life / c.maxLife;
+        if (pr >= 1 || c.x < -200 || c.x > w+200 || c.y < -200 || c.y > h+200) {
+          c.active = false; c.timer = c.delay; continue;
+        }
+        const fade = pr < 0.12 ? pr/0.12 : pr > 0.75 ? (1-pr)/0.25 : 1.0;
+        const spd  = Math.hypot(c.vx, c.vy);
+        const nx = c.vx/spd, ny = c.vy/spd;
+        const tailLen = 60 + c.width * 28 + spd * 0.12;
+        const tx = c.x - nx*tailLen, ty = c.y - ny*tailLen;
+
+        // Tail gradient
+        const tg = ctx.createLinearGradient(tx, ty, c.x, c.y);
+        tg.addColorStop(0,    'rgba(0,0,0,0)');
+        tg.addColorStop(0.45, `rgba(80,160,255,${fade*0.28})`);
+        tg.addColorStop(0.80, `rgba(200,230,255,${fade*0.65})`);
+        tg.addColorStop(1,    `rgba(255,255,255,${fade})`);
+        ctx.beginPath(); ctx.moveTo(tx,ty); ctx.lineTo(c.x,c.y);
+        ctx.strokeStyle = tg; ctx.lineWidth = c.width; ctx.lineCap = 'round';
+        ctx.stroke();
+
+        // Bright glowing head
+        const hg = ctx.createRadialGradient(c.x,c.y,0, c.x,c.y, c.width*4);
+        hg.addColorStop(0,   `rgba(255,255,255,${fade})`);
+        hg.addColorStop(0.3, `rgba(160,210,255,${fade*0.7})`);
+        hg.addColorStop(1,   'rgba(0,0,0,0)');
+        ctx.fillStyle = hg;
+        ctx.beginPath(); ctx.arc(c.x,c.y, c.width*4, 0, Math.PI*2); ctx.fill();
+
+        // Tiny star flare at head
+        ctx.fillStyle = `rgba(255,255,255,${fade*0.9})`;
+        ctx.beginPath(); ctx.arc(c.x,c.y, c.width*0.6, 0, Math.PI*2); ctx.fill();
+
+        c.x += c.vx*dt; c.y += c.vy*dt;
+      }
+
+      // ─ Stars ────────────────────────────────────
       for (const s of stars) {
-        const a=s.alpha*(0.35+0.65*Math.abs(Math.sin(t*s.spd+s.phase)));
+        const a = s.a * (0.3 + 0.7 * Math.abs(Math.sin(now*0.001*s.sp*6+s.ph)));
         ctx.beginPath(); ctx.arc(s.x,s.y,s.r,0,Math.PI*2);
-        ctx.fillStyle=`rgba(175,210,255,${a})`; ctx.fill();
+        ctx.fillStyle = `rgba(175,210,255,${a})`; ctx.fill();
         s.x=(s.x+s.vx+w)%w; s.y=(s.y+s.vy+h)%h;
       }
-      t++; raf=requestAnimationFrame(draw);
+
+      raf = requestAnimationFrame(draw);
     };
-    draw();
-    const onResize=()=>{ w=canvas.width=window.innerWidth; h=canvas.height=window.innerHeight; };
-    window.addEventListener('resize',onResize);
-    return ()=>{ cancelAnimationFrame(raf); window.removeEventListener('resize',onResize); };
-  },[]);
+    raf = requestAnimationFrame(draw);
+
+    const onResize = () => { w=canvas.width=window.innerWidth; h=canvas.height=window.innerHeight; };
+    window.addEventListener('resize', onResize);
+    return () => { cancelAnimationFrame(raf); window.removeEventListener('resize', onResize); };
+  }, []);
   return <canvas ref={canvasRef} style={{position:'absolute',inset:0,zIndex:0,pointerEvents:'none',display:'block'}} />;
 });
 
@@ -121,18 +218,22 @@ function MainMenu({ onStart, onCodex, onHowTo, mode, setMode }: {
     <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#010308', color: '#cde', zIndex: 100 }}>
       <StarfieldCanvas />
       <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-        <img
-          src='/assets/space/ui/logo.png'
-          alt='GRUDA ARMADA'
-          style={{ width: 380, maxWidth: '88vw', marginBottom: 32,
-            mixBlendMode: 'multiply' as React.CSSProperties['mixBlendMode'],
-            filter: 'drop-shadow(0 0 40px rgba(68,136,255,0.5))',
-            imageRendering: 'auto' }}
-          onError={e => {
-            const t = e.target as HTMLImageElement;
-            if (!t.src.endsWith('.svg')) { t.src='/assets/space/ui/logo.svg'; t.style.mixBlendMode='normal'; }
-          }}
-        />
+        {/* Logo: wrap in dark bg so white webp background blends away */}
+        <div style={{ background:'#010308', borderRadius:8, display:'inline-block',
+          filter:'drop-shadow(0 0 40px rgba(68,136,255,0.45)) drop-shadow(0 0 18px rgba(200,30,30,0.3))',
+          marginBottom: 24 }}>
+          <img
+            src='/assets/space/ui/logo.webp'
+            alt='GRUDA ARMADA'
+            style={{ width: 400, maxWidth: '88vw', display:'block',
+              imageRendering: 'auto', borderRadius: 8 }}
+            onError={e => {
+              const t = e.target as HTMLImageElement;
+              if (!t.src.endsWith('.svg')) t.src='/assets/space/ui/logo.svg';
+              else t.style.display='none';
+            }}
+          />
+        </div>
         <div style={{ fontSize: 12, opacity: 0.4, marginBottom: 32, letterSpacing: 4, textTransform: 'uppercase' }}>Solar System Scrim · Tactical RTS</div>
         <div style={{ display: 'flex', gap: 16, marginBottom: 32 }}>
           {modes.map(m => (
@@ -683,7 +784,7 @@ function HowToPlay({ onBack }: { onBack: () => void }) {
       <div style={{ position: 'relative', zIndex: 1 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <img src='/assets/space/ui/logo.png' alt='Gruda Armada' style={{ height: 32, imageRendering: 'auto' }}
+            <img src='/assets/space/ui/logo.webp' alt='Gruda Armada' style={{ height: 32, imageRendering: 'auto' }}
               onError={e => { (e.target as HTMLImageElement).style.display='none'; }} />
             <div style={{ fontSize: 22, fontWeight: 800, color: '#4488ff', letterSpacing: 3 }}>SHIP CODEX</div>
           </div>
@@ -722,17 +823,14 @@ function LoadingScreen() {
     <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, color: '#4488ff', fontFamily: 'monospace', background: '#010308' }}>
       <StarfieldCanvas />
       <div style={{ position: 'relative', zIndex: 1, textAlign: 'center' }}>
-        <img
-          src='/assets/space/ui/logo.png'
-          alt='GRUDA ARMADA'
-          style={{ width: 280, maxWidth: '70vw', marginBottom: 20,
-            mixBlendMode: 'multiply' as React.CSSProperties['mixBlendMode'],
-            filter: 'drop-shadow(0 0 30px rgba(68,136,255,0.6))' }}
-          onError={e => {
-            const t = e.target as HTMLImageElement;
-            if (!t.src.endsWith('.svg')) { t.src='/assets/space/ui/logo.svg'; t.style.mixBlendMode='normal'; }
-          }}
-        />
+        <div style={{ background:'#010308', borderRadius:8, display:'inline-block',
+          filter:'drop-shadow(0 0 24px rgba(68,136,255,0.55))',
+          marginBottom:16 }}>
+          <img src='/assets/space/ui/logo.webp' alt='GRUDA ARMADA'
+            style={{ width:260, maxWidth:'68vw', display:'block', borderRadius:8 }}
+            onError={e=>{ const t=e.target as HTMLImageElement; if(!t.src.endsWith('.svg')) t.src='/assets/space/ui/logo.svg'; else t.style.display='none'; }}
+          />
+        </div>
         <div style={{ opacity: 0.55, letterSpacing: 3, fontSize: 13 }}>LOADING ASSETS...</div>
       </div>
     </div>

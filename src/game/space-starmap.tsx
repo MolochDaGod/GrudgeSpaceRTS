@@ -70,7 +70,7 @@ export function StarMapOverlay({ renderer, onClose }: { renderer: SpaceRenderer;
 
         {/* Game logo + title */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <img src='/assets/space/ui/logo.png' alt='Gruda Armada'
+          <img src='/assets/space/ui/logo.webp' alt='Gruda Armada'
             style={{ height: 36, imageRendering: 'auto',
               filter: 'drop-shadow(0 0 12px rgba(68,136,255,0.55))' }}
             onError={e => { (e.target as HTMLImageElement).style.display='none'; }}
