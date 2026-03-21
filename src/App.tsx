@@ -1,6 +1,7 @@
-﻿import { useEffect, useRef, useState, useCallback, memo } from 'react';
+import { useEffect, useRef, useState, useCallback, memo } from 'react';
 import { SpaceRenderer } from './game/space-renderer';
 import { SpaceHUD } from './game/space-ui';
+import { StarMapOverlay } from './game/space-starmap';
 import { SHIP_DEFINITIONS, BUILDABLE_SHIPS, HERO_DEFINITIONS, HERO_SHIPS, type GameMode } from './game/space-types';
 
 type Screen = 'menu' | 'codex' | 'howto' | 'playing';
@@ -56,6 +57,19 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [renderer, setRenderer] = useState<SpaceRenderer | null>(null);
   const [gameMode, setGameMode] = useState<GameMode>('1v1');
+  const [starMapOpen, setStarMapOpen] = useState(false);
+
+  // M key opens Star Map while playing
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key.toLowerCase() === 'm' && screen === 'playing' && renderer) {
+        setStarMapOpen(o => !o);
+      }
+      if (e.key === 'Escape') setStarMapOpen(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [screen, renderer]);
 
   const startGame = useCallback((mode: GameMode) => {
     if (!containerRef.current) return;
@@ -81,6 +95,9 @@ export default function App() {
       {screen === 'howto' && <HowToPlay onBack={() => setScreen('menu')} />}
       {loading && <LoadingScreen />}
       {screen === 'playing' && !loading && renderer && <SpaceHUD renderer={renderer} onQuit={backToMenu} />}
+      {screen === 'playing' && starMapOpen && renderer && (
+        <StarMapOverlay renderer={renderer} onClose={() => setStarMapOpen(false)} />
+      )}
     </div>
   );
 }
@@ -99,8 +116,8 @@ function MainMenu({ onStart, onCodex, onHowTo, mode, setMode }: {
     <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#010308', color: '#cde', zIndex: 100 }}>
       <StarfieldCanvas />
       <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-        <div style={{ fontSize: 56, fontWeight: 800, color: '#4488ff', marginBottom: 4, letterSpacing: 4, textShadow: '0 0 40px #4488ff88, 0 0 80px #4488ff33' }}>NEXUS NEMESIS</div>
-        <div style={{ fontSize: 14, opacity: 0.45, marginBottom: 40, letterSpacing: 3 }}>GRUDGE SPACE RTS</div>
+        <div style={{ fontSize: 56, fontWeight: 800, color: '#4488ff', marginBottom: 4, letterSpacing: 4, textShadow: '0 0 40px #4488ff88, 0 0 80px #4488ff33' }}>GRUDA ARMADA</div>
+        <div style={{ fontSize: 14, opacity: 0.45, marginBottom: 40, letterSpacing: 3 }}>TACTICAL SPACE COMMAND · RTS</div>
         <div style={{ display: 'flex', gap: 16, marginBottom: 32 }}>
           {modes.map(m => (
             <div key={m.key} onClick={() => setMode(m.key)} style={{
@@ -254,7 +271,7 @@ function LoadingScreen() {
     <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, color: '#4488ff', fontFamily: 'monospace', background: '#010308' }}>
       <StarfieldCanvas />
       <div style={{ position: 'relative', zIndex: 1, textAlign: 'center' }}>
-        <div style={{ fontSize: 48, marginBottom: 16, textShadow: '0 0 30px #4488ff88' }}>NEXUS NEMESIS</div>
+        <div style={{ fontSize: 48, marginBottom: 16, textShadow: '0 0 30px #4488ff88' }}>GRUDA ARMADA</div>
         <div style={{ opacity: 0.55, letterSpacing: 3, fontSize: 13 }}>LOADING ASSETS...</div>
       </div>
     </div>

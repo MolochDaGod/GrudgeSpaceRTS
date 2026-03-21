@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from 'react';
+﻿import { useEffect, useState, useCallback, useRef } from 'react';
 import type { SpaceRenderer } from './space-renderer';
 import type {
   SpaceShip, SpaceStation, ShipAbilityState, PlayerResources,
@@ -256,7 +256,7 @@ export function SpaceHUD({ renderer, onQuit }: SpaceHUDProps) {
         display: 'flex', alignItems: 'center', padding: '0 16px', gap: 24,
         pointerEvents: 'auto', zIndex: 10,
       }}>
-        <span style={{ color: '#4488ff', fontWeight: 700, fontSize: 14 }}>NEXUS NEMESIS</span>
+        <span style={{ color: '#4488ff', fontWeight: 700, fontSize: 14 }}>GRUDA ARMADA</span>
         <ResourceItem icon={RES_ICONS.credits} label="Credits" value={Math.floor(res.credits)} color="#fc4" />
         <ResourceItem icon={RES_ICONS.energy} label="Energy" value={Math.floor(res.energy)} color="#4df" />
         <ResourceItem icon={RES_ICONS.minerals} label="Minerals" value={Math.floor(res.minerals)} color="#4f8" />
