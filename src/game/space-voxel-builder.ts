@@ -233,18 +233,110 @@ function patternDestroyer(v: number): VoxMap {
   return m;
 }
 
-// ── Public API ────────────────────────────────────────────────────
+// ─ Capital ship patterns ────────────────────────────────
+
+function patternCapitalDestroyer(): VoxMap {
+  // Military destroyer: long hull, aggressive spine, quad engines
+  const m: VoxMap = new Map();
+  box(m, -2, 0, -9,  2, 2, 9,  1);
+  box(m, -1, 3, -6,  1, 4, 5,  2);  // upper spine
+  box(m, -4, 0, -5, -3, 1, 3,  2);  // port wing
+  box(m,  3, 0, -5,  4, 1, 3,  2);  // starboard wing
+  set(m, -4, 1,  0,  4); set(m,  4, 1,  0,  4); // wing guns
+  box(m, -2, 0, 10,  2, 1,12,  1);  // bow extension
+  set(m,  0, 2, 12,  4);             // primary cannon
+  // Engines
+  set(m, -2, 0,-10,  3); set(m,  0, 0,-10,  3);
+  set(m,  2, 0,-10,  3); set(m,  0, 2,-10,  3);
+  return m;
+}
+
+function patternCapitalCruiser(): VoxMap {
+  // Heavy cruiser: wide command deck, broadside cannons, carrier bay
+  const m: VoxMap = new Map();
+  box(m, -4, 0, -8,  4, 2, 8,  1);
+  box(m, -3, 3, -4,  3, 5, 4,  2);  // command tower
+  set(m,  0, 6,  2,  5);             // bridge dome
+  // Broadside turret rows
+  set(m, -5, 2, -4, 4); set(m, -5, 2, 0, 4); set(m, -5, 2, 4, 4);
+  set(m,  5, 2, -4, 4); set(m,  5, 2, 0, 4); set(m,  5, 2, 4, 4);
+  box(m, -5, 0, -4, -4, 1, 4,  2);
+  box(m,  4, 0, -4,  5, 1, 4,  2);
+  // Bow
+  box(m, -3, 0,  9,  3, 1, 11, 1);
+  set(m, -2, 1, 11, 4); set(m, 2, 1, 11, 4);
+  // Stern engines
+  set(m,-4,0,-9,3); set(m,-2,0,-9,3); set(m,0,0,-9,3);
+  set(m, 2,0,-9,3); set(m, 4,0,-9,3);
+  return m;
+}
+
+function patternCapitalBomber(): VoxMap {
+  // Heavy bomber: thick armoured hull, bomb-bay underside, two engine pods
+  const m: VoxMap = new Map();
+  box(m, -3, 0, -7,  3, 3, 7,  1);
+  box(m, -2, 4, -3,  2, 5, 3,  2);  // cockpit section
+  set(m,  0, 6,  1,  5);             // canopy
+  // Bomb bay doors (accents)
+  box(m, -2,-1,-4,  2,-1, 4,  2);
+  // Torpedo launchers
+  set(m,-2,-1, 8, 4); set(m, 0,-1, 8, 4); set(m, 2,-1, 8, 4);
+  // Wide engine nacelles
+  box(m,-5, 0,-6, -4, 1, 2,  2);
+  box(m, 4, 0,-6,  5, 1, 2,  2);
+  set(m,-5, 0,-7, 3); set(m, 5, 0,-7, 3);
+  set(m,-3, 0,-8, 3); set(m, 3, 0,-8, 3);
+  return m;
+}
+
+function patternCapitalBattleship(): VoxMap {
+  // Apex dreadnought: imposing multi-deck fortress ship
+  const m: VoxMap = new Map();
+  box(m, -5, 0,-12,  5, 3,12,  1);
+  box(m, -4, 4, -8,  4, 7, 6,  2);  // upper citadel
+  box(m, -3, 8, -4,  3, 9, 3,  2);  // flag tower
+  set(m,  0,10,  1,  5);             // command dome
+  // Main gun turrets (3 rows)
+  set(m,-5, 4, 8,4); set(m, 5, 4, 8,4);
+  set(m,-5, 4, 0,4); set(m, 5, 4, 0,4);
+  set(m,-5, 4,-6,4); set(m, 5, 4,-6,4);
+  // Super-heavy bow cannon
+  box(m,-2, 2,13,  2, 3,16, 4);
+  set(m, 0, 2,17,  4);
+  // Side wing sections
+  box(m,-7, 0,-6, -6, 2, 4,  2);
+  box(m, 6, 0,-6,  7, 2, 4,  2);
+  // Massive engine array
+  for (let ex = -4; ex <= 4; ex += 2) {
+    set(m, ex, 0,-13, 3);
+    if (Math.abs(ex) <= 2) set(m, ex, 2,-13, 3);
+  }
+  return m;
+}
+
+// ── Public API ────────────────────────────────────
 
 const PATTERN_FNS: Record<string, (v: number) => VoxMap> = {
-  worker:       (v) => v === 0 ? patternWorkerDrone() : patternEnergySkimmer(),
-  corvette:     patternCorvette,
-  frigate:      patternFrigate,
-  light_cruiser: patternLightCruiser,
-  destroyer:    patternDestroyer,
+  worker:            (v) => v === 0 ? patternWorkerDrone() : patternEnergySkimmer(),
+  corvette:          patternCorvette,
+  frigate:           patternFrigate,
+  light_cruiser:     patternLightCruiser,
+  destroyer:         patternDestroyer,
+  // Capital ship fallbacks (used if FBX fails to load)
+  capital_destroyer: () => patternCapitalDestroyer(),
+  capital_cruiser:   () => patternCapitalCruiser(),
+  capital_bomber:    () => patternCapitalBomber(),
+  capital_battleship:() => patternCapitalBattleship(),
 };
 
 // Map ship type key → (patternClass, variant)
+// Capital ships prefer their FBX models; voxel is a high-quality fallback.
 const SHIP_TYPE_MAP: Record<string, [string, number]> = {
+  // Capital ships (fallback if FBX fails)
+  destroyer:  ['capital_destroyer', 1],
+  cruiser:    ['capital_cruiser', 1],
+  bomber:     ['capital_bomber', 1],
+  battleship: ['capital_battleship', 1],
   mining_drone:        ['worker', 0],
   energy_skimmer:      ['worker', 1],
   cf_corvette_01:      ['corvette', 1],

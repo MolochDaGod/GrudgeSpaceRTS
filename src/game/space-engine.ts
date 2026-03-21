@@ -923,8 +923,9 @@ export class SpaceEngine {
       gas_giant: 'vortex', barren: 'void', frozen: 'void',
     };
     const spec: CommanderSpec = specMap[planet.planetType] ?? 'forge';
-    const portraitIdx = Math.floor(Math.random() * 6) + 1;
-    const portrait = `/assets/space/ui/scifi-gui/avatars/${portraitIdx}.png`;
+    // 20 pixel-art sci-fi commander portraits (craftpix-617771, transparent set)
+    const portraitIdx = Math.floor(Math.random() * 20) + 1;
+    const portrait = `/assets/space/ui/commanders/${portraitIdx}.png`;
     const name = COMMANDER_NAMES[Math.floor(Math.random() * COMMANDER_NAMES.length)];
     const id = this.state.nextId++;
     const totalTime = COMMANDER_TRAIN_TIME[1];

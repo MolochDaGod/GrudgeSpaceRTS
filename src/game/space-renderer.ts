@@ -49,6 +49,13 @@ export class SpaceRenderer {
   public engine!: SpaceEngine;
   private effectsRenderer!: SpaceEffectsRenderer;
 
+  // ── Planet interaction ───────────────────────────────
+  public hoveredPlanetId:  number | null = null;
+  public selectedPlanetId: number | null = null;
+  /** Called from SpaceControls when the player LMB-clicks a planet. */
+  public onPlanetClick?: (planetId: number) => void;
+  private raycasterPlanet = new THREE.Raycaster();
+
   private disposed = false;
   private animFrame = 0;
   private captureRings = new Map<number, THREE.Mesh>();
@@ -103,6 +110,19 @@ export class SpaceRenderer {
 
     this.controls = new SpaceControls(this.container, this.camera, this.engine.state, this.renderer);
     this.effectsRenderer = new SpaceEffectsRenderer(this.scene);
+
+    // Wire planet click: controls signals → renderer resolves hovered planet
+    this.controls.onPlanetClick = () => {
+      if (this.hoveredPlanetId !== null) {
+        this.selectedPlanetId = this.hoveredPlanetId;
+        this.onPlanetClick?.(this.hoveredPlanetId);
+      }
+    };
+
+    // Wire Q/W/E/R ability hotkeys: fires the ability matching that key letter
+    this.controls.onAbilityActivateByKey = (key: string) => {
+      this.activateAbilityByKey(key);
+    };
 
     this.buildPlanets();
     this.buildResourceNodes();
@@ -696,6 +716,9 @@ export class SpaceRenderer {
       if (Math.abs(bg.mesh.position.z) > 300) bg.drift.vz *= -1;
     }
 
+    // Planet hover glow
+    this.updatePlanetHover();
+
     // Sync resource nodes
     this.syncResourceNodes();
 
@@ -780,6 +803,44 @@ export class SpaceRenderer {
     }
   }
 
+  // ── Planet hover glow raycasting ───────────────────────
+  private updatePlanetHover() {
+    const ndc = this.controls.mouseNdc;
+    this.raycasterPlanet.setFromCamera(ndc, this.camera);
+    const hits = this.raycasterPlanet.intersectObjects(this.planetMeshes);
+    const hitPlanet = hits.length > 0 ? hits[0].object as THREE.Mesh : null;
+
+    // Update emissive glow for hovered vs selected vs normal planets
+    this.planetMeshes.forEach((mesh, idx) => {
+      const planet = this.engine.state.planets[idx];
+      if (!planet) return;
+      const mat = mesh.material as THREE.MeshStandardMaterial;
+      const isHovered  = hitPlanet === mesh;
+      const isSelected = planet.id === this.selectedPlanetId;
+      if (isSelected) {
+        mat.emissiveIntensity = 0.55;
+        mat.emissive.setHex(0xffffff);
+      } else if (isHovered) {
+        mat.emissiveIntensity = 0.35;
+        mat.emissive.setHex(planet.color);
+      } else {
+        mat.emissiveIntensity = 0.12;
+        mat.emissive.setHex(planet.color);
+      }
+      // Cursor changes when hovering
+      this.renderer.domElement.style.cursor =
+        hitPlanet ? 'pointer' : 'default';
+    });
+
+    // Update hoveredPlanetId
+    if (hitPlanet) {
+      const idx = this.planetMeshes.indexOf(hitPlanet);
+      this.hoveredPlanetId = this.engine.state.planets[idx]?.id ?? null;
+    } else {
+      this.hoveredPlanetId = null;
+    }
+  }
+
   private onResize = () => {
     const w = this.container.clientWidth;
     const h = this.container.clientHeight;
@@ -788,7 +849,18 @@ export class SpaceRenderer {
     this.renderer.setSize(w, h);
   };
 
-  /** Activate a specific ability on all selected ships (called from UI) */
+  /** Activate the ability that has .key === keyLetter (Q/W/E/R) across selected ships */
+  activateAbilityByKey(keyLetter: string) {
+    const state = this.engine.state;
+    for (const id of state.selectedIds) {
+      const ship = state.ships.get(id);
+      if (!ship || ship.dead) continue;
+      const idx = ship.abilities.findIndex(ab => ab.ability.key === keyLetter);
+      if (idx >= 0) this.activateAbility(idx);
+    }
+  }
+
+  /** Activate a specific ability by slot index on all selected ships (called from UI) */
   activateAbility(abilityIndex: number) {
     const state = this.engine.state;
     for (const id of state.selectedIds) {
