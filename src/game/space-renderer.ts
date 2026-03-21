@@ -9,6 +9,7 @@ import { SpaceControls } from './space-controls';
 import { SpaceEngine } from './space-engine';
 import { applyShipAnimation } from './space-animations';
 import { SpaceEffectsRenderer } from './space-effects';
+import { hasVoxelShip, buildVoxelShip } from './space-voxel-builder';
 
 interface ShipMesh3D {
   group: THREE.Group;
@@ -525,18 +526,30 @@ export class SpaceRenderer {
         group.add(hb);
         meshData.healthBar = hb;
 
-        // Try to load real model
-        const prefab = getShipPrefab(ship.shipType);
-        if (prefab) {
-          this.loadModel(prefab).then(model => {
-            if (this.disposed) return;
-            const existing = this.shipMeshes.get(id);
-            if (!existing) return;
-            // Replace placeholder cone
-            const placeholder = existing.group.children.find(c => (c as THREE.Mesh).geometry?.type === 'ConeGeometry');
-            if (placeholder) existing.group.remove(placeholder);
-            existing.group.add(model);
-          }).catch(() => { /* keep placeholder */ });
+        // Try procedural voxel ship first (for missing OBJ/FBX ships)
+        if (hasVoxelShip(ship.shipType)) {
+          const voxelMesh = buildVoxelShip(ship.shipType, ship.team);
+          if (voxelMesh) {
+            // Replace the cone placeholder with the voxel mesh
+            const cone = meshData.group.children.find(
+              c => (c as THREE.Mesh).geometry?.type === 'ConeGeometry');
+            if (cone) meshData.group.remove(cone);
+            meshData.group.add(voxelMesh);
+          }
+        } else {
+          // Try to load real OBJ/FBX model
+          const prefab = getShipPrefab(ship.shipType);
+          if (prefab) {
+            this.loadModel(prefab).then(model => {
+              if (this.disposed) return;
+              const existing = this.shipMeshes.get(id);
+              if (!existing) return;
+              const placeholder = existing.group.children.find(
+                c => (c as THREE.Mesh).geometry?.type === 'ConeGeometry');
+              if (placeholder) existing.group.remove(placeholder);
+              existing.group.add(model);
+            }).catch(() => { /* keep cone placeholder */ });
+          }
         }
       }
 
