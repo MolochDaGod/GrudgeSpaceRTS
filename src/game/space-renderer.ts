@@ -44,7 +44,7 @@ export class SpaceRenderer {
   private selectionBoxDiv!: HTMLDivElement;
   private starField!: THREE.Points;
 
-  private controls!: SpaceControls;
+  public controls!: SpaceControls;
   public engine!: SpaceEngine;
   private effectsRenderer!: SpaceEffectsRenderer;
 

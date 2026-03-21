@@ -15,7 +15,9 @@ export const TEAM_COLORS: Record<number, number> = {
 export type ShipClass =
   | 'scout' | 'fighter' | 'interceptor' | 'heavy_fighter'
   | 'bomber' | 'stealth' | 'transport' | 'assault_frigate'
-  | 'destroyer' | 'cruiser' | 'battleship' | 'carrier' | 'worker';
+  | 'corvette' | 'frigate' | 'light_cruiser'
+  | 'destroyer' | 'cruiser' | 'battleship' | 'carrier'
+  | 'worker' | 'dreadnought';
 
 export type ShipRole = 'combat' | 'support' | 'structure' | 'defense' | 'resource';
 
@@ -141,6 +143,14 @@ export interface SpaceShip extends GameEntity {
   workerCargo?: number;
   workerCargoType?: 'credits' | 'energy' | 'minerals';
   workerHarvestTimer?: number;
+  // Rank / XP progression
+  xp: number;
+  rank: number;            // 0-5, each +5% to all stats
+  // Tech effect flags (applied on spawn/research)
+  burnDot?: boolean;
+  empChance?: number;
+  deathPhase?: boolean;
+  deathPhaseActive?: boolean;
 }
 
 export type ShipAnimState =
@@ -338,6 +348,12 @@ export interface SpaceGameState {
   stations: Map<number, SpaceStation>;
   planets: Planet[];
   resourceNodes: Map<number, ResourceNode>;
+  planetTurrets: Map<number, PlanetTurret>;
+  techState: Map<number, TeamTechState>;
+  voidCooldowns: Map<number, Map<string, number>>;
+  activeVoidEffects: VoidEffect[];
+  aiDifficulty: number;
+  commanders: Map<number, Commander>;
   towers: Map<number, OrbitalTower>;
   projectiles: Map<number, Projectile>;
   spriteEffects: SpriteEffect[];
@@ -483,6 +499,50 @@ export const SHIP_DEFINITIONS: Record<string, { class: ShipClass; stats: ShipSta
       attackDamage: 0, attackRange: 0, attackCooldown: 999, attackType: 'laser',
       supplyCost: 1, buildTime: 8, creditCost: 50, energyCost: 20, mineralCost: 20, tier: 1 },
   },
+  // ── Corvettes (fast attack, T1-2) ─────────────────────────────────
+  cf_corvette_01: { class:'corvette', displayName:'Corvette Mk.I',    stats:{ maxHp:55,  maxShield:20, shieldRegen:1.2, armor:1, speed:110, turnRate:4.5, attackDamage:14, attackRange:140, attackCooldown:0.9, attackType:'laser',   supplyCost:2, buildTime:9,  creditCost:120,  energyCost:30,  mineralCost:50,  tier:1 } },
+  cf_corvette_02: { class:'corvette', displayName:'Corvette Mk.II',   stats:{ maxHp:65,  maxShield:25, shieldRegen:1.5, armor:2, speed:105, turnRate:4.2, attackDamage:18, attackRange:150, attackCooldown:1.0, attackType:'laser',   supplyCost:2, buildTime:11, creditCost:150,  energyCost:35,  mineralCost:60,  tier:2 } },
+  cf_corvette_03: { class:'corvette', displayName:'Corvette Mk.III',  stats:{ maxHp:75,  maxShield:30, shieldRegen:1.5, armor:2, speed:100, turnRate:4.0, attackDamage:22, attackRange:155, attackCooldown:1.0, attackType:'pulse',  supplyCost:3, buildTime:13, creditCost:180,  energyCost:40,  mineralCost:70,  tier:2 } },
+  cf_corvette_04: { class:'corvette', displayName:'Tide Corvette',    stats:{ maxHp:80,  maxShield:50, shieldRegen:3.0, armor:3, speed:95,  turnRate:4.0, attackDamage:20, attackRange:160, attackCooldown:1.1, attackType:'laser',   supplyCost:3, buildTime:14, creditCost:200,  energyCost:50,  mineralCost:80,  tier:2, abilities:[{id:'iron_dome',name:'Shield Ram',key:'Q',cooldown:20,energyCost:30,type:'iron_dome',duration:4,radius:80}] } },
+  cf_corvette_05: { class:'corvette', displayName:'Phantom Corvette', stats:{ maxHp:60,  maxShield:30, shieldRegen:2.0, armor:1, speed:120, turnRate:5.0, attackDamage:28, attackRange:145, attackCooldown:0.8, attackType:'laser',   supplyCost:3, buildTime:14, creditCost:220,  energyCost:55,  mineralCost:75,  tier:2, abilities:[{id:'cloak',name:'Phase Cloak',key:'Q',cooldown:18,energyCost:25,type:'cloak',duration:8}] } },
+  // ── Frigates (balanced, T2-3) ──────────────────────────────────
+  cf_frigate_01:  { class:'frigate',   displayName:'Frigate Mk.I',    stats:{ maxHp:120, maxShield:45, shieldRegen:1.8, armor:4, speed:55,  turnRate:2.5, attackDamage:28, attackRange:200, attackCooldown:1.4, attackType:'missile', supplyCost:4, buildTime:18, creditCost:280,  energyCost:60,  mineralCost:110, tier:2 } },
+  cf_frigate_02:  { class:'frigate',   displayName:'Frigate Mk.II',   stats:{ maxHp:135, maxShield:50, shieldRegen:2.0, armor:5, speed:52,  turnRate:2.3, attackDamage:34, attackRange:210, attackCooldown:1.5, attackType:'missile', supplyCost:4, buildTime:20, creditCost:320,  energyCost:70,  mineralCost:130, tier:3 } },
+  cf_frigate_03:  { class:'frigate',   displayName:'Siege Frigate',   stats:{ maxHp:150, maxShield:55, shieldRegen:2.0, armor:6, speed:45,  turnRate:2.0, attackDamage:50, attackRange:280, attackCooldown:2.2, attackType:'railgun', supplyCost:5, buildTime:24, creditCost:380,  energyCost:80,  mineralCost:160, tier:3 } },
+  cf_frigate_04:  { class:'frigate',   displayName:'Frigate Mk.IV',   stats:{ maxHp:140, maxShield:60, shieldRegen:2.2, armor:5, speed:50,  turnRate:2.2, attackDamage:38, attackRange:220, attackCooldown:1.6, attackType:'missile', supplyCost:5, buildTime:22, creditCost:350,  energyCost:75,  mineralCost:140, tier:3 } },
+  cf_frigate_05:  { class:'frigate',   displayName:'Frigate Mk.V',    stats:{ maxHp:160, maxShield:65, shieldRegen:2.5, armor:6, speed:48,  turnRate:2.0, attackDamage:44, attackRange:230, attackCooldown:1.7, attackType:'torpedo', supplyCost:5, buildTime:25, creditCost:400,  energyCost:85,  mineralCost:155, tier:3 } },
+  // ── Light Cruisers (heavy firepower, T3-4) ────────────────────────
+  cf_light_cruiser_01: { class:'light_cruiser', displayName:'Prism Cruiser',   stats:{ maxHp:320, maxShield:130, shieldRegen:3.5, armor:8,  speed:32, turnRate:1.6, attackDamage:50, attackRange:300, attackCooldown:1.8, attackType:'laser',   supplyCost:7, buildTime:38, creditCost:620,  energyCost:130, mineralCost:270, tier:4 } },
+  cf_light_cruiser_02: { class:'light_cruiser', displayName:'Leviathan',       stats:{ maxHp:380, maxShield:180, shieldRegen:5.0, armor:9,  speed:28, turnRate:1.4, attackDamage:45, attackRange:290, attackCooldown:1.7, attackType:'missile', supplyCost:8, buildTime:42, creditCost:700,  energyCost:150, mineralCost:310, tier:4, abilities:[{id:'iron_dome',name:'Aegis Dome',key:'Q',cooldown:40,energyCost:80,type:'iron_dome',duration:10,radius:160}] } },
+  cf_light_cruiser_03: { class:'light_cruiser', displayName:'Cruiser Mk.III',  stats:{ maxHp:350, maxShield:140, shieldRegen:4.0, armor:9,  speed:30, turnRate:1.5, attackDamage:55, attackRange:310, attackCooldown:2.0, attackType:'railgun', supplyCost:7, buildTime:40, creditCost:660,  energyCost:140, mineralCost:290, tier:4 } },
+  cf_light_cruiser_04: { class:'light_cruiser', displayName:'Forge Cruiser',   stats:{ maxHp:340, maxShield:120, shieldRegen:3.0, armor:11, speed:31, turnRate:1.5, attackDamage:72, attackRange:320, attackCooldown:1.6, attackType:'railgun', supplyCost:8, buildTime:44, creditCost:720,  energyCost:160, mineralCost:320, tier:4, abilities:[{id:'emp',name:'Forge Blast',key:'Q',cooldown:30,energyCost:90,type:'emp',duration:3,radius:200}] } },
+  cf_light_cruiser_05: { class:'light_cruiser', displayName:'Cruiser Mk.V',    stats:{ maxHp:400, maxShield:150, shieldRegen:4.5, armor:10, speed:27, turnRate:1.3, attackDamage:58, attackRange:300, attackCooldown:1.9, attackType:'torpedo', supplyCost:8, buildTime:45, creditCost:740,  energyCost:165, mineralCost:330, tier:4 } },
+  // ── Craft Destroyers (elite T4) ───────────────────────────────
+  cf_destroyer_01: { class:'destroyer', displayName:'Destroyer Mk.I',    stats:{ maxHp:270, maxShield:110, shieldRegen:3.2, armor:7,  speed:38, turnRate:1.6, attackDamage:52, attackRange:260, attackCooldown:2.1, attackType:'railgun', supplyCost:6, buildTime:32, creditCost:520,  energyCost:110, mineralCost:210, tier:4 } },
+  cf_destroyer_02: { class:'destroyer', displayName:'Destroyer Mk.II',   stats:{ maxHp:290, maxShield:120, shieldRegen:3.5, armor:7,  speed:36, turnRate:1.5, attackDamage:58, attackRange:270, attackCooldown:2.2, attackType:'railgun', supplyCost:7, buildTime:35, creditCost:560,  energyCost:120, mineralCost:230, tier:4 } },
+  cf_destroyer_03: { class:'destroyer', displayName:'Storm Destroyer',   stats:{ maxHp:260, maxShield:105, shieldRegen:3.0, armor:6,  speed:45, turnRate:2.0, attackDamage:55, attackRange:265, attackCooldown:1.8, attackType:'pulse',  supplyCost:6, buildTime:33, creditCost:540,  energyCost:115, mineralCost:215, tier:4, abilities:[{id:'emp',name:'Ion Surge',key:'Q',cooldown:22,energyCost:50,type:'emp',duration:3,radius:160}] } },
+  cf_destroyer_04: { class:'destroyer', displayName:'Destroyer Mk.IV',   stats:{ maxHp:310, maxShield:130, shieldRegen:3.8, armor:8,  speed:34, turnRate:1.4, attackDamage:62, attackRange:275, attackCooldown:2.3, attackType:'railgun', supplyCost:7, buildTime:36, creditCost:580,  energyCost:125, mineralCost:240, tier:4 } },
+  cf_destroyer_05: { class:'destroyer', displayName:'Tempest Destroyer', stats:{ maxHp:300, maxShield:125, shieldRegen:4.0, armor:7,  speed:42, turnRate:1.8, attackDamage:60, attackRange:270, attackCooldown:2.0, attackType:'pulse',  supplyCost:7, buildTime:35, creditCost:570,  energyCost:130, mineralCost:235, tier:4, abilities:[{id:'speed_boost',name:'Storm Drive',key:'Q',cooldown:15,energyCost:35,type:'speed_boost',duration:5},{id:'emp',name:'Tempest EMP',key:'W',cooldown:30,energyCost:70,type:'emp',duration:4,radius:180}] } },
+  // ── Boss / Dreadnoughts (tech-locked, T5) ─────────────────────
+  boss_ship_01: {
+    class: 'dreadnought', displayName: 'Command Dreadnought',
+    stats: { maxHp:1600, maxShield:700, shieldRegen:10, armor:20, speed:18, turnRate:0.5, attackDamage:120, attackRange:450, attackCooldown:1.6, attackType:'railgun', supplyCost:25, buildTime:100, creditCost:2400, energyCost:500, mineralCost:1000, tier:5,
+      abilities:[
+        {id:'iron_dome',name:'Command Shield',key:'Q',cooldown:35,energyCost:120,type:'iron_dome',duration:14,radius:220},
+        {id:'launch_fighters',name:'Deploy Wing',key:'W',cooldown:30,energyCost:80,type:'launch_fighters',duration:0},
+        {id:'warp',name:'Command Warp',key:'E',cooldown:60,energyCost:180,type:'warp',duration:2},
+      ]},
+  },
+  boss_ship_02: {
+    class: 'dreadnought', displayName: 'Apex Dreadnought',
+    stats: { maxHp:2400, maxShield:1000, shieldRegen:15, armor:25, speed:12, turnRate:0.4, attackDamage:180, attackRange:500, attackCooldown:1.4, attackType:'railgun', supplyCost:30, buildTime:120, creditCost:3200, energyCost:700, mineralCost:1400, tier:5,
+      abilities:[
+        {id:'iron_dome',name:'Apex Shield',key:'Q',cooldown:30,energyCost:150,type:'iron_dome',duration:16,radius:260},
+        {id:'emp',name:'Annihilator',key:'W',cooldown:40,energyCost:200,type:'emp',duration:5,radius:350},
+        {id:'warp',name:'Phase Strike',key:'E',cooldown:45,energyCost:200,type:'warp',duration:2},
+        {id:'launch_fighters',name:'Carrier Launch',key:'R',cooldown:25,energyCost:100,type:'launch_fighters',duration:0},
+      ]},
+  },
 };
 
 // ── Hero Class Ships (unique powerful units) ────────────────────
@@ -541,10 +601,10 @@ export const HERO_DEFINITIONS: Record<string, { class: ShipClass; stats: ShipSta
 
 // ── Ship types available at each tier for building ──────────────
 export const BUILDABLE_SHIPS: Record<number, string[]> = {
-  1: ['mining_drone', 'energy_skimmer', 'micro_recon', 'red_fighter', 'galactix_racer'],
-  2: ['dual_striker', 'camo_stellar_jet', 'meteor_slicer', 'infrared_furtive', 'interstellar_runner', 'transtellar'],
-  3: ['ultraviolet_intruder', 'warship', 'star_marine_trooper', 'pyramid_ship'],
-  4: ['destroyer', 'cruiser', 'bomber'],
+  1: ['mining_drone', 'energy_skimmer', 'micro_recon', 'red_fighter', 'galactix_racer', 'cf_corvette_01'],
+  2: ['dual_striker', 'camo_stellar_jet', 'meteor_slicer', 'infrared_furtive', 'interstellar_runner', 'transtellar', 'cf_corvette_02', 'cf_corvette_03', 'cf_frigate_01'],
+  3: ['ultraviolet_intruder', 'warship', 'star_marine_trooper', 'pyramid_ship', 'cf_frigate_02', 'cf_frigate_04', 'cf_frigate_05'],
+  4: ['destroyer', 'cruiser', 'bomber', 'cf_destroyer_01', 'cf_destroyer_02', 'cf_destroyer_04', 'cf_light_cruiser_03', 'cf_light_cruiser_05'],
   5: ['battleship'],
 };
 
@@ -570,7 +630,110 @@ export const MAP_WIDTH = 8000;
 export const MAP_HEIGHT = 8000;
 export const MAP_DEPTH = 800;
 
-// ── Capture Constants ───────────────────────────────────────────
+// ── Commander System ──────────────────────────────────────────────
+export type CommanderSpec = 'forge' | 'tide' | 'prism' | 'vortex' | 'void';
+export type CommanderState = 'idle' | 'training' | 'onship';
+
+export interface Commander {
+  id: number;
+  name: string;
+  portrait: string;            // path to avatar image
+  spec: CommanderSpec;
+  level: number;               // 1-5
+  xp: number;
+  xpToNextLevel: number;
+  team: Team;
+  state: CommanderState;
+  trainingPlanetId: number | null;
+  trainingTimeRemaining: number; // seconds until training completes
+  trainingTotalTime: number;
+  equippedShipId: number | null;
+  // Combat bonuses applied to equipped Hero ship (as % multipliers)
+  attackBonus: number;    // e.g. 0.10 = +10%
+  defenseBonus: number;
+  speedBonus: number;
+  specialBonus: number;   // spec-specific stat
+}
+
+export const COMMANDER_NAMES = [
+  'Vex Mara', 'Solis Kane', 'Rynn Holt', 'Dex Void', 'Kira Null',
+  'Orion Blaze', 'Lyra Storm', 'Axon Prime', 'Nova Crest', 'Dusk Fray',
+];
+export const COMMANDER_XP_LEVELS = [0, 100, 250, 500, 900, 1500];
+export const COMMANDER_TRAIN_TIME = [0, 30, 60, 120, 200, 360]; // seconds per level-up
+export const COMMANDER_TRAIN_COST = [
+  { credits: 0,   energy: 0,   minerals: 0   },
+  { credits: 200, energy: 80,  minerals: 100 },
+  { credits: 400, energy: 160, minerals: 200 },
+  { credits: 700, energy: 280, minerals: 350 },
+  { credits: 1100, energy: 440, minerals: 550 },
+  { credits: 1600, energy: 640, minerals: 800 },
+];
+
+// Maps commander spec to its planet type home
+export const COMMANDER_SPEC_PLANET: Record<CommanderSpec, PlanetType> = {
+  forge:  'volcanic', tide:  'oceanic', prism: 'crystalline',
+  vortex: 'gas_giant', void: 'barren',
+};
+export const COMMANDER_SPEC_LABEL: Record<CommanderSpec, string> = {
+  forge: 'Forge', tide: 'Tide', prism: 'Prism', vortex: 'Vortex', void: 'Void',
+};
+
+// ── Planet Defense Turret ───────────────────────────────────────
+export interface PlanetTurret {
+  id: number;
+  planetId: number;
+  x: number; y: number; z: number;
+  orbitAngle: number;
+  orbitRadius: number;
+  team: Team;
+  turretType: string;
+  hp: number;
+  maxHp: number;
+  dead: boolean;
+  attackCooldown: number;
+  attackTimer: number;
+  targetId: number | null;
+}
+
+// ── Tech Research State ───────────────────────────────────────
+export interface TeamTechState {
+  researchedNodes: Set<string>;
+  inResearch: string | null;
+  researchTimeRemaining: number;
+  unlockedShips: Set<string>;
+  unlockedTurrets: Set<string>;
+  bonuses: TeamTechBonuses;
+}
+export interface TeamTechBonuses {
+  attackMult: number;
+  armorBonus: number;
+  shieldMult: number;
+  speedMult: number;
+  healthMult: number;
+  resourceMult: number;
+  buildSpeedMult: number;
+  shieldRegenBonus: number;
+  cooldownReduction: number;
+}
+export function defaultTechBonuses(): TeamTechBonuses {
+  return { attackMult:1, armorBonus:0, shieldMult:1, speedMult:1, healthMult:1, resourceMult:1, buildSpeedMult:1, shieldRegenBonus:0, cooldownReduction:0 };
+}
+
+// ── Active Void Effect ────────────────────────────────────────────
+export interface VoidEffect {
+  id: number;
+  powerId: string;
+  x: number; y: number;
+  radius: number;
+  damage?: number;
+  pushForce?: number;
+  lifetime: number;
+  maxLifetime: number;
+  team: Team;
+  done: boolean;
+}
+
 export const CAPTURE_TIME = 100;         // progress needed to capture
 export const CAPTURE_RATE_PER_UNIT = 5;  // per second per unit orbiting
 export const NEUTRAL_DEFENDERS = 3;      // neutral ships guarding unclaimed planet

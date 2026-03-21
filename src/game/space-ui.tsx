@@ -1,7 +1,38 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import type { SpaceRenderer } from './space-renderer';
-import type { SpaceShip, SpaceStation, ShipAbilityState, PlayerResources, SpaceGameState, TeamUpgrades } from './space-types';
-import { SHIP_DEFINITIONS, BUILDABLE_SHIPS, UPGRADE_COSTS, UPGRADE_BONUSES, TEAM_COLORS, CAPTURE_TIME, DOMINATION_TIME, HERO_DEFINITIONS, HERO_SHIPS, getShipDef, type UpgradeType } from './space-types';
+import type {
+  SpaceShip, SpaceStation, ShipAbilityState, PlayerResources,
+  SpaceGameState, TeamUpgrades, Commander,
+} from './space-types';
+import {
+  SHIP_DEFINITIONS, BUILDABLE_SHIPS, UPGRADE_COSTS, UPGRADE_BONUSES,
+  TEAM_COLORS, CAPTURE_TIME, DOMINATION_TIME, HERO_DEFINITIONS, HERO_SHIPS,
+  getShipDef, type UpgradeType,
+  PLANET_TYPE_DATA, COMMANDER_SPEC_LABEL, COMMANDER_TRAIN_COST, COMMANDER_TRAIN_TIME,
+} from './space-types';
+import { ALL_TECH_TREES, VOID_POWERS, PLANET_TYPE_TO_TECH, TURRET_DEFS } from './space-techtree';
+
+// ── Segment Bar: Sci-fi blockified health bar ──────────────────
+function SegmentBar({
+  value, max, segments = 10, color = '#44ee44', bg = '#0a1a0a', height = 10,
+}: {
+  value: number; max: number; segments?: number; color?: string; bg?: string; height?: number;
+}) {
+  const filled = Math.round((value / Math.max(max, 1)) * segments);
+  return (
+    <div style={{ display: 'flex', gap: 2 }}>
+      {Array.from({ length: segments }, (_, i) => (
+        <div key={i} style={{
+          flex: 1, height,
+          background: i < filled ? color : bg,
+          borderRadius: 2,
+          boxShadow: i < filled ? `0 0 4px ${color}88` : 'none',
+          transition: 'background 0.2s',
+        }} />
+      ))}
+    </div>
+  );
+}
 
 // ── Ability SVG Icons ─────────────────────────────────────────────
 const ABILITY_ICONS: Record<string, React.ReactNode> = {
@@ -144,6 +175,10 @@ interface SpaceHUDProps {
 export function SpaceHUD({ renderer, onQuit }: SpaceHUDProps) {
   const [, forceUpdate] = useState(0);
   const animRef = useRef(0);
+  const [techOpen, setTechOpen]         = useState(false);
+  const [cmdOpen, setCmdOpen]           = useState(false);
+  const [selectedPlanetId, setSelectedPlanetId] = useState<number | null>(null);
+  const [selectedCmdId, setSelectedCmdId] = useState<number | null>(null);
 
   // Re-render HUD at 10fps for perf
   useEffect(() => {
@@ -161,6 +196,8 @@ export function SpaceHUD({ renderer, onQuit }: SpaceHUDProps) {
   const state = renderer.engine.state;
   const res = state.resources[1]; // player resources
   const upg = state.upgrades[1];
+  const techSt = state.techState?.get(1);
+  const myPlanets = state.planets.filter(p => p.owner === 1);
 
   // Get selected ships
   const selectedShips: SpaceShip[] = [];
@@ -233,8 +270,37 @@ export function SpaceHUD({ renderer, onQuit }: SpaceHUDProps) {
           {enemyAlive}
         </div>
         <span style={{ fontSize: 11, opacity: 0.5 }}>{formatTime(state.gameTime)}</span>
+        {/* AI Difficulty display */}
+        <span style={{ fontSize: 10, color: '#4df', border: '1px solid #1a4a40', padding: '1px 6px', borderRadius: 3 }}>AI D{state.aiDifficulty}</span>
         {onQuit && <button onClick={onQuit} style={{ fontSize: 10, padding: '2px 10px', background: 'transparent', border: '1px solid #333', color: '#888', borderRadius: 4, cursor: 'pointer' }}>QUIT</button>}
       </div>
+
+      {/* ── Void Power Castbar ──────────────────── */}
+      {techSt && Object.values(VOID_POWERS).some(p => techSt.researchedNodes.has(p.techNodeId)) && (
+        <VoidPowerBar state={state} techSt={techSt} onCast={(id, x, y) => renderer.engine.castVoidPower(1 as any, id, x, y)} />
+      )}
+
+      {/* ── Floating panels ──────────────────── */}
+      {techOpen && (
+        <TechTreePanel
+          state={state} myPlanets={myPlanets}
+          onResearch={nodeId => renderer.engine.startResearch(1 as any, nodeId)}
+          onClose={() => setTechOpen(false)}
+        />
+      )}
+      {cmdOpen && (
+        <CommanderPanel
+          state={state}
+          selectedCmdId={selectedCmdId}
+          selectedPlanetId={selectedPlanetId}
+          onSelectCmd={id => setSelectedCmdId(id)}
+          onSelectPlanet={id => setSelectedPlanetId(id)}
+          onTrain={pid => renderer.engine.trainCommander(1 as any, pid)}
+          onUpgrade={cid => renderer.engine.upgradeCommander(cid)}
+          res={res}
+          onClose={() => setCmdOpen(false)}
+        />
+      )}
 
       {/* ── Bottom Panel (StarCraft-style) ───────────────── */}
       <div style={{
@@ -243,12 +309,23 @@ export function SpaceHUD({ renderer, onQuit }: SpaceHUDProps) {
         borderTop: '2px solid #1a3050',
         display: 'flex', pointerEvents: 'auto', zIndex: 10,
       }}>
-        {/* ── Minimap Area (left) ─────────────────────────── */}
+        {/* ── Minimap Area (left) with click interactions ─────── */}
         <div style={{
           width: 200, height: '100%', borderRight: '1px solid #1a3050',
           position: 'relative', overflow: 'hidden',
         }}>
-          <Minimap state={state} />
+          <Minimap state={state} renderer={renderer} />
+          {/* Shortcut buttons below minimap */}
+          <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, display: 'flex', gap: 1, padding: '2px', background: 'rgba(4,10,22,0.95)' }}>
+            {(['TECH','CMDR'] as const).map(btn => (
+              <button key={btn} onClick={() => btn === 'TECH' ? setTechOpen(t => !t) : setCmdOpen(t => !t)} style={{
+                flex: 1, padding: '3px 0', fontSize: 9, fontWeight: 700, letterSpacing: 1,
+                border: '1px solid #1a3050', borderRadius: 3, cursor: 'pointer',
+                background: (btn==='TECH'?techOpen:cmdOpen) ? '#2266cc' : 'rgba(10,18,34,0.9)',
+                color: (btn==='TECH'?techOpen:cmdOpen) ? '#fff' : '#8ac',
+              }}>{btn}</button>
+            ))}
+          </div>
         </div>
 
         {/* ── Unit Info Panel (center-left) ───────────────── */}
@@ -292,59 +369,57 @@ function ResourceItem({ icon, label, value, color }: { icon: React.ReactNode; la
   );
 }
 
-// ── Single Unit Info ──────────────────────────────────────────────
+// ── Single Unit Info (sci-fi segmented bars + rank stars) ─────────
 function SingleUnitInfo({ ship, def }: { ship: SpaceShip; def: { class: string; stats: any; displayName: string } }) {
-  const hpPct = ship.hp / ship.maxHp;
-  const shPct = ship.maxShield > 0 ? ship.shield / ship.maxShield : 0;
+  const hpColor  = ship.hp / ship.maxHp > 0.5 ? '#44ee44' : ship.hp / ship.maxHp > 0.25 ? '#eebb00' : '#ee4444';
+  const commander = undefined; // commander lookup would go here
 
   return (
-    <div>
-      {/* Name + Class icon */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-        <div style={{ width: 28, height: 28, flexShrink: 0 }}>{CLASS_ICONS[def.class] ?? CLASS_ICONS.fighter}</div>
-        <div>
-          <div style={{ fontSize: 13, fontWeight: 700, color: '#fff' }}>{def.displayName}</div>
-          <div style={{ fontSize: 10, opacity: 0.5, textTransform: 'uppercase' }}>{def.class.replace('_', ' ')}</div>
+    <div style={{ fontFamily: "'Segoe UI', monospace" }}>
+      {/* Header: icon + name + rank stars */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 5 }}>
+        <div style={{ width: 30, height: 30, flexShrink: 0, border: '1px solid #1a4060', borderRadius: 4, display:'flex',alignItems:'center',justifyContent:'center', background:'rgba(6,20,40,0.9)' }}>
+          {CLASS_ICONS[def.class] ?? CLASS_ICONS.fighter}
+        </div>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: '#fff', lineHeight: 1.2 }}>{def.displayName}</div>
+          <div style={{ fontSize: 9, opacity: 0.45, textTransform: 'uppercase', letterSpacing: 0.5 }}>{def.class.replace(/_/g,' ')}</div>
+          {/* Rank stars */}
+          <div style={{ display:'flex', gap: 2, marginTop: 2 }}>
+            {Array.from({length:5},(_,i) => (
+              <span key={i} style={{ fontSize: 10, color: i < (ship.rank??0) ? '#ffcc00' : '#2a3a50', textShadow: i < (ship.rank??0) ? '0 0 4px #ffcc0088' : 'none' }}>★</span>
+            ))}
+            {(ship.xp ?? 0) > 0 && <span style={{fontSize:8, color:'#88a', marginLeft:4}}>XP:{ship.xp}</span>}
+          </div>
         </div>
       </div>
 
-      {/* HP Bar */}
-      <div style={{ marginBottom: 4 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, marginBottom: 2 }}>
-          <span>HP</span>
+      {/* HP segmented bar */}
+      <div style={{ marginBottom: 3 }}>
+        <div style={{ display:'flex', justifyContent:'space-between', fontSize:9, marginBottom:2, color: hpColor }}>
+          <span style={{ display:'flex', alignItems:'center', gap:3 }}>♥ HP</span>
           <span>{Math.ceil(ship.hp)}/{ship.maxHp}</span>
         </div>
-        <div style={{ height: 8, background: '#1a1a2a', borderRadius: 2, overflow: 'hidden' }}>
-          <div style={{
-            height: '100%', width: `${hpPct * 100}%`, borderRadius: 2,
-            background: hpPct > 0.5 ? '#44cc44' : hpPct > 0.25 ? '#ccaa00' : '#cc4444',
-            transition: 'width 0.2s',
-          }} />
-        </div>
+        <SegmentBar value={ship.hp} max={ship.maxHp} segments={12} color={hpColor} height={8} />
       </div>
 
-      {/* Shield Bar */}
+      {/* Shield segmented bar */}
       {ship.maxShield > 0 && (
-        <div style={{ marginBottom: 4 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, marginBottom: 2 }}>
-            <span style={{ color: '#4df' }}>Shield</span>
+        <div style={{ marginBottom: 3 }}>
+          <div style={{ display:'flex', justifyContent:'space-between', fontSize:9, marginBottom:2, color:'#44ccff' }}>
+            <span>🛡 SHD</span>
             <span>{Math.ceil(ship.shield)}/{ship.maxShield}</span>
           </div>
-          <div style={{ height: 6, background: '#1a1a2a', borderRadius: 2, overflow: 'hidden' }}>
-            <div style={{ height: '100%', width: `${shPct * 100}%`, borderRadius: 2, background: '#44ddff', transition: 'width 0.2s' }} />
-          </div>
+          <SegmentBar value={ship.shield} max={ship.maxShield} segments={10} color='#44ccff' height={7} />
         </div>
       )}
 
-      {/* Stats row */}
-      <div style={{ display: 'flex', gap: 10, fontSize: 10, marginTop: 6, opacity: 0.7, alignItems: 'center' }}>
-        <span style={{ display: 'flex', alignItems: 'center', gap: 2 }}>{ATTACK_ICONS[ship.attackType] ?? ATTACK_ICONS.laser} {ship.attackDamage} dmg</span>
-        <span style={{ display: 'flex', alignItems: 'center', gap: 2 }}>{STAT_ICONS.armor} {ship.armor}</span>
-        <span style={{ display: 'flex', alignItems: 'center', gap: 2 }}>{STAT_ICONS.speed} {ship.speed}</span>
-      </div>
-      <div style={{ display: 'flex', gap: 10, fontSize: 10, marginTop: 2, opacity: 0.7, alignItems: 'center' }}>
-        <span style={{ display: 'flex', alignItems: 'center', gap: 2 }}>{STAT_ICONS.range} {ship.attackRange}</span>
-        <span style={{ display: 'flex', alignItems: 'center', gap: 2 }}>{STAT_ICONS.cooldown} {ship.attackCooldown.toFixed(1)}s</span>
+      {/* Damage & stats compact row */}
+      <div style={{ display: 'flex', gap: 8, fontSize: 9, marginTop: 4, color: '#8ab', flexWrap: 'wrap' }}>
+        <span>{ATTACK_ICONS[ship.attackType]??ATTACK_ICONS.laser} {ship.attackDamage}dmg</span>
+        <span>{STAT_ICONS.armor} {ship.armor}ar</span>
+        <span>{STAT_ICONS.speed} {Math.round(ship.speed)}spd</span>
+        <span>{STAT_ICONS.range} {ship.attackRange}rng</span>
       </div>
     </div>
   );
@@ -512,9 +587,42 @@ function AbilityButton({ ab, index, renderer, allSelected }: {
   );
 }
 
-// ── Minimap ───────────────────────────────────────────────────────
-function Minimap({ state }: { state: SpaceGameState }) {
+// ── Minimap with LMB (camera) / RMB (move command) ───────────
+function Minimap({ state, renderer }: { state: SpaceGameState; renderer: SpaceRenderer }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  const toWorld = useCallback((clientX: number, clientY: number, canvas: HTMLCanvasElement) => {
+    const rect = canvas.getBoundingClientRect();
+    const px = clientX - rect.left;
+    const py = clientY - rect.top;
+    const mapW = 8000; const mapH = 8000;
+    return {
+      x: (px / canvas.width)  * mapW - mapW / 2,
+      y: (py / canvas.height) * mapH - mapH / 2,
+    };
+  }, []);
+
+  const handleMouseDown = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+    e.preventDefault();
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const { x, y } = toWorld(e.clientX, e.clientY, canvas);
+    if (e.button === 0) {
+      // LMB: jump camera to world position
+      renderer.controls.cameraState.x = x;
+      renderer.controls.cameraState.y = y;
+    } else if (e.button === 2) {
+      // RMB: issue move command for selected units
+      for (const id of state.selectedIds) {
+        const ship = state.ships.get(id);
+        if (ship && !ship.dead && ship.team === 1) {
+          ship.moveTarget = { x, y, z: 0 };
+          ship.targetId = null;
+          ship.holdPosition = false;
+        }
+      }
+    }
+  }, [state, renderer, toWorld]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -589,7 +697,12 @@ function Minimap({ state }: { state: SpaceGameState }) {
 
   return (
     <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <canvas ref={canvasRef} width={192} height={170} style={{ imageRendering: 'pixelated' }} />
+      <canvas
+        ref={canvasRef} width={192} height={150}
+        style={{ imageRendering: 'pixelated', cursor: 'crosshair', pointerEvents: 'auto' }}
+        onMouseDown={handleMouseDown}
+        onContextMenu={e => e.preventDefault()}
+      />
     </div>
   );
 }
@@ -729,7 +842,356 @@ function UpgradePanel({ upg, res, renderer }: { upg: TeamUpgrades; res: PlayerRe
   );
 }
 
-// ── Helpers ─────────────────────────────────────────────────
+// ── Void Power Castbar ─────────────────────────────────────────
+function VoidPowerBar({ state, techSt, onCast }: {
+  state: SpaceGameState;
+  techSt: { researchedNodes: Set<string>; [k: string]: any };
+  onCast: (id: string, x: number, y: number) => void;
+}) {
+  const unlocked = Object.values(VOID_POWERS).filter(p => techSt.researchedNodes.has(p.techNodeId));
+  if (!unlocked.length) return null;
+  const cds = state.voidCooldowns?.get(1) ?? new Map<string, number>();
+  return (
+    <div style={{
+      position: 'absolute', top: 40, left: '50%', transform: 'translateX(-50%)',
+      display: 'flex', gap: 6, zIndex: 20, pointerEvents: 'auto',
+      background: 'rgba(4,10,22,0.85)', border: '1px solid #1a3050',
+      borderRadius: 8, padding: '4px 8px',
+    }}>
+      <span style={{ fontSize: 9, color: '#8ac', alignSelf: 'center', marginRight: 4, letterSpacing: 1 }}>VOID</span>
+      {unlocked.map(pwr => {
+        const cd = cds.get(pwr.id) ?? 0;
+        const cdPct = cd > 0 ? cd / pwr.cooldown : 0;
+        const res = state.resources[1];
+        const canCast = !cd && res &&
+          res.credits >= pwr.cost.credits &&
+          res.energy >= pwr.cost.energy &&
+          res.minerals >= pwr.cost.minerals;
+        return (
+          <div key={pwr.id}
+            title={`${pwr.name}\n${pwr.description}\nCost: ${pwr.cost.credits}c ${pwr.cost.energy}e ${pwr.cost.minerals}m\nCD: ${pwr.cooldown}s`}
+            onClick={() => canCast && onCast(pwr.id, 0, 0)}
+            style={{
+              width: 44, height: 44, borderRadius: 6, cursor: canCast ? 'pointer' : 'default',
+              border: `1px solid ${canCast ? '#4488ff' : '#1a3050'}`,
+              background: 'rgba(6,14,32,0.9)', position: 'relative', overflow: 'hidden',
+              opacity: canCast ? 1 : 0.5,
+            }}
+          >
+            <img src={pwr.icon} alt={pwr.name}
+              style={{ width: '100%', height: '100%', objectFit: 'contain',
+                imageRendering: 'pixelated', filter: canCast ? 'none' : 'grayscale(0.8)' }}
+              onError={e => { (e.target as HTMLImageElement).style.display='none'; }}
+            />
+            {cdPct > 0 && (
+              <div style={{
+                position: 'absolute', inset: 0, borderRadius: 6,
+                background: `conic-gradient(rgba(0,0,0,0.75) ${cdPct*360}deg, transparent ${cdPct*360}deg)`,
+              }} />
+            )}
+            {cd > 0 && (
+              <div style={{ position:'absolute', inset:0, display:'flex', alignItems:'center', justifyContent:'center', fontSize:10, fontWeight:700, color:'#f88' }}>
+                {Math.ceil(cd)}
+              </div>
+            )}
+            <div style={{ position:'absolute', bottom:1, left:0, right:0, textAlign:'center', fontSize:7, color:'#8ac', lineHeight:1 }}>
+              {pwr.name.split(' ')[0]}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ── Tech Tree Panel ─────────────────────────────────────────────
+function TechTreePanel({ state, myPlanets, onResearch, onClose }: {
+  state: SpaceGameState;
+  myPlanets: import('./space-types').Planet[];
+  onResearch: (nodeId: string) => void;
+  onClose: () => void;
+}) {
+  const [activeTab, setActiveTab] = useState<string>(() => {
+    if (myPlanets.length === 0) return 'forge';
+    return PLANET_TYPE_TO_TECH[myPlanets[0].planetType] ?? 'forge';
+  });
+  const techSt = state.techState?.get(1);
+  const res = state.resources[1];
+  const tree = ALL_TECH_TREES[activeTab];
+  const C = { bg:'rgba(4,10,22,0.97)', border:'#1a3050', accent:'#4488ff', text:'#cde', muted:'rgba(160,200,255,0.4)' };
+
+  // Available planet tech trees (only show trees for owned planets)
+  const availTrees = Object.values(ALL_TECH_TREES).filter(t =>
+    t.id === 'command' || myPlanets.some(p => PLANET_TYPE_TO_TECH[p.planetType] === t.id));
+
+  return (
+    <div style={{
+      position:'absolute', top: 45, left: 210, width: 480, maxHeight: '80vh',
+      background: C.bg, border: `2px solid ${C.border}`, borderRadius: 10,
+      zIndex: 50, overflow:'auto', boxShadow:'0 0 40px rgba(68,136,255,0.3)',
+    }}>
+      {/* Header */}
+      <div style={{ display:'flex', alignItems:'center', padding:'10px 14px', borderBottom:`1px solid ${C.border}`, gap:8 }}>
+        <span style={{ fontWeight:800, fontSize:15, color:C.accent, flex:1, letterSpacing:2 }}>TECH TREES</span>
+        {techSt?.inResearch && (
+          <span style={{ fontSize:10, color:'#fc4', border:'1px solid #443300', padding:'2px 8px', borderRadius:3 }}>
+            Researching… {Math.ceil(techSt.researchTimeRemaining ?? 0)}s
+          </span>
+        )}
+        <button onClick={onClose} style={{ background:'transparent', border:'1px solid #333', color:'#888', fontSize:11, padding:'2px 8px', borderRadius:4, cursor:'pointer' }}>✕</button>
+      </div>
+      {/* Tree tabs */}
+      <div style={{ display:'flex', gap:4, padding:'6px 10px', borderBottom:`1px solid ${C.border}`, flexWrap:'wrap' }}>
+        {availTrees.map(t => (
+          <button key={t.id} onClick={() => setActiveTab(t.id)} style={{
+            padding:'4px 10px', border:`1px solid ${activeTab===t.id ? t.color.toString(16).padStart(6,'0') : '#1a3050'}`,
+            borderRadius:4, cursor:'pointer', fontSize:10, fontWeight:700,
+            background: activeTab===t.id ? 'rgba(68,136,255,0.12)' : 'transparent',
+            color: activeTab===t.id ? `#${t.color.toString(16).padStart(6,'0')}` : C.muted,
+          }}>{t.name}</button>
+        ))}
+      </div>
+      {/* Nodes */}
+      {tree && (
+        <div style={{ padding:'10px 14px' }}>
+          {[1,2,3].map(tier => {
+            const nodes = tree.nodes.filter(n => n.tier === tier);
+            return (
+              <div key={tier} style={{ marginBottom:12 }}>
+                <div style={{ fontSize:11, color:`#${tree.color.toString(16).padStart(6,'0')}`, fontWeight:700, marginBottom:6, borderBottom:`1px solid #1a3050`, paddingBottom:3 }}>
+                  TIER {tier}
+                </div>
+                <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+                  {nodes.map(node => {
+                    const done      = techSt?.researchedNodes.has(node.id);
+                    const inProg    = techSt?.inResearch === node.id;
+                    const prereqsMet = node.requires.every(r => techSt?.researchedNodes.has(r));
+                    const canAfford  = res && res.credits>=node.cost.credits && res.energy>=node.cost.energy && res.minerals>=node.cost.minerals;
+                    const canStart   = prereqsMet && !done && !inProg && !techSt?.inResearch && canAfford;
+                    return (
+                      <div key={node.id} style={{
+                        width:136, padding:'8px 10px', borderRadius:6,
+                        border:`1px solid ${done?'#2a5a2a':inProg?'#5a5a00':prereqsMet?'#1a3050':'#0a1a20'}`,
+                        background: done?'rgba(20,60,20,0.6)':inProg?'rgba(40,40,10,0.7)':'rgba(6,14,28,0.8)',
+                        opacity: prereqsMet ? 1 : 0.45,
+                      }}>
+                        <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:4 }}>
+                          <img src={node.icon} alt="" style={{ width:22, height:22, imageRendering:'pixelated' }}
+                            onError={e=>{(e.target as HTMLImageElement).style.display='none'}} />
+                          <span style={{ fontSize:11, fontWeight:700, color: done?'#4f4':inProg?'#fc4':'#fff' }}>{node.name}</span>
+                          {done && <span style={{fontSize:12, color:'#4f4'}}>✓</span>}
+                        </div>
+                        <div style={{ fontSize:9, color:C.muted, marginBottom:6, lineHeight:1.4 }}>{node.description}</div>
+                        <div style={{ fontSize:8, color:'#88a', marginBottom:4 }}>
+                          {node.cost.credits}c / {node.cost.energy}e / {node.cost.minerals}m · {node.cost.credits>0?`${node.researchTime}s`:''}
+                        </div>
+                        {inProg && (
+                          <div style={{ height:4, background:'#1a2a10', borderRadius:2 }}>
+                            <div style={{ height:'100%', width:`${(1-(techSt?.researchTimeRemaining??0)/(node.researchTime||1))*100}%`, background:'#fc4', borderRadius:2 }} />
+                          </div>
+                        )}
+                        {canStart && (
+                          <button onClick={() => onResearch(node.id)} style={{
+                            width:'100%', padding:'3px', fontSize:9, fontWeight:700,
+                            background:C.accent, border:'none', borderRadius:3, color:'#fff', cursor:'pointer', marginTop:4,
+                          }}>RESEARCH</button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Commander Panel (character-screen style matching image 2) ───────
+function CommanderPanel({ state, selectedCmdId, selectedPlanetId, onSelectCmd, onSelectPlanet,
+  onTrain, onUpgrade, res, onClose }: {
+  state: SpaceGameState;
+  selectedCmdId: number | null;
+  selectedPlanetId: number | null;
+  onSelectCmd: (id: number | null) => void;
+  onSelectPlanet: (id: number | null) => void;
+  onTrain: (planetId: number) => void;
+  onUpgrade: (cmdId: number) => void;
+  res: import('./space-types').PlayerResources;
+  onClose: () => void;
+}) {
+  const commanders = [...state.commanders.values()].filter(c => c.team === 1);
+  const selected = selectedCmdId != null ? state.commanders.get(selectedCmdId) : null;
+  const myPlanets = state.planets.filter(p => p.owner === 1);
+  const C = { bg:'rgba(4,12,8,0.97)', accent:'#00ee88', border:'#1a3a22', text:'#aae0b0', muted:'rgba(100,200,120,0.4)' };
+
+  return (
+    <div style={{
+      position:'absolute', top:45, right:10, width:420, maxHeight:'85vh',
+      background:C.bg, border:`2px solid ${C.border}`, borderRadius:10,
+      zIndex:50, overflow:'auto', boxShadow:'0 0 40px rgba(0,238,136,0.2)',
+      fontFamily:"'Segoe UI', monospace",
+    }}>
+      {/* Header */}
+      <div style={{ display:'flex', alignItems:'center', padding:'10px 14px', borderBottom:`1px solid ${C.border}` }}>
+        <span style={{ flex:1, fontWeight:800, fontSize:14, color:C.accent, letterSpacing:3 }}>COMMANDER CORPS</span>
+        <button onClick={onClose} style={{ background:'transparent', border:'1px solid #333', color:'#666', fontSize:11, padding:'2px 8px', borderRadius:4, cursor:'pointer' }}>✕</button>
+      </div>
+
+      <div style={{ display:'flex', gap:0 }}>
+        {/* Left: commander list + planet train */}
+        <div style={{ width:160, borderRight:`1px solid ${C.border}`, padding:'8px' }}>
+          <div style={{ fontSize:9, color:C.muted, marginBottom:6, letterSpacing:1 }}>COMMANDERS ({commanders.length})</div>
+          {commanders.map(cmd => (
+            <div key={cmd.id} onClick={() => onSelectCmd(cmd.id)}
+              style={{
+                padding:'6px 8px', marginBottom:4, borderRadius:6, cursor:'pointer',
+                border:`1px solid ${selectedCmdId===cmd.id?C.accent:C.border}`,
+                background: selectedCmdId===cmd.id?'rgba(0,238,136,0.08)':'rgba(4,16,8,0.7)',
+                display:'flex', alignItems:'center', gap:6,
+              }}
+            >
+              <img src={cmd.portrait} alt={cmd.name}
+                style={{ width:28, height:28, borderRadius:4, objectFit:'cover', border:`1px solid ${C.border}` }}
+                onError={e=>{(e.target as HTMLImageElement).style.display='none'}}
+              />
+              <div>
+                <div style={{ fontSize:10, fontWeight:700, color:'#fff' }}>{cmd.name}</div>
+                <div style={{ fontSize:8, color:C.muted }}>Lv{cmd.level} · {COMMANDER_SPEC_LABEL[cmd.spec]}</div>
+                <div style={{ fontSize:8, color: cmd.state==='training'?'#fc4':cmd.state==='onship'?'#4df':'#4f4' }}>
+                  {cmd.state==='training'?`Training (${Math.ceil(cmd.trainingTimeRemaining)}s)`:cmd.state==='onship'?'On Ship':'Idle'}
+                </div>
+              </div>
+            </div>
+          ))}
+
+          {/* Train from planet */}
+          <div style={{ marginTop:10, fontSize:9, color:C.muted, letterSpacing:1, marginBottom:4 }}>TRAIN FROM PLANET</div>
+          {myPlanets.map(p => {
+            const alreadyTraining = commanders.some(c => c.trainingPlanetId===p.id && c.state==='training');
+            const cost = COMMANDER_TRAIN_COST[1];
+            const canAfford = res.credits>=cost.credits && res.energy>=cost.energy && res.minerals>=cost.minerals;
+            const td = PLANET_TYPE_DATA[p.planetType];
+            return (
+              <div key={p.id} style={{ marginBottom:4, padding:'5px 6px', borderRadius:5, border:`1px solid ${C.border}`, background:'rgba(4,16,8,0.6)' }}>
+                <div style={{ fontSize:9, fontWeight:700, color:`#${td.baseColor.toString(16).padStart(6,'0')}`, marginBottom:2 }}>{p.name}</div>
+                <div style={{ fontSize:8, color:C.muted, marginBottom:3 }}>{td.label} · {COMMANDER_SPEC_LABEL[(alreadyTraining?'forge':Object.keys(COMMANDER_SPEC_LABEL)[0]) as import('./space-types').CommanderSpec]}</div>
+                {alreadyTraining
+                  ? <span style={{ fontSize:8, color:'#fc4' }}>Training in progress…</span>
+                  : <button onClick={() => onTrain(p.id)} disabled={!canAfford} style={{
+                      width:'100%', padding:'2px', fontSize:8, fontWeight:700, cursor:canAfford?'pointer':'default',
+                      background: canAfford?C.accent:'#1a2a1a', border:'none', borderRadius:3,
+                      color: canAfford?'#000':'#3a5a3a',
+                    }}>RECRUIT ({cost.credits}c/{cost.energy}e/{cost.minerals}m)</button>
+                }
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Right: selected commander character screen */}
+        {selected ? (
+          <div style={{ flex:1, padding:'12px' }}>
+            {/* Portrait + name (image 2 style) */}
+            <div style={{ display:'flex', gap:10, marginBottom:10 }}>
+              <div style={{ position:'relative' }}>
+                <img src={selected.portrait} alt={selected.name}
+                  style={{ width:64, height:64, objectFit:'cover', borderRadius:6, border:`2px solid ${C.accent}` }}
+                  onError={e=>{(e.target as HTMLImageElement).src=''}}
+                />
+                {/* Hexagonal overlay aesthetic */}
+                <div style={{ position:'absolute', inset:0, borderRadius:6, background:'linear-gradient(180deg,transparent 50%,rgba(0,238,136,0.15))', pointerEvents:'none' }} />
+              </div>
+              <div style={{ flex:1 }}>
+                <div style={{ fontSize:14, fontWeight:800, color:'#fff' }}>{selected.name}</div>
+                <div style={{ fontSize:10, color:C.accent }}>{COMMANDER_SPEC_LABEL[selected.spec]} Commander</div>
+                {/* Rank stars */}
+                <div style={{ display:'flex', gap:2, marginTop:3 }}>
+                  {Array.from({length:5},(_,i) => (
+                    <span key={i} style={{ fontSize:12, color: i < selected.level ? '#ffcc00' : '#1a3a1a', textShadow: i < selected.level ? '0 0 6px #ffcc00' : 'none' }}>★</span>
+                  ))}
+                  <span style={{ fontSize:9, color:C.muted, marginLeft:4 }}>Lv {selected.level}/5</span>
+                </div>
+              </div>
+            </div>
+
+            {/* XP bar */}
+            <div style={{ marginBottom:8 }}>
+              <div style={{ display:'flex', justifyContent:'space-between', fontSize:9, color:C.muted, marginBottom:2 }}>
+                <span>XP</span><span>{selected.xp}/{selected.xpToNextLevel}</span>
+              </div>
+              <SegmentBar value={selected.xp} max={selected.xpToNextLevel} segments={10} color='#cc4400' height={8} />
+            </div>
+
+            {/* Stats grid matching image 2 style */}
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:4, marginBottom:8 }}>
+              {([
+                { label:'ATTACK',  val: `+${Math.round(selected.attackBonus*100)}%`,  color:'#ee4444' },
+                { label:'DEFENSE', val: `+${Math.round(selected.defenseBonus*100)}%`, color:'#44ee88' },
+                { label:'SPEED',   val: `+${Math.round(selected.speedBonus*100)}%`,   color:'#44aaff' },
+                { label:'SPECIAL', val: `+${Math.round(selected.specialBonus*100)}%`, color:'#ffcc00' },
+              ] as const).map(s => (
+                <div key={s.label} style={{
+                  padding:'5px 8px', borderRadius:5,
+                  border:`1px solid ${s.color}44`, background:`${s.color}11`,
+                  display:'flex', justifyContent:'space-between', alignItems:'center',
+                }}>
+                  <span style={{ fontSize:9, color:C.muted, letterSpacing:0.5 }}>{s.label}</span>
+                  <span style={{ fontSize:12, fontWeight:800, color:s.color }}>{s.val}</span>
+                </div>
+              ))}
+            </div>
+
+            {/* Upgrade button */}
+            {selected.state === 'idle' && selected.level < 5 && (() => {
+              const cost = COMMANDER_TRAIN_COST[selected.level + 1];
+              const time = COMMANDER_TRAIN_TIME[selected.level + 1];
+              if (!cost) return null;
+              const canAfford = res.credits>=cost.credits && res.energy>=cost.energy && res.minerals>=cost.minerals;
+              return (
+                <div style={{ marginTop:4 }}>
+                  <div style={{ fontSize:8, color:C.muted, marginBottom:3 }}>Upgrade to Level {selected.level+1} · {time}s training</div>
+                  <button onClick={() => onUpgrade(selected.id)} disabled={!canAfford} style={{
+                    width:'100%', padding:'6px', fontSize:11, fontWeight:700, borderRadius:6, cursor:canAfford?'pointer':'default',
+                    background: canAfford?C.accent:'#1a2a1a', border:'none',
+                    color: canAfford?'#000':'#3a5a3a', letterSpacing:1,
+                  }}>UPGRADE COMMANDER ({cost.credits}c/{cost.energy}e/{cost.minerals}m)</button>
+                </div>
+              );
+            })()}
+
+            {/* Training progress */}
+            {selected.state === 'training' && (
+              <div style={{ marginTop:6 }}>
+                <div style={{ fontSize:9, color:'#fc4', marginBottom:3 }}>Training… {Math.ceil(selected.trainingTimeRemaining)}s remaining</div>
+                <SegmentBar
+                  value={selected.trainingTotalTime - selected.trainingTimeRemaining}
+                  max={selected.trainingTotalTime}
+                  segments={10} color='#fc4' height={6}
+                />
+              </div>
+            )}
+
+            {/* On ship indicator */}
+            {selected.state === 'onship' && selected.equippedShipId && (
+              <div style={{ marginTop:6, padding:'6px 10px', background:'rgba(68,136,255,0.1)', border:'1px solid #2244aa', borderRadius:5, fontSize:9, color:'#4df' }}>
+                🔵 Commanding ship ID {selected.equippedShipId} — will be lost if ship is destroyed
+              </div>
+            )}
+          </div>
+        ) : (
+          <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, color:C.muted }}>
+            Select a commander to view details
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Helpers ──────────────────────────────────────────────────
 function formatTime(seconds: number): string {
   const m = Math.floor(seconds / 60);
   const s = Math.floor(seconds % 60);
