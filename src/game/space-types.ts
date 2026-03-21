@@ -15,7 +15,7 @@ export const TEAM_COLORS: Record<number, number> = {
 export type ShipClass =
   | 'scout' | 'fighter' | 'interceptor' | 'heavy_fighter'
   | 'bomber' | 'stealth' | 'transport' | 'assault_frigate'
-  | 'destroyer' | 'cruiser' | 'battleship' | 'carrier';
+  | 'destroyer' | 'cruiser' | 'battleship' | 'carrier' | 'worker';
 
 export type ShipRole = 'combat' | 'support' | 'structure' | 'defense' | 'resource';
 
@@ -62,6 +62,42 @@ export interface GameEntity {
 }
 
 // ── Space Ship ──────────────────────────────────────────────────
+// ── Planet Types ────────────────────────────────────────────────
+export type PlanetType = 'volcanic' | 'oceanic' | 'barren' | 'crystalline' | 'gas_giant' | 'frozen';
+export type ResourceNodeKind = 'moon' | 'asteroid' | 'ice_rock' | 'crystal_deposit';
+
+export interface PlanetTypeData {
+  label: string;
+  resourceMult: { credits: number; energy: number; minerals: number };
+  upgradeDiscount: UpgradeType;  // 20% cost reduction
+  techFocus: string;
+  baseColor: number;
+}
+
+export const PLANET_TYPE_DATA: Record<PlanetType, PlanetTypeData> = {
+  volcanic:    { label: 'Volcanic',    resourceMult: { credits: 0.8, energy: 0.9, minerals: 1.9 }, upgradeDiscount: 'attack',  techFocus: 'Weapons Tech',   baseColor: 0xcc4422 },
+  oceanic:     { label: 'Oceanic',     resourceMult: { credits: 1.0, energy: 1.9, minerals: 0.7 }, upgradeDiscount: 'shield',  techFocus: 'Shield Tech',    baseColor: 0x2266cc },
+  barren:      { label: 'Barren',      resourceMult: { credits: 1.2, energy: 0.8, minerals: 1.1 }, upgradeDiscount: 'speed',   techFocus: 'Propulsion Tech', baseColor: 0x886644 },
+  crystalline: { label: 'Crystalline', resourceMult: { credits: 1.9, energy: 1.0, minerals: 0.8 }, upgradeDiscount: 'armor',   techFocus: 'Hull Tech',      baseColor: 0x44aacc },
+  gas_giant:   { label: 'Gas Giant',   resourceMult: { credits: 1.0, energy: 2.2, minerals: 0.9 }, upgradeDiscount: 'health',  techFocus: 'Bio Tech',       baseColor: 0xcc8822 },
+  frozen:      { label: 'Frozen',      resourceMult: { credits: 1.4, energy: 0.6, minerals: 1.4 }, upgradeDiscount: 'shield',  techFocus: 'Cryo Tech',      baseColor: 0x88aacc },
+};
+
+// ── Resource Node ────────────────────────────────────────────────
+export interface ResourceNode {
+  id: number;
+  parentPlanetId: number;
+  x: number; y: number; z: number;
+  orbitAngle: number;
+  orbitRadius: number;          // game units from planet center
+  orbitSpeed: number;           // radians/sec
+  kind: ResourceNodeKind;
+  radius: number;               // visual/collision radius in game units
+  yield: { credits: number; energy: number; minerals: number };
+  harvestCooldown: number;      // current cooldown
+  maxHarvestCooldown: number;   // seconds between harvests
+}
+
 export interface SpaceShip extends GameEntity {
   shipType: string;       // prefab key
   shipClass: ShipClass;
@@ -99,6 +135,12 @@ export interface SpaceShip extends GameEntity {
   orbitAngle: number;
   isDocked: boolean;
   damageLevel: number;     // 0-1, affects smoke/listing
+  // Worker ship fields (undefined for non-workers)
+  workerState?: 'idle' | 'traveling' | 'harvesting' | 'returning';
+  workerNodeId?: number | null;
+  workerCargo?: number;
+  workerCargoType?: 'credits' | 'energy' | 'minerals';
+  workerHarvestTimer?: number;
 }
 
 export type ShipAnimState =
@@ -147,6 +189,8 @@ export interface Planet {
   resourceYield: { credits: number; energy: number; minerals: number };
   color: number;
   hasAsteroidField: boolean;
+  planetType: PlanetType;
+  captureRadius: number;    // radius at which capture/orbit detection triggers
   // Capture mechanics
   captureTeam: Team;        // team attempting capture (0 = nobody)
   captureProgress: number;  // 0-100
@@ -293,6 +337,7 @@ export interface SpaceGameState {
   ships: Map<number, SpaceShip>;
   stations: Map<number, SpaceStation>;
   planets: Planet[];
+  resourceNodes: Map<number, ResourceNode>;
   towers: Map<number, OrbitalTower>;
   projectiles: Map<number, Projectile>;
   spriteEffects: SpriteEffect[];
@@ -426,6 +471,18 @@ export const SHIP_DEFINITIONS: Record<string, { class: ShipClass; stats: ShipSta
     class: 'battleship', displayName: 'Battleship',
     stats: { maxHp: 800, maxShield: 300, shieldRegen: 5, armor: 12, speed: 18, turnRate: 0.8, attackDamage: 60, attackRange: 350, attackCooldown: 2.0, attackType: 'railgun', supplyCost: 12, buildTime: 60, creditCost: 1200, energyCost: 250, mineralCost: 500, tier: 5, abilities: [{ id: 'iron_dome', name: 'Fortress Shield', key: 'Q', cooldown: 45, energyCost: 80, type: 'iron_dome', duration: 10, radius: 150 }, { id: 'warp', name: 'Warp Jump', key: 'W', cooldown: 90, energyCost: 150, type: 'warp', duration: 2 }] },
   },
+  mining_drone: {
+    class: 'worker', displayName: 'Mining Drone',
+    stats: { maxHp: 25, maxShield: 5, shieldRegen: 0.5, armor: 0, speed: 130, turnRate: 5,
+      attackDamage: 0, attackRange: 0, attackCooldown: 999, attackType: 'laser',
+      supplyCost: 1, buildTime: 8, creditCost: 55, energyCost: 15, mineralCost: 25, tier: 1 },
+  },
+  energy_skimmer: {
+    class: 'worker', displayName: 'Energy Skimmer',
+    stats: { maxHp: 20, maxShield: 8, shieldRegen: 1.0, armor: 0, speed: 150, turnRate: 5,
+      attackDamage: 0, attackRange: 0, attackCooldown: 999, attackType: 'laser',
+      supplyCost: 1, buildTime: 8, creditCost: 50, energyCost: 20, mineralCost: 20, tier: 1 },
+  },
 };
 
 // ── Hero Class Ships (unique powerful units) ────────────────────
@@ -484,7 +541,7 @@ export const HERO_DEFINITIONS: Record<string, { class: ShipClass; stats: ShipSta
 
 // ── Ship types available at each tier for building ──────────────
 export const BUILDABLE_SHIPS: Record<number, string[]> = {
-  1: ['micro_recon', 'red_fighter', 'galactix_racer'],
+  1: ['mining_drone', 'energy_skimmer', 'micro_recon', 'red_fighter', 'galactix_racer'],
   2: ['dual_striker', 'camo_stellar_jet', 'meteor_slicer', 'infrared_furtive', 'interstellar_runner', 'transtellar'],
   3: ['ultraviolet_intruder', 'warship', 'star_marine_trooper', 'pyramid_ship'],
   4: ['destroyer', 'cruiser', 'bomber'],
