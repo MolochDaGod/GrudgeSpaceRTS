@@ -326,6 +326,7 @@ export class SpaceEngine {
     this.updateCommanderTraining(dt);
     this.updateShipRoles(dt);
     this.updateTacticalOrders(dt);
+    this.updateShipSeparation(dt);
     this.updateShips(dt);
     this.updateProjectiles(dt);
     this.updateEffects(dt);
@@ -1065,6 +1066,69 @@ export class SpaceEngine {
           if (this.state.dominationTimer >= DOMINATION_TIME) { this.state.gameOver = true; this.state.winner = o; this.state.winCondition = 'domination'; }
         } else { this.state.dominationTeam = o; this.state.dominationTimer = 0; }
       } else { this.state.dominationTimer = 0; this.state.dominationTeam = null; }
+    }
+  }
+
+  // ── Ship Separation (soft colliders) ─────────────────────────────
+  // Prevents ships from stacking on top of each other. Uses a spring-
+  // push force between any two friendly ships that are too close.
+  // Enemy ships are handled by attack range naturally.
+  private updateShipSeparation(dt: number) {
+    // Min separation scales with ship visual size.
+    // In game units: fighter placeholder = size 9 Three.js = 180 gu,
+    // so MIN_SEP = 150 keeps fighters from touching.
+    const MIN_SEP: Record<string, number> = {
+      dreadnought: 380, battleship: 320, carrier: 280,
+      cruiser: 240, light_cruiser: 220, destroyer: 200,
+      frigate: 180, corvette: 160, assault_frigate: 180,
+      bomber: 200, transport: 180, stealth: 150,
+      heavy_fighter: 140, fighter: 130, interceptor: 120,
+      scout: 110, worker: 90,
+    };
+
+    const alive: SpaceShip[] = [];
+    for (const [, s] of this.state.ships) {
+      if (!s.dead) alive.push(s);
+    }
+
+    for (let i = 0; i < alive.length; i++) {
+      const a = alive[i];
+      // Workers handle their own positioning — don’t disturb them
+      if (a.shipClass === 'worker') continue;
+      // Ships with fixed orbit targets or hold positions stay put
+      if (a.orbitTarget !== null) continue;
+
+      let fx = 0, fy = 0;
+      const minA = MIN_SEP[a.shipClass] ?? 130;
+
+      for (let j = i + 1; j < alive.length; j++) {
+        const b = alive[j];
+        if (b.team !== a.team) continue; // only separate own fleet
+        if (b.orbitTarget !== null) continue;
+
+        const minB   = MIN_SEP[b.shipClass] ?? 130;
+        const minDist = (minA + minB) * 0.5; // average of both radii
+
+        const dx = a.x - b.x;
+        const dy = a.y - b.y;
+        const d2 = dx * dx + dy * dy;
+        if (d2 < minDist * minDist && d2 > 1) {
+          const d     = Math.sqrt(d2);
+          const depth = minDist - d;          // how much they overlap
+          const force = depth / minDist * 0.6; // gentle spring
+          const nx = dx / d, ny = dy / d;
+          // Push both apart (equal & opposite)
+          fx       += nx * force;
+          fy       += ny * force;
+          b.x      -= nx * force * b.speed * dt;
+          b.y      -= ny * force * b.speed * dt;
+        }
+      }
+
+      if (fx !== 0 || fy !== 0) {
+        a.x += fx * a.speed * dt;
+        a.y += fy * a.speed * dt;
+      }
     }
   }
 

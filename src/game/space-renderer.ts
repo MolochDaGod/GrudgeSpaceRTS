@@ -421,8 +421,8 @@ export class SpaceRenderer {
 
   /** SHIP_Y_OFFSET: ships float this many Three.js units above the scene
    * ground plane so they always render visibly above planet spheres (r≈14)
-   * when viewed from the 55° camera angle. */
-  private static readonly SHIP_Y = 3.0;
+   * when viewed from the 55° camera angle. Increased for 3× larger ships. */
+  private static readonly SHIP_Y = 5.0;
 
   private createPlaceholder(team: Team, shipClass: string): THREE.Group {
     const group = new THREE.Group();
@@ -430,17 +430,20 @@ export class SpaceRenderer {
     // Sizes chosen so ships are visible from orbital zoom (~160 units).
     // At zoom 160, visible width ≈ 264 Three.js units; a 3-unit ship = ~1.1%
     // of screen width ≈ 21px at 1920×1080 — clearly clickable.
+    // 3× the original sizes so ships are clearly visible at all zoom levels.
+    // At orbital zoom 160: visible width ≈ 264 Three.js — a size-9 fighter
+    // occupies ~3.4% of screen (65px) and a size-24 dreadnought ~9% (173px).
     const size =
-      shipClass === 'dreadnought' ? 8
-      : shipClass === 'battleship' ? 7
-      : shipClass === 'carrier'   ? 6
-      : shipClass === 'cruiser'   ? 5.5
-      : shipClass === 'light_cruiser' ? 5
-      : shipClass === 'destroyer' ? 4.5
-      : shipClass === 'frigate'   ? 4
-      : shipClass === 'corvette'  ? 3.5
-      : shipClass === 'worker'    ? 2.5
-      : 3; // fighters, scouts, etc.
+      shipClass === 'dreadnought'   ? 24
+      : shipClass === 'battleship'  ? 21
+      : shipClass === 'carrier'     ? 18
+      : shipClass === 'cruiser'     ? 16.5
+      : shipClass === 'light_cruiser' ? 15
+      : shipClass === 'destroyer'   ? 13.5
+      : shipClass === 'frigate'     ? 12
+      : shipClass === 'corvette'    ? 10.5
+      : shipClass === 'worker'      ? 7.5
+      : 9; // fighters, scouts, etc.
 
     // Forward-pointing cone (rotated to face +Z = ship’s “forward”)
     const geo = new THREE.ConeGeometry(size * 0.4, size * 1.2, 5);

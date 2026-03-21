@@ -122,11 +122,16 @@ function MainMenu({ onStart, onCodex, onHowTo, mode, setMode }: {
       <StarfieldCanvas />
       <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
         <img
-          src='/assets/space/ui/logo.svg'
+          src='/assets/space/ui/logo.png'
           alt='GRUDA ARMADA'
           style={{ width: 380, maxWidth: '88vw', marginBottom: 32,
+            mixBlendMode: 'multiply' as React.CSSProperties['mixBlendMode'],
             filter: 'drop-shadow(0 0 40px rgba(68,136,255,0.5))',
             imageRendering: 'auto' }}
+          onError={e => {
+            const t = e.target as HTMLImageElement;
+            if (!t.src.endsWith('.svg')) { t.src='/assets/space/ui/logo.svg'; t.style.mixBlendMode='normal'; }
+          }}
         />
         <div style={{ fontSize: 12, opacity: 0.4, marginBottom: 32, letterSpacing: 4, textTransform: 'uppercase' }}>Solar System Scrim · Tactical RTS</div>
         <div style={{ display: 'flex', gap: 16, marginBottom: 32 }}>
@@ -678,7 +683,7 @@ function HowToPlay({ onBack }: { onBack: () => void }) {
       <div style={{ position: 'relative', zIndex: 1 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <img src='/assets/space/ui/logo.svg' alt='Gruda Armada' style={{ height: 32, imageRendering: 'auto' }}
+            <img src='/assets/space/ui/logo.png' alt='Gruda Armada' style={{ height: 32, imageRendering: 'auto' }}
               onError={e => { (e.target as HTMLImageElement).style.display='none'; }} />
             <div style={{ fontSize: 22, fontWeight: 800, color: '#4488ff', letterSpacing: 3 }}>SHIP CODEX</div>
           </div>
@@ -718,11 +723,15 @@ function LoadingScreen() {
       <StarfieldCanvas />
       <div style={{ position: 'relative', zIndex: 1, textAlign: 'center' }}>
         <img
-          src='/assets/space/ui/logo.svg'
+          src='/assets/space/ui/logo.png'
           alt='GRUDA ARMADA'
           style={{ width: 280, maxWidth: '70vw', marginBottom: 20,
-            filter: 'drop-shadow(0 0 30px rgba(68,136,255,0.6))',
-            animation: 'pulse 2s ease-in-out infinite' }}
+            mixBlendMode: 'multiply' as React.CSSProperties['mixBlendMode'],
+            filter: 'drop-shadow(0 0 30px rgba(68,136,255,0.6))' }}
+          onError={e => {
+            const t = e.target as HTMLImageElement;
+            if (!t.src.endsWith('.svg')) { t.src='/assets/space/ui/logo.svg'; t.style.mixBlendMode='normal'; }
+          }}
         />
         <div style={{ opacity: 0.55, letterSpacing: 3, fontSize: 13 }}>LOADING ASSETS...</div>
       </div>
