@@ -142,16 +142,17 @@ export const SHIP_PREFABS: Record<string, SpacePrefab> = {
 
 // ── Craftpix Battle Fleet (FBX) ───────────────────────────────────────
 export const BATTLE_SHIP_PREFABS: Record<string, SpacePrefab> = {
-  cf_corvette_01: { modelPath:'/assets/space/models/battle-ships/Corvette_01.fbx', format:'fbx', scale: 0.03, offset:S(0,0,0), enginePoints:[S(0,0,-0.5)], weaponPoints:[S(0,0,0.6)] },
-  cf_corvette_02: { modelPath:'/assets/space/models/battle-ships/Corvette_02.fbx', format:'fbx', scale: 0.03, offset:S(0,0,0), enginePoints:[S(0,0,-0.5)], weaponPoints:[S(0,0,0.6)] },
-  cf_corvette_03: { modelPath:'/assets/space/models/battle-ships/Corvette_03.fbx', format:'fbx', scale: 0.03, offset:S(0,0,0), enginePoints:[S(0,0,-0.5)], weaponPoints:[S(0,0,0.6)] },
-  cf_corvette_04: { modelPath:'/assets/space/models/battle-ships/Corvette_04.fbx', format:'fbx', scale: 0.03, offset:S(0,0,0), enginePoints:[S(0,0,-0.5)], weaponPoints:[S(0,0,0.6)] },
-  cf_corvette_05: { modelPath:'/assets/space/models/battle-ships/Corvette_05.fbx', format:'fbx', scale: 0.03, offset:S(0,0,0), enginePoints:[S(0,0,-0.5)], weaponPoints:[S(0,0,0.6)] },
-  cf_frigate_01:  { modelPath:'/assets/space/models/battle-ships/Frigate_01.fbx',  format:'fbx', scale: 0.027, offset:S(0,0,0), enginePoints:[S(-0.4,0,-0.8),S(0.4,0,-0.8)], weaponPoints:[S(0,0.2,0.8)] },
-  cf_frigate_02:  { modelPath:'/assets/space/models/battle-ships/Frigate_02.fbx',  format:'fbx', scale: 0.027, offset:S(0,0,0), enginePoints:[S(-0.4,0,-0.8),S(0.4,0,-0.8)], weaponPoints:[S(0,0.2,0.8)] },
-  cf_frigate_03:  { modelPath:'/assets/space/models/battle-ships/Frigate_03.fbx',  format:'fbx', scale: 0.027, offset:S(0,0,0), enginePoints:[S(-0.5,0,-1),S(0.5,0,-1)], weaponPoints:[S(-0.4,0.2,0.9),S(0.4,0.2,0.9)] },
-  cf_frigate_04:  { modelPath:'/assets/space/models/battle-ships/Frigate_04.fbx',  format:'fbx', scale: 0.027, offset:S(0,0,0), enginePoints:[S(0,0,-0.9)], weaponPoints:[S(0,0.2,0.8)] },
-  cf_frigate_05:  { modelPath:'/assets/space/models/battle-ships/Frigate_05.fbx',  format:'fbx', scale: 0.027, offset:S(0,0,0), enginePoints:[S(-0.5,0,-0.9),S(0.5,0,-0.9)], weaponPoints:[S(0,0.2,1.0)] },
+  // Corvettes & Frigates — now with proper texture from craftpix-673467
+  cf_corvette_01: { modelPath:'/assets/space/models/battle-ships/Corvette_01.fbx', texturePath:'/assets/space/models/battle-ships/T_Spase_64.png',  format:'fbx', scale:0.030, offset:S(0,0,0), enginePoints:[S(0,0,-0.5)], weaponPoints:[S(0,0,0.6)] },
+  cf_corvette_02: { modelPath:'/assets/space/models/battle-ships/Corvette_02.fbx', texturePath:'/assets/space/models/battle-ships/T_Spase_64.png',  format:'fbx', scale:0.030, offset:S(0,0,0), enginePoints:[S(0,0,-0.5)], weaponPoints:[S(0,0,0.6)] },
+  cf_corvette_03: { modelPath:'/assets/space/models/battle-ships/Corvette_03.fbx', texturePath:'/assets/space/models/battle-ships/T_Spase_64.png',  format:'fbx', scale:0.030, offset:S(0,0,0), enginePoints:[S(0,0,-0.5)], weaponPoints:[S(0,0,0.6)] },
+  cf_corvette_04: { modelPath:'/assets/space/models/battle-ships/Corvette_04.fbx', texturePath:'/assets/space/models/battle-ships/T_Spase_blue.png', format:'fbx', scale:0.030, offset:S(0,0,0), enginePoints:[S(0,0,-0.5)], weaponPoints:[S(0,0,0.6)] },
+  cf_corvette_05: { modelPath:'/assets/space/models/battle-ships/Corvette_05.fbx', texturePath:'/assets/space/models/battle-ships/T_Spase_blue.png', format:'fbx', scale:0.030, offset:S(0,0,0), enginePoints:[S(0,0,-0.5)], weaponPoints:[S(0,0,0.6)] },
+  cf_frigate_01:  { modelPath:'/assets/space/models/battle-ships/Frigate_01.fbx',  texturePath:'/assets/space/models/battle-ships/T_Spase_64.png',  format:'fbx', scale:0.027, offset:S(0,0,0), enginePoints:[S(-0.4,0,-0.8),S(0.4,0,-0.8)], weaponPoints:[S(0,0.2,0.8)] },
+  cf_frigate_02:  { modelPath:'/assets/space/models/battle-ships/Frigate_02.fbx',  texturePath:'/assets/space/models/battle-ships/T_Spase_64.png',  format:'fbx', scale:0.027, offset:S(0,0,0), enginePoints:[S(-0.4,0,-0.8),S(0.4,0,-0.8)], weaponPoints:[S(0,0.2,0.8)] },
+  cf_frigate_03:  { modelPath:'/assets/space/models/battle-ships/Frigate_03.fbx',  texturePath:'/assets/space/models/battle-ships/T_Spase_64.png',  format:'fbx', scale:0.027, offset:S(0,0,0), enginePoints:[S(-0.5,0,-1),S(0.5,0,-1)], weaponPoints:[S(-0.4,0.2,0.9),S(0.4,0.2,0.9)] },
+  cf_frigate_04:  { modelPath:'/assets/space/models/battle-ships/Frigate_04.fbx',  texturePath:'/assets/space/models/battle-ships/T_Spase_blue.png', format:'fbx', scale:0.027, offset:S(0,0,0), enginePoints:[S(0,0,-0.9)], weaponPoints:[S(0,0.2,0.8)] },
+  cf_frigate_05:  { modelPath:'/assets/space/models/battle-ships/Frigate_05.fbx',  texturePath:'/assets/space/models/battle-ships/T_Spase_blue.png', format:'fbx', scale:0.027, offset:S(0,0,0), enginePoints:[S(-0.5,0,-0.9),S(0.5,0,-0.9)], weaponPoints:[S(0,0.2,1.0)] },
   cf_light_cruiser_01: { modelPath:'/assets/space/models/battle-ships/Light cruiser_01.fbx', format:'fbx', scale: 0.024, offset:S(0,0,0), enginePoints:[S(-0.6,0,-1.5),S(0,0,-1.5),S(0.6,0,-1.5)], weaponPoints:[S(-0.5,0.2,1),S(0.5,0.2,1)] },
   cf_light_cruiser_02: { modelPath:'/assets/space/models/battle-ships/Light cruiser_02.fbx', format:'fbx', scale: 0.024, offset:S(0,0,0), enginePoints:[S(-0.6,0,-1.5),S(0,0,-1.5),S(0.6,0,-1.5)], weaponPoints:[S(-0.5,0.2,1),S(0.5,0.2,1)] },
   cf_light_cruiser_03: { modelPath:'/assets/space/models/battle-ships/Light cruiser_03.fbx', format:'fbx', scale: 0.024, offset:S(0,0,0), enginePoints:[S(-0.6,0,-1.5),S(0.6,0,-1.5)], weaponPoints:[S(0,0.2,1.2)] },
