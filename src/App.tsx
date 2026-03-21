@@ -791,17 +791,35 @@ function HowToPlay({ onBack }: { onBack: () => void }) {
           <button onClick={onBack} style={btn}>BACK</button>
         </div>
         <div style={{ maxWidth: 700, lineHeight: 1.8, fontSize: 13 }}>
-          <Section title="Objective">Conquer planets, build fleets, and destroy your enemies. Win by elimination (destroy all enemy units) or domination (control 70%+ planets for 60 seconds).</Section>
-          <Section title="Controls">
-            Left Click — Select | Left Drag — Box select | Right Click — Move/Attack<br/>
-            Ctrl+1-9 — Assign group | 1-9 — Recall | A — Attack move | S — Stop | H — Hold<br/>
-            WASD/Arrows — Pan camera | Scroll — Zoom | Double Click — Select all of type<br/>
-            Q/W/E/R — Abilities | Right-click ability — Toggle autocast
+          <Section title="Objective">Conquer planets, build fleets, and destroy your enemies. Win by <strong style={{color:'#ff4444'}}>Elimination</strong> (destroy all enemy ships &amp; stations) or <strong style={{color:'#4488ff'}}>Domination</strong> (own 70%+ of planets for 60 continuous seconds).</Section>
+          <Section title="Selection &amp; Camera">
+            <strong style={{color:'#4df'}}>Left Click</strong> — Select ship or planet &nbsp;
+            <strong style={{color:'#4df'}}>Left Drag</strong> — Box-select multiple ships<br/>
+            <strong style={{color:'#4df'}}>Right Click</strong> — Move selected ships / Attack enemy<br/>
+            <strong style={{color:'#4df'}}>Double Click</strong> — Select all visible ships of the same type<br/>
+            <strong style={{color:'#fa0'}}>WASD / Arrow Keys</strong> — Pan camera &nbsp;
+            <strong style={{color:'#fa0'}}>Scroll Wheel</strong> — Zoom (logarithmic, 0–4000%)<br/>
+            <strong style={{color:'#fa0'}}>M Key</strong> — Open Star Map (tactical overlay)<br/>
+            <em style={{opacity:0.5}}>Note: A and S also pan camera when no ships are selected.</em>
           </Section>
-          <Section title="Planets & Capture">Send ships near a neutral planet. Defeat its defenders, then your units auto-capture it. A capture ring shows progress. Owned planets generate resources and a station.</Section>
-          <Section title="Stations & Building">Select your station and use the build panel to queue ships. They spawn at the station and fly to the rally point. Higher tier ships are far stronger.</Section>
-          <Section title="Upgrades">Use the HUD upgrade buttons to improve all your ships globally: Attack, Armor, Speed, Health, and Shield. Each has 5 levels.</Section>
-          <Section title="Resources">Credits, Energy, and Minerals are earned passively from owned planets. Richer planets yield more. Spend them on ships and upgrades.</Section>
+          <Section title="Command Shortcuts (with ships selected)">
+            <strong style={{color:'#f44'}}>A</strong> — Attack-move (click destination → ships attack enemies en route)<br/>
+            <strong style={{color:'#aaa'}}>S</strong> — Stop all selected ships immediately<br/>
+            <strong style={{color:'#88f'}}>H</strong> — Hold position (ships defend in place, don’t chase)<br/>
+            <strong style={{color:'#4f4'}}>Ctrl+1–9</strong> — Assign control group &nbsp;
+            <strong style={{color:'#4f4'}}>1–9</strong> — Recall control group<br/>
+            <strong style={{color:'#fc4'}}>Q/W/E/R</strong> — Activate each ship’s labelled ability (cooldown + energy applies)<br/>
+            <strong style={{color:'#4df'}}>Right-click ability button</strong> — Toggle auto-cast on/off
+          </Section>
+          <Section title="Planets &amp; Capture">Click a planet to open its management panel. To capture a neutral planet: send ships near it, defeat the defenders, then your ships auto-capture (green ring shows progress). Captured planets generate Credits, Energy, and Minerals per second plus a Station for building ships.</Section>
+          <Section title="Stations &amp; Building">Click your station or use the bottom BUILD panel. Queue ships — they spawn at the station and fly to the rally point. Higher-tier ships cost more but are significantly stronger. Research tech trees on owned planets to unlock additional ship types.</Section>
+          <Section title="Global Upgrades">The HUD bottom-right shows 5 global upgrade tracks: Attack, Armor, Speed, Health, Shield. Each has 5 levels that apply to ALL ships you build afterwards. Some planet types give a 20% discount on their matching upgrade.</Section>
+          <Section title="Resources">
+            <strong style={{color:'#fc4'}}>Credits</strong> — General currency for ships &amp; upgrades<br/>
+            <strong style={{color:'#4df'}}>Energy</strong> — Powers ship abilities and advanced ships<br/>
+            <strong style={{color:'#4f8'}}>Minerals</strong> — Required for higher-tier ships and structures<br/>
+            All three are earned passively from owned planets. Deploy Mining Drones and Energy Skimmers to harvest orbiting resource nodes for a significant bonus.
+          </Section>
         </div>
       </div>
     </div>

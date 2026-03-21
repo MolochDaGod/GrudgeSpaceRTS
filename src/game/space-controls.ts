@@ -20,7 +20,8 @@ export class SpaceControls {
   private state: SpaceGameState;
   private renderer: THREE.WebGLRenderer;
   private raycaster = new THREE.Raycaster();
-  private mouseNdc = new THREE.Vector2();
+  /** Public so space-renderer can raycast planets on the same mouse NDC. */
+  public mouseNdc = new THREE.Vector2();
   private keys = new Set<string>();
   private mouseDown = false;
   private rightMouseDown = false;
@@ -42,6 +43,11 @@ export class SpaceControls {
     window.addEventListener('keydown', this.onKeyDown);
     window.addEventListener('keyup', this.onKeyUp);
   }
+
+  /** Set by SpaceRenderer so clicking an empty area checks planet collision. */
+  public onPlanetClick?: (planetId: number) => void;
+  /** Set by SpaceRenderer to route Q/W/E/R ability hotkeys (matches ability.key). */
+  public onAbilityActivateByKey?: (key: string) => void;
 
   private onMouseDown = (e: MouseEvent) => {
     if (e.button === 0) {
@@ -131,10 +137,18 @@ export class SpaceControls {
       }
     }
 
+    const hasSelection = this.state.selectedIds.size > 0;
     switch (e.key.toLowerCase()) {
+      // ─ Ability hotkeys: activate ability whose .key field matches the pressed key
+      // Q/W/E/R each map to the ship ability labelled with that letter.
+      // W can simultaneously pan camera (continuous) without conflict.
+      case 'q': case 'w': case 'e': case 'r':
+        if (hasSelection) this.onAbilityActivateByKey?.(e.key.toUpperCase());
+        break;
+      // ─ Command shortcuts ────────────────────────────────────
       case 'a': this.commandMode = 'attack_move'; break;
-      case 's': this.issueStopCommand(); break;
-      case 'h': this.issueHoldCommand(); break;
+      case 's': if (hasSelection) this.issueStopCommand(); break;
+      case 'h': if (hasSelection) this.issueHoldCommand(); break;
       case 'p': this.commandMode = 'patrol'; break;
       case 'escape': this.commandMode = 'normal'; this.clearSelection(); break;
       case 'f1': case 'f2': case 'f3': case 'f4': {
@@ -161,12 +175,16 @@ export class SpaceControls {
     const panSpeed  = PAN_SPEED_BASE  * zoomScale;
     const edgeSpeed = EDGE_SPEED_BASE * zoomScale;
 
-    // WASD / Arrow key pan
+  // Camera panning
+    // W/D always pan. A/S also pan BUT only when no units selected —
+    // when units ARE selected, A = attack-move and S = stop (command shortcuts).
+    // Arrow keys ALWAYS pan regardless of selection.
+    const sel = this.state.selectedIds.size > 0;
     let dx = 0, dy = 0;
-    if (this.keys.has('w') || this.keys.has('arrowup'))    dy -= panSpeed * dt;
-    if (this.keys.has('s') || this.keys.has('arrowdown'))  dy += panSpeed * dt;
-    if (this.keys.has('a') || this.keys.has('arrowleft'))  dx -= panSpeed * dt;
-    if (this.keys.has('d') || this.keys.has('arrowright')) dx += panSpeed * dt;
+    if (this.keys.has('w') || this.keys.has('arrowup'))                           dy -= panSpeed * dt;
+    if (this.keys.has('arrowdown') || (this.keys.has('s') && !sel))               dy += panSpeed * dt;
+    if (this.keys.has('arrowleft') || (this.keys.has('a') && !sel))               dx -= panSpeed * dt;
+    if (this.keys.has('d') || this.keys.has('arrowright'))                        dx += panSpeed * dt;
     this.cameraState.x += dx;
     this.cameraState.y += dy;
 
@@ -189,11 +207,15 @@ export class SpaceControls {
     if (!e.shiftKey) this.clearSelection();
 
     if (w < 5 && h < 5) {
-      // Click select
+      // Click select: ship first, then planet
       const ship = this.findShipAtScreen(e.clientX, e.clientY);
       if (ship && ship.team === 1) {
         ship.selected = true;
         this.state.selectedIds.add(ship.id);
+      } else if (this.onPlanetClick) {
+        // No ship hit — check if the renderer found a hovered planet
+        // (renderer updates hoveredPlanetId each frame from its own raycaster)
+        this.onPlanetClick(-1); // signal: open hovered planet if any
       }
     } else {
       // Box select
