@@ -285,17 +285,19 @@ export function SpaceHUD({ renderer, onQuit }: SpaceHUDProps) {
         display: 'flex', alignItems: 'center', padding: '0 16px', gap: 24,
         pointerEvents: 'auto', zIndex: 10,
       }}>
-        <img src='/assets/space/ui/logo.svg' alt='Gruda Armada'
+        <img src='/assets/space/ui/logo.png' alt='Gruda Armada'
           style={{ height: 26, imageRendering: 'auto',
-            filter: 'drop-shadow(0 0 8px rgba(68,136,255,0.5))' }}
+            mixBlendMode: 'multiply' as React.CSSProperties['mixBlendMode'],
+            filter: 'drop-shadow(0 0 8px rgba(68,136,255,0.4))' }}
           onError={e => {
             const t = e.target as HTMLImageElement;
-            t.style.display = 'none';
-            // Fallback text if logo not yet placed
-            const span = document.createElement('span');
-            span.textContent = 'GRUDA ARMADA';
-            Object.assign(span.style, { color:'#4488ff', fontWeight:'700', fontSize:'14px', letterSpacing:'3px' });
-            t.parentNode?.insertBefore(span, t);
+            // Fall back to SVG placeholder, which has a dark background
+            if (!t.src.endsWith('.svg')) {
+              t.src = '/assets/space/ui/logo.svg';
+              t.style.mixBlendMode = 'normal';
+            } else {
+              t.style.display = 'none';
+            }
           }}
         />
         <ResourceItem icon={RES_ICONS.credits} label="Credits" value={Math.floor(res.credits)} color="#fc4" />

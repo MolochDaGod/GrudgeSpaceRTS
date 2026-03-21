@@ -1,4 +1,4 @@
-import * as THREE from 'three';
+﻿import * as THREE from 'three';
 
 export interface SpacePrefab {
   modelPath: string;
@@ -23,7 +23,7 @@ export const SHIP_PREFABS: Record<string, SpacePrefab> = {
     modelPath: '/assets/space/models/ships/MicroRecon/MicroRecon.obj',
     mtlPath: '/assets/space/models/ships/MicroRecon/MicroRecon.mtl',
     texturePath: '/assets/space/models/ships/MicroRecon/MicroRecon.png',
-    format: 'obj', scale: 0.02, offset: S(0, 0, 0),
+    format: 'obj', scale: 0.06, offset: S(0, 0, 0),
     enginePoints: [S(0, 0, -0.5)],
     weaponPoints: [S(0, 0, 0.8)],
   },
@@ -31,7 +31,7 @@ export const SHIP_PREFABS: Record<string, SpacePrefab> = {
     modelPath: '/assets/space/models/ships/RedFighter/RedFighter.obj',
     mtlPath: '/assets/space/models/ships/RedFighter/RedFighter.mtl',
     texturePath: '/assets/space/models/ships/RedFighter/RedFighter.png',
-    format: 'obj', scale: 0.015, offset: S(0, 0, 0),
+    format: 'obj', scale: 0.045, offset: S(0, 0, 0),
     enginePoints: [S(-0.3, 0, -0.6), S(0.3, 0, -0.6)],
     weaponPoints: [S(-0.4, 0, 0.5), S(0.4, 0, 0.5)],
   },
@@ -39,7 +39,7 @@ export const SHIP_PREFABS: Record<string, SpacePrefab> = {
     modelPath: '/assets/space/models/ships/GalactixRacer/GalactixRacer.obj',
     mtlPath: '/assets/space/models/ships/GalactixRacer/GalactixRacer.mtl',
     texturePath: '/assets/space/models/ships/GalactixRacer/GalactixRacer.png',
-    format: 'obj', scale: 0.02, offset: S(0, 0, 0),
+    format: 'obj', scale: 0.06, offset: S(0, 0, 0),
     enginePoints: [S(0, 0, -0.8)],
     weaponPoints: [S(0, 0, 1.0)],
   },
@@ -47,7 +47,7 @@ export const SHIP_PREFABS: Record<string, SpacePrefab> = {
     modelPath: '/assets/space/models/ships/DualStriker/DualStriker.obj',
     mtlPath: '/assets/space/models/ships/DualStriker/DualStriker.mtl',
     texturePath: '/assets/space/models/ships/DualStriker/DualStriker.png',
-    format: 'obj', scale: 0.012, offset: S(0, 0, 0),
+    format: 'obj', scale: 0.036, offset: S(0, 0, 0),
     enginePoints: [S(-0.4, 0, -0.7), S(0.4, 0, -0.7)],
     weaponPoints: [S(-0.6, 0, 0.4), S(0.6, 0, 0.4)],
   },
@@ -55,7 +55,7 @@ export const SHIP_PREFABS: Record<string, SpacePrefab> = {
     modelPath: '/assets/space/models/ships/CamoStellarJet/CamoStellarJet.obj',
     mtlPath: '/assets/space/models/ships/CamoStellarJet/CamoStellarJet.mtl',
     texturePath: '/assets/space/models/ships/CamoStellarJet/CamoStellarJet.png',
-    format: 'obj', scale: 0.02, offset: S(0, 0, 0),
+    format: 'obj', scale: 0.06, offset: S(0, 0, 0),
     enginePoints: [S(0, 0, -0.7)],
     weaponPoints: [S(0, 0, 0.9)],
   },
@@ -63,7 +63,7 @@ export const SHIP_PREFABS: Record<string, SpacePrefab> = {
     modelPath: '/assets/space/models/ships/MeteorSlicer/MeteorSlicer.obj',
     mtlPath: '/assets/space/models/ships/MeteorSlicer/MeteorSlicer.mtl',
     texturePath: '/assets/space/models/ships/MeteorSlicer/MeteorSlicer.png',
-    format: 'obj', scale: 0.018, offset: S(0, 0, 0),
+    format: 'obj', scale: 0.054, offset: S(0, 0, 0),
     enginePoints: [S(0, 0, -0.6)],
     weaponPoints: [S(0, 0, 0.8)],
   },
@@ -71,7 +71,7 @@ export const SHIP_PREFABS: Record<string, SpacePrefab> = {
     modelPath: '/assets/space/models/ships/InfraredFurtive/InfraredFurtive.obj',
     mtlPath: '/assets/space/models/ships/InfraredFurtive/InfraredFurtive.mtl',
     texturePath: '/assets/space/models/ships/InfraredFurtive/InfraredFurtive.png',
-    format: 'obj', scale: 0.025, offset: S(0, 0, 0),
+    format: 'obj', scale: 0.075, offset: S(0, 0, 0),
     enginePoints: [S(0, 0, -0.5)],
     weaponPoints: [S(0, 0, 0.7)],
   },
@@ -79,7 +79,7 @@ export const SHIP_PREFABS: Record<string, SpacePrefab> = {
     modelPath: '/assets/space/models/ships/UltravioletIntruder/UltravioletIntruder.obj',
     mtlPath: '/assets/space/models/ships/UltravioletIntruder/UltravioletIntruder.mtl',
     texturePath: '/assets/space/models/ships/UltravioletIntruder/UltravioletIntruder.png',
-    format: 'obj', scale: 0.014, offset: S(0, 0, 0),
+    format: 'obj', scale: 0.042, offset: S(0, 0, 0),
     enginePoints: [S(-0.3, 0, -0.8), S(0.3, 0, -0.8)],
     weaponPoints: [S(0, -0.2, 0.6)],
   },
@@ -87,7 +87,7 @@ export const SHIP_PREFABS: Record<string, SpacePrefab> = {
     modelPath: '/assets/space/models/ships/Warship/Warship.obj',
     mtlPath: '/assets/space/models/ships/Warship/Warship.mtl',
     texturePath: '/assets/space/models/ships/Warship/Warship.png',
-    format: 'obj', scale: 0.015, offset: S(0, 0, 0),
+    format: 'obj', scale: 0.045, offset: S(0, 0, 0),
     enginePoints: [S(-0.5, 0, -1), S(0, 0, -1), S(0.5, 0, -1)],
     weaponPoints: [S(-0.4, 0.1, 0.6), S(0.4, 0.1, 0.6)],
   },
@@ -95,7 +95,7 @@ export const SHIP_PREFABS: Record<string, SpacePrefab> = {
     modelPath: '/assets/space/models/ships/StarMarineTrooper/StarMarineTrooper.obj',
     mtlPath: '/assets/space/models/ships/StarMarineTrooper/StarMarineTrooper.mtl',
     texturePath: '/assets/space/models/ships/StarMarineTrooper/StarMarineTrooper.png',
-    format: 'obj', scale: 0.014, offset: S(0, 0, 0),
+    format: 'obj', scale: 0.042, offset: S(0, 0, 0),
     enginePoints: [S(-0.4, 0, -0.8), S(0.4, 0, -0.8)],
     weaponPoints: [S(0, 0, 0.5)],
   },
@@ -103,7 +103,7 @@ export const SHIP_PREFABS: Record<string, SpacePrefab> = {
     modelPath: '/assets/space/models/ships/InterstellarRunner/InterstellarRunner.obj',
     mtlPath: '/assets/space/models/ships/InterstellarRunner/InterstellarRunner.mtl',
     texturePath: '/assets/space/models/ships/InterstellarRunner/InterstellarRunner.png',
-    format: 'obj', scale: 0.025, offset: S(0, 0, 0),
+    format: 'obj', scale: 0.075, offset: S(0, 0, 0),
     enginePoints: [S(0, 0, -0.7)],
     weaponPoints: [S(0, 0, 0.6)],
   },
@@ -111,7 +111,7 @@ export const SHIP_PREFABS: Record<string, SpacePrefab> = {
     modelPath: '/assets/space/models/ships/Transtellar/Transtellar.obj',
     mtlPath: '/assets/space/models/ships/Transtellar/Transtellar.mtl',
     texturePath: '/assets/space/models/ships/Transtellar/Transtellar.png',
-    format: 'obj', scale: 0.02, offset: S(0, 0, 0),
+    format: 'obj', scale: 0.06, offset: S(0, 0, 0),
     enginePoints: [S(0, 0, -0.6)],
     weaponPoints: [S(0, 0, 0.5)],
   },
@@ -119,7 +119,7 @@ export const SHIP_PREFABS: Record<string, SpacePrefab> = {
     modelPath: '/assets/space/models/ships/PyramidShip/PyramidShips.obj',
     mtlPath: '/assets/space/models/ships/PyramidShip/PyramidShips.mtl',
     texturePath: '/assets/space/models/ships/PyramidShip/PyramidShips.png',
-    format: 'obj', scale: 0.018, offset: S(0, 0, 0),
+    format: 'obj', scale: 0.054, offset: S(0, 0, 0),
     enginePoints: [S(-0.3, 0, -0.8), S(0.3, 0, -0.8)],
     weaponPoints: [S(0, 0.1, 0.7)],
   },
@@ -127,14 +127,14 @@ export const SHIP_PREFABS: Record<string, SpacePrefab> = {
   mining_drone: {
     modelPath: '/assets/space/models/vehicles/Tracer/Tracer-0-Tracer.obj',
     mtlPath:   '/assets/space/models/vehicles/Tracer/Tracer-0-Tracer.mtl',
-    format: 'obj', scale: 0.0018, offset: S(0, 0, 0),
+    format: 'obj', scale: 0.0054, offset: S(0, 0, 0),
     enginePoints: [S(0, 0, -0.3)],
     weaponPoints: [],
   },
   energy_skimmer: {
     modelPath: '/assets/space/models/vehicles/Scooter/Scooter-0-Scooter.obj',
     mtlPath:   '/assets/space/models/vehicles/Scooter/Scooter-0-Scooter.mtl',
-    format: 'obj', scale: 0.0018, offset: S(0, 0, 0),
+    format: 'obj', scale: 0.0054, offset: S(0, 0, 0),
     enginePoints: [S(0, 0, -0.3)],
     weaponPoints: [],
   },
@@ -142,35 +142,35 @@ export const SHIP_PREFABS: Record<string, SpacePrefab> = {
 
 // ── Craftpix Battle Fleet (FBX) ───────────────────────────────────────
 export const BATTLE_SHIP_PREFABS: Record<string, SpacePrefab> = {
-  cf_corvette_01: { modelPath:'/assets/space/models/battle-ships/Corvette_01.fbx', format:'fbx', scale:0.010, offset:S(0,0,0), enginePoints:[S(0,0,-0.5)], weaponPoints:[S(0,0,0.6)] },
-  cf_corvette_02: { modelPath:'/assets/space/models/battle-ships/Corvette_02.fbx', format:'fbx', scale:0.010, offset:S(0,0,0), enginePoints:[S(0,0,-0.5)], weaponPoints:[S(0,0,0.6)] },
-  cf_corvette_03: { modelPath:'/assets/space/models/battle-ships/Corvette_03.fbx', format:'fbx', scale:0.010, offset:S(0,0,0), enginePoints:[S(0,0,-0.5)], weaponPoints:[S(0,0,0.6)] },
-  cf_corvette_04: { modelPath:'/assets/space/models/battle-ships/Corvette_04.fbx', format:'fbx', scale:0.010, offset:S(0,0,0), enginePoints:[S(0,0,-0.5)], weaponPoints:[S(0,0,0.6)] },
-  cf_corvette_05: { modelPath:'/assets/space/models/battle-ships/Corvette_05.fbx', format:'fbx', scale:0.010, offset:S(0,0,0), enginePoints:[S(0,0,-0.5)], weaponPoints:[S(0,0,0.6)] },
-  cf_frigate_01:  { modelPath:'/assets/space/models/battle-ships/Frigate_01.fbx',  format:'fbx', scale:0.009, offset:S(0,0,0), enginePoints:[S(-0.4,0,-0.8),S(0.4,0,-0.8)], weaponPoints:[S(0,0.2,0.8)] },
-  cf_frigate_02:  { modelPath:'/assets/space/models/battle-ships/Frigate_02.fbx',  format:'fbx', scale:0.009, offset:S(0,0,0), enginePoints:[S(-0.4,0,-0.8),S(0.4,0,-0.8)], weaponPoints:[S(0,0.2,0.8)] },
-  cf_frigate_03:  { modelPath:'/assets/space/models/battle-ships/Frigate_03.fbx',  format:'fbx', scale:0.009, offset:S(0,0,0), enginePoints:[S(-0.5,0,-1),S(0.5,0,-1)], weaponPoints:[S(-0.4,0.2,0.9),S(0.4,0.2,0.9)] },
-  cf_frigate_04:  { modelPath:'/assets/space/models/battle-ships/Frigate_04.fbx',  format:'fbx', scale:0.009, offset:S(0,0,0), enginePoints:[S(0,0,-0.9)], weaponPoints:[S(0,0.2,0.8)] },
-  cf_frigate_05:  { modelPath:'/assets/space/models/battle-ships/Frigate_05.fbx',  format:'fbx', scale:0.009, offset:S(0,0,0), enginePoints:[S(-0.5,0,-0.9),S(0.5,0,-0.9)], weaponPoints:[S(0,0.2,1.0)] },
-  cf_light_cruiser_01: { modelPath:'/assets/space/models/battle-ships/Light cruiser_01.fbx', format:'fbx', scale:0.008, offset:S(0,0,0), enginePoints:[S(-0.6,0,-1.5),S(0,0,-1.5),S(0.6,0,-1.5)], weaponPoints:[S(-0.5,0.2,1),S(0.5,0.2,1)] },
-  cf_light_cruiser_02: { modelPath:'/assets/space/models/battle-ships/Light cruiser_02.fbx', format:'fbx', scale:0.008, offset:S(0,0,0), enginePoints:[S(-0.6,0,-1.5),S(0,0,-1.5),S(0.6,0,-1.5)], weaponPoints:[S(-0.5,0.2,1),S(0.5,0.2,1)] },
-  cf_light_cruiser_03: { modelPath:'/assets/space/models/battle-ships/Light cruiser_03.fbx', format:'fbx', scale:0.008, offset:S(0,0,0), enginePoints:[S(-0.6,0,-1.5),S(0.6,0,-1.5)], weaponPoints:[S(0,0.2,1.2)] },
-  cf_light_cruiser_04: { modelPath:'/assets/space/models/battle-ships/Light cruiser_04.fbx', format:'fbx', scale:0.008, offset:S(0,0,0), enginePoints:[S(-0.6,0,-1.5),S(0.6,0,-1.5)], weaponPoints:[S(-0.5,0.2,1),S(0.5,0.2,1)] },
-  cf_light_cruiser_05: { modelPath:'/assets/space/models/battle-ships/Light cruiser_05.fbx', format:'fbx', scale:0.008, offset:S(0,0,0), enginePoints:[S(-0.6,0,-1.5),S(0,0,-1.5),S(0.6,0,-1.5)], weaponPoints:[S(-0.5,0.2,1),S(0.5,0.2,1)] },
-  cf_destroyer_01: { modelPath:'/assets/space/models/battle-ships/Destroyer_01.fbx', format:'fbx', scale:0.009, offset:S(0,0,0), enginePoints:[S(-0.5,0,-1.4),S(0.5,0,-1.4)], weaponPoints:[S(0,0.2,1.1)] },
-  cf_destroyer_02: { modelPath:'/assets/space/models/battle-ships/Destroyer_02.fbx', format:'fbx', scale:0.009, offset:S(0,0,0), enginePoints:[S(-0.5,0,-1.4),S(0.5,0,-1.4)], weaponPoints:[S(0,0.2,1.1)] },
-  cf_destroyer_03: { modelPath:'/assets/space/models/battle-ships/Destroyer_03.fbx', format:'fbx', scale:0.009, offset:S(0,0,0), enginePoints:[S(-0.5,0,-1.4),S(0.5,0,-1.4)], weaponPoints:[S(0,0.2,1.1)] },
-  cf_destroyer_04: { modelPath:'/assets/space/models/battle-ships/Destroyer_04.fbx', format:'fbx', scale:0.009, offset:S(0,0,0), enginePoints:[S(-0.5,0,-1.4),S(0.5,0,-1.4)], weaponPoints:[S(0,0.2,1.2)] },
-  cf_destroyer_05: { modelPath:'/assets/space/models/battle-ships/Destroyer_05.fbx', format:'fbx', scale:0.009, offset:S(0,0,0), enginePoints:[S(-0.5,0,-1.4),S(0,0,-1.4),S(0.5,0,-1.4)], weaponPoints:[S(-0.4,0.2,1),S(0.4,0.2,1)] },
-  boss_ship_01: { modelPath:'/assets/space/models/new-ships/Ship_Boos_01_Hull.fbx', format:'fbx', scale:0.015, offset:S(0,0,0), enginePoints:[S(-1,0,-2),S(0,0,-2),S(1,0,-2)], weaponPoints:[S(-0.8,0.3,1.5),S(0,0.5,2),S(0.8,0.3,1.5)] },
-  boss_ship_02: { modelPath:'/assets/space/models/new-ships/Ship_Boss_02_Hull.fbx', format:'fbx', scale:0.015, offset:S(0,0,0), enginePoints:[S(-1.2,0,-2.2),S(0,0,-2.2),S(1.2,0,-2.2)], weaponPoints:[S(-1,0.3,1.8),S(0,0.5,2.2),S(1,0.3,1.8)] },
+  cf_corvette_01: { modelPath:'/assets/space/models/battle-ships/Corvette_01.fbx', format:'fbx', scale: 0.03, offset:S(0,0,0), enginePoints:[S(0,0,-0.5)], weaponPoints:[S(0,0,0.6)] },
+  cf_corvette_02: { modelPath:'/assets/space/models/battle-ships/Corvette_02.fbx', format:'fbx', scale: 0.03, offset:S(0,0,0), enginePoints:[S(0,0,-0.5)], weaponPoints:[S(0,0,0.6)] },
+  cf_corvette_03: { modelPath:'/assets/space/models/battle-ships/Corvette_03.fbx', format:'fbx', scale: 0.03, offset:S(0,0,0), enginePoints:[S(0,0,-0.5)], weaponPoints:[S(0,0,0.6)] },
+  cf_corvette_04: { modelPath:'/assets/space/models/battle-ships/Corvette_04.fbx', format:'fbx', scale: 0.03, offset:S(0,0,0), enginePoints:[S(0,0,-0.5)], weaponPoints:[S(0,0,0.6)] },
+  cf_corvette_05: { modelPath:'/assets/space/models/battle-ships/Corvette_05.fbx', format:'fbx', scale: 0.03, offset:S(0,0,0), enginePoints:[S(0,0,-0.5)], weaponPoints:[S(0,0,0.6)] },
+  cf_frigate_01:  { modelPath:'/assets/space/models/battle-ships/Frigate_01.fbx',  format:'fbx', scale: 0.027, offset:S(0,0,0), enginePoints:[S(-0.4,0,-0.8),S(0.4,0,-0.8)], weaponPoints:[S(0,0.2,0.8)] },
+  cf_frigate_02:  { modelPath:'/assets/space/models/battle-ships/Frigate_02.fbx',  format:'fbx', scale: 0.027, offset:S(0,0,0), enginePoints:[S(-0.4,0,-0.8),S(0.4,0,-0.8)], weaponPoints:[S(0,0.2,0.8)] },
+  cf_frigate_03:  { modelPath:'/assets/space/models/battle-ships/Frigate_03.fbx',  format:'fbx', scale: 0.027, offset:S(0,0,0), enginePoints:[S(-0.5,0,-1),S(0.5,0,-1)], weaponPoints:[S(-0.4,0.2,0.9),S(0.4,0.2,0.9)] },
+  cf_frigate_04:  { modelPath:'/assets/space/models/battle-ships/Frigate_04.fbx',  format:'fbx', scale: 0.027, offset:S(0,0,0), enginePoints:[S(0,0,-0.9)], weaponPoints:[S(0,0.2,0.8)] },
+  cf_frigate_05:  { modelPath:'/assets/space/models/battle-ships/Frigate_05.fbx',  format:'fbx', scale: 0.027, offset:S(0,0,0), enginePoints:[S(-0.5,0,-0.9),S(0.5,0,-0.9)], weaponPoints:[S(0,0.2,1.0)] },
+  cf_light_cruiser_01: { modelPath:'/assets/space/models/battle-ships/Light cruiser_01.fbx', format:'fbx', scale: 0.024, offset:S(0,0,0), enginePoints:[S(-0.6,0,-1.5),S(0,0,-1.5),S(0.6,0,-1.5)], weaponPoints:[S(-0.5,0.2,1),S(0.5,0.2,1)] },
+  cf_light_cruiser_02: { modelPath:'/assets/space/models/battle-ships/Light cruiser_02.fbx', format:'fbx', scale: 0.024, offset:S(0,0,0), enginePoints:[S(-0.6,0,-1.5),S(0,0,-1.5),S(0.6,0,-1.5)], weaponPoints:[S(-0.5,0.2,1),S(0.5,0.2,1)] },
+  cf_light_cruiser_03: { modelPath:'/assets/space/models/battle-ships/Light cruiser_03.fbx', format:'fbx', scale: 0.024, offset:S(0,0,0), enginePoints:[S(-0.6,0,-1.5),S(0.6,0,-1.5)], weaponPoints:[S(0,0.2,1.2)] },
+  cf_light_cruiser_04: { modelPath:'/assets/space/models/battle-ships/Light cruiser_04.fbx', format:'fbx', scale: 0.024, offset:S(0,0,0), enginePoints:[S(-0.6,0,-1.5),S(0.6,0,-1.5)], weaponPoints:[S(-0.5,0.2,1),S(0.5,0.2,1)] },
+  cf_light_cruiser_05: { modelPath:'/assets/space/models/battle-ships/Light cruiser_05.fbx', format:'fbx', scale: 0.024, offset:S(0,0,0), enginePoints:[S(-0.6,0,-1.5),S(0,0,-1.5),S(0.6,0,-1.5)], weaponPoints:[S(-0.5,0.2,1),S(0.5,0.2,1)] },
+  cf_destroyer_01: { modelPath:'/assets/space/models/battle-ships/Destroyer_01.fbx', format:'fbx', scale: 0.027, offset:S(0,0,0), enginePoints:[S(-0.5,0,-1.4),S(0.5,0,-1.4)], weaponPoints:[S(0,0.2,1.1)] },
+  cf_destroyer_02: { modelPath:'/assets/space/models/battle-ships/Destroyer_02.fbx', format:'fbx', scale: 0.027, offset:S(0,0,0), enginePoints:[S(-0.5,0,-1.4),S(0.5,0,-1.4)], weaponPoints:[S(0,0.2,1.1)] },
+  cf_destroyer_03: { modelPath:'/assets/space/models/battle-ships/Destroyer_03.fbx', format:'fbx', scale: 0.027, offset:S(0,0,0), enginePoints:[S(-0.5,0,-1.4),S(0.5,0,-1.4)], weaponPoints:[S(0,0.2,1.1)] },
+  cf_destroyer_04: { modelPath:'/assets/space/models/battle-ships/Destroyer_04.fbx', format:'fbx', scale: 0.027, offset:S(0,0,0), enginePoints:[S(-0.5,0,-1.4),S(0.5,0,-1.4)], weaponPoints:[S(0,0.2,1.2)] },
+  cf_destroyer_05: { modelPath:'/assets/space/models/battle-ships/Destroyer_05.fbx', format:'fbx', scale: 0.027, offset:S(0,0,0), enginePoints:[S(-0.5,0,-1.4),S(0,0,-1.4),S(0.5,0,-1.4)], weaponPoints:[S(-0.4,0.2,1),S(0.4,0.2,1)] },
+  boss_ship_01: { modelPath:'/assets/space/models/new-ships/Ship_Boos_01_Hull.fbx', format:'fbx', scale: 0.045, offset:S(0,0,0), enginePoints:[S(-1,0,-2),S(0,0,-2),S(1,0,-2)], weaponPoints:[S(-0.8,0.3,1.5),S(0,0.5,2),S(0.8,0.3,1.5)] },
+  boss_ship_02: { modelPath:'/assets/space/models/new-ships/Ship_Boss_02_Hull.fbx', format:'fbx', scale: 0.045, offset:S(0,0,0), enginePoints:[S(-1.2,0,-2.2),S(0,0,-2.2),S(1.2,0,-2.2)], weaponPoints:[S(-1,0.3,1.8),S(0,0.5,2.2),S(1,0.3,1.8)] },
 };
 
 // ── Planet Defense Turrets (FBX) ─────────────────────────────────
 export const TURRET_PREFABS: Record<string, SpacePrefab> = {
-  laser_turret:   { modelPath:'/assets/space/models/turrets/_Turel_01.fbx', format:'fbx', scale:0.020, offset:S(0,0,0), weaponPoints:[S(0,0.5,0)] },
-  missile_turret: { modelPath:'/assets/space/models/turrets/_Turel_02.fbx', format:'fbx', scale:0.018, offset:S(0,0,0), weaponPoints:[S(0,0.5,0)] },
-  railgun_turret: { modelPath:'/assets/space/models/turrets/_Turel_03.fbx', format:'fbx', scale:0.022, offset:S(0,0,0), weaponPoints:[S(0,0.6,0)] },
+  laser_turret:   { modelPath:'/assets/space/models/turrets/_Turel_01.fbx', format:'fbx', scale: 0.06, offset:S(0,0,0), weaponPoints:[S(0,0.5,0)] },
+  missile_turret: { modelPath:'/assets/space/models/turrets/_Turel_02.fbx', format:'fbx', scale: 0.054, offset:S(0,0,0), weaponPoints:[S(0,0.5,0)] },
+  railgun_turret: { modelPath:'/assets/space/models/turrets/_Turel_03.fbx', format:'fbx', scale: 0.066, offset:S(0,0,0), weaponPoints:[S(0,0.6,0)] },
 };
 
 // ── Capital Ships (FBX) ─────────────────────────────────────────────
@@ -178,7 +178,7 @@ export const CAPITAL_PREFABS: Record<string, SpacePrefab> = {
   battleship: {
     modelPath: '/assets/space/models/capital/Battleships/Battleship.fbx',
     texturePath: '/assets/space/models/capital/Battleships/Battleship.png',
-    format: 'fbx', scale: 0.008, offset: S(0, 0, 0),
+    format: 'fbx', scale: 0.024, offset: S(0, 0, 0),
     hasParts: true,
     partPaths: [
       '/assets/space/models/capital/Battleships/BattleshipParts/BattleshipPart1.fbx',
@@ -192,7 +192,7 @@ export const CAPITAL_PREFABS: Record<string, SpacePrefab> = {
   destroyer: {
     modelPath: '/assets/space/models/capital/Destroyer/Destroyer.fbx',
     texturePath: '/assets/space/models/capital/Destroyer/Destroyer.png',
-    format: 'fbx', scale: 0.01, offset: S(0, 0, 0),
+    format: 'fbx', scale: 0.03, offset: S(0, 0, 0),
     hasParts: true,
     partPaths: [
       '/assets/space/models/capital/Destroyer/DestroyerParts/DestroyerPart1.fbx',
@@ -204,7 +204,7 @@ export const CAPITAL_PREFABS: Record<string, SpacePrefab> = {
   cruiser: {
     modelPath: '/assets/space/models/capital/Cruiser/Cruiser.fbx',
     texturePath: '/assets/space/models/capital/Cruiser/Cruiser.png',
-    format: 'fbx', scale: 0.009, offset: S(0, 0, 0),
+    format: 'fbx', scale: 0.027, offset: S(0, 0, 0),
     hasParts: true,
     partPaths: [
       '/assets/space/models/capital/Cruiser/CruiserParts/CruiserPart1.fbx',
@@ -217,7 +217,7 @@ export const CAPITAL_PREFABS: Record<string, SpacePrefab> = {
   bomber: {
     modelPath: '/assets/space/models/capital/Bomber/Bomber.fbx',
     texturePath: '/assets/space/models/capital/Bomber/Bomber.png',
-    format: 'fbx', scale: 0.012, offset: S(0, 0, 0),
+    format: 'fbx', scale: 0.036, offset: S(0, 0, 0),
     hasParts: true,
     partPaths: [
       '/assets/space/models/capital/Bomber/BomberParts/BomberPart1.fbx',
@@ -232,15 +232,15 @@ export const CAPITAL_PREFABS: Record<string, SpacePrefab> = {
 export const STATION_PREFABS: Record<string, SpacePrefab> = {
   station: {
     modelPath: '/assets/space/models/stations/Station/Station.fbx',
-    format: 'fbx', scale: 0.015, offset: S(0, 0, 0),
+    format: 'fbx', scale: 0.045, offset: S(0, 0, 0),
   },
   energy_ship: {
     modelPath: '/assets/space/models/stations/EnergyShip/EnergyShip.fbx',
-    format: 'fbx', scale: 0.01, offset: S(0, 0, 0),
+    format: 'fbx', scale: 0.03, offset: S(0, 0, 0),
   },
   minador: {
     modelPath: '/assets/space/models/stations/Minador/Minador.fbx',
-    format: 'fbx', scale: 0.008, offset: S(0, 0, 0),
+    format: 'fbx', scale: 0.024, offset: S(0, 0, 0),
   },
 };
 
@@ -248,31 +248,31 @@ export const STATION_PREFABS: Record<string, SpacePrefab> = {
 export const ENEMY_PREFABS: Record<string, SpacePrefab> = {
   enemy_fighter: {
     modelPath: '/assets/space/models/enemies/Fighter/Fighter.fbx',
-    format: 'fbx', scale: 0.015, offset: S(0, 0, 0),
+    format: 'fbx', scale: 0.045, offset: S(0, 0, 0),
     enginePoints: [S(0, 0, -0.5)],
     weaponPoints: [S(0, 0, 0.6)],
   },
   enemy_cruiser: {
     modelPath: '/assets/space/models/enemies/Enemy Cruiser.fbx',
-    format: 'fbx', scale: 0.008, offset: S(0, 0, 0),
+    format: 'fbx', scale: 0.024, offset: S(0, 0, 0),
     enginePoints: [S(-0.5, 0, -1.5), S(0.5, 0, -1.5)],
     weaponPoints: [S(0, 0.2, 1)],
   },
   enemy_destroyer: {
     modelPath: '/assets/space/models/enemies/Enemy destroyer.fbx',
-    format: 'fbx', scale: 0.009, offset: S(0, 0, 0),
+    format: 'fbx', scale: 0.027, offset: S(0, 0, 0),
     enginePoints: [S(0, 0, -1.2)],
     weaponPoints: [S(0, 0.1, 0.8)],
   },
   enemy_huge: {
     modelPath: '/assets/space/models/enemies/EnemyHuge.fbx',
-    format: 'fbx', scale: 0.005, offset: S(0, 0, 0),
+    format: 'fbx', scale: 0.015, offset: S(0, 0, 0),
     enginePoints: [S(-1, 0, -2), S(0, 0, -2), S(1, 0, -2)],
     weaponPoints: [S(-0.8, 0.3, 1.5), S(0.8, 0.3, 1.5)],
   },
   enemy_mega_boss: {
     modelPath: '/assets/space/models/enemies/EnemyHuge2.fbx',
-    format: 'fbx', scale: 0.004, offset: S(0, 0, 0),
+    format: 'fbx', scale: 0.012, offset: S(0, 0, 0),
     enginePoints: [S(-1.5, 0, -3), S(-0.5, 0, -3), S(0.5, 0, -3), S(1.5, 0, -3)],
     weaponPoints: [S(-1, 0.5, 2), S(0, 0.5, 2.5), S(1, 0.5, 2)],
   },
@@ -284,7 +284,7 @@ for (let i = 1; i <= 6; i++) {
   VOXEL_FLEET_PREFABS[`voxel_ship_${i}`] = {
     modelPath: `/assets/space/models/voxel-fleet/Spaceship${i}.obj`,
     mtlPath: `/assets/space/models/voxel-fleet/Spaceship${i}.mtl`,
-    format: 'obj', scale: 0.003, offset: S(0, 0, 0),
+    format: 'obj', scale: 0.009, offset: S(0, 0, 0),
     enginePoints: [S(0, 0, -1)],
     weaponPoints: [S(0, 0, 1)],
   };
@@ -294,27 +294,27 @@ for (let i = 1; i <= 6; i++) {
 export const WEAPON_PREFABS: Record<string, SpacePrefab> = {
   pistol_turret: {
     modelPath: '/assets/space/models/weapons/Pistol.fbx',
-    format: 'fbx', scale: 0.05, offset: S(0, 0, 0),
+    format: 'fbx', scale: 0.15, offset: S(0, 0, 0),
   },
   rifle_cannon: {
     modelPath: '/assets/space/models/weapons/Rifle.fbx',
-    format: 'fbx', scale: 0.04, offset: S(0, 0, 0),
+    format: 'fbx', scale: 0.12, offset: S(0, 0, 0),
   },
   sniper_railgun: {
     modelPath: '/assets/space/models/weapons/Sniper.fbx',
-    format: 'fbx', scale: 0.04, offset: S(0, 0, 0),
+    format: 'fbx', scale: 0.12, offset: S(0, 0, 0),
   },
   bow_launcher: {
     modelPath: '/assets/space/models/weapons/Bow.fbx',
-    format: 'fbx', scale: 0.04, offset: S(0, 0, 0),
+    format: 'fbx', scale: 0.12, offset: S(0, 0, 0),
   },
   energy_blade: {
     modelPath: '/assets/space/models/weapons/Sword.fbx',
-    format: 'fbx', scale: 0.04, offset: S(0, 0, 0),
+    format: 'fbx', scale: 0.12, offset: S(0, 0, 0),
   },
   heavy_blade: {
     modelPath: '/assets/space/models/weapons/Sword2.fbx',
-    format: 'fbx', scale: 0.04, offset: S(0, 0, 0),
+    format: 'fbx', scale: 0.12, offset: S(0, 0, 0),
   },
 };
 
@@ -323,46 +323,46 @@ export const VEHICLE_PREFABS: Record<string, SpacePrefab> = {
   tracer: {
     modelPath: '/assets/space/models/vehicles/Tracer/Tracer-0-Tracer.obj',
     mtlPath: '/assets/space/models/vehicles/Tracer/Tracer-0-Tracer.mtl',
-    format: 'obj', scale: 0.01, offset: S(0, 0, 0),
+    format: 'obj', scale: 0.03, offset: S(0, 0, 0),
   },
   cross: {
     modelPath: '/assets/space/models/vehicles/Cross/Cross-0-Cross.obj',
     mtlPath: '/assets/space/models/vehicles/Cross/Cross-0-Cross.mtl',
-    format: 'obj', scale: 0.01, offset: S(0, 0, 0),
+    format: 'obj', scale: 0.03, offset: S(0, 0, 0),
   },
   scooter: {
     modelPath: '/assets/space/models/vehicles/Scooter/Scooter-0-Scooter.obj',
     mtlPath: '/assets/space/models/vehicles/Scooter/Scooter-0-Scooter.mtl',
-    format: 'obj', scale: 0.01, offset: S(0, 0, 0),
+    format: 'obj', scale: 0.03, offset: S(0, 0, 0),
   },
   chopper: {
     modelPath: '/assets/space/models/vehicles/Chopper/Chopper-0-Chopper.obj',
     mtlPath: '/assets/space/models/vehicles/Chopper/Chopper-0-Chopper.mtl',
-    format: 'obj', scale: 0.008, offset: S(0, 0, 0),
+    format: 'obj', scale: 0.024, offset: S(0, 0, 0),
   },
   gun_bike: {
     modelPath: '/assets/space/models/vehicles/GunBike/GunBike-0-GunBike.obj',
     mtlPath: '/assets/space/models/vehicles/GunBike/GunBike-0-GunBike.mtl',
-    format: 'obj', scale: 0.01, offset: S(0, 0, 0),
+    format: 'obj', scale: 0.03, offset: S(0, 0, 0),
   },
 };
 
 // ── GLB Effect Models ───────────────────────────────────────────
 export const EFFECT_PREFABS: Record<string, SpacePrefab> = {
-  fireball: { modelPath: '/assets/space/models/effects/Fireball.glb', format: 'glb', scale: 0.5, offset: S(0, 0, 0) },
-  ice_lance: { modelPath: '/assets/space/models/effects/Ice Lance.glb', format: 'glb', scale: 0.3, offset: S(0, 0, 0) },
-  ice_lance_2: { modelPath: '/assets/space/models/effects/Ice Lance 2.glb', format: 'glb', scale: 0.3, offset: S(0, 0, 0) },
-  ice_lance_3: { modelPath: '/assets/space/models/effects/Ice Lance 3.glb', format: 'glb', scale: 0.3, offset: S(0, 0, 0) },
+  fireball: { modelPath: '/assets/space/models/effects/Fireball.glb', format: 'glb', scale: 1.5, offset: S(0, 0, 0) },
+  ice_lance: { modelPath: '/assets/space/models/effects/Ice Lance.glb', format: 'glb', scale: 0.9, offset: S(0, 0, 0) },
+  ice_lance_2: { modelPath: '/assets/space/models/effects/Ice Lance 2.glb', format: 'glb', scale: 0.9, offset: S(0, 0, 0) },
+  ice_lance_3: { modelPath: '/assets/space/models/effects/Ice Lance 3.glb', format: 'glb', scale: 0.9, offset: S(0, 0, 0) },
   dark_shield: { modelPath: '/assets/space/models/effects/Dark_Shield.glb', format: 'glb', scale: 1.0, offset: S(0, 0, 0) },
   nature_shield: { modelPath: '/assets/space/models/effects/Nature_Shield.glb', format: 'glb', scale: 1.0, offset: S(0, 0, 0) },
-  crystal: { modelPath: '/assets/space/models/effects/Crystal.glb', format: 'glb', scale: 0.5, offset: S(0, 0, 0) },
+  crystal: { modelPath: '/assets/space/models/effects/Crystal.glb', format: 'glb', scale: 1.5, offset: S(0, 0, 0) },
   distortion: { modelPath: '/assets/space/models/effects/Distortion.glb', format: 'glb', scale: 1.0, offset: S(0, 0, 0) },
-  sword_effect: { modelPath: '/assets/space/models/effects/Sword.glb', format: 'glb', scale: 0.4, offset: S(0, 0, 0) },
-  hammer: { modelPath: '/assets/space/models/effects/Hammer.glb', format: 'glb', scale: 0.4, offset: S(0, 0, 0) },
-  skull: { modelPath: '/assets/space/models/effects/Skull.glb', format: 'glb', scale: 0.5, offset: S(0, 0, 0) },
+  sword_effect: { modelPath: '/assets/space/models/effects/Sword.glb', format: 'glb', scale: 1.2, offset: S(0, 0, 0) },
+  hammer: { modelPath: '/assets/space/models/effects/Hammer.glb', format: 'glb', scale: 1.2, offset: S(0, 0, 0) },
+  skull: { modelPath: '/assets/space/models/effects/Skull.glb', format: 'glb', scale: 1.5, offset: S(0, 0, 0) },
   rock: { modelPath: '/assets/space/models/effects/Rock.glb', format: 'glb', scale: 1.0, offset: S(0, 0, 0) },
-  rock_icicle: { modelPath: '/assets/space/models/effects/Rock Icicle.glb', format: 'glb', scale: 0.8, offset: S(0, 0, 0) },
-  potion: { modelPath: '/assets/space/models/effects/Potion.glb', format: 'glb', scale: 0.4, offset: S(0, 0, 0) },
+  rock_icicle: { modelPath: '/assets/space/models/effects/Rock Icicle.glb', format: 'glb', scale: 2.4, offset: S(0, 0, 0) },
+  potion: { modelPath: '/assets/space/models/effects/Potion.glb', format: 'glb', scale: 1.2, offset: S(0, 0, 0) },
 };
 
 // ── Sprite Sheet Definitions ────────────────────────────────────

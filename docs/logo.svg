@@ -1,41 +1,45 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 160" width="480" height="160">
+﻿<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 520 180" width="520" height="180">
   <defs>
-    <linearGradient id="g1" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" style="stop-color:#88aaff"/>
-      <stop offset="50%" style="stop-color:#ffffff"/>
-      <stop offset="100%" style="stop-color:#4466cc"/>
+    <linearGradient id="metalGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%"   stop-color="#c8d8f0"/>
+      <stop offset="40%"  stop-color="#ffffff"/>
+      <stop offset="70%"  stop-color="#9aacc8"/>
+      <stop offset="100%" stop-color="#6688aa"/>
+    </linearGradient>
+    <linearGradient id="subGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%"   stop-color="#aabbcc"/>
+      <stop offset="100%" stop-color="#7799bb"/>
     </linearGradient>
     <filter id="glow">
-      <feGaussianBlur stdDeviation="4" result="blur"/>
-      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+      <feGaussianBlur stdDeviation="3" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
     </filter>
-    <filter id="shadow">
-      <feDropShadow dx="0" dy="0" stdDeviation="8" flood-color="#4488ff" flood-opacity="0.8"/>
+    <filter id="redGlow">
+      <feGaussianBlur stdDeviation="4" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
     </filter>
   </defs>
-  <!-- Background -->
-  <rect width="480" height="160" fill="#010208" rx="8"/>
-  <!-- Decorative top spike -->
-  <polygon points="240,4 252,28 228,28" fill="#cc2222" opacity="0.9"/>
-  <!-- Side wing lines -->
-  <line x1="60" y1="80" x2="160" y2="80" stroke="#4488ff" stroke-width="1" opacity="0.4"/>
-  <line x1="320" y1="80" x2="420" y2="80" stroke="#4488ff" stroke-width="1" opacity="0.4"/>
-  <!-- Red accent chevrons bottom -->
-  <polygon points="200,140 240,156 280,140 240,148" fill="#cc1111" opacity="0.8"/>
+  <!-- Dark background -->
+  <rect width="520" height="180" fill="#0a0a12" rx="6"/>
+  <!-- Angular border -->
+  <polygon points="12,20 40,8 480,8 508,20 508,160 480,172 40,172 12,160" fill="none" stroke="#2a2a3a" stroke-width="1.5" opacity="0.8"/>
+  <!-- Top spike -->
+  <polygon points="260,0 276,14 244,14" fill="#cc1111" opacity="0.9"/>
+  <polygon points="260,2 272,12 248,12" fill="#ff2222" opacity="0.6"/>
+  <!-- Side wings -->
+  <polygon points="0,90 28,78 28,102"  fill="#aa0000" opacity="0.7"/>
+  <polygon points="520,90 492,78 492,102" fill="#aa0000" opacity="0.7"/>
+  <!-- Bottom chevron -->
+  <polygon points="200,166 260,178 320,166 260,172" fill="#cc1111" opacity="0.85"/>
+  <!-- Red eyes -->
+  <ellipse cx="200" cy="44" rx="5" ry="4" fill="#ff3300" filter="url(#redGlow)" opacity="0.9"/>
+  <ellipse cx="320" cy="44" rx="5" ry="4" fill="#ff3300" filter="url(#redGlow)" opacity="0.9"/>
+  <ellipse cx="260" cy="32" rx="6" ry="5" fill="#ff4400" filter="url(#redGlow)" opacity="0.95"/>
   <!-- GRUDA text -->
-  <text x="240" y="90"
-    font-family="'Arial Black','Impact',sans-serif"
-    font-size="62" font-weight="900"
-    text-anchor="middle"
-    fill="url(#g1)"
-    filter="url(#shadow)"
-    letter-spacing="6">GRUDA</text>
+  <text x="260" y="110" font-family="'Arial Black',Impact,sans-serif" font-size="70" font-weight="900" text-anchor="middle" fill="url(#metalGrad)" filter="url(#glow)" letter-spacing="5" stroke="#334466" stroke-width="1">GRUDA</text>
   <!-- ARMADA text -->
-  <text x="240" y="130"
-    font-family="'Arial Black','Impact',sans-serif"
-    font-size="34" font-weight="700"
-    text-anchor="middle"
-    fill="#ccddff"
-    letter-spacing="12"
-    opacity="0.9">ARMADA</text>
+  <text x="260" y="150" font-family="'Arial Black',Impact,sans-serif" font-size="36" font-weight="700" text-anchor="middle" fill="url(#subGrad)" letter-spacing="14" opacity="0.95">ARMADA</text>
+  <!-- Side dividers -->
+  <line x1="38" y1="118" x2="130" y2="118" stroke="#cc1111" stroke-width="1" opacity="0.5"/>
+  <line x1="390" y1="118" x2="482" y2="118" stroke="#cc1111" stroke-width="1" opacity="0.5"/>
 </svg>
