@@ -54,10 +54,19 @@ export class SpaceRenderer {
   private gameMode: GameMode = '1v1';
   private nodeMeshes = new Map<number, THREE.Mesh>();
 
-  // ── Animated background ──────────────────────────────────────
+  // ── Animated background ─────────────────────────────────
   private twinkleLayers: THREE.Points[] = [];
   private twinkleTime = 0;
   private bgPlanes: Array<{ mesh: THREE.Mesh; drift: { vx: number; vz: number } }> = [];
+
+  // ── Cinematic intro ─────────────────────────────────────
+  // On game start: fully zoomed out showing whole sector, then eases in
+  // to a comfortable orbital view over the player’s home world.
+  private introActive = false;
+  private introTimer  = 0;
+  private readonly introDuration  = 4.2;   // seconds
+  private readonly introZoomStart = 2400;   // deep-space — full sector visible
+  private readonly introZoomEnd   = 160;    // close orbit — home world prominent
 
   constructor(container: HTMLElement, mode: GameMode = '1v1') {
     this.container = container;
@@ -97,6 +106,22 @@ export class SpaceRenderer {
     this.buildPlanets();
     this.buildResourceNodes();
 
+    // ─ Cinematic intro: center on player's home world, start deep-out ───
+    const homePlanet = this.engine.state.planets.find(
+      p => p.isStartingPlanet && p.owner === 1,
+    );
+    if (homePlanet) {
+      this.controls.cameraState.x    = homePlanet.x;
+      this.controls.cameraState.y    = homePlanet.y;
+      this.controls.cameraState.zoom = this.introZoomStart;
+      this.introActive = true;
+      // Let the player skip by scrolling
+      this.controls.onIntroCancel = () => {
+        this.introActive = false;
+        this.controls.cameraState.zoom = this.introZoomEnd;
+      };
+    }
+
     window.addEventListener('resize', this.onResize);
     this.animate();
   }
@@ -132,8 +157,9 @@ export class SpaceRenderer {
 
     for (let i = 0; i < count; i++) {
       const i3 = i * 3;
-      // Pushed to r=2000-6000 so stars stay behind the scene even at max zoom.
-      const r = 2000 + Math.random() * 4000;
+      // r=400-1600: visible at normal zoom (sizeAttenuation pixel size ≈1-4px)
+      // and still renders at max zoom (stars beyond camera simply get culled by GPU).
+      const r = 400 + Math.random() * 1200;
       const theta = Math.random() * Math.PI * 2;
       const phi = Math.acos(2 * Math.random() - 1);
       positions[i3]     = r * Math.sin(phi) * Math.cos(theta);
@@ -155,8 +181,9 @@ export class SpaceRenderer {
     geo.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
 
     const mat = new THREE.PointsMaterial({
-      size: 1.3, vertexColors: true, sizeAttenuation: true,
-      transparent: true, opacity: 0.85,
+      // Slightly larger so stars remain visible at mid-zoom distances.
+      size: 2.0, vertexColors: true, sizeAttenuation: true,
+      transparent: true, opacity: 0.9,
     });
     this.starField = new THREE.Points(geo, mat);
     this.scene.add(this.starField);
@@ -167,7 +194,8 @@ export class SpaceRenderer {
     const twinkleOffsets = new Float32Array(count2);
     for (let i = 0; i < count2; i++) {
       const i3 = i * 3;
-      const r = 1800 + Math.random() * 1200;  // twinkling layer in front of far stars
+      // Fixed pixel size in shader — visible at any distance.
+      const r = 600 + Math.random() * 600;
       const theta = Math.random() * Math.PI * 2;
       const phi = Math.acos(2 * Math.random() - 1);
       pos2[i3]     = r * Math.sin(phi) * Math.cos(theta);
@@ -579,6 +607,16 @@ export class SpaceRenderer {
     this.twinkleTime += dt;
     for (const layer of this.twinkleLayers) {
       (layer.material as THREE.ShaderMaterial).uniforms.time.value = this.twinkleTime;
+    }
+
+    // ─ Cinematic intro: ease zoom from deep-space to home-world orbit ───
+    if (this.introActive) {
+      this.introTimer += dt;
+      const t    = Math.min(1, this.introTimer / this.introDuration);
+      const ease = 1 - Math.pow(1 - t, 3); // easeOutCubic — fast start, gentle land
+      this.controls.cameraState.zoom =
+        this.introZoomStart + (this.introZoomEnd - this.introZoomStart) * ease;
+      if (t >= 1) this.introActive = false;
     }
 
     // Slowly rotate starfield

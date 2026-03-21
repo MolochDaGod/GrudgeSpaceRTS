@@ -76,10 +76,14 @@ export class SpaceControls {
     }
   };
 
+  // Set by SpaceRenderer to cancel the intro animation when the player scrolls.
+  onIntroCancel: (() => void) | null = null;
+
   private onWheel = (e: WheelEvent) => {
     e.preventDefault();
-    // Logarithmic zoom: step is proportional to current distance so it feels
-    // the same at any scale (zooming in on a planet vs the whole sector).
+    // Any manual scroll cancels the opening cinematic.
+    if (this.onIntroCancel) { this.onIntroCancel(); this.onIntroCancel = null; }
+    // Logarithmic zoom: step proportional to current distance.
     const factor = 1 + e.deltaY * 0.0012;
     this.cameraState.zoom = Math.max(
       this.cameraState.minZoom,
