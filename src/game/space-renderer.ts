@@ -4,7 +4,7 @@ import { MTLLoader } from 'three/examples/jsm/loaders/MTLLoader.js';
 import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { getShipPrefab, BACKGROUND_LAYERS, STATION_PREFABS, EFFECT_PREFABS, type SpacePrefab } from './space-prefabs';
-import { type SpaceGameState, type SpaceShip, type Planet, type Team, TEAM_COLORS, MAP_WIDTH, MAP_HEIGHT, SHIP_DEFINITIONS } from './space-types';
+import { type SpaceGameState, type SpaceShip, type SpaceStation, type Planet, type Team, TEAM_COLORS, MAP_WIDTH, MAP_HEIGHT, SHIP_DEFINITIONS, CAPTURE_TIME, type GameMode } from './space-types';
 import { SpaceControls } from './space-controls';
 import { SpaceEngine } from './space-engine';
 import { applyShipAnimation } from './space-animations';
@@ -50,9 +50,17 @@ export class SpaceRenderer {
 
   private disposed = false;
   private animFrame = 0;
+  private captureRings = new Map<number, THREE.Mesh>();
+  private gameMode: GameMode = '1v1';
 
-  constructor(container: HTMLElement) {
+  // ── Animated background ──────────────────────────────────────
+  private twinkleLayers: THREE.Points[] = [];
+  private twinkleTime = 0;
+  private bgPlanes: Array<{ mesh: THREE.Mesh; drift: { vx: number; vz: number } }> = [];
+
+  constructor(container: HTMLElement, mode: GameMode = '1v1') {
     this.container = container;
+    this.gameMode = mode;
   }
 
   async init() {
@@ -78,7 +86,7 @@ export class SpaceRenderer {
     this.setupSelectionBox();
 
     this.engine = new SpaceEngine();
-    this.engine.initGame();
+    this.engine.initGame(this.gameMode);
 
     this.controls = new SpaceControls(this.container, this.camera, this.engine.state, this.renderer);
     this.effectsRenderer = new SpaceEffectsRenderer(this.scene);
@@ -90,23 +98,29 @@ export class SpaceRenderer {
   }
 
   private setupLighting() {
-    const ambient = new THREE.AmbientLight(0x223344, 0.6);
+    // Brighter lighting for better model visibility
+    const ambient = new THREE.AmbientLight(0x556688, 1.4);
     this.scene.add(ambient);
 
-    const sun = new THREE.DirectionalLight(0xffeedd, 1.2);
-    sun.position.set(200, 300, 100);
+    const sun = new THREE.DirectionalLight(0xffeedd, 2.0);
+    sun.position.set(200, 400, 100);
     this.scene.add(sun);
 
-    const fill = new THREE.DirectionalLight(0x4466aa, 0.3);
-    fill.position.set(-100, 100, -200);
+    const fill = new THREE.DirectionalLight(0x6688cc, 0.8);
+    fill.position.set(-200, 200, -200);
     this.scene.add(fill);
 
-    const rim = new THREE.PointLight(0xff6633, 0.4, 600);
-    rim.position.set(0, 50, -300);
+    const rim = new THREE.PointLight(0xff8844, 0.6, 1000);
+    rim.position.set(0, 80, -400);
     this.scene.add(rim);
+
+    // Extra hemisphere light for overall brightness
+    const hemi = new THREE.HemisphereLight(0x88aacc, 0x334466, 0.6);
+    this.scene.add(hemi);
   }
 
   private setupStarfield() {
+    // ── Layer 1: Far star field ─────────────────────────────────
     const count = 8000;
     const positions = new Float32Array(count * 3);
     const colors = new Float32Array(count * 3);
@@ -114,19 +128,20 @@ export class SpaceRenderer {
 
     for (let i = 0; i < count; i++) {
       const i3 = i * 3;
-      const r = 800 + Math.random() * 1500;
+      const r = 1000 + Math.random() * 2000;
       const theta = Math.random() * Math.PI * 2;
       const phi = Math.acos(2 * Math.random() - 1);
-      positions[i3] = r * Math.sin(phi) * Math.cos(theta);
+      positions[i3]     = r * Math.sin(phi) * Math.cos(theta);
       positions[i3 + 1] = r * Math.sin(phi) * Math.sin(theta);
       positions[i3 + 2] = r * Math.cos(phi);
 
-      const brightness = 0.5 + Math.random() * 0.5;
+      const brightness = 0.4 + Math.random() * 0.6;
       const tint = Math.random();
-      colors[i3] = brightness * (tint > 0.8 ? 1.0 : 0.8);
-      colors[i3 + 1] = brightness * (tint > 0.6 ? 0.9 : 0.7);
+      // Slight blue-white hue variety
+      colors[i3]     = brightness * (tint > 0.85 ? 1.0 : 0.75);
+      colors[i3 + 1] = brightness * (tint < 0.12 ? 0.65 : 0.87);
       colors[i3 + 2] = brightness;
-      sizes[i] = 1 + Math.random() * 2;
+      sizes[i] = 0.6 + Math.random() * 2.2;
     }
 
     const geo = new THREE.BufferGeometry();
@@ -134,22 +149,83 @@ export class SpaceRenderer {
     geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
     geo.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
 
-    const mat = new THREE.PointsMaterial({ size: 1.5, vertexColors: true, sizeAttenuation: true, transparent: true, opacity: 0.9 });
+    const mat = new THREE.PointsMaterial({
+      size: 1.3, vertexColors: true, sizeAttenuation: true,
+      transparent: true, opacity: 0.85,
+    });
     this.starField = new THREE.Points(geo, mat);
     this.scene.add(this.starField);
+
+    // ── Layer 2: Twinkling bright stars (custom shader) ─────────
+    const count2 = 450;
+    const pos2 = new Float32Array(count2 * 3);
+    const twinkleOffsets = new Float32Array(count2);
+    for (let i = 0; i < count2; i++) {
+      const i3 = i * 3;
+      const r = 800 + Math.random() * 700;
+      const theta = Math.random() * Math.PI * 2;
+      const phi = Math.acos(2 * Math.random() - 1);
+      pos2[i3]     = r * Math.sin(phi) * Math.cos(theta);
+      pos2[i3 + 1] = r * Math.sin(phi) * Math.sin(theta);
+      pos2[i3 + 2] = r * Math.cos(phi);
+      twinkleOffsets[i] = Math.random() * Math.PI * 2;
+    }
+    const geo2 = new THREE.BufferGeometry();
+    geo2.setAttribute('position', new THREE.BufferAttribute(pos2, 3));
+    geo2.setAttribute('twinkleOffset', new THREE.BufferAttribute(twinkleOffsets, 1));
+
+    const twinkleMat = new THREE.ShaderMaterial({
+      uniforms: { time: { value: 0.0 } },
+      vertexShader: `
+        uniform float time;
+        attribute float twinkleOffset;
+        void main() {
+          float t = 0.4 + 0.6 * abs(sin(time * 1.1 + twinkleOffset));
+          gl_PointSize = (1.5 + 3.5 * t);
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        void main() {
+          float d = length(gl_PointCoord - vec2(0.5));
+          if (d > 0.5) discard;
+          float a = (0.5 - d) * 2.2;
+          gl_FragColor = vec4(0.88, 0.94, 1.0, a * a);
+        }
+      `,
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    });
+    const twinkleStars = new THREE.Points(geo2, twinkleMat);
+    this.scene.add(twinkleStars);
+    this.twinkleLayers.push(twinkleStars);
   }
 
   private setupBackground() {
-    // Large background plane with space texture
-    const tex = this.textureLoader.load(BACKGROUND_LAYERS.blue.withStars);
-    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-    tex.repeat.set(4, 4);
-    const bgGeo = new THREE.PlaneGeometry(4000, 4000);
-    const bgMat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: 0.3, depthWrite: false });
-    const bgMesh = new THREE.Mesh(bgGeo, bgMat);
-    bgMesh.rotation.x = -Math.PI / 2;
-    bgMesh.position.y = -50;
-    this.scene.add(bgMesh);
+    // Layered parallax planes with slow independent drift — no tiling artifacts
+    const configs: Array<{
+      path: string; opacity: number; scale: number;
+      vx: number; vz: number; y: number;
+    }> = [
+      { path: BACKGROUND_LAYERS.classic.background, opacity: 0.10, scale: 3600, vx:  0.010, vz:  0.006, y: -90 },
+      { path: BACKGROUND_LAYERS.classic.stars,      opacity: 0.08, scale: 3000, vx: -0.007, vz:  0.009, y: -80 },
+      { path: BACKGROUND_LAYERS.classic.farPlanets, opacity: 0.05, scale: 2600, vx:  0.005, vz: -0.008, y: -70 },
+    ];
+
+    for (const cfg of configs) {
+      const tex = this.textureLoader.load(cfg.path);
+      const geo = new THREE.PlaneGeometry(cfg.scale, cfg.scale);
+      const mat = new THREE.MeshBasicMaterial({
+        map: tex, transparent: true, opacity: cfg.opacity,
+        depthWrite: false, blending: THREE.AdditiveBlending,
+      });
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.rotation.x = -Math.PI / 2;
+      mesh.position.set(0, cfg.y, 0);
+      this.scene.add(mesh);
+      this.bgPlanes.push({ mesh, drift: { vx: cfg.vx, vz: cfg.vz } });
+    }
   }
 
   private setupSelectionBox() {
@@ -164,7 +240,10 @@ export class SpaceRenderer {
   private buildPlanets() {
     for (const planet of this.engine.state.planets) {
       const geo = new THREE.SphereGeometry(planet.radius * WORLD_SCALE, 32, 32);
-      const mat = new THREE.MeshStandardMaterial({ color: planet.color, roughness: 0.7, metalness: 0.2 });
+      const mat = new THREE.MeshStandardMaterial({
+        color: planet.color, roughness: 0.6, metalness: 0.3,
+        emissive: planet.color, emissiveIntensity: 0.15,
+      });
       const mesh = new THREE.Mesh(geo, mat);
       mesh.position.set(planet.x * WORLD_SCALE, planet.z * WORLD_SCALE, planet.y * WORLD_SCALE);
       this.scene.add(mesh);
@@ -177,6 +256,16 @@ export class SpaceRenderer {
       ring.rotation.x = -Math.PI / 2;
       ring.position.copy(mesh.position);
       this.scene.add(ring);
+
+      // Capture progress ring (starts invisible)
+      const capGeo = new THREE.RingGeometry(planet.radius * WORLD_SCALE * 1.6, planet.radius * WORLD_SCALE * 1.7, 64);
+      const capMat = new THREE.MeshBasicMaterial({ color: 0xffff44, transparent: true, opacity: 0, side: THREE.DoubleSide });
+      const capRing = new THREE.Mesh(capGeo, capMat);
+      capRing.rotation.x = -Math.PI / 2;
+      capRing.position.copy(mesh.position);
+      capRing.position.y += 0.1;
+      this.scene.add(capRing);
+      this.captureRings.set(planet.id, capRing);
     }
   }
 
@@ -233,7 +322,12 @@ export class SpaceRenderer {
     const size = shipClass === 'battleship' ? 3 : shipClass === 'cruiser' ? 2 : shipClass === 'destroyer' ? 1.5 : 0.6;
     const geo = new THREE.ConeGeometry(size * 0.5, size, 6);
     geo.rotateX(Math.PI / 2);
-    const mat = new THREE.MeshStandardMaterial({ color: TEAM_COLORS[team], emissive: TEAM_COLORS[team], emissiveIntensity: 0.3 });
+    const mat = new THREE.MeshStandardMaterial({
+      color: TEAM_COLORS[team] ?? 0x4488ff,
+      emissive: TEAM_COLORS[team] ?? 0x4488ff,
+      emissiveIntensity: 0.5,
+      metalness: 0.4, roughness: 0.4,
+    });
     const mesh = new THREE.Mesh(geo, mat);
     group.add(mesh);
     return group;
@@ -401,11 +495,104 @@ export class SpaceRenderer {
     this.updateSelectionBox();
     this.updateCamera();
 
+    // Twinkling shader time update
+    this.twinkleTime += dt;
+    for (const layer of this.twinkleLayers) {
+      (layer.material as THREE.ShaderMaterial).uniforms.time.value = this.twinkleTime;
+    }
+
     // Slowly rotate starfield
     this.starField.rotation.y += dt * 0.002;
+    for (const layer of this.twinkleLayers) layer.rotation.y += dt * 0.0015;
+
+    // Drift parallax background planes, bounce at boundaries
+    for (const bg of this.bgPlanes) {
+      bg.mesh.position.x += bg.drift.vx;
+      bg.mesh.position.z += bg.drift.vz;
+      if (Math.abs(bg.mesh.position.x) > 300) bg.drift.vx *= -1;
+      if (Math.abs(bg.mesh.position.z) > 300) bg.drift.vz *= -1;
+    }
+
+    // Sync stations
+    this.syncStations(this.engine.state);
+
+    // Sync capture rings
+    this.syncCaptureRings(this.engine.state);
+
+    // Sync planet ownership colors
+    this.syncPlanetOwnership(this.engine.state);
 
     this.renderer.render(this.scene, this.camera);
   };
+
+  // ── Station Rendering ─────────────────────────────────────────
+  private syncStations(state: SpaceGameState) {
+    // Remove deleted
+    for (const [id, mesh] of this.stationMeshes) {
+      if (!state.stations.has(id)) { this.scene.remove(mesh); this.stationMeshes.delete(id); }
+    }
+    // Add/update
+    for (const [id, station] of state.stations) {
+      if (station.dead) continue;
+      let mesh = this.stationMeshes.get(id);
+      if (!mesh) {
+        mesh = new THREE.Group();
+        const body = new THREE.Mesh(
+          new THREE.OctahedronGeometry(2, 1),
+          new THREE.MeshStandardMaterial({
+            color: TEAM_COLORS[station.team] ?? 0x4488ff,
+            emissive: TEAM_COLORS[station.team] ?? 0x4488ff,
+            emissiveIntensity: 0.4, metalness: 0.6, roughness: 0.3,
+          }),
+        );
+        mesh.add(body);
+        // Ring around station
+        const ring = new THREE.Mesh(
+          new THREE.RingGeometry(2.5, 2.7, 32),
+          new THREE.MeshBasicMaterial({ color: TEAM_COLORS[station.team] ?? 0x4488ff, transparent: true, opacity: 0.4, side: THREE.DoubleSide }),
+        );
+        ring.rotation.x = -Math.PI / 2;
+        mesh.add(ring);
+        this.scene.add(mesh);
+        this.stationMeshes.set(id, mesh);
+      }
+      mesh.position.set(station.x * WORLD_SCALE, station.z * WORLD_SCALE + 4, station.y * WORLD_SCALE);
+      mesh.rotation.y += 0.003; // slow spin
+    }
+  }
+
+  private syncCaptureRings(state: SpaceGameState) {
+    for (const planet of state.planets) {
+      const ring = this.captureRings.get(planet.id);
+      if (!ring) continue;
+      const mat = ring.material as THREE.MeshBasicMaterial;
+      if (planet.captureProgress > 0) {
+        const pct = planet.captureProgress / CAPTURE_TIME;
+        mat.opacity = 0.3 + pct * 0.5;
+        mat.color.setHex(TEAM_COLORS[planet.captureTeam] ?? 0xffff44);
+        ring.scale.setScalar(0.5 + pct * 0.5);
+      } else {
+        mat.opacity = planet.owner !== 0 ? 0.15 : 0;
+        if (planet.owner !== 0) mat.color.setHex(TEAM_COLORS[planet.owner] ?? 0x44ff44);
+        ring.scale.setScalar(1);
+      }
+    }
+  }
+
+  private syncPlanetOwnership(state: SpaceGameState) {
+    for (let i = 0; i < state.planets.length && i < this.planetMeshes.length; i++) {
+      const planet = state.planets[i];
+      const mesh = this.planetMeshes[i];
+      const mat = mesh.material as THREE.MeshStandardMaterial;
+      if (planet.owner !== 0) {
+        mat.emissive.setHex(TEAM_COLORS[planet.owner] ?? planet.color);
+        mat.emissiveIntensity = 0.25;
+      } else {
+        mat.emissive.setHex(planet.color);
+        mat.emissiveIntensity = 0.1;
+      }
+    }
+  }
 
   private onResize = () => {
     const w = this.container.clientWidth;

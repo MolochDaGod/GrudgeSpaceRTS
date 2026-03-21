@@ -115,6 +115,14 @@ export const SHIP_PREFABS: Record<string, SpacePrefab> = {
     enginePoints: [S(0, 0, -0.6)],
     weaponPoints: [S(0, 0, 0.5)],
   },
+  pyramid_ship: {
+    modelPath: '/assets/space/models/ships/PyramidShip/PyramidShips.obj',
+    mtlPath: '/assets/space/models/ships/PyramidShip/PyramidShips.mtl',
+    texturePath: '/assets/space/models/ships/PyramidShip/PyramidShips.png',
+    format: 'obj', scale: 0.018, offset: S(0, 0, 0),
+    enginePoints: [S(-0.3, 0, -0.8), S(0.3, 0, -0.8)],
+    weaponPoints: [S(0, 0.1, 0.7)],
+  },
 };
 
 // ── Capital Ships (FBX) ─────────────────────────────────────────
