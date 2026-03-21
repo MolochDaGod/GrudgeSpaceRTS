@@ -121,8 +121,14 @@ function MainMenu({ onStart, onCodex, onHowTo, mode, setMode }: {
     <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#010308', color: '#cde', zIndex: 100 }}>
       <StarfieldCanvas />
       <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-        <div style={{ fontSize: 56, fontWeight: 800, color: '#4488ff', marginBottom: 4, letterSpacing: 4, textShadow: '0 0 40px #4488ff88, 0 0 80px #4488ff33' }}>GRUDA ARMADA</div>
-        <div style={{ fontSize: 14, opacity: 0.45, marginBottom: 40, letterSpacing: 3 }}>TACTICAL SPACE COMMAND · RTS</div>
+        <img
+          src='/assets/space/ui/logo.png'
+          alt='GRUDA ARMADA'
+          style={{ width: 380, maxWidth: '88vw', marginBottom: 32,
+            filter: 'drop-shadow(0 0 40px rgba(68,136,255,0.5))',
+            imageRendering: 'auto' }}
+        />
+        <div style={{ fontSize: 12, opacity: 0.4, marginBottom: 32, letterSpacing: 4, textTransform: 'uppercase' }}>Solar System Scrim · Tactical RTS</div>
         <div style={{ display: 'flex', gap: 16, marginBottom: 32 }}>
           {modes.map(m => (
             <div key={m.key} onClick={() => setMode(m.key)} style={{
@@ -671,7 +677,11 @@ function HowToPlay({ onBack }: { onBack: () => void }) {
       <StarfieldCanvas />
       <div style={{ position: 'relative', zIndex: 1 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-          <div style={{ fontSize: 32, fontWeight: 800, color: '#4488ff' }}>HOW TO PLAY</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <img src='/assets/space/ui/logo.png' alt='Gruda Armada' style={{ height: 32, imageRendering: 'auto' }}
+              onError={e => { (e.target as HTMLImageElement).style.display='none'; }} />
+            <div style={{ fontSize: 22, fontWeight: 800, color: '#4488ff', letterSpacing: 3 }}>SHIP CODEX</div>
+          </div>
           <button onClick={onBack} style={btn}>BACK</button>
         </div>
         <div style={{ maxWidth: 700, lineHeight: 1.8, fontSize: 13 }}>
@@ -707,7 +717,13 @@ function LoadingScreen() {
     <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, color: '#4488ff', fontFamily: 'monospace', background: '#010308' }}>
       <StarfieldCanvas />
       <div style={{ position: 'relative', zIndex: 1, textAlign: 'center' }}>
-        <div style={{ fontSize: 48, marginBottom: 16, textShadow: '0 0 30px #4488ff88' }}>GRUDA ARMADA</div>
+        <img
+          src='/assets/space/ui/logo.png'
+          alt='GRUDA ARMADA'
+          style={{ width: 280, maxWidth: '70vw', marginBottom: 20,
+            filter: 'drop-shadow(0 0 30px rgba(68,136,255,0.6))',
+            animation: 'pulse 2s ease-in-out infinite' }}
+        />
         <div style={{ opacity: 0.55, letterSpacing: 3, fontSize: 13 }}>LOADING ASSETS...</div>
       </div>
     </div>
