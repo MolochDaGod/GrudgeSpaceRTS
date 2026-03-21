@@ -12,7 +12,7 @@ import {
   HERO_DEFINITIONS, HERO_SHIPS, getShipDef, PLANET_TYPE_DATA,
   defaultTechBonuses,
   COMMANDER_NAMES, COMMANDER_XP_LEVELS, COMMANDER_TRAIN_TIME, COMMANDER_TRAIN_COST,
-  COMMANDER_SPEC_PLANET, SHIP_ROLES, type Fleet, type TacticalOrder,
+  SHIP_ROLES, type Fleet, type TacticalOrder,
 } from './space-types';
 import {
   ALL_TECH_TREES, VOID_POWERS, PLANET_TYPE_TO_TECH, TURRET_DEFS,
@@ -39,16 +39,11 @@ function dist2d(a: { x: number; y: number }, b: { x: number; y: number }): numbe
   return Math.sqrt((a.x - b.x) ** 2 + (a.y - b.y) ** 2);
 }
 
-const PLANET_ORBIT_RADIUS = 200;
-
 export class SpaceEngine {
   state!: SpaceGameState;
   private resourceTimer = 0;
-  private aiTimers = new Map<number, number>();
-  private aiBuildTimers = new Map<number, number>();
   private winCheckTimer = 0;
   private aiBrains = new Map<number, AIBrain>();
-  private techResearchTimer = new Map<number, number>();
   mapW = 8000;
   mapH = 8000;
   aiDifficulty = 3; // default D3
@@ -97,8 +92,6 @@ export class SpaceEngine {
     };
 
     for (const team of activePlayers) {
-      this.aiTimers.set(team, 0);
-      this.aiBuildTimers.set(team, 0);
       if (team !== 1) {
         this.aiBrains.set(team, createAIBrain(team, this.aiDifficulty));
       }
@@ -669,97 +662,7 @@ export class SpaceEngine {
     });
   }
 
-  // ── AI ─────────────────────────────────────────────────────────
-  private updateAI(dt: number) {
-    for (const team of this.state.activePlayers) {
-      if (team === 1) continue;
-      const bt = (this.aiBuildTimers.get(team) ?? 0) + dt;
-      const at = (this.aiTimers.get(team) ?? 0) + dt;
-      this.aiBuildTimers.set(team, bt);
-      this.aiTimers.set(team, at);
-
-      if (bt > 5) { this.aiBuildTimers.set(team, 0); this.aiBuild(team); }
-      if (at > 8) { this.aiTimers.set(team, 0); this.aiTactics(team); }
-
-      // Strafing and dodging per-frame
-      for (const [, s] of this.state.ships) {
-        if (s.dead || s.team !== team) continue;
-        if (s.damageLevel > 0.6 && s.targetId) {
-          const t = this.state.ships.get(s.targetId);
-          if (t && !t.dead && !s.moveTarget) {
-            const fa = Math.atan2(s.y - t.y, s.x - t.x);
-            s.moveTarget = { x: s.x + Math.cos(fa) * 400, y: s.y + Math.sin(fa) * 400, z: 0 };
-          }
-        }
-        if (s.targetId && s.damageLevel < 0.5 && s.orbitTarget === null) {
-          const t = this.state.ships.get(s.targetId);
-          if (t && !t.dead) {
-            const d = dist2d(s, t);
-            if (d < s.attackRange && d > s.attackRange * 0.5) {
-              const a = Math.atan2(t.y - s.y, t.x - s.x);
-              const dir = s.id % 2 === 0 ? 1 : -1;
-              s.x += Math.cos(a + Math.PI / 2 * dir) * s.speed * 0.3 * dt;
-              s.y += Math.sin(a + Math.PI / 2 * dir) * s.speed * 0.3 * dt;
-            }
-          }
-        }
-      }
-    }
-  }
-
-  private aiBuild(team: Team) {
-    for (const [, st] of this.state.stations) {
-      if (st.dead || st.team !== team || st.buildQueue.length >= 2) continue;
-      const res = this.state.resources[team];
-      if (!res) continue;
-      let cnt = 0;
-      for (const [, s] of this.state.ships) { if (!s.dead && s.team === team) cnt++; }
-      if (cnt < 5) { this.queueBuild(st.id, 'red_fighter'); }
-      else if (res.credits > 300 && res.minerals > 120) {
-        const maxT = res.credits > 800 ? 4 : res.credits > 400 ? 3 : 2;
-        const pool: string[] = [];
-        for (let t = 1; t <= maxT; t++) pool.push(...(BUILDABLE_SHIPS[t] ?? []));
-        if (pool.length > 0) this.queueBuild(st.id, pool[Math.floor(Math.random() * pool.length)]);
-      }
-      if (res.credits > 600 && res.minerals > 300) {
-        const types: (keyof TeamUpgrades)[] = ['attack', 'armor', 'speed', 'health', 'shield'];
-        this.purchaseUpgrade(team, types[Math.floor(Math.random() * types.length)]);
-      }
-    }
-  }
-
-  private aiTactics(team: Team) {
-    const unowned = this.state.planets.filter(p => p.owner === 0);
-    const enemy = this.state.planets.filter(p => p.owner !== 0 && p.owner !== team);
-    const idle: SpaceShip[] = [];
-    for (const [, s] of this.state.ships) {
-      if (s.dead || s.team !== team || s.orbitTarget !== null) continue;
-      if (!s.moveTarget && !s.targetId) idle.push(s);
-    }
-    if (idle.length === 0) return;
-    if (unowned.length > 0) {
-      const tgt = unowned[Math.floor(Math.random() * unowned.length)];
-      const scouts = idle.splice(0, Math.min(3, idle.length));
-      for (const sc of scouts) {
-        sc.moveTarget = { x: tgt.x + (Math.random() - 0.5) * 100, y: tgt.y + (Math.random() - 0.5) * 100, z: 0 };
-        sc.isAttackMoving = true;
-      }
-    }
-    if (idle.length > 3 && enemy.length > 0) {
-      const tgt = enemy[Math.floor(Math.random() * enemy.length)];
-      for (const s of idle) { s.moveTarget = { x: tgt.x + (Math.random() - 0.5) * 200, y: tgt.y + (Math.random() - 0.5) * 200, z: 0 }; s.isAttackMoving = true; }
-    } else if (idle.length > 0) {
-      let near: SpaceShip | null = null, nd = Infinity;
-      for (const [, s] of this.state.ships) {
-        if (s.dead || s.team === team || s.team === 0) continue;
-        const d = dist2d(s, idle[0]);
-        if (d < nd) { nd = d; near = s; }
-      }
-      if (near) for (const s of idle) { s.moveTarget = { x: near!.x + (Math.random() - 0.5) * 200, y: near!.y + (Math.random() - 0.5) * 200, z: 0 }; s.isAttackMoving = true; }
-    }
-  }
-
-  // ── Tech Research ───────────────────────────────────────────
+  // ── Tech Research ───────────────────────────────────────────────
   startResearch(team: Team, nodeId: string): boolean {
     const st = this.state.techState.get(team);
     if (!st || st.inResearch) return false;

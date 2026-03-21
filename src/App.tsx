@@ -179,7 +179,15 @@ const SHIP_PREVIEW: Record<string, string> = {
   destroyer:            '/assets/space/models/capital/Destroyer/Destroyer.png',
   cruiser:              '/assets/space/models/capital/Cruiser/Cruiser.png',
   bomber:               '/assets/space/models/capital/Bomber/Bomber.png',
-  boss_ship_01:         '/assets/space/models/new-ships/Ship_Boos_01_Hull.fbx', // placeholder
+  // ── Hero class ships — mapped to closest capital ship preview ──────────
+  vanguard_prime:       '/assets/space/models/capital/Battleships/Battleship.png',
+  shadow_reaper:        '/assets/space/models/capital/Bomber/Bomber.png',
+  iron_bastion:         '/assets/space/models/capital/Cruiser/Cruiser.png',
+  storm_herald:         '/assets/space/models/capital/Destroyer/Destroyer.png',
+  plague_mother:        '/assets/space/models/capital/Battleships/Battleship.png',
+  // ── Dreadnoughts ─────────────────────────────────────────────────
+  boss_ship_01:         '/assets/space/models/capital/Battleships/Battleship.png',
+  boss_ship_02:         '/assets/space/models/capital/Battleships/Battleship.png',
 };
 
 const ABILITY_ICONS: Record<string, string> = {
@@ -212,9 +220,10 @@ function StatBar({ val, max, color }: { val: number; max: number; color: string 
 }
 
 // Ship card used in both fleet and hero sections
+// def lookup: always check both dicts so boss ships (in SHIP_DEFINITIONS)
+// and hero ships (in HERO_DEFINITIONS) both resolve regardless of flag.
 function ShipCard({ shipKey, hero = false }: { shipKey: string; hero?: boolean }) {
-  const def = (hero ? HERO_DEFINITIONS : SHIP_DEFINITIONS)[shipKey]
-           ?? (HERO_DEFINITIONS[shipKey] as typeof HERO_DEFINITIONS[string] | undefined);
+  const def = HERO_DEFINITIONS[shipKey] ?? SHIP_DEFINITIONS[shipKey];
   if (!def) return null;
   const s         = def.stats;
   const preview   = SHIP_PREVIEW[shipKey];
