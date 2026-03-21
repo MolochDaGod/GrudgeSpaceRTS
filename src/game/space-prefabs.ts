@@ -123,6 +123,21 @@ export const SHIP_PREFABS: Record<string, SpacePrefab> = {
     enginePoints: [S(-0.3, 0, -0.8), S(0.3, 0, -0.8)],
     weaponPoints: [S(0, 0.1, 0.7)],
   },
+  // ── Worker ships — tiny vehicle models ───────────────────────────
+  mining_drone: {
+    modelPath: '/assets/space/models/vehicles/Tracer/Tracer-0-Tracer.obj',
+    mtlPath:   '/assets/space/models/vehicles/Tracer/Tracer-0-Tracer.mtl',
+    format: 'obj', scale: 0.0018, offset: S(0, 0, 0),
+    enginePoints: [S(0, 0, -0.3)],
+    weaponPoints: [],
+  },
+  energy_skimmer: {
+    modelPath: '/assets/space/models/vehicles/Scooter/Scooter-0-Scooter.obj',
+    mtlPath:   '/assets/space/models/vehicles/Scooter/Scooter-0-Scooter.mtl',
+    format: 'obj', scale: 0.0018, offset: S(0, 0, 0),
+    enginePoints: [S(0, 0, -0.3)],
+    weaponPoints: [],
+  },
 };
 
 // ── Capital Ships (FBX) ─────────────────────────────────────────

@@ -2,12 +2,13 @@ import type {
   SpaceGameState, SpaceShip, SpaceStation, Planet,
   Projectile, SpriteEffect, PlayerResources, Team, Vec3,
   ExplosionType, HitFxType, ShipAbilityState, GameMode, TeamUpgrades,
+  ResourceNode, PlanetType,
 } from './space-types';
 import {
   SHIP_DEFINITIONS, TEAM_COLORS,
   CAPTURE_TIME, CAPTURE_RATE_PER_UNIT, NEUTRAL_DEFENDERS, DOMINATION_TIME,
   BUILDABLE_SHIPS, UPGRADE_COSTS, UPGRADE_BONUSES, getMapSize,
-  HERO_DEFINITIONS, HERO_SHIPS, getShipDef,
+  HERO_DEFINITIONS, HERO_SHIPS, getShipDef, PLANET_TYPE_DATA,
 } from './space-types';
 
 // ── Helpers ──────────────────────────────────────────────────────
@@ -56,6 +57,7 @@ export class SpaceEngine {
     this.state = {
       gameMode: mode, ships: new Map(), stations: new Map(),
       planets: this.generatePlanets(mode, activePlayers),
+      resourceNodes: new Map(),
       towers: new Map(), projectiles: new Map(),
       spriteEffects: [], glbEffects: [], alerts: [],
       resources, upgrades,
@@ -71,7 +73,7 @@ export class SpaceEngine {
       this.aiBuildTimers.set(team, 0);
       const start = this.state.planets.find(p => p.isStartingPlanet && p.owner === team);
       if (!start) continue;
-      this.buildStation(start, team);
+      const station = this.buildStation(start, team);
       const sign = team % 2 === 1 ? -1 : 1;
       this.spawnShip('red_fighter', team, start.x + sign * 120, start.y + 80);
       this.spawnShip('red_fighter', team, start.x + sign * 120, start.y + 140);
@@ -80,7 +82,14 @@ export class SpaceEngine {
       this.spawnShip('micro_recon', team, start.x + sign * 220, start.y + 150);
       this.spawnShip('dual_striker', team, start.x + sign * 80, start.y + 120);
       this.spawnShip('warship', team, start.x + sign * 250, start.y + 130);
+      // Spawn 2 workers with their home station assigned
+      const miner = this.spawnShip('mining_drone', team, start.x + sign * 350, start.y + 60, station.id);
+      miner.workerState = 'idle';
+      const skimmer = this.spawnShip('energy_skimmer', team, start.x + sign * 370, start.y + 100, station.id);
+      skimmer.workerState = 'idle';
     }
+    // Generate resource nodes after all planets and states are initialized
+    this.generateResourceNodes();
 
     // AI autocast
     for (const [, ship] of this.state.ships) {
@@ -90,11 +99,13 @@ export class SpaceEngine {
     // Neutral defenders
     for (const planet of this.state.planets) {
       if (planet.owner === 0 && planet.neutralDefenders > 0) {
+        const defOrbit = planet.captureRadius * 0.6;
         for (let i = 0; i < planet.neutralDefenders; i++) {
           const angle = (i / planet.neutralDefenders) * Math.PI * 2;
-          const ship = this.spawnShip('red_fighter', 0 as Team, planet.x + Math.cos(angle) * 150, planet.y + Math.sin(angle) * 150);
+          const ship = this.spawnShip('red_fighter', 0 as Team,
+            planet.x + Math.cos(angle) * defOrbit, planet.y + Math.sin(angle) * defOrbit);
           ship.orbitTarget = planet.id;
-          ship.orbitRadius = 150;
+          ship.orbitRadius = defOrbit;
           ship.orbitAngle = angle;
           ship.holdPosition = true;
         }
@@ -108,10 +119,13 @@ export class SpaceEngine {
     const names = ['Terra Nova', 'Helios Prime', 'Voidreach', 'Crux Station', 'Nebula Gate',
       'Iron Forge', 'Starfall', 'Ashenmire', 'Crystal Veil', "Oberon's Drift",
       'Pyxis Minor', 'Cinder Reach', 'Glasspoint', 'Echo Basin'];
-    const colors = [0x4488cc, 0xcc6644, 0x88aa44, 0xaa44cc, 0x44ccaa, 0xccaa44, 0x6666cc,
-      0xcc8844, 0x44cc88, 0x8844cc, 0xcc4488, 0x88cc44, 0x4488aa, 0xaa8844];
     const hw = this.mapW / 2, hh = this.mapH / 2;
     let pid = 0;
+
+    // Starting planet types rotate through rich varieties
+    const startTypes: PlanetType[] = ['volcanic', 'oceanic', 'crystalline', 'gas_giant'];
+    // Neutral types cycle through all
+    const neutralTypes: PlanetType[] = ['barren', 'frozen', 'volcanic', 'crystalline', 'oceanic', 'gas_giant'];
 
     const corners: Vec3[] = mode === '1v1'
       ? [{ x: -hw * 0.7, y: -hh * 0.7, z: 0 }, { x: hw * 0.7, y: hh * 0.7, z: 0 }]
@@ -119,11 +133,15 @@ export class SpaceEngine {
          { x: -hw * 0.7, y: hh * 0.7, z: 0 }, { x: hw * 0.7, y: -hh * 0.7, z: 0 }];
 
     for (let i = 0; i < players.length; i++) {
+      const pType = startTypes[i % startTypes.length];
+      const td = PLANET_TYPE_DATA[pType];
+      const radius = 280;
       planets.push({
         id: pid++, x: corners[i].x, y: corners[i].y, z: 0,
-        radius: 80, name: names[i % names.length], owner: players[i],
+        radius, name: names[i % names.length], owner: players[i],
         stationId: null, resourceYield: { credits: 15, energy: 10, minerals: 12 },
-        color: colors[i % colors.length], hasAsteroidField: false,
+        color: td.baseColor, hasAsteroidField: false,
+        planetType: pType, captureRadius: radius * 2.5,
         captureTeam: 0 as Team, captureProgress: 0, captureSpeed: CAPTURE_RATE_PER_UNIT,
         neutralDefenders: 0, isStartingPlanet: true,
       });
@@ -134,13 +152,17 @@ export class SpaceEngine {
       const angle = (i / neutralCount) * Math.PI * 2;
       const rf = 0.2 + Math.random() * 0.5;
       const rich = 1 + (i % 3);
+      const pType = neutralTypes[i % neutralTypes.length];
+      const td = PLANET_TYPE_DATA[pType];
+      const radius = 100 + Math.random() * 80;
       planets.push({
-        id: pid++, x: Math.cos(angle) * hw * rf + (Math.random() - 0.5) * 400,
-        y: Math.sin(angle) * hh * rf + (Math.random() - 0.5) * 400, z: 0,
-        radius: 50 + Math.random() * 40,
+        id: pid++, x: Math.cos(angle) * hw * rf + (Math.random() - 0.5) * 600,
+        y: Math.sin(angle) * hh * rf + (Math.random() - 0.5) * 600, z: 0,
+        radius,
         name: names[(players.length + i) % names.length], owner: 0 as Team,
         stationId: null, resourceYield: { credits: 8 * rich, energy: 5 * rich, minerals: 6 * rich },
-        color: colors[(players.length + i) % colors.length], hasAsteroidField: i % 3 === 0,
+        color: td.baseColor, hasAsteroidField: i % 3 === 0,
+        planetType: pType, captureRadius: radius * 2.5,
         captureTeam: 0 as Team, captureProgress: 0, captureSpeed: CAPTURE_RATE_PER_UNIT,
         neutralDefenders: NEUTRAL_DEFENDERS, isStartingPlanet: false,
       });
@@ -201,10 +223,15 @@ export class SpaceEngine {
     if (cur >= 5) return false;
     const cost = UPGRADE_COSTS[cur];
     const res = this.state.resources[team];
-    if (!res || res.credits < cost.credits || res.minerals < cost.minerals || res.energy < cost.energy) return false;
-    res.credits -= cost.credits;
-    res.minerals -= cost.minerals;
-    res.energy -= cost.energy;
+    if (!res) return false;
+    // 20% discount if starting planet type matches this upgrade's tech focus
+    const startPlanet = this.state.planets.find(p => p.isStartingPlanet && p.owner === team);
+    const discount = (startPlanet && PLANET_TYPE_DATA[startPlanet.planetType].upgradeDiscount === type) ? 0.80 : 1.0;
+    const cc = Math.ceil(cost.credits * discount);
+    const mc = Math.ceil(cost.minerals * discount);
+    const ec = Math.ceil(cost.energy * discount);
+    if (res.credits < cc || res.minerals < mc || res.energy < ec) return false;
+    res.credits -= cc; res.minerals -= mc; res.energy -= ec;
     upg[type] = cur + 1;
     return true;
   }
@@ -238,6 +265,11 @@ export class SpaceEngine {
       animState: 'idle', animTimer: Math.random() * 10,
       selected: false, controlGroup: 0, stationId: stationId ?? null,
       orbitTarget: null, orbitRadius: 0, orbitAngle: 0, isDocked: false, damageLevel: 0,
+      workerState: def.class === 'worker' ? 'idle' : undefined,
+      workerNodeId: def.class === 'worker' ? null : undefined,
+      workerCargo: def.class === 'worker' ? 0 : undefined,
+      workerCargoType: def.class === 'worker' ? 'minerals' : undefined,
+      workerHarvestTimer: def.class === 'worker' ? 0 : undefined,
     };
     this.state.ships.set(id, ship);
     const r = this.state.resources[team];
@@ -249,6 +281,8 @@ export class SpaceEngine {
   update(dt: number) {
     if (this.state.gameOver) return;
     this.state.gameTime += dt;
+    this.updateResourceNodes(dt);
+    this.updateWorkers(dt);
     this.updateShips(dt);
     this.updateProjectiles(dt);
     this.updateEffects(dt);
@@ -453,7 +487,7 @@ export class SpaceEngine {
       const teamCounts = new Map<number, number>();
       for (const [, s] of this.state.ships) {
         if (s.dead || s.team === 0) continue;
-        if (dist2d(s, planet) < PLANET_ORBIT_RADIUS)
+      if (dist2d(s, planet) < planet.captureRadius)
           teamCounts.set(s.team, (teamCounts.get(s.team) ?? 0) + 1);
       }
 
@@ -500,7 +534,12 @@ export class SpaceEngine {
       for (const p of this.state.planets) {
         if (p.owner !== 0) {
           const res = this.state.resources[p.owner];
-          if (res) { res.credits += p.resourceYield.credits; res.energy += p.resourceYield.energy; res.minerals += p.resourceYield.minerals; }
+          if (res) {
+            const m = PLANET_TYPE_DATA[p.planetType].resourceMult;
+            res.credits  += p.resourceYield.credits  * m.credits;
+            res.energy   += p.resourceYield.energy   * m.energy;
+            res.minerals += p.resourceYield.minerals * m.minerals;
+          }
         }
       }
     }
@@ -649,6 +688,162 @@ export class SpaceEngine {
           if (this.state.dominationTimer >= DOMINATION_TIME) { this.state.gameOver = true; this.state.winner = o; this.state.winCondition = 'domination'; }
         } else { this.state.dominationTeam = o; this.state.dominationTimer = 0; }
       } else { this.state.dominationTimer = 0; this.state.dominationTeam = null; }
+    }
+  }
+
+  // ── Resource Nodes ─────────────────────────────────────────────
+  private generateResourceNodes() {
+    type NK = ResourceNode['kind'];
+    const kindYield: Record<NK, { credits:number; energy:number; minerals:number }> = {
+      moon:            { credits: 3, energy:  2, minerals: 10 },
+      asteroid:        { credits: 0, energy:  0, minerals: 15 },
+      ice_rock:        { credits: 0, energy: 12, minerals:  2 },
+      crystal_deposit: { credits: 12, energy: 2, minerals:  0 },
+    };
+    const kindRadius:     Record<NK, number> = { moon: 36, asteroid: 12, ice_rock: 17, crystal_deposit: 11 };
+    const kindOrbitSpd:   Record<NK, number> = { moon: 0.12, asteroid: 0.42, ice_rock: 0.28, crystal_deposit: 0.52 };
+    const kindHarvestCD:  Record<NK, number> = { moon: 8, asteroid: 5, ice_rock: 5, crystal_deposit: 6 };
+    const typeNodes: Record<PlanetType, NK[]> = {
+      volcanic:    ['asteroid', 'moon', 'asteroid'],
+      oceanic:     ['ice_rock', 'moon', 'ice_rock'],
+      barren:      ['asteroid', 'moon', 'asteroid'],
+      crystalline: ['crystal_deposit', 'moon', 'crystal_deposit'],
+      gas_giant:   ['ice_rock', 'moon', 'ice_rock'],
+      frozen:      ['ice_rock', 'crystal_deposit', 'moon'],
+    };
+    for (const planet of this.state.planets) {
+      const preferred = typeNodes[planet.planetType];
+      const baseCount = planet.isStartingPlanet ? 3 : 1 + Math.floor(Math.random() * 2);
+      const extraAst  = planet.hasAsteroidField ? 3 : 0;
+      const total     = baseCount + extraAst;
+      for (let i = 0; i < total; i++) {
+        const kind: NK = i < baseCount ? preferred[i % preferred.length] : 'asteroid';
+        const minOrbit = planet.radius * (kind === 'moon' ? 3.0 : 2.0);
+        const maxOrbit = planet.radius * (kind === 'moon' ? 4.2 : 3.2);
+        const orbitRadius = minOrbit + Math.random() * (maxOrbit - minOrbit);
+        const orbitAngle  = (i / total) * Math.PI * 2 + Math.random() * 0.4;
+        const orbitSpd    = kindOrbitSpd[kind] * (0.75 + Math.random() * 0.5) * (i % 2 === 0 ? 1 : -1);
+        const node: ResourceNode = {
+          id: this.state.nextId++,
+          parentPlanetId: planet.id,
+          x: planet.x + Math.cos(orbitAngle) * orbitRadius,
+          y: planet.y + Math.sin(orbitAngle) * orbitRadius,
+          z: 0, orbitAngle, orbitRadius, orbitSpeed: orbitSpd,
+          kind,
+          radius: kindRadius[kind] * (0.8 + Math.random() * 0.4),
+          yield: { ...kindYield[kind] },
+          harvestCooldown: 0,
+          maxHarvestCooldown: kindHarvestCD[kind],
+        };
+        this.state.resourceNodes.set(node.id, node);
+      }
+    }
+  }
+
+  private updateResourceNodes(dt: number) {
+    for (const [, node] of this.state.resourceNodes) {
+      if (node.harvestCooldown > 0) node.harvestCooldown = Math.max(0, node.harvestCooldown - dt);
+      const planet = this.state.planets.find(p => p.id === node.parentPlanetId);
+      if (!planet) continue;
+      node.orbitAngle += node.orbitSpeed * dt;
+      node.x = planet.x + Math.cos(node.orbitAngle) * node.orbitRadius;
+      node.y = planet.y + Math.sin(node.orbitAngle) * node.orbitRadius;
+    }
+  }
+
+  // ── Workers ─────────────────────────────────────────────────
+  private updateWorkers(dt: number) {
+    const HARVEST_TIME = 5;
+    const HARVEST_RANGE = 80;
+    const DEPOSIT_RANGE = 120;
+    for (const [, ship] of this.state.ships) {
+      if (ship.dead || ship.shipClass !== 'worker') continue;
+      if (ship.workerState === undefined) ship.workerState = 'idle';
+      switch (ship.workerState) {
+        case 'idle': {
+          let bestNode: ResourceNode | null = null, bestDist = Infinity;
+          for (const [, node] of this.state.resourceNodes) {
+            if (node.harvestCooldown > 0) continue;
+            const planet = this.state.planets.find(p => p.id === node.parentPlanetId);
+            // Harvest from owned planets or uncaptured neutral planets
+            if (!planet || (planet.owner !== ship.team && planet.owner !== 0)) continue;
+            const d = dist2d(ship, node);
+            if (d < bestDist) { bestDist = d; bestNode = node; }
+          }
+          if (bestNode) {
+            ship.workerNodeId = bestNode.id;
+            ship.workerState  = 'traveling';
+            ship.moveTarget   = { x: bestNode.x, y: bestNode.y, z: 0 };
+          }
+          break;
+        }
+        case 'traveling': {
+          if (!ship.workerNodeId) { ship.workerState = 'idle'; break; }
+          const node = this.state.resourceNodes.get(ship.workerNodeId);
+          if (!node || node.harvestCooldown > 0) { ship.workerState = 'idle'; ship.moveTarget = null; break; }
+          ship.moveTarget = { x: node.x, y: node.y, z: 0 }; // track moving node
+          if (dist2d(ship, node) < HARVEST_RANGE) {
+            ship.workerState = 'harvesting';
+            ship.workerHarvestTimer = 0;
+            ship.moveTarget = null;
+            ship.holdPosition = true;
+          }
+          break;
+        }
+        case 'harvesting': {
+          if (!ship.workerNodeId) { ship.workerState = 'idle'; break; }
+          const node = this.state.resourceNodes.get(ship.workerNodeId);
+          if (!node) { ship.workerState = 'idle'; break; }
+          // Gently follow the orbiting node
+          const snapT = Math.min(1, dt * 1.5);
+          ship.x += (node.x - ship.x) * snapT;
+          ship.y += (node.y - ship.y) * snapT;
+          ship.workerHarvestTimer = (ship.workerHarvestTimer ?? 0) + dt;
+          if ((ship.workerHarvestTimer ?? 0) >= HARVEST_TIME) {
+            ship.workerCargoType = node.kind === 'asteroid' || node.kind === 'moon' ? 'minerals'
+              : node.kind === 'ice_rock' ? 'energy' : 'credits';
+            ship.workerCargo = 1;
+            node.harvestCooldown = node.maxHarvestCooldown;
+            ship.workerState = 'returning';
+            ship.holdPosition = false;
+            // Head to home station (or nearest friendly)
+            let target: { x:number; y:number } | null = null;
+            if (ship.stationId) {
+              const st = this.state.stations.get(ship.stationId);
+              if (st && !st.dead) target = st;
+            }
+            if (!target) {
+              let nd = Infinity;
+              for (const [, st] of this.state.stations) {
+                if (st.dead || st.team !== ship.team) continue;
+                const d = dist2d(ship, st);
+                if (d < nd) { nd = d; target = st; ship.stationId = st.id; }
+              }
+            }
+            if (target) ship.moveTarget = { x: target.x, y: target.y, z: 0 };
+          }
+          break;
+        }
+        case 'returning': {
+          if (!ship.stationId) { ship.workerState = 'idle'; break; }
+          const st = this.state.stations.get(ship.stationId);
+          if (!st || st.dead) { ship.stationId = null; ship.workerState = 'idle'; break; }
+          if (dist2d(ship, st) < DEPOSIT_RANGE) {
+            const res = this.state.resources[ship.team];
+            if (res && ship.workerNodeId) {
+              const node = this.state.resourceNodes.get(ship.workerNodeId);
+              if (node) {
+                res.credits  += node.yield.credits;
+                res.energy   += node.yield.energy;
+                res.minerals += node.yield.minerals;
+              }
+            }
+            ship.workerCargo = 0; ship.workerNodeId = null;
+            ship.workerState = 'idle'; ship.moveTarget = null;
+          }
+          break;
+        }
+      }
     }
   }
 

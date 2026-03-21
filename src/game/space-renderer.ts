@@ -52,6 +52,7 @@ export class SpaceRenderer {
   private animFrame = 0;
   private captureRings = new Map<number, THREE.Mesh>();
   private gameMode: GameMode = '1v1';
+  private nodeMeshes = new Map<number, THREE.Mesh>();
 
   // ── Animated background ──────────────────────────────────────
   private twinkleLayers: THREE.Points[] = [];
@@ -92,6 +93,7 @@ export class SpaceRenderer {
     this.effectsRenderer = new SpaceEffectsRenderer(this.scene);
 
     this.buildPlanets();
+    this.buildResourceNodes();
 
     window.addEventListener('resize', this.onResize);
     this.animate();
@@ -239,10 +241,10 @@ export class SpaceRenderer {
 
   private buildPlanets() {
     for (const planet of this.engine.state.planets) {
-      const geo = new THREE.SphereGeometry(planet.radius * WORLD_SCALE, 32, 32);
+      const geo = new THREE.SphereGeometry(planet.radius * WORLD_SCALE, 48, 48);
       const mat = new THREE.MeshStandardMaterial({
-        color: planet.color, roughness: 0.6, metalness: 0.3,
-        emissive: planet.color, emissiveIntensity: 0.15,
+        color: planet.color, roughness: 0.65, metalness: 0.25,
+        emissive: planet.color, emissiveIntensity: 0.12,
       });
       const mesh = new THREE.Mesh(geo, mat);
       mesh.position.set(planet.x * WORLD_SCALE, planet.z * WORLD_SCALE, planet.y * WORLD_SCALE);
@@ -257,6 +259,14 @@ export class SpaceRenderer {
       ring.position.copy(mesh.position);
       this.scene.add(ring);
 
+      // Thin atmosphere glow ring
+      const atmGeo = new THREE.RingGeometry(planet.radius * WORLD_SCALE * 1.02, planet.radius * WORLD_SCALE * 1.08, 64);
+      const atmMat = new THREE.MeshBasicMaterial({ color: planet.color, transparent: true, opacity: 0.18, side: THREE.DoubleSide, depthWrite: false });
+      const atm = new THREE.Mesh(atmGeo, atmMat);
+      atm.rotation.x = -Math.PI / 2;
+      atm.position.copy(mesh.position);
+      this.scene.add(atm);
+
       // Capture progress ring (starts invisible)
       const capGeo = new THREE.RingGeometry(planet.radius * WORLD_SCALE * 1.6, planet.radius * WORLD_SCALE * 1.7, 64);
       const capMat = new THREE.MeshBasicMaterial({ color: 0xffff44, transparent: true, opacity: 0, side: THREE.DoubleSide });
@@ -269,7 +279,68 @@ export class SpaceRenderer {
     }
   }
 
-  // ── Model Loading ───────────────────────────────────────────
+  // ── Resource Nodes ───────────────────────────────────────────
+  private buildResourceNodes() {
+    for (const [, node] of this.engine.state.resourceNodes) {
+      let geo: THREE.BufferGeometry;
+      let color: number;
+      let emissive = 0x000000;
+      let emissiveIntensity = 0;
+      switch (node.kind) {
+        case 'moon':
+          geo = new THREE.SphereGeometry(node.radius * WORLD_SCALE, 16, 16);
+          color = 0x998877; break;
+        case 'asteroid':
+          geo = new THREE.IcosahedronGeometry(node.radius * WORLD_SCALE, 0);
+          color = 0x554433; break;
+        case 'ice_rock':
+          geo = new THREE.SphereGeometry(node.radius * WORLD_SCALE, 10, 10);
+          color = 0x99ccee; emissive = 0x224466; emissiveIntensity = 0.3; break;
+        case 'crystal_deposit':
+          geo = new THREE.OctahedronGeometry(node.radius * WORLD_SCALE, 0);
+          color = 0x44ffcc; emissive = 0x00ccaa; emissiveIntensity = 0.5; break;
+        default:
+          geo = new THREE.SphereGeometry(node.radius * WORLD_SCALE, 8, 8);
+          color = 0x888888;
+      }
+      const mat = new THREE.MeshStandardMaterial({
+        color, roughness: 0.8, metalness: 0.1,
+        emissive, emissiveIntensity,
+      });
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.position.set(node.x * WORLD_SCALE, 0, node.y * WORLD_SCALE);
+      // Random rotation for variety
+      mesh.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
+      this.scene.add(mesh);
+      this.nodeMeshes.set(node.id, mesh);
+    }
+  }
+
+  private syncResourceNodes() {
+    for (const [id, mesh] of this.nodeMeshes) {
+      const node = this.engine.state.resourceNodes.get(id);
+      if (!node) { this.scene.remove(mesh); this.nodeMeshes.delete(id); continue; }
+      mesh.position.set(node.x * WORLD_SCALE, 0, node.y * WORLD_SCALE);
+      // Slow self-rotation for visual interest
+      mesh.rotation.y += 0.004;
+      // Pulse crystal deposits
+      if (node.kind === 'crystal_deposit') {
+        const mat = mesh.material as THREE.MeshStandardMaterial;
+        mat.emissiveIntensity = 0.3 + 0.3 * Math.abs(Math.sin(this.twinkleTime * 1.5 + node.id * 0.3));
+      }
+      // Dim when on cooldown
+      const mat = mesh.material as THREE.MeshStandardMaterial;
+      if (node.harvestCooldown > 0) {
+        mat.opacity !== undefined && (mat.transparent = true);
+        mat.color.setHex(node.kind === 'crystal_deposit' ? 0x226644 : 0x332211);
+      } else {
+        const baseColors: Record<string, number> = { moon: 0x998877, asteroid: 0x554433, ice_rock: 0x99ccee, crystal_deposit: 0x44ffcc };
+        mat.color.setHex(baseColors[node.kind]);
+      }
+    }
+  }
+
+  // ── Model Loading ─────────────────────────────────────────────
   private async loadModel(prefab: SpacePrefab): Promise<THREE.Group> {
     const key = prefab.modelPath;
     if (this.modelCache.has(key)) return this.modelCache.get(key)!.clone();
@@ -512,6 +583,9 @@ export class SpaceRenderer {
       if (Math.abs(bg.mesh.position.x) > 300) bg.drift.vx *= -1;
       if (Math.abs(bg.mesh.position.z) > 300) bg.drift.vz *= -1;
     }
+
+    // Sync resource nodes
+    this.syncResourceNodes();
 
     // Sync stations
     this.syncStations(this.engine.state);

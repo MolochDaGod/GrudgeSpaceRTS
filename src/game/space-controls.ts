@@ -9,7 +9,7 @@ const ZOOM_SPEED = 8;
 
 export class SpaceControls {
   selectionBox: SelectionBox = { active: false, startX: 0, startY: 0, endX: 0, endY: 0 };
-  cameraState: CameraState = { x: 0, y: 0, z: 0, zoom: 150, minZoom: 40, maxZoom: 400, angle: 55, bookmarks: [] };
+  cameraState: CameraState = { x: 0, y: 0, z: 0, zoom: 200, minZoom: 35, maxZoom: 700, angle: 55, bookmarks: [] };
 
   private container: HTMLElement;
   private camera: THREE.PerspectiveCamera;
