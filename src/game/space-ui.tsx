@@ -285,7 +285,7 @@ export function SpaceHUD({ renderer, onQuit }: SpaceHUDProps) {
         display: 'flex', alignItems: 'center', padding: '0 16px', gap: 24,
         pointerEvents: 'auto', zIndex: 10,
       }}>
-        <img src='/assets/space/ui/logo.png' alt='Gruda Armada'
+        <img src='/assets/space/ui/logo.webp' alt='Gruda Armada'
           style={{ height: 26, imageRendering: 'auto',
             mixBlendMode: 'multiply' as React.CSSProperties['mixBlendMode'],
             filter: 'drop-shadow(0 0 8px rgba(68,136,255,0.4))' }}
@@ -293,7 +293,7 @@ export function SpaceHUD({ renderer, onQuit }: SpaceHUDProps) {
             const t = e.target as HTMLImageElement;
             // Fall back to SVG placeholder, which has a dark background
             if (!t.src.endsWith('.svg')) {
-              t.src = '/assets/space/ui/logo.svg';
+              t.src = '/assets/space/ui/logo.webp';
               t.style.mixBlendMode = 'normal';
             } else {
               t.style.display = 'none';
