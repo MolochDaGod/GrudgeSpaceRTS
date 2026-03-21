@@ -90,16 +90,50 @@ const ABILITY_ICONS: Record<string, React.ReactNode> = {
   ),
 };
 
-// ── Ship Class Icons ──────────────────────────────────────────────
-const CLASS_ICONS: Record<string, string> = {
-  scout: '🛸', fighter: '✈️', interceptor: '⚡', heavy_fighter: '💥',
-  bomber: '💣', stealth: '👻', transport: '📦', assault_frigate: '🚀',
-  destroyer: '⚔️', cruiser: '🛡️', battleship: '👑', carrier: '🏗️',
+// ── Inline SVG helper ─────────────────────────────────────────────
+const Svg = ({ children, size = 16, color = 'currentColor' }: { children: React.ReactNode; size?: number; color?: string }) => (
+  <svg viewBox="0 0 24 24" fill="none" style={{ width: size, height: size, color, display: 'inline-block', verticalAlign: 'middle' }}>{children}</svg>
+);
+
+// ── Ship Class SVG Icons ──────────────────────────────────────────
+const CLASS_ICONS: Record<string, React.ReactNode> = {
+  scout: <Svg size={20}><circle cx="12" cy="12" r="4" stroke="#6af" strokeWidth="1.5"/><ellipse cx="12" cy="12" rx="10" ry="4" stroke="#6af" strokeWidth="1" opacity=".5"/><circle cx="12" cy="12" r="1.5" fill="#6af"/></Svg>,
+  fighter: <Svg size={20}><path d="M12 3L20 19H4Z" stroke="#4df" strokeWidth="1.5" fill="none"/><line x1="12" y1="7" x2="12" y2="15" stroke="#4df" strokeWidth="1"/></Svg>,
+  interceptor: <Svg size={20}><path d="M12 2L15 10H20L16 14L18 22L12 18L6 22L8 14L4 10H9Z" stroke="#fa0" strokeWidth="1.2" fill="#fa0" fillOpacity=".15"/></Svg>,
+  heavy_fighter: <Svg size={20}><path d="M12 3L21 19H3Z" stroke="#f64" strokeWidth="2" fill="none"/><path d="M8 13H16" stroke="#f64" strokeWidth="2"/></Svg>,
+  bomber: <Svg size={20}><circle cx="12" cy="10" r="6" stroke="#f84" strokeWidth="1.5" fill="none"/><path d="M12 16V21" stroke="#f84" strokeWidth="2"/><circle cx="12" cy="10" r="2" fill="#f84"/></Svg>,
+  stealth: <Svg size={20}><path d="M12 4L20 18H4Z" stroke="#88a" strokeWidth="1" strokeDasharray="3 2" fill="none"/><path d="M12 8L16 16H8Z" stroke="#aac" strokeWidth="1" strokeDasharray="2 2" fill="none"/></Svg>,
+  transport: <Svg size={20}><rect x="5" y="7" width="14" height="10" rx="2" stroke="#8bf" strokeWidth="1.5" fill="none"/><line x1="5" y1="12" x2="19" y2="12" stroke="#8bf" strokeWidth="1"/><circle cx="8" cy="14" r="1" fill="#8bf"/><circle cx="16" cy="14" r="1" fill="#8bf"/></Svg>,
+  assault_frigate: <Svg size={20}><path d="M4 18L12 4L20 18" stroke="#f80" strokeWidth="1.5" fill="none"/><path d="M7 18L12 8L17 18" stroke="#f80" strokeWidth="1" fill="#f80" fillOpacity=".15"/><line x1="12" y1="18" x2="12" y2="22" stroke="#f60" strokeWidth="2"/></Svg>,
+  destroyer: <Svg size={20}><path d="M6 18L12 3L18 18" stroke="#e44" strokeWidth="2" fill="none"/><line x1="4" y1="12" x2="20" y2="12" stroke="#e44" strokeWidth="1.5"/><circle cx="12" cy="12" r="2" fill="#e44"/></Svg>,
+  cruiser: <Svg size={20}><rect x="6" y="4" width="12" height="16" rx="3" stroke="#4af" strokeWidth="1.5" fill="none"/><path d="M6 10H18" stroke="#4af" strokeWidth="1"/><circle cx="12" cy="7" r="1.5" fill="#4af"/><rect x="9" y="13" width="6" height="4" rx="1" stroke="#4af" strokeWidth="1"/></Svg>,
+  battleship: <Svg size={20}><path d="M12 2L22 20H2Z" stroke="#fc4" strokeWidth="2" fill="#fc4" fillOpacity=".1"/><line x1="7" y1="14" x2="17" y2="14" stroke="#fc4" strokeWidth="1.5"/><line x1="9" y1="18" x2="15" y2="18" stroke="#fc4" strokeWidth="1"/><circle cx="12" cy="10" r="2" fill="#fc4"/></Svg>,
+  carrier: <Svg size={20}><rect x="4" y="6" width="16" height="12" rx="2" stroke="#8af" strokeWidth="1.5" fill="none"/><line x1="4" y1="12" x2="20" y2="12" stroke="#8af" strokeWidth="1"/><polygon points="8,3 10,6 6,6" fill="#6af"/><polygon points="16,3 18,6 14,6" fill="#6af"/></Svg>,
 };
 
-// ── Attack Type Icons ─────────────────────────────────────────────
-const ATTACK_ICONS: Record<string, string> = {
-  laser: '🔴', missile: '🚀', railgun: '⚡', pulse: '💫', torpedo: '💥',
+// ── Attack Type SVG Icons ─────────────────────────────────────────
+const ATTACK_ICONS: Record<string, React.ReactNode> = {
+  laser: <Svg size={12} color="#f44"><line x1="4" y1="12" x2="20" y2="12" stroke="#f44" strokeWidth="2"/><circle cx="20" cy="12" r="2" fill="#f44"/></Svg>,
+  missile: <Svg size={12} color="#f80"><path d="M4 12L16 12" stroke="#f80" strokeWidth="1.5"/><polygon points="16,8 22,12 16,16" fill="#f80"/><line x1="4" y1="10" x2="2" y2="8" stroke="#f60" strokeWidth="1"/><line x1="4" y1="14" x2="2" y2="16" stroke="#f60" strokeWidth="1"/></Svg>,
+  railgun: <Svg size={12} color="#4df"><line x1="2" y1="12" x2="22" y2="12" stroke="#4df" strokeWidth="2.5"/><line x1="18" y1="8" x2="22" y2="12" stroke="#4df" strokeWidth="1.5"/><line x1="18" y1="16" x2="22" y2="12" stroke="#4df" strokeWidth="1.5"/></Svg>,
+  pulse: <Svg size={12} color="#a6f"><circle cx="12" cy="12" r="4" stroke="#a6f" strokeWidth="1.5" fill="none"/><circle cx="12" cy="12" r="8" stroke="#a6f" strokeWidth="1" opacity=".4"/><circle cx="12" cy="12" r="2" fill="#a6f"/></Svg>,
+  torpedo: <Svg size={12} color="#f44"><ellipse cx="14" cy="12" rx="8" ry="4" stroke="#f44" strokeWidth="1.5" fill="none"/><circle cx="18" cy="12" r="2" fill="#f44"/><line x1="2" y1="10" x2="6" y2="12" stroke="#f60" strokeWidth="1"/><line x1="2" y1="14" x2="6" y2="12" stroke="#f60" strokeWidth="1"/></Svg>,
+};
+
+// ── Resource SVG Icons ────────────────────────────────────────────
+const RES_ICONS = {
+  credits: <Svg size={14} color="#fc4"><circle cx="12" cy="12" r="9" stroke="#fc4" strokeWidth="1.5" fill="none"/><path d="M12 6V18M9 9H15M9 15H15" stroke="#fc4" strokeWidth="1.5"/></Svg>,
+  energy: <Svg size={14} color="#4df"><path d="M13 2L6 14H12L11 22L18 10H12Z" stroke="#4df" strokeWidth="1.5" fill="#4df" fillOpacity=".2"/></Svg>,
+  minerals: <Svg size={14} color="#4f8"><path d="M12 3L20 9L16 21H8L4 9Z" stroke="#4f8" strokeWidth="1.5" fill="#4f8" fillOpacity=".15"/><path d="M12 3L12 21" stroke="#4f8" strokeWidth="1" opacity=".4"/></Svg>,
+};
+
+// ── Stat line SVG Icons ───────────────────────────────────────────
+const STAT_ICONS = {
+  armor: <Svg size={11} color="#8ac"><path d="M12 3C12 3 4 6 4 12C4 18 12 21 12 21C12 21 20 18 20 12C20 6 12 3 12 3Z" stroke="#8ac" strokeWidth="1.5" fill="none"/></Svg>,
+  speed: <Svg size={11} color="#8ac"><path d="M5 17L10 12L5 7" stroke="#8ac" strokeWidth="1.5" strokeLinecap="round"/><path d="M11 17L16 12L11 7" stroke="#8ac" strokeWidth="1.5" strokeLinecap="round" opacity=".5"/></Svg>,
+  range: <Svg size={11} color="#8ac"><circle cx="12" cy="12" r="8" stroke="#8ac" strokeWidth="1" fill="none"/><circle cx="12" cy="12" r="4" stroke="#8ac" strokeWidth="1" fill="none"/><circle cx="12" cy="12" r="1.5" fill="#8ac"/></Svg>,
+  cooldown: <Svg size={11} color="#8ac"><circle cx="12" cy="12" r="9" stroke="#8ac" strokeWidth="1.5" fill="none"/><path d="M12 6V12L16 14" stroke="#8ac" strokeWidth="1.5" strokeLinecap="round"/></Svg>,
+  energyCost: <Svg size={10} color="#4df"><path d="M13 2L6 14H12L11 22L18 10H12Z" stroke="#4df" strokeWidth="1.5" fill="#4df" fillOpacity=".3"/></Svg>,
 };
 
 interface SpaceHUDProps {
@@ -156,13 +190,17 @@ export function SpaceHUD({ renderer }: SpaceHUDProps) {
         pointerEvents: 'auto', zIndex: 10,
       }}>
         <span style={{ color: '#4488ff', fontWeight: 700, fontSize: 14 }}>GRUDGE RTS</span>
-        <ResourceItem icon="💰" label="Credits" value={Math.floor(res.credits)} color="#fc4" />
-        <ResourceItem icon="⚡" label="Energy" value={Math.floor(res.energy)} color="#4df" />
-        <ResourceItem icon="💎" label="Minerals" value={Math.floor(res.minerals)} color="#4f8" />
+        <ResourceItem icon={RES_ICONS.credits} label="Credits" value={Math.floor(res.credits)} color="#fc4" />
+        <ResourceItem icon={RES_ICONS.energy} label="Energy" value={Math.floor(res.energy)} color="#4df" />
+        <ResourceItem icon={RES_ICONS.minerals} label="Minerals" value={Math.floor(res.minerals)} color="#4f8" />
         <div style={{ flex: 1 }} />
-        <span style={{ fontSize: 11, opacity: 0.6 }}>
-          🔵 {playerAlive} vs 🔴 {enemyAlive}
-        </span>
+        <div style={{ fontSize: 11, opacity: 0.6, display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#4488ff', display: 'inline-block' }} />
+          {playerAlive}
+          <span style={{ opacity: 0.4, margin: '0 2px' }}>vs</span>
+          <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#ff4444', display: 'inline-block' }} />
+          {enemyAlive}
+        </div>
         <span style={{ fontSize: 11, opacity: 0.5 }}>{formatTime(state.gameTime)}</span>
       </div>
 
@@ -208,11 +246,12 @@ export function SpaceHUD({ renderer }: SpaceHUDProps) {
 }
 
 // ── Resource Item ─────────────────────────────────────────────────
-function ResourceItem({ icon, label, value, color }: { icon: string; label: string; value: number; color: string }) {
+function ResourceItem({ icon, label, value, color }: { icon: React.ReactNode; label: string; value: number; color: string }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 13 }}>
-      <span>{icon}</span>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 13 }}>
+      {icon}
       <span style={{ color, fontWeight: 600, minWidth: 48, textAlign: 'right' }}>{value.toLocaleString()}</span>
+      <span style={{ fontSize: 9, opacity: 0.4, textTransform: 'uppercase', letterSpacing: 0.5 }}>{label}</span>
     </div>
   );
 }
@@ -225,8 +264,8 @@ function SingleUnitInfo({ ship, def }: { ship: SpaceShip; def: { class: string; 
   return (
     <div>
       {/* Name + Class icon */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-        <span style={{ fontSize: 20 }}>{CLASS_ICONS[def.class] ?? '🛸'}</span>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+        <div style={{ width: 28, height: 28, flexShrink: 0 }}>{CLASS_ICONS[def.class] ?? CLASS_ICONS.fighter}</div>
         <div>
           <div style={{ fontSize: 13, fontWeight: 700, color: '#fff' }}>{def.displayName}</div>
           <div style={{ fontSize: 10, opacity: 0.5, textTransform: 'uppercase' }}>{def.class.replace('_', ' ')}</div>
@@ -262,14 +301,14 @@ function SingleUnitInfo({ ship, def }: { ship: SpaceShip; def: { class: string; 
       )}
 
       {/* Stats row */}
-      <div style={{ display: 'flex', gap: 10, fontSize: 10, marginTop: 6, opacity: 0.7 }}>
-        <span>{ATTACK_ICONS[ship.attackType] ?? '⚪'} {ship.attackDamage} dmg</span>
-        <span>🛡️ {ship.armor} armor</span>
-        <span>💨 {ship.speed} spd</span>
+      <div style={{ display: 'flex', gap: 10, fontSize: 10, marginTop: 6, opacity: 0.7, alignItems: 'center' }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 2 }}>{ATTACK_ICONS[ship.attackType] ?? ATTACK_ICONS.laser} {ship.attackDamage} dmg</span>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 2 }}>{STAT_ICONS.armor} {ship.armor}</span>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 2 }}>{STAT_ICONS.speed} {ship.speed}</span>
       </div>
-      <div style={{ display: 'flex', gap: 10, fontSize: 10, marginTop: 2, opacity: 0.7 }}>
-        <span>📏 {ship.attackRange} range</span>
-        <span>⏱️ {ship.attackCooldown.toFixed(1)}s cd</span>
+      <div style={{ display: 'flex', gap: 10, fontSize: 10, marginTop: 2, opacity: 0.7, alignItems: 'center' }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 2 }}>{STAT_ICONS.range} {ship.attackRange}</span>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 2 }}>{STAT_ICONS.cooldown} {ship.attackCooldown.toFixed(1)}s</span>
       </div>
     </div>
   );
@@ -297,7 +336,7 @@ function MultiUnitInfo({ ships }: { ships: SpaceShip[] }) {
               display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
               background: 'rgba(20,30,50,0.6)', position: 'relative',
             }}>
-              <span style={{ fontSize: 18 }}>{CLASS_ICONS[def?.class ?? 'fighter'] ?? '🛸'}</span>
+              <div style={{ width: 22, height: 22 }}>{CLASS_ICONS[def?.class ?? 'fighter'] ?? CLASS_ICONS.fighter}</div>
               <span style={{ fontSize: 9, fontWeight: 700 }}>x{group.length}</span>
               {/* HP indicator */}
               <div style={{
@@ -391,7 +430,7 @@ function AbilityButton({ ab, index, renderer, allSelected }: {
 
       {/* Icon */}
       <div style={{ width: 28, height: 28, color: ab.active ? '#ff0' : '#8ac', position: 'relative', zIndex: 1 }}>
-        {icon ?? <span style={{ fontSize: 20 }}>⭐</span>}
+        {icon ?? <Svg size={28}><circle cx="12" cy="12" r="8" stroke="#8ac" strokeWidth="1.5" fill="none"/><circle cx="12" cy="12" r="3" fill="#8ac"/></Svg>}
       </div>
 
       {/* Key label */}
@@ -431,7 +470,7 @@ function AbilityButton({ ab, index, renderer, allSelected }: {
       <div style={{
         position: 'absolute', bottom: 1, right: 3, fontSize: 8, color: '#4df', zIndex: 2,
       }}>
-        ⚡{ab.ability.energyCost}
+        <span style={{ display: 'flex', alignItems: 'center', gap: 1 }}>{STAT_ICONS.energyCost}{ab.ability.energyCost}</span>
       </div>
     </div>
   );
