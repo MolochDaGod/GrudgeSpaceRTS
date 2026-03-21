@@ -291,17 +291,69 @@ export class SpaceRenderer {
     this.container.appendChild(this.selectionBoxDiv);
   }
 
+  // ─ Planet type → GLB model mapping ────────────────────────────
+  private readonly PLANET_GLBS: Record<string, string> = {
+    volcanic:    '/assets/space/models/planets/planet_1.glb',
+    oceanic:     '/assets/space/models/planets/planet_2.glb',
+    crystalline: '/assets/space/models/planets/planet_3.glb',
+    gas_giant:   '/assets/space/models/planets/planet_4.glb',
+    frozen:      '/assets/space/models/planets/planet_5.glb',
+    barren:      '/assets/space/models/planets/planet_main.glb',
+  };
+
   private buildPlanets() {
     for (const planet of this.engine.state.planets) {
-      const geo = new THREE.SphereGeometry(planet.radius * WORLD_SCALE, 48, 48);
-      const mat = new THREE.MeshStandardMaterial({
-        color: planet.color, roughness: 0.65, metalness: 0.25,
-        emissive: planet.color, emissiveIntensity: 0.12,
-      });
+      const geo = new THREE.SphereGeometry(planet.radius * WORLD_SCALE, 32, 32);
+      // Invisible collider sphere — used for hover raycasting + ring anchors.
+      // The visible model comes from the GLB loaded below.
+      const mat = new THREE.MeshBasicMaterial({ visible: false });
       const mesh = new THREE.Mesh(geo, mat);
       mesh.position.set(planet.x * WORLD_SCALE, planet.z * WORLD_SCALE, planet.y * WORLD_SCALE);
       this.scene.add(mesh);
       this.planetMeshes.push(mesh);
+
+      // Load GLB planet model and size it to match the planet radius
+      const glbPath = this.PLANET_GLBS[planet.planetType];
+      if (glbPath) {
+        this.gltfLoader.loadAsync(glbPath).then(gltf => {
+          if (this.disposed) return;
+          const model = gltf.scene;
+          // Scale GLB to match planet sphere radius
+          const box = new THREE.Box3().setFromObject(model);
+          const modelDiam = box.getSize(new THREE.Vector3()).length();
+          const targetDiam = planet.radius * WORLD_SCALE * 2.0;
+          if (modelDiam > 0) model.scale.setScalar(targetDiam / modelDiam);
+          model.position.copy(mesh.position);
+          // Add glow atmosphere as emissive ring around GLB
+          const atmGeo = new THREE.SphereGeometry(planet.radius * WORLD_SCALE * 1.06, 32, 32);
+          const atmMat = new THREE.MeshBasicMaterial({
+            color: planet.color, transparent: true, opacity: 0.08,
+            side: THREE.BackSide, depthWrite: false,
+          });
+          const atm = new THREE.Mesh(atmGeo, atmMat);
+          atm.position.copy(mesh.position);
+          this.scene.add(atm);
+          this.scene.add(model);
+          // Store ref on mesh.userData so syncPlanetOwnership can animate it
+          mesh.userData.glbModel = model;
+          mesh.userData.atmMesh  = atm;
+        }).catch(() => {
+          // GLB failed — fall back to coloured sphere
+          (mesh.material as THREE.Material).dispose();
+          (mesh as THREE.Mesh).material = new THREE.MeshStandardMaterial({
+            color: planet.color, roughness: 0.65, metalness: 0.25,
+            emissive: planet.color, emissiveIntensity: 0.12,
+          }) as unknown as THREE.MeshBasicMaterial;
+          mesh.visible = true;
+        });
+      } else {
+        // No GLB for this type — use coloured sphere
+        (mesh as THREE.Mesh).material = new THREE.MeshStandardMaterial({
+          color: planet.color, roughness: 0.65, metalness: 0.25,
+          emissive: planet.color, emissiveIntensity: 0.12,
+        }) as unknown as THREE.MeshBasicMaterial;
+        mesh.visible = true;
+      }
 
       // Orbit ring
       const ringGeo = new THREE.RingGeometry(planet.radius * WORLD_SCALE * 1.3, planet.radius * WORLD_SCALE * 1.35, 64);
@@ -546,30 +598,34 @@ export class SpaceRenderer {
         group.add(hb);
         meshData.healthBar = hb;
 
-        // Try procedural voxel ship first (for missing OBJ/FBX ships)
-        if (hasVoxelShip(ship.shipType)) {
-          const voxelMesh = buildVoxelShip(ship.shipType, ship.team);
-          if (voxelMesh) {
-            // Replace the cone placeholder with the voxel mesh
-            const cone = meshData.group.children.find(
-              c => (c as THREE.Mesh).geometry?.type === 'ConeGeometry');
-            if (cone) meshData.group.remove(cone);
-            meshData.group.add(voxelMesh);
-          }
-        } else {
-          // Try to load real OBJ/FBX model
-          const prefab = getShipPrefab(ship.shipType);
-          if (prefab) {
-            this.loadModel(prefab).then(model => {
-              if (this.disposed) return;
-              const existing = this.shipMeshes.get(id);
-              if (!existing) return;
-              const placeholder = existing.group.children.find(
-                c => (c as THREE.Mesh).geometry?.type === 'ConeGeometry');
-              if (placeholder) existing.group.remove(placeholder);
-              existing.group.add(model);
-            }).catch(() => { /* keep cone placeholder */ });
-          }
+        // Model loading priority:
+        // 1. Try real OBJ/FBX prefab (best visual quality)
+        // 2. If no prefab OR prefab load fails → build procedural voxel
+        // 3. If no voxel either → keep the cone placeholder
+        const prefab = getShipPrefab(ship.shipType);
+        const removeCone = (g: THREE.Group) => {
+          const c = g.children.find(ch => (ch as THREE.Mesh).geometry?.type === 'ConeGeometry');
+          if (c) g.remove(c);
+        };
+        if (prefab) {
+          this.loadModel(prefab).then(model => {
+            if (this.disposed) return;
+            const ex = this.shipMeshes.get(id);
+            if (!ex) return;
+            removeCone(ex.group);
+            ex.group.add(model);
+          }).catch(() => {
+            // Real model failed — fall back to procedural voxel
+            const ex = this.shipMeshes.get(id);
+            if (!ex || this.disposed) return;
+            const vox = hasVoxelShip(ship.shipType)
+              ? buildVoxelShip(ship.shipType, ship.team) : null;
+            if (vox) { removeCone(ex.group); ex.group.add(vox); }
+          });
+        } else if (hasVoxelShip(ship.shipType)) {
+          // No prefab — build voxel immediately (no async load wait)
+          const vox = buildVoxelShip(ship.shipType, ship.team);
+          if (vox) { removeCone(meshData.group); meshData.group.add(vox); }
         }
       }
 
@@ -791,14 +847,30 @@ export class SpaceRenderer {
   private syncPlanetOwnership(state: SpaceGameState) {
     for (let i = 0; i < state.planets.length && i < this.planetMeshes.length; i++) {
       const planet = state.planets[i];
-      const mesh = this.planetMeshes[i];
-      const mat = mesh.material as THREE.MeshStandardMaterial;
-      if (planet.owner !== 0) {
-        mat.emissive.setHex(TEAM_COLORS[planet.owner] ?? planet.color);
-        mat.emissiveIntensity = 0.25;
-      } else {
-        mat.emissive.setHex(planet.color);
-        mat.emissiveIntensity = 0.1;
+      const mesh   = this.planetMeshes[i];
+      const ownerCol = TEAM_COLORS[planet.owner] ?? planet.color;
+
+      // Update atmosphere glow colour (for GLB planets)
+      const atm = mesh.userData.atmMesh as THREE.Mesh | undefined;
+      if (atm) {
+        (atm.material as THREE.MeshBasicMaterial).color.setHex(
+          planet.owner !== 0 ? ownerCol : planet.color);
+        (atm.material as THREE.MeshBasicMaterial).opacity =
+          planet.owner !== 0 ? 0.14 : 0.08;
+      }
+
+      // If using fallback sphere, also animate its material
+      if (mesh.visible || !(mesh.userData.glbModel)) {
+        const mat = mesh.material as THREE.MeshStandardMaterial;
+        if (mat && 'emissive' in mat) {
+          if (planet.owner !== 0) {
+            mat.emissive.setHex(ownerCol);
+            mat.emissiveIntensity = 0.25;
+          } else {
+            mat.emissive.setHex(planet.color);
+            mat.emissiveIntensity = 0.1;
+          }
+        }
       }
     }
   }
@@ -810,27 +882,34 @@ export class SpaceRenderer {
     const hits = this.raycasterPlanet.intersectObjects(this.planetMeshes);
     const hitPlanet = hits.length > 0 ? hits[0].object as THREE.Mesh : null;
 
-    // Update emissive glow for hovered vs selected vs normal planets
+    // Update hover/select glow — works through atmosphere mesh (GLB planets)
+    // or directly on the fallback sphere material
     this.planetMeshes.forEach((mesh, idx) => {
       const planet = this.engine.state.planets[idx];
       if (!planet) return;
-      const mat = mesh.material as THREE.MeshStandardMaterial;
       const isHovered  = hitPlanet === mesh;
       const isSelected = planet.id === this.selectedPlanetId;
-      if (isSelected) {
-        mat.emissiveIntensity = 0.55;
-        mat.emissive.setHex(0xffffff);
-      } else if (isHovered) {
-        mat.emissiveIntensity = 0.35;
-        mat.emissive.setHex(planet.color);
-      } else {
-        mat.emissiveIntensity = 0.12;
-        mat.emissive.setHex(planet.color);
+
+      // Atmosphere mesh (present when GLB loaded)
+      const atm = mesh.userData.atmMesh as THREE.Mesh | undefined;
+      if (atm) {
+        const aMat = atm.material as THREE.MeshBasicMaterial;
+        if (isSelected)      { aMat.color.setHex(0xffffff); aMat.opacity = 0.30; }
+        else if (isHovered)  { aMat.color.setHex(planet.color); aMat.opacity = 0.22; }
+        else                 { aMat.color.setHex(planet.owner !== 0 ? (TEAM_COLORS[planet.owner]??planet.color) : planet.color); aMat.opacity = planet.owner !== 0 ? 0.14 : 0.08; }
       }
-      // Cursor changes when hovering
-      this.renderer.domElement.style.cursor =
-        hitPlanet ? 'pointer' : 'default';
+      // Fallback sphere material
+      if (mesh.visible) {
+        const mat = mesh.material as THREE.MeshStandardMaterial;
+        if (mat && 'emissive' in mat) {
+          if (isSelected)      { mat.emissiveIntensity = 0.55; mat.emissive.setHex(0xffffff); }
+          else if (isHovered)  { mat.emissiveIntensity = 0.35; mat.emissive.setHex(planet.color); }
+          else                 { mat.emissiveIntensity = 0.12; mat.emissive.setHex(planet.color); }
+        }
+      }
     });
+    // Cursor feedback
+    this.renderer.domElement.style.cursor = hitPlanet ? 'pointer' : 'default';
 
     // Update hoveredPlanetId
     if (hitPlanet) {
