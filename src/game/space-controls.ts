@@ -1,15 +1,19 @@
 import * as THREE from 'three';
 import type { SpaceGameState, SelectionBox, CameraState, Vec3, Command } from './space-types';
 
-const WORLD_SCALE = 0.05;
+const WORLD_SCALE      = 0.05;
 const EDGE_SCROLL_ZONE = 30;
-const EDGE_SCROLL_SPEED = 800;
-const CAMERA_PAN_SPEED = 600;
-const ZOOM_SPEED = 8;
+// Pan/edge speeds are intentionally a multiplier — actual pixel-speed
+// scales with zoom level so navigation feels the same at any distance.
+// Formula: effective_speed = BASE × (zoom / ZOOM_REF)
+const PAN_SPEED_BASE  = 1200;  // game units/s at reference zoom
+const EDGE_SPEED_BASE = 1200;
+const ZOOM_REF        = 200;   // zoom level where base speed feels 'normal'
 
 export class SpaceControls {
   selectionBox: SelectionBox = { active: false, startX: 0, startY: 0, endX: 0, endY: 0 };
-  cameraState: CameraState = { x: 0, y: 0, z: 0, zoom: 200, minZoom: 35, maxZoom: 700, angle: 55, bookmarks: [] };
+  // Solar System Scrim scale: 12 = planet surface, 2400 = full sector view
+  cameraState: CameraState = { x: 0, y: 0, z: 0, zoom: 200, minZoom: 12, maxZoom: 2400, angle: 55, bookmarks: [] };
 
   private container: HTMLElement;
   private camera: THREE.PerspectiveCamera;
@@ -74,7 +78,13 @@ export class SpaceControls {
 
   private onWheel = (e: WheelEvent) => {
     e.preventDefault();
-    this.cameraState.zoom = Math.max(this.cameraState.minZoom, Math.min(this.cameraState.maxZoom, this.cameraState.zoom + e.deltaY * 0.1));
+    // Logarithmic zoom: step is proportional to current distance so it feels
+    // the same at any scale (zooming in on a planet vs the whole sector).
+    const factor = 1 + e.deltaY * 0.0012;
+    this.cameraState.zoom = Math.max(
+      this.cameraState.minZoom,
+      Math.min(this.cameraState.maxZoom, this.cameraState.zoom * factor),
+    );
   };
 
   private onDoubleClick = (e: MouseEvent) => {
@@ -141,23 +151,28 @@ export class SpaceControls {
   };
 
   update(dt: number) {
-    // WASD camera movement
+    // Speed scales linearly with zoom so panning feels consistent at any distance.
+    const zoomScale = this.cameraState.zoom / ZOOM_REF;
+    const panSpeed  = PAN_SPEED_BASE  * zoomScale;
+    const edgeSpeed = EDGE_SPEED_BASE * zoomScale;
+
+    // WASD / Arrow key pan
     let dx = 0, dy = 0;
-    if (this.keys.has('w') || this.keys.has('arrowup')) dy -= CAMERA_PAN_SPEED * dt;
-    if (this.keys.has('s') || this.keys.has('arrowdown')) dy += CAMERA_PAN_SPEED * dt;
-    if (this.keys.has('a') || this.keys.has('arrowleft')) dx -= CAMERA_PAN_SPEED * dt;
-    if (this.keys.has('d') || this.keys.has('arrowright')) dx += CAMERA_PAN_SPEED * dt;
+    if (this.keys.has('w') || this.keys.has('arrowup'))    dy -= panSpeed * dt;
+    if (this.keys.has('s') || this.keys.has('arrowdown'))  dy += panSpeed * dt;
+    if (this.keys.has('a') || this.keys.has('arrowleft'))  dx -= panSpeed * dt;
+    if (this.keys.has('d') || this.keys.has('arrowright')) dx += panSpeed * dt;
     this.cameraState.x += dx;
     this.cameraState.y += dy;
 
-    // Edge scroll
+    // Edge scroll (cursor near viewport edge)
     const rect = this.container.getBoundingClientRect();
     const mx = (this.mouseNdc.x + 1) * 0.5 * rect.width;
     const my = (1 - (this.mouseNdc.y + 1) * 0.5) * rect.height;
-    if (mx < EDGE_SCROLL_ZONE) this.cameraState.x -= EDGE_SCROLL_SPEED * dt;
-    if (mx > rect.width - EDGE_SCROLL_ZONE) this.cameraState.x += EDGE_SCROLL_SPEED * dt;
-    if (my < EDGE_SCROLL_ZONE) this.cameraState.y -= EDGE_SCROLL_SPEED * dt;
-    if (my > rect.height - EDGE_SCROLL_ZONE) this.cameraState.y += EDGE_SCROLL_SPEED * dt;
+    if (mx < EDGE_SCROLL_ZONE)               this.cameraState.x -= edgeSpeed * dt;
+    if (mx > rect.width  - EDGE_SCROLL_ZONE) this.cameraState.x += edgeSpeed * dt;
+    if (my < EDGE_SCROLL_ZONE)               this.cameraState.y -= edgeSpeed * dt;
+    if (my > rect.height - EDGE_SCROLL_ZONE) this.cameraState.y += edgeSpeed * dt;
   }
 
   // ── Selection ──────────────────────────────────────────────

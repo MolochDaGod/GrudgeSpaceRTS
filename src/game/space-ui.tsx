@@ -257,6 +257,7 @@ export function SpaceHUD({ renderer, onQuit }: SpaceHUDProps) {
         pointerEvents: 'auto', zIndex: 10,
       }}>
         <span style={{ color: '#4488ff', fontWeight: 700, fontSize: 14 }}>GRUDA ARMADA</span>
+        <span style={{ fontSize: 8, color: '#8ac', opacity: 0.6, letterSpacing: 1 }}>SOLAR SYSTEM SCRIM</span>
         <ResourceItem icon={RES_ICONS.credits} label="Credits" value={Math.floor(res.credits)} color="#fc4" />
         <ResourceItem icon={RES_ICONS.energy} label="Energy" value={Math.floor(res.energy)} color="#4df" />
         <ResourceItem icon={RES_ICONS.minerals} label="Minerals" value={Math.floor(res.minerals)} color="#4f8" />
@@ -270,7 +271,19 @@ export function SpaceHUD({ renderer, onQuit }: SpaceHUDProps) {
           {enemyAlive}
         </div>
         <span style={{ fontSize: 11, opacity: 0.5 }}>{formatTime(state.gameTime)}</span>
-        {/* AI Difficulty display */}
+        {/* Zoom indicator */}
+        {(() => {
+          const zoom = renderer?.controls?.cameraState?.zoom ?? 200;
+          const pct  = Math.round((zoom / 2400) * 4000);
+          const lbl  = zoom < 30 ? 'SURFACE' : zoom < 80 ? 'LOW ORBIT'
+            : zoom < 250 ? 'ORBIT' : zoom < 600 ? 'SYSTEM'
+            : zoom < 1200 ? 'SECTOR' : 'DEEP SPACE';
+          return (
+            <span style={{ fontSize: 9, color: '#8ac', border: '1px solid #1a3050', padding: '1px 7px', borderRadius: 3, letterSpacing: 0.5 }}>
+              ◎ {lbl} · {pct}%
+            </span>
+          );
+        })()}
         <span style={{ fontSize: 10, color: '#4df', border: '1px solid #1a4a40', padding: '1px 6px', borderRadius: 3 }}>AI D{state.aiDifficulty}</span>
         {onQuit && <button onClick={onQuit} style={{ fontSize: 10, padding: '2px 10px', background: 'transparent', border: '1px solid #333', color: '#888', borderRadius: 4, cursor: 'pointer' }}>QUIT</button>}
       </div>
@@ -595,12 +608,14 @@ function Minimap({ state, renderer }: { state: SpaceGameState; renderer: SpaceRe
     const rect = canvas.getBoundingClientRect();
     const px = clientX - rect.left;
     const py = clientY - rect.top;
-    const mapW = 8000; const mapH = 8000;
+    // Use actual engine map size so minimap is accurate for all modes
+    const mapW = renderer.engine.mapW;
+    const mapH = renderer.engine.mapH;
     return {
       x: (px / canvas.width)  * mapW - mapW / 2,
       y: (py / canvas.height) * mapH - mapH / 2,
     };
-  }, []);
+  }, [renderer]);
 
   const handleMouseDown = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     e.preventDefault();
@@ -632,8 +647,8 @@ function Minimap({ state, renderer }: { state: SpaceGameState; renderer: SpaceRe
 
     const w = canvas.width;
     const h = canvas.height;
-    const mapW = 8000;
-    const mapH = 8000;
+    const mapW = renderer.engine.mapW;  // dynamic — 8000 for 1v1, 20000 for 2v2/ffa4
+    const mapH = renderer.engine.mapH;
     const scale = (v: number, max: number, dim: number) => ((v + max / 2) / max) * dim;
 
     ctx.fillStyle = '#080c14';
