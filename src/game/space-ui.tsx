@@ -9,7 +9,36 @@ import {
   TEAM_COLORS, CAPTURE_TIME, DOMINATION_TIME, HERO_DEFINITIONS, HERO_SHIPS,
   getShipDef, type UpgradeType,
   PLANET_TYPE_DATA, COMMANDER_SPEC_LABEL, COMMANDER_TRAIN_COST, COMMANDER_TRAIN_TIME,
+  SHIP_ROLES, SHIP_ROLE_LABELS, SHIP_ROLE_COLORS,
 } from './space-types';
+
+// ── Ship preview images (GIF for voxel ships, PNG for capitals/heroes) ─
+const SHIP_PREVIEW: Record<string, string> = {
+  micro_recon:          '/assets/space/models/ships/MicroRecon/MicroRecon.gif',
+  red_fighter:          '/assets/space/models/ships/RedFighter/RedFighter.gif',
+  galactix_racer:       '/assets/space/models/ships/GalactixRacer/GalactixRacer.gif',
+  dual_striker:         '/assets/space/models/ships/DualStriker/DualStriker.gif',
+  camo_stellar_jet:     '/assets/space/models/ships/CamoStellarJet/CamoStellarJet.gif',
+  meteor_slicer:        '/assets/space/models/ships/MeteorSlicer/MeteorSlicer.gif',
+  infrared_furtive:     '/assets/space/models/ships/InfraredFurtive/InfraredFurtive.gif',
+  ultraviolet_intruder: '/assets/space/models/ships/UltravioletIntruder/UltravioletIntruder.gif',
+  warship:              '/assets/space/models/ships/Warship/Warship.gif',
+  star_marine_trooper:  '/assets/space/models/ships/StarMarineTrooper/StarMarineTrooper.gif',
+  interstellar_runner:  '/assets/space/models/ships/InterstellarRunner/InterstellarRunner.gif',
+  transtellar:          '/assets/space/models/ships/Transtellar/Transtellar.gif',
+  pyramid_ship:         '/assets/space/models/ships/PyramidShip/AncientPyramidShip.gif',
+  battleship:           '/assets/space/models/capital/Battleships/Battleship.png',
+  destroyer:            '/assets/space/models/capital/Destroyer/Destroyer.png',
+  cruiser:              '/assets/space/models/capital/Cruiser/Cruiser.png',
+  bomber:               '/assets/space/models/capital/Bomber/Bomber.png',
+  vanguard_prime:       '/assets/space/models/capital/Battleships/Battleship.png',
+  shadow_reaper:        '/assets/space/models/capital/Bomber/Bomber.png',
+  iron_bastion:         '/assets/space/models/capital/Cruiser/Cruiser.png',
+  storm_herald:         '/assets/space/models/capital/Destroyer/Destroyer.png',
+  plague_mother:        '/assets/space/models/capital/Battleships/Battleship.png',
+  boss_ship_01:         '/assets/space/models/capital/Battleships/Battleship.png',
+  boss_ship_02:         '/assets/space/models/capital/Battleships/Battleship.png',
+};
 import { ALL_TECH_TREES, VOID_POWERS, PLANET_TYPE_TO_TECH, TURRET_DEFS } from './space-techtree';
 
 // ── Segment Bar: Sci-fi blockified health bar ──────────────────
@@ -213,9 +242,9 @@ export function SpaceHUD({ renderer, onQuit }: SpaceHUDProps) {
     if (st.selected && !st.dead && st.team === 1) { selectedStation = st; break; }
   }
 
-  // Primary selected ship (for portrait/command card)
+  // Primary selected ship — use getShipDef so Hero ships resolve correctly
   const primary = selectedShips[0] ?? null;
-  const def = primary ? SHIP_DEFINITIONS[primary.shipType] : null;
+  const def = primary ? getShipDef(primary.shipType) : null;
 
   // Count alive ships per team
   const teamCounts = new Map<number, number>();
@@ -256,7 +285,7 @@ export function SpaceHUD({ renderer, onQuit }: SpaceHUDProps) {
         display: 'flex', alignItems: 'center', padding: '0 16px', gap: 24,
         pointerEvents: 'auto', zIndex: 10,
       }}>
-        <img src='/assets/space/ui/logo.png' alt='Gruda Armada'
+        <img src='/assets/space/ui/logo.svg' alt='Gruda Armada'
           style={{ height: 26, imageRendering: 'auto',
             filter: 'drop-shadow(0 0 8px rgba(68,136,255,0.5))' }}
           onError={e => {
@@ -326,9 +355,9 @@ export function SpaceHUD({ renderer, onQuit }: SpaceHUDProps) {
         />
       )}
 
-      {/* ── Bottom Panel (StarCraft-style) ───────────────── */}
+      {/* ── Bottom Panel ───────────────────────────────────── */}
       <div style={{
-        position: 'absolute', bottom: 0, left: 0, right: 0, height: 180,
+        position: 'absolute', bottom: 0, left: 0, right: 0, height: 196,
         background: 'linear-gradient(0deg, rgba(6,10,18,0.97) 0%, rgba(10,18,30,0.92) 100%)',
         borderTop: '2px solid #1a3050',
         display: 'flex', pointerEvents: 'auto', zIndex: 10,
@@ -353,13 +382,30 @@ export function SpaceHUD({ renderer, onQuit }: SpaceHUDProps) {
         </div>
 
         {/* ── Unit Info Panel (center-left) ───────────────── */}
-        <div style={{ width: 260, height: '100%', padding: '8px 12px', borderRight: '1px solid #1a3050' }}>
+        <div style={{ width: 280, height: '100%', padding: '8px 10px', borderRight: '1px solid #1a3050',
+          display: 'flex', flexDirection: 'column' }}>
           {selectedShips.length === 0 ? (
-            <div style={{ opacity: 0.3, fontSize: 12, marginTop: 40, textAlign: 'center' }}>No units selected</div>
+            <div style={{ opacity: 0.25, fontSize: 11, marginTop: 50, textAlign: 'center',
+              lineHeight: 1.8, color: '#8ab' }}>
+              No units selected<br/>
+              <span style={{ fontSize: 9 }}>Left-drag to box-select · Double-click to select type</span>
+            </div>
           ) : selectedShips.length === 1 && primary && def ? (
             <SingleUnitInfo ship={primary} def={def} />
           ) : (
-            <MultiUnitInfo ships={selectedShips} />
+            <MultiUnitInfo
+              ships={selectedShips}
+              onIsolate={(shipId) => {
+                // Deselect all, then select only the target ship
+                for (const id of state.selectedIds) {
+                  const s = state.ships.get(id);
+                  if (s) s.selected = false;
+                }
+                state.selectedIds.clear();
+                const target = state.ships.get(shipId);
+                if (target) { target.selected = true; state.selectedIds.add(shipId); }
+              }}
+            />
           )}
         </div>
 
@@ -367,12 +413,9 @@ export function SpaceHUD({ renderer, onQuit }: SpaceHUDProps) {
         <div style={{ flex: 1, height: '100%', padding: '8px 12px', overflowY: 'auto' }}>
           {selectedStation ? (
             <BuildPanel station={selectedStation} renderer={renderer} res={res} />
-          ) : primary && primary.abilities.length > 0 ? (
-            <CommandCard ship={primary} renderer={renderer} allSelected={selectedShips} />
           ) : primary ? (
-            <div style={{ opacity: 0.4, fontSize: 12, marginTop: 50, textAlign: 'center' }}>
-              {def?.displayName ?? primary.shipType} — No abilities
-            </div>
+            // Always show CommandCard for ships (action buttons + abilities if any)
+            <CommandCard ship={primary} renderer={renderer} allSelected={selectedShips} />
           ) : upg ? (
             <UpgradePanel upg={upg} res={res} renderer={renderer} />
           ) : null}
@@ -393,65 +436,112 @@ function ResourceItem({ icon, label, value, color }: { icon: React.ReactNode; la
   );
 }
 
-// ── Single Unit Info (sci-fi segmented bars + rank stars) ─────────
+// ── Single Unit Info — portrait + stats ───────────────────────────
 function SingleUnitInfo({ ship, def }: { ship: SpaceShip; def: { class: string; stats: any; displayName: string } }) {
   const hpColor  = ship.hp / ship.maxHp > 0.5 ? '#44ee44' : ship.hp / ship.maxHp > 0.25 ? '#eebb00' : '#ee4444';
-  const commander = undefined; // commander lookup would go here
+  const preview  = SHIP_PREVIEW[ship.shipType];
+  const role     = SHIP_ROLES[ship.shipType];
+  const roleColor = role ? SHIP_ROLE_COLORS[role] : null;
+  const isHero   = ship.shipClass === 'dreadnought' || ('lore' in def);
 
   return (
-    <div style={{ fontFamily: "'Segoe UI', monospace" }}>
-      {/* Header: icon + name + rank stars */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 5 }}>
-        <div style={{ width: 30, height: 30, flexShrink: 0, border: '1px solid #1a4060', borderRadius: 4, display:'flex',alignItems:'center',justifyContent:'center', background:'rgba(6,20,40,0.9)' }}>
-          {CLASS_ICONS[def.class] ?? CLASS_ICONS.fighter}
-        </div>
-        <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: '#fff', lineHeight: 1.2 }}>{def.displayName}</div>
-          <div style={{ fontSize: 9, opacity: 0.45, textTransform: 'uppercase', letterSpacing: 0.5 }}>{def.class.replace(/_/g,' ')}</div>
-          {/* Rank stars */}
-          <div style={{ display:'flex', gap: 2, marginTop: 2 }}>
-            {Array.from({length:5},(_,i) => (
-              <span key={i} style={{ fontSize: 10, color: i < (ship.rank??0) ? '#ffcc00' : '#2a3a50', textShadow: i < (ship.rank??0) ? '0 0 4px #ffcc0088' : 'none' }}>★</span>
-            ))}
-            {(ship.xp ?? 0) > 0 && <span style={{fontSize:8, color:'#88a', marginLeft:4}}>XP:{ship.xp}</span>}
-          </div>
-        </div>
+    <div style={{ display: 'flex', gap: 10, height: '100%' }}>
+      {/* ─ Portrait ──────────────────────────────── */}
+      <div style={{
+        width: 84, height: 84, flexShrink: 0,
+        border: `1px solid ${isHero ? '#443300' : roleColor ?? '#1a4060'}`,
+        borderRadius: 6, overflow: 'hidden',
+        background: 'rgba(2,6,18,0.95)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        position: 'relative',
+        boxShadow: isHero ? '0 0 12px rgba(255,180,0,0.2)' : roleColor ? `0 0 8px ${roleColor}44` : 'none',
+      }}>
+        {preview
+          ? <img src={preview} alt={def.displayName}
+              style={{ width: '100%', height: '100%', objectFit: 'contain',
+                imageRendering: 'pixelated' }}
+              onError={e => { (e.target as HTMLImageElement).style.display='none'; }}
+            />
+          : <div style={{ fontSize: 34, opacity: 0.2 }}>
+              {isHero ? '⭐' : ship.shipClass === 'worker' ? '⛏️' : '🚀'}
+            </div>
+        }
+        {/* Tier / HERO badge */}
+        <div style={{
+          position: 'absolute', top: 2, right: 2, fontSize: 8, fontWeight: 700,
+          padding: '1px 4px', borderRadius: 2, letterSpacing: 0.5,
+          background: isHero ? 'rgba(255,180,0,0.25)' : 'rgba(10,20,40,0.85)',
+          color: isHero ? '#fc4' : '#4488ff',
+          border: `1px solid ${isHero ? '#ffcc0055' : '#4488ff33'}`,
+        }}>{isHero ? 'HERO' : `T${def.stats.tier}`}</div>
+        {/* Role badge */}
+        {role && (
+          <div style={{
+            position: 'absolute', bottom: 2, left: 2, fontSize: 7, fontWeight: 700,
+            padding: '1px 4px', borderRadius: 2,
+            background: `${roleColor}22`, border: `1px solid ${roleColor}55`,
+            color: roleColor!, letterSpacing: 0.5,
+          }}>{SHIP_ROLE_LABELS[role]}</div>
+        )}
       </div>
 
-      {/* HP segmented bar */}
-      <div style={{ marginBottom: 3 }}>
-        <div style={{ display:'flex', justifyContent:'space-between', fontSize:9, marginBottom:2, color: hpColor }}>
-          <span style={{ display:'flex', alignItems:'center', gap:3 }}>♥ HP</span>
-          <span>{Math.ceil(ship.hp)}/{ship.maxHp}</span>
-        </div>
-        <SegmentBar value={ship.hp} max={ship.maxHp} segments={12} color={hpColor} height={8} />
-      </div>
-
-      {/* Shield segmented bar */}
-      {ship.maxShield > 0 && (
+      {/* ─ Stats ───────────────────────────────── */}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        {/* Name + rank */}
         <div style={{ marginBottom: 3 }}>
-          <div style={{ display:'flex', justifyContent:'space-between', fontSize:9, marginBottom:2, color:'#44ccff' }}>
-            <span>🛡 SHD</span>
-            <span>{Math.ceil(ship.shield)}/{ship.maxShield}</span>
+          <div style={{ fontSize: 12, fontWeight: 700, color: isHero ? '#fc4' : '#fff',
+            lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {def.displayName}
           </div>
-          <SegmentBar value={ship.shield} max={ship.maxShield} segments={10} color='#44ccff' height={7} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 1 }}>
+            <span style={{ fontSize: 8, opacity: 0.4, textTransform: 'uppercase' }}>{def.class.replace(/_/g,' ')}</span>
+            {/* Rank stars */}
+            {Array.from({length:5},(_,i) => (
+              <span key={i} style={{ fontSize: 9, color: i < (ship.rank??0) ? '#ffcc00' : '#1e2e40',
+                textShadow: i < (ship.rank??0) ? '0 0 4px #ffcc0088' : 'none' }}>★</span>
+            ))}
+          </div>
         </div>
-      )}
 
-      {/* Damage & stats compact row */}
-      <div style={{ display: 'flex', gap: 8, fontSize: 9, marginTop: 4, color: '#8ab', flexWrap: 'wrap' }}>
-        <span>{ATTACK_ICONS[ship.attackType]??ATTACK_ICONS.laser} {ship.attackDamage}dmg</span>
-        <span>{STAT_ICONS.armor} {ship.armor}ar</span>
-        <span>{STAT_ICONS.speed} {Math.round(ship.speed)}spd</span>
-        <span>{STAT_ICONS.range} {ship.attackRange}rng</span>
+        {/* HP bar */}
+        <div style={{ marginBottom: 3 }}>
+          <div style={{ display:'flex', justifyContent:'space-between', fontSize:8, marginBottom:1, color:hpColor }}>
+            <span>♥ HP</span><span>{Math.ceil(ship.hp)}/{ship.maxHp}</span>
+          </div>
+          <SegmentBar value={ship.hp} max={ship.maxHp} segments={10} color={hpColor} height={6} />
+        </div>
+
+        {/* Shield bar */}
+        {ship.maxShield > 0 && (
+          <div style={{ marginBottom: 3 }}>
+            <div style={{ display:'flex', justifyContent:'space-between', fontSize:8, marginBottom:1, color:'#44ccff' }}>
+              <span>🛡 SHD</span><span>{Math.ceil(ship.shield)}/{ship.maxShield}</span>
+            </div>
+            <SegmentBar value={ship.shield} max={ship.maxShield} segments={10} color='#44ccff' height={5} />
+          </div>
+        )}
+
+        {/* Stats compact */}
+        <div style={{ display:'flex', flexWrap:'wrap', gap:'4px 8px', fontSize:8, color:'rgba(160,200,255,0.6)', marginTop:2 }}>
+          <span style={{ color:'#ff8844' }}>⚔ {ship.attackDamage}dmg</span>
+          <span>{STAT_ICONS.armor} {ship.armor}ar</span>
+          <span style={{ color:'#ffcc00' }}>{STAT_ICONS.speed} {Math.round(ship.speed)}</span>
+          <span>{STAT_ICONS.range} {ship.attackRange}</span>
+          {ship.xp > 0 && <span style={{ color:'#88a' }}>XP {ship.xp}</span>}
+        </div>
       </div>
     </div>
   );
 }
 
-// ── Multi Unit Info (wireframe grid) ──────────────────────────────
-function MultiUnitInfo({ ships }: { ships: SpaceShip[] }) {
-  // Group by type
+// ── Multi Unit Info — clickable cards (LMB = isolate that ship) ──────────
+function MultiUnitInfo({
+  ships, onIsolate,
+}: {
+  ships: SpaceShip[];
+  onIsolate: (shipId: number) => void;
+}) {
+  // Group ships by type, preserving individual IDs for isolation
   const groups = new Map<string, SpaceShip[]>();
   for (const s of ships) {
     if (!groups.has(s.shipType)) groups.set(s.shipType, []);
@@ -459,30 +549,53 @@ function MultiUnitInfo({ ships }: { ships: SpaceShip[] }) {
   }
 
   return (
-    <div>
-      <div style={{ fontSize: 11, fontWeight: 600, marginBottom: 6 }}>{ships.length} units selected</div>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, maxHeight: 140, overflowY: 'auto' }}>
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+      <div style={{ fontSize: 10, fontWeight: 600, marginBottom: 5, color: 'rgba(160,200,255,0.55)' }}>
+        {ships.length} UNITS · <span style={{ fontSize: 9, opacity: 0.6 }}>Click to select one type</span>
+      </div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, overflowY: 'auto' }}>
         {Array.from(groups.entries()).map(([type, group]) => {
-          const def = SHIP_DEFINITIONS[type];
+          const def   = getShipDef(type);
+          const preview = SHIP_PREVIEW[type];
+          const role  = SHIP_ROLES[type];
           const avgHp = group.reduce((sum, s) => sum + s.hp / s.maxHp, 0) / group.length;
+          const hpCol = avgHp > 0.5 ? '#44cc44' : avgHp > 0.25 ? '#ccaa00' : '#cc4444';
+          const maxRank = Math.max(...group.map(s => s.rank ?? 0));
           return (
-            <div key={type} style={{
-              width: 52, height: 52, border: '1px solid #1a3050', borderRadius: 4,
-              display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-              background: 'rgba(20,30,50,0.6)', position: 'relative',
-            }}>
-              <div style={{ width: 22, height: 22 }}>{CLASS_ICONS[def?.class ?? 'fighter'] ?? CLASS_ICONS.fighter}</div>
-              <span style={{ fontSize: 9, fontWeight: 700 }}>x{group.length}</span>
-              {/* HP indicator */}
-              <div style={{
-                position: 'absolute', bottom: 0, left: 0, right: 0, height: 3,
-                background: '#1a1a2a', borderRadius: '0 0 4px 4px',
-              }}>
-                <div style={{
-                  height: '100%', width: `${avgHp * 100}%`,
-                  background: avgHp > 0.5 ? '#44cc44' : '#cc4444',
-                  borderRadius: '0 0 4px 4px',
-                }} />
+            <div
+              key={type}
+              onClick={() => onIsolate(group[0].id)}
+              title={`${def?.displayName ?? type} ×${group.length} — Click to select`}
+              style={{
+                width: 56, flexShrink: 0,
+                border: `1px solid ${role ? SHIP_ROLE_COLORS[role] + '66' : '#1a3050'}`,
+                borderRadius: 5, cursor: 'pointer',
+                background: 'rgba(8,16,34,0.85)',
+                position: 'relative', overflow: 'hidden',
+                transition: 'border-color 0.15s, background 0.15s',
+              }}
+              onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.borderColor = '#4488ff'; }}
+              onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.borderColor = role ? SHIP_ROLE_COLORS[role] + '66' : '#1a3050'; }}
+            >
+              {/* Ship image or fallback icon */}
+              <div style={{ height: 40, display:'flex', alignItems:'center', justifyContent:'center',
+                background:'rgba(2,6,18,0.8)', overflow:'hidden' }}>
+                {preview
+                  ? <img src={preview} alt={type}
+                      style={{ width:'100%', height:'100%', objectFit:'contain', imageRendering:'pixelated' }}
+                      onError={e => { (e.target as HTMLImageElement).style.display='none'; }}
+                    />
+                  : <div style={{ fontSize:20, opacity:0.15 }}>🚀</div>
+                }
+              </div>
+              {/* Count + rank */}
+              <div style={{ padding:'2px 3px', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                <span style={{ fontSize:10, fontWeight:700, color:'#fff' }}>x{group.length}</span>
+                {maxRank > 0 && <span style={{ fontSize:8, color:'#ffcc00' }}>★{maxRank}</span>}
+              </div>
+              {/* HP bar */}
+              <div style={{ height:3, background:'#0a1020' }}>
+                <div style={{ height:'100%', width:`${avgHp*100}%`, background:hpCol }} />
               </div>
             </div>
           );
@@ -492,22 +605,98 @@ function MultiUnitInfo({ ships }: { ships: SpaceShip[] }) {
   );
 }
 
-// ── Command Card ──────────────────────────────────────────────────
+// ── Command Card — action hotkeys + abilities ───────────────────────
 function CommandCard({ ship, renderer, allSelected }: { ship: SpaceShip; renderer: SpaceRenderer; allSelected: SpaceShip[] }) {
-  // Collect unique abilities across selection
-  const abilities = ship.abilities;
+  const state = renderer.engine.state;
+
+  // ─ Issue a stop/hold command directly to all selected ships
+  const stop = () => {
+    for (const id of state.selectedIds) {
+      const s = state.ships.get(id);
+      if (s) { s.moveTarget = null; s.targetId = null; s.isAttackMoving = false; }
+    }
+    renderer.controls.commandMode = 'normal';
+  };
+  const hold = () => {
+    for (const id of state.selectedIds) {
+      const s = state.ships.get(id);
+      if (s) { s.holdPosition = true; s.moveTarget = null; }
+    }
+    renderer.controls.commandMode = 'normal';
+  };
+
+  const ACTION_BTNS: Array<{
+    label: string; key: string; color: string;
+    active?: boolean; action: () => void;
+  }> = [
+    {
+      label: 'Attack', key: 'A', color: '#ff5533',
+      active: renderer.controls.commandMode === 'attack_move',
+      action: () => { renderer.controls.commandMode = renderer.controls.commandMode === 'attack_move' ? 'normal' : 'attack_move'; },
+    },
+    {
+      label: 'Move', key: 'RMB', color: '#4488ff',
+      active: renderer.controls.commandMode === 'normal',
+      action: () => { renderer.controls.commandMode = 'normal'; },
+    },
+    {
+      label: 'Patrol', key: 'P', color: '#44cc88',
+      active: renderer.controls.commandMode === 'patrol',
+      action: () => { renderer.controls.commandMode = renderer.controls.commandMode === 'patrol' ? 'normal' : 'patrol'; },
+    },
+    { label: 'Stop',  key: 'S', color: '#aabbcc', active: false, action: stop },
+    { label: 'Hold',  key: 'H', color: '#aa88ff', active: false, action: hold },
+  ];
 
   return (
-    <div>
-      <div style={{ fontSize: 11, fontWeight: 600, marginBottom: 8, opacity: 0.7 }}>ABILITIES</div>
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-        {abilities.map((ab, i) => (
-          <AbilityButton key={ab.ability.id} ab={ab} index={i} renderer={renderer} allSelected={allSelected} />
-        ))}
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: 6 }}>
+      {/* ─ Action command row ─────────────────────── */}
+      <div>
+        <div style={{ fontSize: 9, color: 'rgba(160,200,255,0.4)', letterSpacing: 2, marginBottom: 4 }}>COMMANDS</div>
+        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+          {ACTION_BTNS.map(btn => (
+            <button
+              key={btn.key}
+              onClick={btn.action}
+              title={`${btn.label} [${btn.key}]`}
+              style={{
+                display: 'flex', flexDirection: 'column', alignItems: 'center',
+                width: 44, padding: '5px 2px',
+                border: `1px solid ${btn.active ? btn.color : btn.color + '44'}`,
+                borderRadius: 5, cursor: 'pointer',
+                background: btn.active ? `${btn.color}22` : 'rgba(8,16,32,0.8)',
+                transition: 'all 0.15s',
+              }}
+            >
+              <div style={{ fontSize: 12, fontWeight: 900, color: btn.active ? btn.color : 'rgba(160,200,255,0.5)' }}>
+                {btn.label === 'Move' ? '↵' : btn.label === 'Attack' ? '⚔' : btn.label === 'Patrol' ? '⭕' : btn.label === 'Stop' ? '■' : '⏸'}
+              </div>
+              <div style={{ fontSize: 8, color: btn.active ? btn.color : 'rgba(160,200,255,0.4)', marginTop: 1 }}>{btn.label}</div>
+              <div style={{
+                fontSize: 7, fontWeight: 700, marginTop: 1,
+                background: btn.active ? btn.color + '33' : '#0a1428',
+                color: btn.active ? btn.color : 'rgba(160,200,255,0.35)',
+                padding: '0 3px', borderRadius: 2,
+              }}>{btn.key}</div>
+            </button>
+          ))}
+        </div>
       </div>
-      <div style={{ fontSize: 10, marginTop: 12, opacity: 0.4 }}>
-        Left-click: cast  •  Right-click: toggle autocast
-      </div>
+
+      {/* ─ Abilities ──────────────────────────────── */}
+      {ship.abilities.length > 0 && (
+        <div>
+          <div style={{ fontSize: 9, color: 'rgba(160,200,255,0.4)', letterSpacing: 2, marginBottom: 4 }}>ABILITIES</div>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {ship.abilities.map((ab, i) => (
+              <AbilityButton key={ab.ability.id} ab={ab} index={i} renderer={renderer} allSelected={allSelected} />
+            ))}
+          </div>
+          <div style={{ fontSize: 8, marginTop: 6, color: 'rgba(160,200,255,0.3)' }}>
+            Click: cast · Right-click: toggle autocast
+          </div>
+        </div>
+      )}
     </div>
   );
 }

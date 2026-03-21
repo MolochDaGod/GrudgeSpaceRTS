@@ -76,7 +76,7 @@ export default function AdminApp() {
     <div style={{ minHeight: '100vh', background: C.bg, color: C.text, fontFamily: "'Segoe UI', monospace", fontSize: 13 }}>
       {/* Sticky header */}
       <div style={{ background: 'rgba(2,6,16,0.98)', borderBottom: `1px solid ${C.border}`, padding: '0 24px', display: 'flex', alignItems: 'center', gap: 20, height: 52, position: 'sticky', top: 0, zIndex: 100 }}>
-        <img src='/assets/space/ui/logo.png' alt='Gruda Armada'
+        <img src='/assets/space/ui/logo.svg' alt='Gruda Armada'
           style={{ height: 30, imageRendering: 'auto',
             filter: 'drop-shadow(0 0 8px rgba(68,136,255,0.5))' }}
           onError={e => { (e.target as HTMLImageElement).style.display='none'; }}
@@ -111,7 +111,7 @@ function LoginScreen({ pw, setPw, err, onLogin }: { pw:string; setPw:(v:string)=
   return (
     <div style={{ minHeight: '100vh', background: C.bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <div style={{ width: 360, padding: 40, ...card, textAlign: 'center' }}>
-        <img src='/assets/space/ui/logo.png' alt='Gruda Armada'
+        <img src='/assets/space/ui/logo.svg' alt='Gruda Armada'
           style={{ width: 200, imageRendering: 'auto', marginBottom: 8,
             filter: 'drop-shadow(0 0 16px rgba(68,136,255,0.6))' }}
           onError={e => { (e.target as HTMLImageElement).style.display='none'; }}

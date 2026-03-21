@@ -1,4 +1,4 @@
-/**
+﻿/**
  * space-starmap.tsx — Gruda Armada Star Map (press M)
  *
  * Full-screen tactical planning overlay with 4 tabs:
@@ -70,7 +70,7 @@ export function StarMapOverlay({ renderer, onClose }: { renderer: SpaceRenderer;
 
         {/* Game logo + title */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <img src='/assets/space/ui/logo.png' alt='Gruda Armada'
+          <img src='/assets/space/ui/logo.svg' alt='Gruda Armada'
             style={{ height: 36, imageRendering: 'auto',
               filter: 'drop-shadow(0 0 12px rgba(68,136,255,0.55))' }}
             onError={e => { (e.target as HTMLImageElement).style.display='none'; }}
@@ -130,7 +130,6 @@ function OverviewTab({ renderer }: { renderer: SpaceRenderer }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const state     = renderer.engine.state;
   const [selectedPlanet, setSelectedPlanet] = useState<Planet | null>(null);
-  const [hover, setHover] = useState<{ x:number; y:number } | null>(null);
   const [flash, setFlash] = useState<string>('');
 
   // Map extents

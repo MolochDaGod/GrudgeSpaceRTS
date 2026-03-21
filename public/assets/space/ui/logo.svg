@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 160" width="480" height="160">
+  <defs>
+    <linearGradient id="g1" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#88aaff"/>
+      <stop offset="50%" style="stop-color:#ffffff"/>
+      <stop offset="100%" style="stop-color:#4466cc"/>
+    </linearGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="4" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="shadow">
+      <feDropShadow dx="0" dy="0" stdDeviation="8" flood-color="#4488ff" flood-opacity="0.8"/>
+    </filter>
+  </defs>
+  <!-- Background -->
+  <rect width="480" height="160" fill="#010208" rx="8"/>
+  <!-- Decorative top spike -->
+  <polygon points="240,4 252,28 228,28" fill="#cc2222" opacity="0.9"/>
+  <!-- Side wing lines -->
+  <line x1="60" y1="80" x2="160" y2="80" stroke="#4488ff" stroke-width="1" opacity="0.4"/>
+  <line x1="320" y1="80" x2="420" y2="80" stroke="#4488ff" stroke-width="1" opacity="0.4"/>
+  <!-- Red accent chevrons bottom -->
+  <polygon points="200,140 240,156 280,140 240,148" fill="#cc1111" opacity="0.8"/>
+  <!-- GRUDA text -->
+  <text x="240" y="90"
+    font-family="'Arial Black','Impact',sans-serif"
+    font-size="62" font-weight="900"
+    text-anchor="middle"
+    fill="url(#g1)"
+    filter="url(#shadow)"
+    letter-spacing="6">GRUDA</text>
+  <!-- ARMADA text -->
+  <text x="240" y="130"
+    font-family="'Arial Black','Impact',sans-serif"
+    font-size="34" font-weight="700"
+    text-anchor="middle"
+    fill="#ccddff"
+    letter-spacing="12"
+    opacity="0.9">ARMADA</text>
+</svg>
