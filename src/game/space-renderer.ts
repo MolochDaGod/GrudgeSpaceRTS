@@ -1008,6 +1008,9 @@ export class SpaceRenderer {
     // Sync planet ownership colors
     this.syncPlanetOwnership(this.engine.state);
 
+    // Sync rally point flags
+    this.syncRallyFlags(this.engine.state);
+
     this.renderer.render(this.scene, this.camera);
   };
 
@@ -1132,14 +1135,49 @@ export class SpaceRenderer {
       const mat = ring.material as THREE.MeshBasicMaterial;
       if (planet.captureProgress > 0) {
         const pct = planet.captureProgress / CAPTURE_TIME;
-        mat.opacity = 0.3 + pct * 0.5;
+        mat.opacity = 0.35 + pct * 0.55;
         mat.color.setHex(TEAM_COLORS[planet.captureTeam] ?? 0xffff44);
-        ring.scale.setScalar(0.5 + pct * 0.5);
+        // Ring pulses and scales with capture progress — very visible
+        const pulse = 1 + Math.sin(this.twinkleTime * 4) * 0.08;
+        ring.scale.setScalar((0.4 + pct * 0.6) * pulse);
       } else {
         mat.opacity = planet.owner !== 0 ? 0.15 : 0;
         if (planet.owner !== 0) mat.color.setHex(TEAM_COLORS[planet.owner] ?? 0x44ff44);
         ring.scale.setScalar(1);
       }
+    }
+  }
+
+  // ── Rally Point Flags ─────────────────────────────────────────
+  private rallyMeshes = new Map<number, THREE.Sprite>();
+  private syncRallyFlags(state: SpaceGameState) {
+    // Clean up flags for dead/missing stations
+    for (const [id, sprite] of this.rallyMeshes) {
+      if (!state.stations.has(id)) { this.scene.remove(sprite); this.rallyMeshes.delete(id); }
+    }
+    for (const [id, st] of state.stations) {
+      if (st.dead || st.team !== 1 || !st.rallyPoint) {
+        const old = this.rallyMeshes.get(id);
+        if (old) { this.scene.remove(old); this.rallyMeshes.delete(id); }
+        continue;
+      }
+      let flag = this.rallyMeshes.get(id);
+      if (!flag) {
+        const mat = new THREE.SpriteMaterial({
+          color: 0x44ff44, transparent: true, opacity: 0.6,
+          depthWrite: false, blending: THREE.AdditiveBlending,
+        });
+        flag = new THREE.Sprite(mat);
+        flag.scale.set(1.5, 2.5, 1);
+        flag.renderOrder = 5;
+        this.scene.add(flag);
+        this.rallyMeshes.set(id, flag);
+      }
+      flag.position.set(
+        st.rallyPoint.x * WORLD_SCALE,
+        4 + Math.sin(this.twinkleTime * 2 + id) * 0.3,  // gentle bob
+        st.rallyPoint.y * WORLD_SCALE,
+      );
     }
   }
 

@@ -87,7 +87,7 @@ export class SpaceEngine {
       fleets: new Map(),
       tacticalOrders: [],
       towers: new Map(), projectiles: new Map(),
-      spriteEffects: [], glbEffects: [], alerts: [],
+      spriteEffects: [], glbEffects: [], floatingTexts: [], alerts: [],
       resources, upgrades,
       gameTime: 0, nextId: 1000,
       selectedIds: new Set(), controlGroups: new Map(),
@@ -638,6 +638,15 @@ export class SpaceEngine {
     if (ship.shield > 0) { const ab = Math.min(ship.shield, r); ship.shield -= ab; r -= ab; }
     r = Math.max(0, r - ship.armor);
     ship.hp -= r;
+    // Floating damage number (limit to ~20 on screen to avoid spam)
+    if (r > 0 && this.state.floatingTexts.length < 20) {
+      const isShield = ship.shield > 0 && damage > r;
+      this.state.floatingTexts.push({
+        id: this.state.nextId++, x: ship.x + (Math.random() - 0.5) * 30, y: ship.y + (Math.random() - 0.5) * 30, z: 30,
+        text: `-${Math.round(r)}`, color: isShield ? '#44ccff' : r >= 40 ? '#ff4444' : '#ffcc44',
+        age: 0, maxAge: 1.2,
+      });
+    }
     if (ship.hp <= 0) {
       ship.hp = 0; ship.dead = true; ship.animState = 'death_spiral';
       const res = this.state.resources[ship.team];
@@ -770,6 +779,9 @@ export class SpaceEngine {
       if (e.frameTimer >= e.frameDuration) { e.frameTimer = 0; e.frame++; if (e.frame >= e.totalFrames) e.done = true; }
     }
     this.state.spriteEffects = this.state.spriteEffects.filter(e => !e.done);
+    // Age floating damage texts
+    for (const ft of this.state.floatingTexts) { ft.age += dt; ft.y -= 30 * dt; ft.z += 20 * dt; }
+    this.state.floatingTexts = this.state.floatingTexts.filter(ft => ft.age < ft.maxAge);
     this.state.alerts = this.state.alerts.filter(a => this.state.gameTime - a.time < 15);
   }
 
