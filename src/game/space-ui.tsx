@@ -1335,26 +1335,13 @@ function TechTreePanel({ state, myPlanets, onResearch, onClose }: {
     t.id === 'command' || myPlanets.some(p => PLANET_TYPE_TO_TECH[p.planetType] === t.id));
 
   return (
-    <div style={{
-      position:'absolute', top: 45, left: 210, width: 480, maxHeight: '80vh',
-      background: C.bg, border: `2px solid ${C.border}`, borderRadius: 10,
-      zIndex: 50, overflow:'auto', boxShadow:'0 0 40px rgba(68,136,255,0.3)',
-    }}>
-      {/* Header */}
-      <div style={{ display:'flex', alignItems:'center', padding:'10px 14px', borderBottom:`1px solid ${C.border}`, gap:8 }}>
-        <span style={{ fontWeight:800, fontSize:15, color:C.accent, flex:1, letterSpacing:2 }}>TECH TREES</span>
-        {techSt?.inResearch && (
-          <span style={{ fontSize:10, color:'#fc4', border:'1px solid #443300', padding:'2px 8px', borderRadius:3 }}>
-            Researching… {Math.ceil(techSt.researchTimeRemaining ?? 0)}s
-          </span>
-        )}
-        <img src='/assets/space/ui/hud/CloseBtn.png' alt='Close' onClick={onClose}
-          style={{ width:28, height:28, cursor:'pointer', imageRendering:'pixelated', flexShrink:0,
-            filter:'brightness(0.8)', transition:'filter 0.15s' }}
-          onMouseEnter={e => (e.currentTarget.style.filter = 'brightness(1.2)')}
-          onMouseLeave={e => (e.currentTarget.style.filter = 'brightness(0.8)')}
-        />
-      </div>
+    <Panel title="TECH TREES" variant="green" onClose={onClose}
+      width={500} style={{ position:'absolute', top:45, left:210, maxHeight:'80vh', zIndex:50, overflow:'auto' }}>
+      {techSt?.inResearch && (
+        <div style={{ fontSize:10, color:'#fc4', textAlign:'center', marginBottom:8 }}>
+          Researching… {Math.ceil(techSt.researchTimeRemaining ?? 0)}s
+        </div>
+      )}
       {/* Tree tabs */}
       <div style={{ display:'flex', gap:4, padding:'6px 10px', borderBottom:`1px solid ${C.border}`, flexWrap:'wrap' }}>
         {availTrees.map(t => (
@@ -1420,7 +1407,7 @@ function TechTreePanel({ state, myPlanets, onResearch, onClose }: {
           })}
         </div>
       )}
-    </div>
+    </Panel>
   );
 }
 
@@ -1443,22 +1430,8 @@ function CommanderPanel({ state, selectedCmdId, selectedPlanetId, onSelectCmd, o
   const C = { bg:'rgba(4,12,8,0.97)', accent:'#00ee88', border:'#1a3a22', text:'#aae0b0', muted:'rgba(100,200,120,0.4)' };
 
   return (
-    <div style={{
-      position:'absolute', top:45, right:10, width:420, maxHeight:'85vh',
-      background:C.bg, border:`2px solid ${C.border}`, borderRadius:10,
-      zIndex:50, overflow:'auto', boxShadow:'0 0 40px rgba(0,238,136,0.2)',
-      fontFamily:"'Segoe UI', monospace",
-    }}>
-      {/* Header */}
-      <div style={{ display:'flex', alignItems:'center', padding:'10px 14px', borderBottom:`1px solid ${C.border}` }}>
-        <span style={{ flex:1, fontWeight:800, fontSize:14, color:C.accent, letterSpacing:3 }}>COMMANDER CORPS</span>
-        <img src='/assets/space/ui/hud/CloseBtn.png' alt='Close' onClick={onClose}
-          style={{ width:28, height:28, cursor:'pointer', imageRendering:'pixelated', flexShrink:0,
-            filter:'brightness(0.8)', transition:'filter 0.15s' }}
-          onMouseEnter={e => (e.currentTarget.style.filter = 'brightness(1.2)')}
-          onMouseLeave={e => (e.currentTarget.style.filter = 'brightness(0.8)')}
-        />
-      </div>
+    <Panel title="COMMANDER CORPS" variant="green" onClose={onClose}
+      width={440} style={{ position:'absolute', top:45, right:10, maxHeight:'85vh', zIndex:50, overflow:'auto' }}>
 
       <div style={{ display:'flex', gap:0 }}>
         {/* Left: commander list + planet train */}
@@ -1607,11 +1580,11 @@ function CommanderPanel({ state, selectedCmdId, selectedPlanetId, onSelectCmd, o
           </div>
         )}
       </div>
-    </div>
+    </Panel>
   );
 }
 
-// ── Helpers ──────────────────────────────────────────────────
+// ── Helpers ──────────────────────────────────────────────
 function formatTime(seconds: number): string {
   const m = Math.floor(seconds / 60);
   const s = Math.floor(seconds % 60);

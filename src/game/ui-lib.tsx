@@ -29,39 +29,54 @@
 import React, { useState, type ReactNode, type CSSProperties } from 'react';
 
 const H = '/assets/space/ui/hud';
+const G = '/assets/space/ui/scifi-gui';
 
-// ── Panel: large framed container with optional title ──────────────
-export function Panel({ title, children, width, style, onClose }: {
+// Color variants for premium panels: green=player, purple=special, gold=hero
+type PanelVariant = 'green' | 'purple' | 'gold';
+const INVENTORY_BG: Record<PanelVariant, string> = {
+  green:  `${G}/inventory/1.png`,
+  purple: `${G}/inventory/2.png`,
+  gold:   `${G}/inventory/3.png`,
+};
+
+// ── Panel: premium metallic sci-fi frame with optional title ─────────
+export function Panel({ title, children, width, style, onClose, variant }: {
   title?: string; children: ReactNode; width?: number | string;
-  style?: CSSProperties; onClose?: () => void;
+  style?: CSSProperties; onClose?: () => void; variant?: PanelVariant;
 }) {
+  const bg = variant ? INVENTORY_BG[variant] : `${H}/BoxMenu.png`;
   return (
     <div style={{
       position: 'relative', width: width ?? 'auto',
-      backgroundImage: `url(${H}/BoxMenu.png)`, backgroundSize: '100% 100%',
-      padding: '12px 16px 16px', minHeight: 120,
-      filter: 'drop-shadow(0 4px 20px rgba(0,0,0,0.6))',
+      backgroundImage: `url(${bg})`, backgroundSize: '100% 100%',
+      padding: variant ? '44px 28px 28px' : '12px 16px 16px',
+      minHeight: 120,
+      filter: 'drop-shadow(0 4px 24px rgba(0,0,0,0.7))',
       ...style,
     }}>
       {title && (
         <div style={{
-          position: 'relative', marginBottom: 10, textAlign: 'center',
+          position: 'absolute', top: variant ? 6 : 0, left: variant ? 28 : 0, right: variant ? 50 : 0,
+          textAlign: 'center',
         }}>
-          <img src={`${H}/TitleBox.png`} alt="" style={{
+          {!variant && <img src={`${H}/TitleBox.png`} alt="" style={{
             position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'fill',
-          }} />
+          }} />}
           <span style={{
             position: 'relative', zIndex: 1, fontSize: 13, fontWeight: 800,
-            color: '#fff', letterSpacing: 2, textTransform: 'uppercase',
-            textShadow: '0 0 8px rgba(68,255,200,0.5)',
-            padding: '6px 0', display: 'block',
+            color: '#fff', letterSpacing: 3, textTransform: 'uppercase',
+            textShadow: variant
+              ? `0 0 12px ${variant === 'gold' ? 'rgba(255,180,0,0.6)' : variant === 'purple' ? 'rgba(180,80,255,0.6)' : 'rgba(68,255,200,0.6)'}` 
+              : '0 0 8px rgba(68,255,200,0.5)',
+            padding: '8px 0', display: 'block',
           }}>{title}</span>
         </div>
       )}
       {onClose && (
         <img src={`${H}/CloseBtn.png`} alt="Close" onClick={onClose} style={{
-          position: 'absolute', top: 8, right: 8, width: 28, height: 28,
-          cursor: 'pointer', zIndex: 10, imageRendering: 'pixelated',
+          position: 'absolute', top: variant ? 8 : 8, right: variant ? 10 : 8,
+          width: 26, height: 26,
+          cursor: 'pointer', zIndex: 10,
           filter: 'brightness(0.9)', transition: 'filter 0.15s',
         }}
           onMouseEnter={e => (e.currentTarget.style.filter = 'brightness(1.3)')}

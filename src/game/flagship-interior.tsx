@@ -10,6 +10,7 @@
  */
 
 import { useState, useCallback } from 'react';
+import { Btn } from './ui-lib';
 
 // ── Asset paths ───────────────────────────────────────────────
 const SL = '/assets/space/ui/spaceliner';
@@ -172,17 +173,18 @@ export function FlagshipInterior({
 
         {/* Quick-action bar at bottom */}
         <div style={{
-          position: 'absolute', bottom: 0, left: 0, right: 0, height: 40,
-          background: 'rgba(4,12,20,0.92)', borderTop: '1px solid rgba(40,180,160,0.3)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, padding: '0 16px',
+          position: 'absolute', bottom: 0, left: 0, right: 0, height: 44,
+          backgroundImage: 'url(/assets/space/ui/hud/DarkBackground.png)', backgroundSize: '100% 100%',
+          borderTop: '2px solid rgba(40,180,160,0.4)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '0 12px',
         }}>
-          <QuickBtn label="Star Map [M]" onClick={onOpenStarMap} />
-          <QuickBtn label="Tech Tree" onClick={onOpenTech} />
-          <QuickBtn label="Commander" onClick={onOpenCommander} />
-          <QuickBtn label="Build Ships" onClick={onOpenBuild} />
-          <QuickBtn label="Upgrades" onClick={onOpenUpgrades} />
+          <Btn label="STAR MAP" onClick={onOpenStarMap} style={{ height: 30, minWidth: 80 }} />
+          <Btn label="TECH" onClick={onOpenTech} style={{ height: 30, minWidth: 60 }} />
+          <Btn label="CMDR" onClick={onOpenCommander} style={{ height: 30, minWidth: 60 }} />
+          <Btn label="BUILD" onClick={onOpenBuild} style={{ height: 30, minWidth: 60 }} />
+          <Btn label="UPGRADE" onClick={onOpenUpgrades} style={{ height: 30, minWidth: 70 }} />
           <div style={{ flex: 1 }} />
-          <QuickBtn label="Exit Ship" onClick={onClose} color="#ff6644" />
+          <Btn label="EXIT SHIP" onClick={onClose} active style={{ height: 30, minWidth: 80 }} />
         </div>
       </div>
     </div>
