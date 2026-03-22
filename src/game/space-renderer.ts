@@ -760,8 +760,32 @@ export class SpaceRenderer {
           if (diam > 0) model.scale.setScalar(targetSize / diam);
         };
 
+        // Pirate / Boss captain ships: render as billboard sprites
+        const SPRITE_SHIPS: Record<string, string> = {
+          pirate_01: '/assets/space/sprites/pirate-ships/PNG/Ships/Ship_01.png',
+          pirate_02: '/assets/space/sprites/pirate-ships/PNG/Ships/Ship_02.png',
+          pirate_03: '/assets/space/sprites/pirate-ships/PNG/Ships/Ship_03.png',
+          pirate_04: '/assets/space/sprites/pirate-ships/PNG/Ships/Ship_04.png',
+          pirate_05: '/assets/space/sprites/pirate-ships/PNG/Ships/Ship_05.png',
+          pirate_06: '/assets/space/sprites/pirate-ships/PNG/Ships/Ship_06.png',
+          boss_captain_01: '/assets/space/sprites/boss-ships/PNG/Boss_01/Boss_Full.png',
+          boss_captain_02: '/assets/space/sprites/boss-ships/PNG/Boss_02/Boss_Full.png',
+          boss_captain_03: '/assets/space/sprites/boss-ships/PNG/Boss_03/Boss_Full.png',
+        };
+        const spritePath = SPRITE_SHIPS[ship.shipType];
+
         // Custom hero ship: load GLB from player's saved data
-        if (ship.shipType === 'custom_hero') {
+        if (spritePath) {
+          // Load 2D sprite as a billboard that always faces camera
+          const tex = this.textureLoader.load(spritePath);
+          const sMat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false });
+          const spr = new THREE.Sprite(sMat);
+          const sz = targetSize * 1.2;
+          spr.scale.set(sz, sz, 1);
+          spr.renderOrder = 2;
+          removeCone(meshData.group);
+          meshData.group.add(spr);
+        } else if (ship.shipType === 'custom_hero') {
           this.loadCustomHeroModel(id, meshData);
         } else if (prefab) {
           this.loadModel(prefab).then(model => {

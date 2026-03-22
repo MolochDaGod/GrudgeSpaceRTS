@@ -157,19 +157,57 @@ export class SpaceEngine {
       if (ship.team !== 1) for (const ab of ship.abilities) ab.autoCast = true;
     }
 
-    // Neutral defenders
+    // Neutral defenders: 1 boss captain + pirate escorts per neutral planet
+    const bossTypes = ['boss_captain_01', 'boss_captain_02', 'boss_captain_03'];
+    const pirateTypes = ['pirate_01', 'pirate_02', 'pirate_03', 'pirate_04', 'pirate_05', 'pirate_06'];
     for (const planet of this.state.planets) {
       if (planet.owner === 0 && planet.neutralDefenders > 0) {
         const defOrbit = planet.captureRadius * 0.6;
-        for (let i = 0; i < planet.neutralDefenders; i++) {
+        // Boss captain orbits the planet as its leader
+        const bossType = bossTypes[planet.id % bossTypes.length];
+        const boss = this.spawnShip(bossType, 0 as Team,
+          planet.x + Math.cos(0) * defOrbit, planet.y + Math.sin(0) * defOrbit);
+        boss.orbitTarget = planet.id;
+        boss.orbitRadius = defOrbit;
+        boss.orbitAngle = 0;
+        boss.holdPosition = true;
+        for (const ab of boss.abilities) ab.autoCast = true;
+        // Pirate escorts orbit around the boss
+        for (let i = 1; i < planet.neutralDefenders; i++) {
+          const pirateType = pirateTypes[(planet.id + i) % pirateTypes.length];
           const angle = (i / planet.neutralDefenders) * Math.PI * 2;
-          const ship = this.spawnShip('red_fighter', 0 as Team,
+          const ship = this.spawnShip(pirateType, 0 as Team,
             planet.x + Math.cos(angle) * defOrbit, planet.y + Math.sin(angle) * defOrbit);
           ship.orbitTarget = planet.id;
           ship.orbitRadius = defOrbit;
           ship.orbitAngle = angle;
           ship.holdPosition = true;
+          for (const ab of ship.abilities) ab.autoCast = true;
         }
+      }
+    }
+
+    // Roaming pirate fleets: patrol between random planet pairs
+    const neutralPlanets = this.state.planets.filter(p => p.owner === 0);
+    const roamCount = mode === '1v1' ? 2 : 3;
+    for (let f = 0; f < Math.min(roamCount, neutralPlanets.length); f++) {
+      const pA = neutralPlanets[f];
+      const pB = neutralPlanets[(f + 2) % neutralPlanets.length];
+      const fleetSize = 2 + Math.floor(Math.random() * 2); // 2-3 pirates
+      for (let i = 0; i < fleetSize; i++) {
+        const pirateType = pirateTypes[(f * 3 + i) % pirateTypes.length];
+        const spread = (i - fleetSize / 2) * 80;
+        const ship = this.spawnShip(pirateType, 0 as Team,
+          pA.x + spread, pA.y + 100);
+        // Patrol between the two planets
+        ship.patrolPoints = [
+          { x: pA.x, y: pA.y, z: 0 },
+          { x: pB.x, y: pB.y, z: 0 },
+        ];
+        ship.patrolIndex = 1;
+        ship.moveTarget = { x: pB.x + spread, y: pB.y, z: 0 };
+        ship.isAttackMoving = true;
+        for (const ab of ship.abilities) ab.autoCast = true;
       }
     }
   }
@@ -340,6 +378,7 @@ export class SpaceEngine {
       workerHarvestTimer: def.class === 'worker' ? 0 : undefined,
       xp: 0, rank: 0,
       roleTimer: 0,
+      baseSpeed: s.speed * spM,
     };
     // Apply void_caster cooldown reduction at spawn
     const role = SHIP_ROLES[def.class === 'worker' ? '' : type];
@@ -482,7 +521,16 @@ export class SpaceEngine {
       // Abilities
       for (const ab of ship.abilities) {
         ab.cooldownRemaining = Math.max(0, ab.cooldownRemaining - dt);
-        if (ab.active) { ab.activeTimer -= dt; if (ab.activeTimer <= 0) ab.active = false; }
+        if (ab.active) {
+          ab.activeTimer -= dt;
+          if (ab.activeTimer <= 0) {
+            ab.active = false;
+            // Revert speed-modifying abilities using game-time expiry
+            if (ab.ability.type === 'ram' || ab.ability.type === 'speed_boost') {
+              ship.speed = ship.baseSpeed;
+            }
+          }
+        }
         if (ab.autoCast && !ab.active && ab.cooldownRemaining <= 0 && ship.targetId !== null) {
           const res = this.state.resources[ship.team];
           if (res && res.energy >= ab.ability.energyCost) this.activateAbility(ship, ab, res);
@@ -495,15 +543,18 @@ export class SpaceEngine {
     ab.active = true; ab.activeTimer = ab.ability.duration; ab.cooldownRemaining = ab.ability.cooldown;
     res.energy -= ab.ability.energyCost;
     if (ab.ability.type === 'barrel_roll') ship.animState = 'barrel_roll';
-    else if (ab.ability.type === 'speed_boost') ship.animState = 'speed_boost';
+    else if (ab.ability.type === 'speed_boost') {
+      ship.animState = 'speed_boost';
+      ship.baseSpeed = ship.speed;            // snapshot current speed
+      ship.speed *= 1.5;                      // +50% speed for duration
+    }
     else if (ab.ability.type === 'cloak') ship.animState = 'cloaked';
     else if (ab.ability.type === 'warp') ship.animState = 'warping';
     else if (ab.ability.type === 'iron_dome') this.spawnSpriteEffect(ship.x, ship.y, 0, 'waveform', 3.0);
     else if (ab.ability.type === 'emp') this.spawnSpriteEffect(ship.x, ship.y, 0, 'spark', 2.5);
     else if (ab.ability.type === 'ram') {
-      const base = SHIP_DEFINITIONS[ship.shipType]?.stats.speed ?? ship.speed;
-      ship.speed = base * 2.5;
-      setTimeout(() => { ship.speed = base; }, ab.ability.duration * 1000);
+      ship.baseSpeed = ship.speed;            // snapshot current speed
+      ship.speed *= 2.5;                      // ram charge
     }
     ship.animTimer = 0;
   }
@@ -863,8 +914,9 @@ export class SpaceEngine {
         Math.sqrt((p.x - targetX)**2 + (p.y - targetY)**2) < p.radius * 3);
       if (planetIdx >= 0) {
         const p = this.state.planets[planetIdx];
-        // Kill all ships orbiting/near it
+        // Kill enemy ships orbiting/near it (spare the caster's fleet)
         for (const [, s] of this.state.ships) {
+          if (s.dead || s.team === team) continue;
           if (Math.sqrt((s.x - p.x)**2 + (s.y - p.y)**2) < p.captureRadius) this.applyDamage(s, 99999);
         }
         // Remove station
@@ -882,9 +934,9 @@ export class SpaceEngine {
       if (eff.done) continue;
       eff.lifetime += dt;
       if (eff.lifetime >= eff.maxLifetime) { eff.done = true; continue; }
-      // Pull + damage ships each tick
+      // Pull + damage ENEMY ships each tick (skip friendlies)
       for (const [, s] of this.state.ships) {
-        if (s.dead) continue;
+        if (s.dead || s.team === eff.team) continue;
         const d = Math.sqrt((s.x - eff.x)**2 + (s.y - eff.y)**2);
         if (d < eff.radius) {
           // Pull toward center
@@ -892,7 +944,7 @@ export class SpaceEngine {
           const pull = (1 - d / eff.radius) * 200;
           s.x += Math.cos(a) * pull * dt;
           s.y += Math.sin(a) * pull * dt;
-          // Damage per second (damage / maxLifetime * dt)
+          // Damage per second
           const dps = (eff.damage ?? 80);
           this.applyDamage(s, dps * dt);
         }
@@ -1071,6 +1123,7 @@ export class SpaceEngine {
     ship.hp    = ship.maxHp;
     ship.maxShield = Math.round(ship.maxShield * (1 + idleCmd.defenseBonus));
     ship.speed *= (1 + idleCmd.speedBonus);
+    ship.baseSpeed = ship.speed; // keep baseSpeed in sync with permanent buffs
   }
 
   // ── XP & Rank ──────────────────────────────────────────────────
@@ -1087,6 +1140,7 @@ export class SpaceEngine {
       ship.maxShield    = Math.round(ship.maxShield * mult);
       ship.attackDamage = Math.round(ship.attackDamage * mult);
       ship.speed       *= mult;
+      ship.baseSpeed    = ship.speed; // keep baseSpeed in sync with permanent buffs
       ship.armor        = Math.round(ship.armor * mult);
       this.state.alerts.push({
         id: this.state.nextId++, x: ship.x, y: ship.y, z: 0,
