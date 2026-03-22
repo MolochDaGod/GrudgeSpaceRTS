@@ -1,0 +1,40 @@
+version: "3.9"
+
+networks:
+  coolify:
+    external: true
+
+services:
+  gruda-armada:
+    build:
+      context: .
+      args:
+        VITE_GRUDGE_API: ${VITE_GRUDGE_API:-https://api.grudge-studio.com}
+    container_name: gruda-armada
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:80/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.gruda-armada.rule=Host(`grudge-rts.grudge-studio.com`)"
+      - "traefik.http.routers.gruda-armada.entrypoints=https"
+      - "traefik.http.routers.gruda-armada.tls.certresolver=letsencrypt"
+      - "traefik.http.services.gruda-armada.loadbalancer.server.port=80"
+      - "traefik.docker.network=coolify"
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+        reservations:
+          memory: 64M
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"
+    networks:
+      - coolify

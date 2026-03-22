@@ -330,13 +330,9 @@ const PATTERN_FNS: Record<string, (v: number) => VoxMap> = {
 };
 
 // Map ship type key → (patternClass, variant)
-// Capital ships prefer their FBX models; voxel is a high-quality fallback.
+// Capital ships use their FBX/GLB models from CAPITAL_PREFABS.
+// Voxel fallbacks for capitals are only built on demand via buildCapitalVoxelFallback().
 const SHIP_TYPE_MAP: Record<string, [string, number]> = {
-  // Capital ships (fallback if FBX fails)
-  destroyer:  ['capital_destroyer', 1],
-  cruiser:    ['capital_cruiser', 1],
-  bomber:     ['capital_bomber', 1],
-  battleship: ['capital_battleship', 1],
   mining_drone:        ['worker', 0],
   energy_skimmer:      ['worker', 1],
   cf_corvette_01:      ['corvette', 1],
@@ -384,3 +380,23 @@ export function buildVoxelShip(shipType: string, team: number): THREE.Group | nu
   };
   return buildGroup(voxMap, team, scales[cls] ?? 1.0);
 }
+
+/** Capital ship voxel fallback — only called when FBX/GLB fails to load.
+ *  Maps capital ship type keys to their procedural voxel patterns. */
+const CAPITAL_VOXEL_MAP: Record<string, string> = {
+  destroyer:  'capital_destroyer',
+  cruiser:    'capital_cruiser',
+  bomber:     'capital_bomber',
+  battleship: 'capital_battleship',
+};
+
+export function buildCapitalVoxelFallback(shipType: string, team: number): THREE.Group | null {
+  const cls = CAPITAL_VOXEL_MAP[shipType];
+  if (!cls) return null;
+  const fn = PATTERN_FNS[cls];
+  if (!fn) return null;
+  return buildGroup(fn(1), team, 1.2);
+}
+
+/** Build a voxel group from raw VoxMap data — exposed for the Ship Forge editor. */
+export { buildGroup };

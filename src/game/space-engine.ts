@@ -48,6 +48,9 @@ export class SpaceEngine {
   mapH = 8000;
   aiDifficulty = 3; // default D3
 
+  /** Set to true before calling initGame() if the player has a saved hero ship. */
+  hasCustomHero = false;
+
   initGame(mode: GameMode = '1v1') {
     const map = getMapSize(mode);
     this.mapW = map.width;
@@ -106,6 +109,11 @@ export class SpaceEngine {
       this.spawnShip('micro_recon', team, start.x + sign * 220, start.y + 150);
       this.spawnShip('dual_striker', team, start.x + sign * 80, start.y + 120);
       this.spawnShip('warship', team, start.x + sign * 250, start.y + 130);
+      // Spawn custom hero ship at player's home world (one per account)
+      if (team === 1 && this.hasCustomHero) {
+        const hero = this.spawnShip('custom_hero', team, start.x + sign * 60, start.y + 50, station.id);
+        hero.selected = false;
+      }
       // Spawn 2 workers with their home station assigned
       const miner = this.spawnShip('mining_drone', team, start.x + sign * 350, start.y + 60, station.id);
       miner.workerState = 'idle';
@@ -1367,10 +1375,9 @@ export class SpaceEngine {
           if (!ship.workerNodeId) { ship.workerState = 'idle'; break; }
           const node = this.state.resourceNodes.get(ship.workerNodeId);
           if (!node) { ship.workerState = 'idle'; break; }
-          // Gently follow the orbiting node
-          const snapT = Math.min(1, dt * 1.5);
-          ship.x += (node.x - ship.x) * snapT;
-          ship.y += (node.y - ship.y) * snapT;
+          // Worker stays at harvest position — laser beam connects to node
+          // Face towards the node
+          ship.facing = Math.atan2(node.y - ship.y, node.x - ship.x);
           ship.workerHarvestTimer = (ship.workerHarvestTimer ?? 0) + dt;
           if ((ship.workerHarvestTimer ?? 0) >= HARVEST_TIME) {
             ship.workerCargoType = node.kind === 'asteroid' || node.kind === 'moon' ? 'minerals'
