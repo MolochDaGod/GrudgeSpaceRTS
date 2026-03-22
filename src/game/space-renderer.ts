@@ -62,6 +62,8 @@ export class SpaceRenderer {
   private captureRings = new Map<number, THREE.Mesh>();
   private gameMode: GameMode = '1v1';
   private nodeMeshes = new Map<number, THREE.Mesh>();
+  private turretMeshes = new Map<number, THREE.Group>();
+  private planetBuildingMeshes = new Map<number, THREE.Group>();
   /** Mining laser lines: shipId → Line mesh */
   private miningLasers = new Map<number, THREE.Line>();
   /** Cargo progress bars on workers: shipId → { bar, bg } */
@@ -668,13 +670,17 @@ export class SpaceRenderer {
     mesh.renderOrder = 2;
     group.add(mesh);
 
-    // Engine glow dot at rear
-    const glowGeo = new THREE.SphereGeometry(size * 0.25, 6, 6);
-    const glowMat = new THREE.MeshBasicMaterial({ color: 0x88ccff, transparent: true, opacity: 0.7 });
-    const glow = new THREE.Mesh(glowGeo, glowMat);
-    glow.position.z = -size * 0.6; // behind the ship
-    glow.renderOrder = 2;
-    group.add(glow);
+    // Thruster: tiny sprite at rear, only visible when moving
+    const thrusterCol = team === 1 ? 0x4499ff : team === 2 ? 0xff4444 : 0xffaa22;
+    const spriteMat = new THREE.SpriteMaterial({
+      color: thrusterCol, transparent: true, opacity: 0,
+      blending: THREE.AdditiveBlending, depthWrite: false,
+    });
+    const sprite = new THREE.Sprite(spriteMat);
+    sprite.scale.set(size * 0.3, size * 0.3, 1);
+    sprite.position.z = -size * 0.55;
+    sprite.name = 'thruster';
+    group.add(sprite);
 
     return group;
   }
@@ -701,11 +707,10 @@ export class SpaceRenderer {
         meshData = { group };
         this.shipMeshes.set(id, meshData);
 
-        // Add selection ring
-        // Selection ring — size scales with ship tier for visibility
+        // Add selection ring — sized to match the ship class, not tier
         const shipDef = SHIP_DEFINITIONS[ship.shipType];
-        const ringR = shipDef?.stats.tier ?? 1;
-        const ringGeo = new THREE.RingGeometry(ringR * 0.8 + 0.5, ringR * 0.8 + 0.8, 32);
+        const ringR = SpaceRenderer.shipClassSize(ship.shipClass) * 0.45;
+        const ringGeo = new THREE.RingGeometry(ringR, ringR + 0.3, 32);
         const ringMat = new THREE.MeshBasicMaterial({
           color: 0x44ff44, transparent: true, opacity: 0,
           side: THREE.DoubleSide, depthTest: false,
@@ -792,6 +797,18 @@ export class SpaceRenderer {
       // Apply procedural animation
       applyShipAnimation(meshData.group, ship, dt);
 
+      // Thruster sprite: visible and pulsing when ship is moving
+      const thruster = meshData.group.getObjectByName('thruster') as THREE.Sprite | undefined;
+      if (thruster) {
+        const isMoving = ship.animState === 'moving' || ship.animState === 'speed_boost';
+        const mat = thruster.material as THREE.SpriteMaterial;
+        const targetOp = isMoving ? 0.5 + 0.4 * Math.abs(Math.sin(this.twinkleTime * 6 + ship.id * 0.7)) : 0;
+        mat.opacity += (targetOp - mat.opacity) * 0.2;
+        const boost = ship.animState === 'speed_boost' ? 1.6 : 1.0;
+        const sz = SpaceRenderer.shipClassSize(ship.shipClass) * 0.3 * boost;
+        thruster.scale.set(sz, sz, 1);
+      }
+
       // Update health bar — hide at extreme zoom (ships are sub-pixel)
       if (meshData.healthBar) {
         const zoom = this.controls.cameraState.zoom;
@@ -831,24 +848,36 @@ export class SpaceRenderer {
       }
     }
 
+    // Bomb sprite mapping: projectile type → bomb PNG
+    const BOMB_SPRITES: Record<string, string> = {
+      missile:  '/assets/space/ui/bombs/1 Bombs/3.png',
+      torpedo:  '/assets/space/ui/bombs/1 Bombs/7.png',
+      railgun:  '/assets/space/ui/bombs/1 Bombs/1.png',
+      laser:    '/assets/space/ui/bombs/1 Bombs/10.png',
+      pulse:    '/assets/space/ui/bombs/1 Bombs/5.png',
+    };
+
     for (const [id, proj] of state.projectiles) {
       let mesh = this.projectileMeshes.get(id);
       if (!mesh) {
-        const geo = proj.type === 'missile'
-          ? new THREE.ConeGeometry(0.15, 0.6, 4)
-          : new THREE.CylinderGeometry(0.05, 0.05, 0.8, 4);
-        geo.rotateX(Math.PI / 2);
-        const mat = new THREE.MeshBasicMaterial({ color: proj.trailColor });
-        mesh = new THREE.Mesh(geo, mat);
-        this.scene.add(mesh);
-        this.projectileMeshes.set(id, mesh);
+        // Use bomb sprite as billboard instead of geometry
+        const bombPath = BOMB_SPRITES[proj.type] ?? BOMB_SPRITES.laser;
+        const tex = this.textureLoader.load(bombPath);
+        const spriteMat = new THREE.SpriteMaterial({
+          map: tex, color: proj.trailColor,
+          transparent: true, depthWrite: false,
+          blending: THREE.AdditiveBlending,
+        });
+        const sprite = new THREE.Sprite(spriteMat);
+        const sz = proj.type === 'missile' || proj.type === 'torpedo' ? 1.5 : 0.8;
+        sprite.scale.set(sz, sz, 1);
+        sprite.renderOrder = 4;
+        this.scene.add(sprite);
+        // Store as Mesh type for compatibility with the map
+        this.projectileMeshes.set(id, sprite as unknown as THREE.Mesh);
+        mesh = sprite as unknown as THREE.Mesh;
       }
-      mesh.position.set(proj.x * WORLD_SCALE, proj.z * WORLD_SCALE, proj.y * WORLD_SCALE);
-      mesh.lookAt(
-        (proj.x + proj.vx) * WORLD_SCALE,
-        (proj.z + proj.vz) * WORLD_SCALE,
-        (proj.y + proj.vy) * WORLD_SCALE,
-      );
+      mesh.position.set(proj.x * WORLD_SCALE, proj.z * WORLD_SCALE + 5, proj.y * WORLD_SCALE);
     }
   }
 
@@ -941,8 +970,10 @@ export class SpaceRenderer {
     this.syncResourceNodes();
     this.syncMiningVisuals();
 
-    // Sync stations
+    // Sync stations + turrets + planet buildings
     this.syncStations(this.engine.state);
+    this.syncPlanetTurrets(this.engine.state);
+    this.syncPlanetBuildings(this.engine.state);
 
     // Sync capture rings
     this.syncCaptureRings(this.engine.state);
@@ -986,6 +1017,84 @@ export class SpaceRenderer {
       }
       mesh.position.set(station.x * WORLD_SCALE, station.z * WORLD_SCALE + 4, station.y * WORLD_SCALE);
       mesh.rotation.y += 0.003; // slow spin
+    }
+  }
+
+  // ── Planet Turrets (visible orbiting defense) ───────────────
+  private syncPlanetTurrets(state: SpaceGameState) {
+    // Remove dead turrets
+    for (const [id, mesh] of this.turretMeshes) {
+      if (!state.planetTurrets.has(id)) { this.scene.remove(mesh); this.turretMeshes.delete(id); }
+    }
+    for (const [id, turret] of state.planetTurrets) {
+      if (turret.dead) continue;
+      let mesh = this.turretMeshes.get(id);
+      if (!mesh) {
+        mesh = new THREE.Group();
+        // Small box base
+        const base = new THREE.Mesh(
+          new THREE.BoxGeometry(0.6, 0.4, 0.6),
+          new THREE.MeshStandardMaterial({ color: TEAM_COLORS[turret.team] ?? 0x888888, metalness: 0.7, roughness: 0.3 }),
+        );
+        mesh.add(base);
+        // Gun barrel
+        const barrel = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.08, 0.08, 0.8, 4),
+          new THREE.MeshStandardMaterial({ color: 0xcccccc, emissive: 0x444444, emissiveIntensity: 0.3, metalness: 0.8 }),
+        );
+        barrel.rotation.z = Math.PI / 2;
+        barrel.position.set(0.4, 0.1, 0);
+        mesh.add(barrel);
+        this.scene.add(mesh);
+        this.turretMeshes.set(id, mesh);
+      }
+      mesh.position.set(turret.x * WORLD_SCALE, 3.5, turret.y * WORLD_SCALE);
+      // Face target if attacking
+      if (turret.targetId) {
+        const tgt = state.ships.get(turret.targetId);
+        if (tgt) mesh.rotation.y = -Math.atan2(tgt.y - turret.y, tgt.x - turret.x);
+      } else {
+        mesh.rotation.y += 0.01; // idle spin
+      }
+    }
+  }
+
+  // ── Planet Surface Buildings (visual indicator of owned planet) ───
+  private syncPlanetBuildings(state: SpaceGameState) {
+    for (const planet of state.planets) {
+      if (planet.owner === 0 || !planet.stationId) {
+        // Remove buildings for unowned planets
+        const existing = this.planetBuildingMeshes.get(planet.id);
+        if (existing) { this.scene.remove(existing); this.planetBuildingMeshes.delete(planet.id); }
+        continue;
+      }
+      if (this.planetBuildingMeshes.has(planet.id)) continue; // already built
+
+      // Create 4-6 small building dots on the planet surface
+      const group = new THREE.Group();
+      const r = planet.radius * WORLD_SCALE;
+      const col = TEAM_COLORS[planet.owner] ?? 0x4488ff;
+      const count = 4 + Math.floor(Math.random() * 3);
+      for (let i = 0; i < count; i++) {
+        const angle = (i / count) * Math.PI * 2 + Math.random() * 0.5;
+        const dist = r * (0.6 + Math.random() * 0.3);
+        const bldg = new THREE.Mesh(
+          new THREE.BoxGeometry(0.3 + Math.random() * 0.3, 0.2 + Math.random() * 0.4, 0.3 + Math.random() * 0.3),
+          new THREE.MeshStandardMaterial({ color: col, emissive: col, emissiveIntensity: 0.3, metalness: 0.5, roughness: 0.4 }),
+        );
+        bldg.position.set(
+          Math.cos(angle) * dist,
+          0.3,
+          Math.sin(angle) * dist,
+        );
+        bldg.rotation.y = Math.random() * Math.PI;
+        group.add(bldg);
+      }
+      const px = planet.x * WORLD_SCALE;
+      const pz = planet.y * WORLD_SCALE;
+      group.position.set(px, 0, pz);
+      this.scene.add(group);
+      this.planetBuildingMeshes.set(planet.id, group);
     }
   }
 

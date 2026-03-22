@@ -72,11 +72,12 @@ export interface AIConfig {
 export function getAIConfig(difficulty: number): AIConfig {
   const d = Math.max(1, Math.min(5, difficulty));
   const configs: Record<number, AIConfig> = {
-    1: { difficulty:1, buildCycleTime:8,   tacticsCycleTime:12, techCycleTime:999, useVoidPowers:false, useTech:false, useWorkers:false, multiFleet:false, responseDelay:6 },
-    2: { difficulty:2, buildCycleTime:5,   tacticsCycleTime:8,  techCycleTime:30,  useVoidPowers:false, useTech:true,  useWorkers:false, multiFleet:false, responseDelay:4 },
-    3: { difficulty:3, buildCycleTime:3,   tacticsCycleTime:5,  techCycleTime:20,  useVoidPowers:false, useTech:true,  useWorkers:true,  multiFleet:false, responseDelay:2 },
-    4: { difficulty:4, buildCycleTime:2,   tacticsCycleTime:3,  techCycleTime:15,  useVoidPowers:true,  useTech:true,  useWorkers:true,  multiFleet:true,  responseDelay:1 },
-    5: { difficulty:5, buildCycleTime:1.5, tacticsCycleTime:2,  techCycleTime:10,  useVoidPowers:true,  useTech:true,  useWorkers:true,  multiFleet:true,  responseDelay:0.5 },
+    // Build cycle slowed so AI doesn't massively outproduce player early game
+    1: { difficulty:1, buildCycleTime:14,  tacticsCycleTime:15, techCycleTime:999, useVoidPowers:false, useTech:false, useWorkers:false, multiFleet:false, responseDelay:8 },
+    2: { difficulty:2, buildCycleTime:10,  tacticsCycleTime:10, techCycleTime:40,  useVoidPowers:false, useTech:true,  useWorkers:false, multiFleet:false, responseDelay:5 },
+    3: { difficulty:3, buildCycleTime:7,   tacticsCycleTime:7,  techCycleTime:25,  useVoidPowers:false, useTech:true,  useWorkers:true,  multiFleet:false, responseDelay:3 },
+    4: { difficulty:4, buildCycleTime:5,   tacticsCycleTime:5,  techCycleTime:18,  useVoidPowers:true,  useTech:true,  useWorkers:true,  multiFleet:true,  responseDelay:2 },
+    5: { difficulty:5, buildCycleTime:3.5, tacticsCycleTime:3,  techCycleTime:12,  useVoidPowers:true,  useTech:true,  useWorkers:true,  multiFleet:true,  responseDelay:1 },
   };
   return configs[d];
 }

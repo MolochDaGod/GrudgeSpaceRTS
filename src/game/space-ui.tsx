@@ -40,6 +40,7 @@ const SHIP_PREVIEW: Record<string, string> = {
   boss_ship_02:         '/assets/space/models/capital/Battleships/Battleship.png',
 };
 import { ALL_TECH_TREES, VOID_POWERS, PLANET_TYPE_TO_TECH, TURRET_DEFS } from './space-techtree';
+import { FlagshipInterior } from './flagship-interior';
 
 // ── Segment Bar: Sci-fi blockified health bar ──────────────────
 function SegmentBar({
@@ -64,18 +65,18 @@ function SegmentBar({
 }
 
 // ── Ability SVG Icons ─────────────────────────────────────────────
-  // Ability icon images from the HUD pack + scifi-gui skills
+  // Ability icon images from skill-icons packs (high quality painted art)
 const ABILITY_IMG: Record<string, string> = {
-  barrel_roll:    '/assets/space/ui/scifi-gui/skills/1.png',
-  speed_boost:    '/assets/space/ui/scifi-gui/skills/2.png',
-  cloak:          '/assets/space/ui/scifi-gui/skills/3.png',
-  iron_dome:      '/assets/space/ui/scifi-gui/skills/4.png',
-  warp:           '/assets/space/ui/scifi-gui/skills/5.png',
-  emp:            '/assets/space/ui/scifi-gui/skills/6.png',
-  boarding:       '/assets/space/ui/scifi-gui/skills/7.png',
-  repair:         '/assets/space/ui/scifi-gui/skills/8.png',
-  ram:            '/assets/space/ui/scifi-gui/skills/9.png',
-  launch_fighters:'/assets/space/ui/scifi-gui/skills/10.png',
+  barrel_roll:    '/assets/space/ui/skill-icons-1/PNG/3.png',   // evasion/dodge
+  speed_boost:    '/assets/space/ui/skill-icons-1/PNG/7.png',   // speed/boost
+  cloak:          '/assets/space/ui/skill-icons-2/PNG/5.png',   // stealth/shadow
+  iron_dome:      '/assets/space/ui/skill-icons-1/PNG/9.png',   // shield/defense
+  warp:           '/assets/space/ui/skill-icons-2/PNG/3.png',   // teleport/warp
+  emp:            '/assets/space/ui/skill-icons-1/PNG/5.png',   // lightning/emp
+  boarding:       '/assets/space/ui/skill-icons-2/PNG/1.png',   // assault/boarding
+  repair:         '/assets/space/ui/skill-icons-1/PNG/11.png',  // repair/heal
+  ram:            '/assets/space/ui/skill-icons-1/PNG/13.png',  // charge/ram
+  launch_fighters:'/assets/space/ui/skill-icons-1/PNG/15.png',  // swarm/launch
 };
 
   const ABILITY_ICONS: Record<string, React.ReactNode> = {
@@ -185,13 +186,13 @@ const CLASS_ICONS: Record<string, React.ReactNode> = {
   carrier: <Svg size={20}><rect x="4" y="6" width="16" height="12" rx="2" stroke="#8af" strokeWidth="1.5" fill="none"/><line x1="4" y1="12" x2="20" y2="12" stroke="#8af" strokeWidth="1"/><polygon points="8,3 10,6 6,6" fill="#6af"/><polygon points="16,3 18,6 14,6" fill="#6af"/></Svg>,
 };
 
-// ── Attack Type Icons (PNG weapon icons from icons pack) ─────────
+// ── Attack Type Icons (space-icons pack — ships & weapons) ──────
 const ATTACK_IMG: Record<string, string> = {
-  laser:   '/assets/space/ui/icons/1.png',
-  missile: '/assets/space/ui/icons/2.png',
-  railgun: '/assets/space/ui/icons/3.png',
-  pulse:   '/assets/space/ui/icons/4.png',
-  torpedo: '/assets/space/ui/icons/5.png',
+  laser:   '/assets/space/ui/space-icons/PNG/1.png',   // ship/laser
+  missile: '/assets/space/ui/space-icons/PNG/3.png',   // missile
+  railgun: '/assets/space/ui/space-icons/PNG/7.png',   // heavy weapon
+  pulse:   '/assets/space/ui/space-icons/PNG/9.png',   // energy pulse
+  torpedo: '/assets/space/ui/space-icons/PNG/5.png',   // torpedo/rocket
 };
 const ATTACK_ICONS: Record<string, React.ReactNode> = {
   laser:   <img src={ATTACK_IMG.laser}   alt='laser'   style={{width:16,height:16,imageRendering:'auto'}} />,
@@ -207,10 +208,11 @@ const ResIcon = ({ src, fallback }: { src: string; fallback: React.ReactNode }) 
     onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
 );
 
+// Use cyberpunk mining icons for resources (high quality painted art)
 const RES_ICONS = {
-  credits:  <ResIcon src="/assets/space/ui/resource-icons/Icon39_01.png" fallback={<Svg size={14} color="#fc4"><circle cx="12" cy="12" r="9" stroke="#fc4" strokeWidth="1.5" fill="none"/></Svg>} />,
-  energy:   <ResIcon src="/assets/space/ui/resource-icons/Icon39_02.png" fallback={<Svg size={14} color="#4df"><path d="M13 2L6 14H12L11 22L18 10H12Z" stroke="#4df" strokeWidth="1.5" fill="#4df" fillOpacity=".2"/></Svg>} />,
-  minerals: <ResIcon src="/assets/space/ui/resource-icons/Icon39_03.png" fallback={<Svg size={14} color="#4f8"><path d="M12 3L20 9L16 21H8L4 9Z" stroke="#4f8" strokeWidth="1.5" fill="#4f8" fillOpacity=".15"/></Svg>} />,
+  credits:  <ResIcon src="/assets/space/ui/mining-icons/PNG/without background/15.png" fallback={<Svg size={14} color="#fc4"><circle cx="12" cy="12" r="9" stroke="#fc4" strokeWidth="1.5" fill="none"/></Svg>} />,
+  energy:   <ResIcon src="/assets/space/ui/mining-icons/PNG/without background/10.png" fallback={<Svg size={14} color="#4df"><path d="M13 2L6 14H12L11 22L18 10H12Z" stroke="#4df" strokeWidth="1.5" fill="#4df" fillOpacity=".2"/></Svg>} />,
+  minerals: <ResIcon src="/assets/space/ui/mining-icons/PNG/without background/20.png" fallback={<Svg size={14} color="#4f8"><path d="M12 3L20 9L16 21H8L4 9Z" stroke="#4f8" strokeWidth="1.5" fill="#4f8" fillOpacity=".15"/></Svg>} />,
 };
 
 // ── Stat line SVG Icons ───────────────────────────────────────────
@@ -232,6 +234,7 @@ export function SpaceHUD({ renderer, onQuit }: SpaceHUDProps) {
   const animRef = useRef(0);
   const [techOpen, setTechOpen]         = useState(false);
   const [cmdOpen, setCmdOpen]           = useState(false);
+  const [interiorOpen, setInteriorOpen] = useState(false);
   const [selectedPlanetId, setSelectedPlanetId] = useState<number | null>(null);
   const [selectedCmdId, setSelectedCmdId] = useState<number | null>(null);
 
@@ -316,6 +319,57 @@ export function SpaceHUD({ renderer, onQuit }: SpaceHUDProps) {
         </div>
       )}
 
+      {/* ── Game Alerts with cyber avatar popups ─────────── */}
+      {state.alerts.length > 0 && (
+        <div style={{ position: 'absolute', top: 48, right: 12, zIndex: 30, pointerEvents: 'auto',
+          display: 'flex', flexDirection: 'column', gap: 6, maxHeight: '40vh', overflowY: 'auto' }}>
+          {state.alerts.slice(-4).map(alert => {
+            const avatarIdx = alert.type === 'under_attack' ? 3 : alert.type === 'conquest' ? 1 : alert.type === 'build_complete' ? 10 : 7;
+            const borderCol = alert.type === 'under_attack' ? '#ff4444' : alert.type === 'conquest' ? '#44ff44' : '#4488ff';
+            return (
+              <div key={alert.id} style={{
+                display: 'flex', gap: 8, alignItems: 'center', padding: '6px 10px',
+                background: 'rgba(4,10,22,0.92)', border: `1px solid ${borderCol}44`,
+                borderRadius: 8, maxWidth: 280, boxShadow: `0 0 12px ${borderCol}22`,
+              }}>
+                <img src={`/assets/space/ui/avatars-cyber/PNG/without background/${avatarIdx}.png`}
+                  alt='' style={{ width: 36, height: 36, borderRadius: '50%', objectFit: 'cover', flexShrink: 0,
+                    border: `2px solid ${borderCol}66` }}
+                  onError={e => { (e.target as HTMLImageElement).style.display='none'; }} />
+                <div>
+                  <div style={{ fontSize: 9, fontWeight: 700, color: borderCol, letterSpacing: 0.5 }}>
+                    {alert.type === 'under_attack' ? 'UNDER ATTACK' : alert.type === 'conquest' ? 'CONQUEST' : alert.type === 'build_complete' ? 'BUILD COMPLETE' : 'ALERT'}
+                  </div>
+                  <div style={{ fontSize: 10, color: '#cde' }}>{alert.message}</div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* ── Info Bot (first 30 seconds of game) ──────────── */}
+      {state.gameTime < 30 && !state.gameOver && (
+        <div style={{ position: 'absolute', bottom: 210, left: 12, zIndex: 25, pointerEvents: 'auto',
+          display: 'flex', gap: 10, alignItems: 'flex-end', maxWidth: 320 }}>
+          <img src='/assets/space/ui/avatars-cyber/PNG/background/10.png' alt='Info Bot'
+            style={{ width: 56, height: 56, borderRadius: 8, border: '2px solid #4488ff44', flexShrink: 0 }}
+            onError={e => { (e.target as HTMLImageElement).style.display='none'; }} />
+          <div style={{ background: 'rgba(4,14,28,0.95)', border: '1px solid #4488ff44', borderRadius: '10px 10px 10px 2px',
+            padding: '8px 12px', fontSize: 10, color: '#8ac', lineHeight: 1.6 }}>
+            {state.gameTime < 10
+              ? <><strong style={{color:'#4df'}}>Welcome, Commander!</strong> Click your <strong style={{color:'#28b4a0'}}>Pyramid Ship</strong> and select <strong style={{color:'#fc4'}}>ENTER SHIP</strong> to access all systems.
+                  Your workers are already mining. Build more ships at the station!</>
+              : state.gameTime < 20
+              ? <>Use <strong style={{color:'#fa0'}}>WASD</strong> to pan, <strong style={{color:'#fa0'}}>Q/E</strong> to orbit camera. Press <strong style={{color:'#fa0'}}>G</strong> for attack-move.
+                  Click the station to build ships. Press <strong style={{color:'#fa0'}}>H</strong> to defend position.</>
+              : <>Capture neutral planets by sending ships nearby.
+                  Research tech from the <strong style={{color:'#ff8844'}}>Armory</strong> inside your flagship.
+                  Train commanders for hero ships!</>}
+          </div>
+        </div>
+      )}
+
       {/* ── Top Resource Bar (using HUD bar art) ──────────── */}
       <div style={{
         position: 'absolute', top: 0, left: 0, right: 0, height: 40,
@@ -388,12 +442,59 @@ export function SpaceHUD({ renderer, onQuit }: SpaceHUDProps) {
         />
       )}
 
-      {/* ── Bottom Panel (using HUD art background) ──────── */}
+      {/* ── Flagship Interior Overlay ───────────────── */}
+      {interiorOpen && (() => {
+        // Find player's flagship and its commander
+        let flagshipName = 'Pyramid Ship';
+        let cmdPortrait: string | undefined;
+        let cmdName: string | undefined;
+        for (const [, ship] of state.ships) {
+          if (!ship.dead && ship.team === 1 && (ship.shipType === 'pyramid_ship' || ship.shipType === 'custom_hero')) {
+            const def = getShipDef(ship.shipType);
+            if (def) flagshipName = def.displayName;
+            // Find commander on this ship
+            for (const [, cmd] of state.commanders) {
+              if (cmd.equippedShipId === ship.id) { cmdPortrait = cmd.portrait; cmdName = cmd.name; }
+            }
+            break;
+          }
+        }
+        // Find player's home station for build access
+        const homeStation = [...state.stations.values()].find(s => !s.dead && s.team === 1 && s.canBuildHeroes);
+        return (
+          <FlagshipInterior
+            onClose={() => setInteriorOpen(false)}
+            onOpenTech={() => { setInteriorOpen(false); setTechOpen(true); }}
+            onOpenCommander={() => { setInteriorOpen(false); setCmdOpen(true); }}
+            onOpenBuild={() => {
+              setInteriorOpen(false);
+              // Select the home station so build panel opens
+              if (homeStation) {
+                for (const [, st] of state.stations) st.selected = false;
+                homeStation.selected = true;
+              }
+            }}
+            onOpenUpgrades={() => {
+              setInteriorOpen(false);
+              // Deselect everything so upgrade panel shows
+              for (const id of state.selectedIds) { const s = state.ships.get(id); if (s) s.selected = false; }
+              state.selectedIds.clear();
+              for (const [, st] of state.stations) st.selected = false;
+            }}
+            onOpenStarMap={() => { setInteriorOpen(false); /* M key handled externally */ }}
+            shipName={flagshipName}
+            commanderPortrait={cmdPortrait}
+            commanderName={cmdName}
+          />
+        );
+      })()}
+
+      {/* ── Bottom Panel (sci-fi GUI frame) ────────────── */}
       <div style={{
         position: 'absolute', bottom: 0, left: 0, right: 0, height: 196,
-        backgroundImage: 'url(/assets/space/ui/hud/DarkBackground.png)',
-        backgroundSize: 'cover',
-        borderTop: '2px solid #1a3050',
+        background: 'rgba(4,8,16,0.95)',
+        borderTop: '2px solid rgba(40,180,160,0.4)',
+        borderImage: 'url(/assets/space/ui/scifi-gui/elements/3.png) 20 stretch',
         display: 'flex', pointerEvents: 'auto', zIndex: 10,
       }}>
         {/* ── Minimap Area (left) with click interactions ─────── */}
@@ -415,8 +516,11 @@ export function SpaceHUD({ renderer, onQuit }: SpaceHUDProps) {
           </div>
         </div>
 
-        {/* ── Unit Info Panel (center-left) ───────────────── */}
-        <div style={{ width: 280, height: '100%', padding: '8px 10px', borderRight: '1px solid #1a3050',
+        {/* ── Unit Info Panel (center-left) ─────────────── */}
+        <div style={{ width: 280, height: '100%', padding: '8px 10px',
+          borderRight: '1px solid rgba(40,180,160,0.25)',
+          backgroundImage: 'url(/assets/space/ui/hud/BgSettingSmallBox.png)',
+          backgroundSize: 'cover', backgroundPosition: 'center',
           display: 'flex', flexDirection: 'column' }}>
           {selectedShips.length === 0 ? (
             <div style={{ opacity: 0.25, fontSize: 11, marginTop: 50, textAlign: 'center',
@@ -444,12 +548,28 @@ export function SpaceHUD({ renderer, onQuit }: SpaceHUDProps) {
         </div>
 
         {/* ── Command Card / Build Panel (center-right) ──── */}
-        <div style={{ flex: 1, height: '100%', padding: '8px 12px', overflowY: 'auto' }}>
+        <div style={{ flex: 1, height: '100%', padding: '8px 12px', overflowY: 'auto',
+          backgroundImage: 'url(/assets/space/ui/hud/BgSettingSmallBox.png)',
+          backgroundSize: 'cover', backgroundPosition: 'center' }}>
           {selectedStation ? (
             <BuildPanel station={selectedStation} renderer={renderer} res={res} />
           ) : primary ? (
-            // Always show CommandCard for ships (action buttons + abilities if any)
-            <CommandCard ship={primary} renderer={renderer} allSelected={selectedShips} />
+            <>
+              {/* Enter Ship button for flagship */}
+              {(primary.shipType === 'pyramid_ship' || primary.shipType === 'custom_hero') && (
+                <div onClick={() => setInteriorOpen(true)} style={{
+                  position: 'relative', cursor: 'pointer', marginBottom: 6, display: 'inline-block',
+                }}>
+                  <img src='/assets/space/ui/hud/Hover_Btn.png' alt=''
+                    style={{ width: 160, height: 36, display: 'block' }} />
+                  <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center',
+                    justifyContent: 'center', fontSize: 12, fontWeight: 700, color: '#28b4a0', letterSpacing: 2 }}>
+                    ENTER SHIP
+                  </span>
+                </div>
+              )}
+              <CommandCard ship={primary} renderer={renderer} allSelected={selectedShips} />
+            </>
           ) : upg ? (
             <UpgradePanel upg={upg} res={res} renderer={renderer} />
           ) : null}
@@ -664,21 +784,21 @@ function CommandCard({ ship, renderer, allSelected }: { ship: SpaceShip; rendere
     active?: boolean; action: () => void;
   }> = [
     {
-      label: 'Attack', key: 'A', color: '#ff5533', icon: '/assets/space/ui/icons/6.png',
+      label: 'Attack', key: 'G', color: '#ff5533', icon: '/assets/space/ui/space-icons/PNG/2.png',
       active: renderer.controls.commandMode === 'attack_move',
       action: () => { renderer.controls.commandMode = renderer.controls.commandMode === 'attack_move' ? 'normal' : 'attack_move'; },
     },
     {
-      label: 'Move', key: 'RMB', color: '#4488ff', icon: '/assets/space/ui/icons/7.png',
+      label: 'Move', key: 'RMB', color: '#4488ff', icon: '/assets/space/ui/space-icons/PNG/4.png',
       active: renderer.controls.commandMode === 'normal',
       action: () => { renderer.controls.commandMode = 'normal'; },
     },
     {
-      label: 'Patrol', key: 'P', color: '#44cc88', icon: '/assets/space/ui/icons/8.png',
+      label: 'Patrol', key: 'P', color: '#44cc88', icon: '/assets/space/ui/space-icons/PNG/6.png',
       active: renderer.controls.commandMode === 'patrol',
       action: () => { renderer.controls.commandMode = renderer.controls.commandMode === 'patrol' ? 'normal' : 'patrol'; },
     },
-    { label: 'Defend', key: 'H', color: '#aa88ff', icon: '/assets/space/ui/icons/9.png', active: false, action: hold },
+    { label: 'Defend', key: 'H', color: '#aa88ff', icon: '/assets/space/ui/space-icons/PNG/8.png', active: false, action: hold },
   ];
 
   return (
@@ -1108,12 +1228,12 @@ function BuildPanel({ station, renderer, res }: { station: SpaceStation; rendere
 
 // ── Upgrade Panel (when nothing selected) ───────────────────────
 function UpgradePanel({ upg, res, renderer }: { upg: TeamUpgrades; res: PlayerResources; renderer: SpaceRenderer }) {
-  const types: { key: keyof TeamUpgrades; label: string; color: string }[] = [
-    { key: 'attack', label: 'Attack', color: '#f44' },
-    { key: 'armor', label: 'Armor', color: '#8ac' },
-    { key: 'speed', label: 'Speed', color: '#fa0' },
-    { key: 'health', label: 'Health', color: '#4f4' },
-    { key: 'shield', label: 'Shield', color: '#4df' },
+  const types: { key: keyof TeamUpgrades; label: string; color: string; icon: string }[] = [
+    { key: 'attack', label: 'Attack', color: '#f44', icon: '/assets/space/ui/item-icons/PNG/7.png' },
+    { key: 'armor', label: 'Armor', color: '#8ac', icon: '/assets/space/ui/item-icons/PNG/1.png' },
+    { key: 'speed', label: 'Speed', color: '#fa0', icon: '/assets/space/ui/item-icons/PNG/3.png' },
+    { key: 'health', label: 'Health', color: '#4f4', icon: '/assets/space/ui/item-icons/PNG/5.png' },
+    { key: 'shield', label: 'Shield', color: '#4df', icon: '/assets/space/ui/item-icons/PNG/9.png' },
   ];
   return (
     <div>
@@ -1126,15 +1246,21 @@ function UpgradePanel({ upg, res, renderer }: { upg: TeamUpgrades; res: PlayerRe
           const canAfford = cost ? res.credits >= cost.credits && res.minerals >= cost.minerals && res.energy >= cost.energy : false;
           return (
             <div key={t.key} onClick={() => canAfford && renderer.engine.purchaseUpgrade(1 as any, t.key)} style={{
-              width: 80, padding: 6, border: '1px solid #1a3050', borderRadius: 4,
-              background: maxed ? 'rgba(68,255,68,0.1)' : canAfford ? 'rgba(16,24,40,0.8)' : 'rgba(16,24,40,0.3)',
-              opacity: maxed ? 0.6 : canAfford ? 1 : 0.5, cursor: canAfford ? 'pointer' : 'default',
-              textAlign: 'center',
+              position: 'relative', width: 80, height: 90, cursor: canAfford ? 'pointer' : 'default',
+              opacity: maxed ? 0.7 : canAfford ? 1 : 0.4,
+              display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
             }}>
-              <div style={{ fontSize: 10, fontWeight: 700, color: t.color }}>{t.label}</div>
-              <div style={{ fontSize: 12, fontWeight: 800, color: '#fff', margin: '2px 0' }}>Lv {level}/5</div>
-              {!maxed && cost && <div style={{ fontSize: 8, opacity: 0.7 }}>{cost.credits}c {cost.minerals}m {cost.energy}e</div>}
-              {maxed && <div style={{ fontSize: 8, color: '#4f4' }}>MAX</div>}
+              <img src='/assets/space/ui/hud/Box_Item.png' alt=''
+                style={{ position:'absolute', inset:0, width:'100%', height:'100%', objectFit:'fill' }} />
+              <img src={t.icon} alt={t.label}
+                style={{ width:32, height:32, objectFit:'contain', position:'relative', zIndex:1, imageRendering:'auto' }}
+                onError={e => { (e.target as HTMLImageElement).style.display='none'; }} />
+              <div style={{ position:'relative', zIndex:1, textAlign:'center', marginTop: 2 }}>
+                <div style={{ fontSize: 9, fontWeight: 700, color: t.color }}>{t.label}</div>
+                <div style={{ fontSize: 11, fontWeight: 800, color: '#fff' }}>Lv {level}/5</div>
+                {!maxed && cost && <div style={{ fontSize: 7, opacity: 0.7, color: '#cde' }}>{cost.credits}c {cost.minerals}m</div>}
+                {maxed && <div style={{ fontSize: 8, color: '#4f4' }}>MAX</div>}
+              </div>
             </div>
           );
         })}

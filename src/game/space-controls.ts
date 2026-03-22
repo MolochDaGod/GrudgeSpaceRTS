@@ -145,8 +145,8 @@ export class SpaceControls {
         break;
       // Q/E are handled continuously in update() for camera rotation
       case 'q': case 'e': break;
-      // ─ Command shortcuts ────────────────────────────────────
-      case 'a': this.commandMode = 'attack_move'; break;
+      // ─ Command shortcuts (G = attack-move, A = always pan) ────────
+      case 'g': this.commandMode = 'attack_move'; break;
       // S always pans camera (no stop command). H = hold/defend in place.
       case 'h': if (hasSelection) this.issueHoldCommand(); break;
       case 'p': this.commandMode = 'patrol'; break;
@@ -189,7 +189,7 @@ export class SpaceControls {
     let fwd = 0, right = 0; // forward/right in camera-relative space
     if (this.keys.has('w') || this.keys.has('arrowup'))                           fwd -= panSpeed * dt;
     if (this.keys.has('arrowdown') || this.keys.has('s'))                         fwd += panSpeed * dt;
-    if (this.keys.has('arrowleft') || (this.keys.has('a') && !sel))               right -= panSpeed * dt;
+    if (this.keys.has('arrowleft') || this.keys.has('a'))                          right -= panSpeed * dt;
     if (this.keys.has('d') || this.keys.has('arrowright'))                        right += panSpeed * dt;
     // Rotate pan direction by camera yaw so W always pushes "into" the screen
     const yawRad = this.cameraState.rotation * (Math.PI / 180);
@@ -219,15 +219,38 @@ export class SpaceControls {
     if (!e.shiftKey) this.clearSelection();
 
     if (w < 5 && h < 5) {
-      // Click select: ship first, then planet
+      // Click select: ship first, then station, then planet
       const ship = this.findShipAtScreen(e.clientX, e.clientY);
       if (ship && ship.team === 1) {
         ship.selected = true;
         this.state.selectedIds.add(ship.id);
-      } else if (this.onPlanetClick) {
-        // No ship hit — check if the renderer found a hovered planet
-        // (renderer updates hoveredPlanetId each frame from its own raycaster)
-        this.onPlanetClick(-1); // signal: open hovered planet if any
+        // Deselect any station
+        for (const [, st] of this.state.stations) st.selected = false;
+      } else {
+        // Check if clicking near a friendly station
+        const worldPos = this.screenToWorld(e.clientX, e.clientY);
+        let clickedStation = false;
+        if (worldPos) {
+          const wx = worldPos.x / WORLD_SCALE, wy = worldPos.z / WORLD_SCALE;
+          for (const [, st] of this.state.stations) {
+            if (st.dead || st.team !== 1) continue;
+            const d = Math.sqrt((st.x - wx) ** 2 + (st.y - wy) ** 2);
+            if (d < 80) { // station click radius
+              // Deselect all ships, select this station
+              for (const sid of this.state.selectedIds) {
+                const s = this.state.ships.get(sid); if (s) s.selected = false;
+              }
+              this.state.selectedIds.clear();
+              for (const [, ost] of this.state.stations) ost.selected = false;
+              st.selected = true;
+              clickedStation = true;
+              break;
+            }
+          }
+        }
+        if (!clickedStation && this.onPlanetClick) {
+          this.onPlanetClick(-1);
+        }
       }
     } else {
       // Box select
