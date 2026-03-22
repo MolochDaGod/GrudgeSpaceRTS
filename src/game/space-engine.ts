@@ -44,8 +44,8 @@ export class SpaceEngine {
   private resourceTimer = 0;
   private winCheckTimer = 0;
   private aiBrains = new Map<number, AIBrain>();
-  mapW = 8000;
-  mapH = 8000;
+  mapW = 16000;
+  mapH = 16000;
   aiDifficulty = 3; // default D3
 
   /** Set to true before calling initGame() if the player has a saved hero ship. */
@@ -102,23 +102,23 @@ export class SpaceEngine {
       if (!start) continue;
       const station = this.buildStation(start, team);
       const sign = team % 2 === 1 ? -1 : 1;
-      this.spawnShip('red_fighter', team, start.x + sign * 120, start.y + 80);
-      this.spawnShip('red_fighter', team, start.x + sign * 120, start.y + 140);
-      this.spawnShip('red_fighter', team, start.x + sign * 120, start.y + 200);
-      this.spawnShip('galactix_racer', team, start.x + sign * 180, start.y + 110);
-      this.spawnShip('micro_recon', team, start.x + sign * 220, start.y + 150);
-      this.spawnShip('dual_striker', team, start.x + sign * 80, start.y + 120);
-      this.spawnShip('warship', team, start.x + sign * 250, start.y + 130);
-      // Spawn custom hero ship at player's home world (one per account)
-      if (team === 1 && this.hasCustomHero) {
-        const hero = this.spawnShip('custom_hero', team, start.x + sign * 60, start.y + 50, station.id);
+
+      // Start: harvesters + your flagship. No free combat fleet.
+      // Flagship: custom_hero if player made one, otherwise pyramid_ship
+      if (team === 1) {
+        const heroType = this.hasCustomHero ? 'custom_hero' : 'pyramid_ship';
+        const hero = this.spawnShip(heroType, team, start.x + sign * 60, start.y + 50, station.id);
         hero.selected = false;
+      } else {
+        // AI gets a pyramid_ship flagship too
+        this.spawnShip('pyramid_ship', team, start.x + sign * 60, start.y + 50, station.id);
       }
-      // Spawn 2 workers with their home station assigned
-      const miner = this.spawnShip('mining_drone', team, start.x + sign * 350, start.y + 60, station.id);
-      miner.workerState = 'idle';
-      const skimmer = this.spawnShip('energy_skimmer', team, start.x + sign * 370, start.y + 100, station.id);
-      skimmer.workerState = 'idle';
+      // 3 workers with their home station assigned
+      for (let wi = 0; wi < 3; wi++) {
+        const wType = wi < 2 ? 'mining_drone' : 'energy_skimmer';
+        const w = this.spawnShip(wType, team, start.x + sign * (200 + wi * 60), start.y + 60 + wi * 40, station.id);
+        w.workerState = 'idle';
+      }
     }
     // Generate resource nodes after all planets and states are initialized
     this.generateResourceNodes();
@@ -377,11 +377,13 @@ export class SpaceEngine {
         if (d > 15) {
           const ta = Math.atan2(dy, dx);
           ship.facing = lerpAngle(ship.facing, ta, ship.turnRate * dt);
-          ship.x += Math.cos(ship.facing) * ship.speed * dt;
-          ship.y += Math.sin(ship.facing) * ship.speed * dt;
+          const spd = ship.speed * dt;
+          ship.vx = Math.cos(ship.facing) * spd;
+          ship.vy = Math.sin(ship.facing) * spd;
+          ship.x += ship.vx; ship.y += ship.vy;
           ship.animState = 'moving';
           ship.roll = angleDelta(ship.facing, ta) * 2;
-        } else { ship.moveTarget = null; ship.animState = 'idle'; }
+        } else { ship.moveTarget = null; ship.vx = 0; ship.vy = 0; ship.animState = 'idle'; }
       } else if (!ship.targetId && ship.orbitTarget === null) {
         ship.animState = 'idle';
       }
@@ -402,8 +404,10 @@ export class SpaceEngine {
             if (!ship.holdPosition && ship.orbitTarget === null) {
               const a = Math.atan2(t.y - ship.y, t.x - ship.x);
               ship.facing = lerpAngle(ship.facing, a, ship.turnRate * dt);
-              ship.x += Math.cos(ship.facing) * ship.speed * dt;
-              ship.y += Math.sin(ship.facing) * ship.speed * dt;
+              const spd = ship.speed * dt;
+              ship.vx = Math.cos(ship.facing) * spd;
+              ship.vy = Math.sin(ship.facing) * spd;
+              ship.x += ship.vx; ship.y += ship.vy;
               ship.animState = 'moving';
             }
           } else if (ship.attackTimer <= 0) {
