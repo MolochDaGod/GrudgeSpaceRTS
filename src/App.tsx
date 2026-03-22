@@ -12,7 +12,7 @@ import {
   COMMANDER_SPEC_PLANET,
 } from './game/space-types';
 
-type Screen = 'menu' | 'codex' | 'howto' | 'editor' | 'playing';
+type Screen = 'intro' | 'menu' | 'codex' | 'howto' | 'editor' | 'playing';
 
 // ── Space Background: stars + nebulae + comets ────────────────────
 const StarfieldCanvas = memo(function StarfieldCanvas() {
@@ -158,7 +158,7 @@ const StarfieldCanvas = memo(function StarfieldCanvas() {
 export default function App() {
   const containerRef = useRef<HTMLDivElement>(null);
   const rendererRef = useRef<SpaceRenderer | null>(null);
-  const [screen, setScreen] = useState<Screen>('menu');
+  const [screen, setScreen] = useState<Screen>('intro');
   const [loading, setLoading] = useState(false);
   const [renderer, setRenderer] = useState<SpaceRenderer | null>(null);
   const [gameMode, setGameMode] = useState<GameMode>('1v1');
@@ -200,6 +200,7 @@ export default function App() {
   return (
     <div style={{ width: '100vw', height: '100vh', overflow: 'hidden', background: '#000', position: 'relative', fontFamily: "'Segoe UI', monospace" }}>
       <div ref={containerRef} style={{ width: '100%', height: '100%', display: screen === 'playing' ? 'block' : 'none' }} />
+      {screen === 'intro' && <IntroScreen onFinish={() => setScreen('menu')} />}
       {screen === 'menu'  && <MainMenu onStart={() => setShowCmdModal(true)} onCodex={() => setScreen('codex')} onHowTo={() => setScreen('howto')} onEditor={() => setScreen('editor')} mode={gameMode} setMode={setGameMode} />}
       {showCmdModal && <CommanderSelectModal spec={selectedSpec} setSpec={setSelectedSpec} onConfirm={() => launchWithSpec(gameMode, selectedSpec)} onCancel={() => setShowCmdModal(false)} />}
       {screen === 'codex' && <ShipCodex onBack={() => setScreen('menu')} />}
@@ -926,11 +927,132 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-// ── Loading Screen ────────────────────────────────────────────────
+// ── Intro Video Screen ────────────────────────────────────────────
+function IntroScreen({ onFinish }: { onFinish: () => void }) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [fadeOut, setFadeOut] = useState(false);
+  const [canSkip, setCanSkip] = useState(false);
+
+  useEffect(() => {
+    // Allow skip after a short delay so users see at least a moment
+    const skipTimer = setTimeout(() => setCanSkip(true), 1500);
+    return () => clearTimeout(skipTimer);
+  }, []);
+
+  const handleSkip = useCallback(() => {
+    if (!canSkip) return;
+    setFadeOut(true);
+    setTimeout(onFinish, 600);
+  }, [canSkip, onFinish]);
+
+  // Click or key to skip
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' || e.key === 'Enter' || e.key === ' ') handleSkip();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [handleSkip]);
+
+  // Auto-advance when video ends
+  const handleVideoEnd = useCallback(() => {
+    setFadeOut(true);
+    setTimeout(onFinish, 600);
+  }, [onFinish]);
+
+  return (
+    <div
+      onClick={handleSkip}
+      style={{
+        position: 'absolute', inset: 0, zIndex: 150,
+        background: '#000', cursor: canSkip ? 'pointer' : 'default',
+        opacity: fadeOut ? 0 : 1,
+        transition: 'opacity 0.6s ease-out',
+      }}
+    >
+      {/* Background video — fills screen, no controls */}
+      <video
+        ref={videoRef}
+        src='/assets/space/videos/intro.mp4'
+        autoPlay muted playsInline
+        onEnded={handleVideoEnd}
+        style={{
+          position: 'absolute', inset: 0,
+          width: '100%', height: '100%',
+          objectFit: 'cover',
+        }}
+      />
+
+      {/* Dark vignette overlay for logo readability */}
+      <div style={{
+        position: 'absolute', inset: 0,
+        background: 'radial-gradient(ellipse at center, rgba(0,0,0,0.15) 0%, rgba(0,0,0,0.6) 100%)',
+        pointerEvents: 'none',
+      }} />
+
+      {/* Centered logo — same position as main menu */}
+      <div style={{
+        position: 'absolute', inset: 0,
+        display: 'flex', flexDirection: 'column',
+        alignItems: 'center', justifyContent: 'center',
+        pointerEvents: 'none',
+      }}>
+        <img
+          src='/assets/space/ui/logo.webp'
+          alt='GRUDA ARMADA'
+          style={{
+            width: 420, maxWidth: '88vw', display: 'block',
+            mixBlendMode: 'screen' as any,
+            filter: 'drop-shadow(0 0 50px rgba(68,136,255,0.6)) drop-shadow(0 0 24px rgba(200,30,30,0.35))',
+            animation: 'logoFadeIn 2s ease-out forwards',
+          }}
+          onError={e => {
+            const t = e.target as HTMLImageElement;
+            if (!t.src.endsWith('.svg')) t.src = '/assets/space/ui/logo.svg';
+            else t.style.display = 'none';
+          }}
+        />
+      </div>
+
+      {/* Skip hint */}
+      <div style={{
+        position: 'absolute', bottom: 32, left: 0, right: 0,
+        textAlign: 'center',
+        fontSize: 12, letterSpacing: 3, color: 'rgba(160,200,255,0.5)',
+        opacity: canSkip ? 1 : 0,
+        transition: 'opacity 0.8s',
+        textTransform: 'uppercase',
+        textShadow: '0 0 10px rgba(0,0,0,0.9)',
+      }}>
+        CLICK OR PRESS ANY KEY TO CONTINUE
+      </div>
+
+      {/* Keyframe animation for logo */}
+      <style>{`
+        @keyframes logoFadeIn {
+          0% { opacity: 0; transform: scale(0.85); }
+          100% { opacity: 1; transform: scale(1); }
+        }
+      `}</style>
+    </div>
+  );
+}
+
+// ── Loading Screen (with video background) ────────────────────────
 function LoadingScreen() {
   return (
-    <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, color: '#4488ff', fontFamily: 'monospace', background: '#010308' }}>
-      <StarfieldCanvas />
+    <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, color: '#4488ff', fontFamily: 'monospace', background: '#000' }}>
+      {/* Reuse intro video as loading background */}
+      <video
+        src='/assets/space/videos/intro.mp4'
+        autoPlay muted loop playsInline
+        style={{
+          position: 'absolute', inset: 0,
+          width: '100%', height: '100%',
+          objectFit: 'cover', opacity: 0.3,
+        }}
+      />
+      <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)', pointerEvents: 'none' }} />
       <div style={{ position: 'relative', zIndex: 1, textAlign: 'center' }}>
         <img src='/assets/space/ui/logo.webp' alt='GRUDA ARMADA'
           style={{ width:260, maxWidth:'68vw', display:'block', marginBottom:16,
