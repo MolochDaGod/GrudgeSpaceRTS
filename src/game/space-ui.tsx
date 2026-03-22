@@ -14,6 +14,18 @@ import {
 
 // ── Ship preview images (GIF for voxel ships, PNG for capitals/heroes) ─
 const SHIP_PREVIEW: Record<string, string> = {
+  // Pirate ships
+  pirate_01: '/assets/space/sprites/pirate-ships/PNG/Ships/Ship_01.png',
+  pirate_02: '/assets/space/sprites/pirate-ships/PNG/Ships/Ship_02.png',
+  pirate_03: '/assets/space/sprites/pirate-ships/PNG/Ships/Ship_03.png',
+  pirate_04: '/assets/space/sprites/pirate-ships/PNG/Ships/Ship_04.png',
+  pirate_05: '/assets/space/sprites/pirate-ships/PNG/Ships/Ship_05.png',
+  pirate_06: '/assets/space/sprites/pirate-ships/PNG/Ships/Ship_06.png',
+  // Boss captains
+  boss_captain_01: '/assets/space/sprites/boss-ships/PNG/Boss_Icons/Icon_01.png',
+  boss_captain_02: '/assets/space/sprites/boss-ships/PNG/Boss_Icons/Icon_02.png',
+  boss_captain_03: '/assets/space/sprites/boss-ships/PNG/Boss_Icons/Icon_03.png',
+  // Standard ships
   micro_recon:          '/assets/space/models/ships/MicroRecon/MicroRecon.gif',
   red_fighter:          '/assets/space/models/ships/RedFighter/RedFighter.gif',
   galactix_racer:       '/assets/space/models/ships/GalactixRacer/GalactixRacer.gif',
