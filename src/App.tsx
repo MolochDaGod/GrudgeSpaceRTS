@@ -2,6 +2,8 @@
 import { SpaceRenderer } from './game/space-renderer';
 import { SpaceHUD } from './game/space-ui';
 import { StarMapOverlay } from './game/space-starmap';
+import { ShipForgeEditor } from './game/ship-editor';
+import { hasHeroShip } from './game/ship-storage';
 import {
   SHIP_DEFINITIONS, BUILDABLE_SHIPS, HERO_DEFINITIONS, HERO_SHIPS, type GameMode,
   UPGRADE_COSTS, UPGRADE_BONUSES, PLANET_TYPE_DATA,
@@ -9,7 +11,7 @@ import {
   COMMANDER_SPEC_LABEL, type CommanderSpec,
 } from './game/space-types';
 
-type Screen = 'menu' | 'codex' | 'howto' | 'playing';
+type Screen = 'menu' | 'codex' | 'howto' | 'editor' | 'playing';
 
 // ── Space Background: stars + nebulae + comets ────────────────────
 const StarfieldCanvas = memo(function StarfieldCanvas() {
@@ -173,13 +175,15 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKey);
   }, [screen, renderer]);
 
-  const startGame = useCallback((mode: GameMode) => {
+  const startGame = useCallback(async (mode: GameMode) => {
     if (!containerRef.current) return;
     if (rendererRef.current) { rendererRef.current.dispose(); rendererRef.current = null; }
     setLoading(true);
     setScreen('playing');
     const r = new SpaceRenderer(containerRef.current, mode);
     rendererRef.current = r;
+    // Check if player has a saved hero ship before engine init
+    try { r.hasCustomHero = await hasHeroShip(); } catch { /* no hero */ }
     r.init().then(() => { setLoading(false); setRenderer(r); });
   }, []);
 
@@ -192,9 +196,10 @@ export default function App() {
   return (
     <div style={{ width: '100vw', height: '100vh', overflow: 'hidden', background: '#000', position: 'relative', fontFamily: "'Segoe UI', monospace" }}>
       <div ref={containerRef} style={{ width: '100%', height: '100%', display: screen === 'playing' ? 'block' : 'none' }} />
-      {screen === 'menu'  && <MainMenu onStart={startGame} onCodex={() => setScreen('codex')} onHowTo={() => setScreen('howto')} mode={gameMode} setMode={setGameMode} />}
+      {screen === 'menu'  && <MainMenu onStart={startGame} onCodex={() => setScreen('codex')} onHowTo={() => setScreen('howto')} onEditor={() => setScreen('editor')} mode={gameMode} setMode={setGameMode} />}
       {screen === 'codex' && <ShipCodex onBack={() => setScreen('menu')} />}
       {screen === 'howto' && <HowToPlay onBack={() => setScreen('menu')} />}
+      {screen === 'editor' && <ShipForgeEditor onBack={() => setScreen('menu')} />}
       {loading && <LoadingScreen />}
       {screen === 'playing' && !loading && renderer && <SpaceHUD renderer={renderer} onQuit={backToMenu} />}
       {screen === 'playing' && starMapOpen && renderer && (
@@ -205,8 +210,8 @@ export default function App() {
 }
 
 // ── Main Menu ─────────────────────────────────────────────────────
-function MainMenu({ onStart, onCodex, onHowTo, mode, setMode }: {
-  onStart: (m: GameMode) => void; onCodex: () => void; onHowTo: () => void;
+function MainMenu({ onStart, onCodex, onHowTo, onEditor, mode, setMode }: {
+  onStart: (m: GameMode) => void; onCodex: () => void; onHowTo: () => void; onEditor: () => void;
   mode: GameMode; setMode: (m: GameMode) => void;
 }) {
   const modes: { key: GameMode; label: string; desc: string }[] = [
@@ -218,22 +223,20 @@ function MainMenu({ onStart, onCodex, onHowTo, mode, setMode }: {
     <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#010308', color: '#cde', zIndex: 100 }}>
       <StarfieldCanvas />
       <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-        {/* Logo: wrap in dark bg so white webp background blends away */}
-        <div style={{ background:'#010308', borderRadius:8, display:'inline-block',
-          filter:'drop-shadow(0 0 40px rgba(68,136,255,0.45)) drop-shadow(0 0 18px rgba(200,30,30,0.3))',
-          marginBottom: 24 }}>
-          <img
-            src='/assets/space/ui/logo.webp'
-            alt='GRUDA ARMADA'
-            style={{ width: 400, maxWidth: '88vw', display:'block',
-              imageRendering: 'auto', borderRadius: 8 }}
-            onError={e => {
-              const t = e.target as HTMLImageElement;
-              if (!t.src.endsWith('.svg')) t.src='/assets/space/ui/logo.svg';
-              else t.style.display='none';
-            }}
-          />
-        </div>
+        {/* Logo — mix-blend-mode:screen knocks out the dark baked-in background */}
+        <img
+          src='/assets/space/ui/logo.webp'
+          alt='GRUDA ARMADA'
+          style={{ width: 400, maxWidth: '88vw', display:'block',
+            imageRendering: 'auto', marginBottom: 24,
+            mixBlendMode: 'screen' as any,
+            filter:'drop-shadow(0 0 40px rgba(68,136,255,0.45)) drop-shadow(0 0 18px rgba(200,30,30,0.3))' }}
+          onError={e => {
+            const t = e.target as HTMLImageElement;
+            if (!t.src.endsWith('.svg')) t.src='/assets/space/ui/logo.svg';
+            else t.style.display='none';
+          }}
+        />
         <div style={{ fontSize: 12, opacity: 0.4, marginBottom: 32, letterSpacing: 4, textTransform: 'uppercase' }}>Solar System Scrim · Tactical RTS</div>
         <div style={{ display: 'flex', gap: 16, marginBottom: 32 }}>
           {modes.map(m => (
@@ -256,6 +259,7 @@ function MainMenu({ onStart, onCodex, onHowTo, mode, setMode }: {
           boxShadow: '0 0 30px #4488ff55',
         }}>LAUNCH GAME</button>
         <div style={{ display: 'flex', gap: 16 }}>
+          <button onClick={onEditor} style={{ ...btn, color: '#fc4', borderColor: '#ffaa2244' }}>SHIP FORGE</button>
           <button onClick={onCodex} style={btn}>SHIP CODEX</button>
           <button onClick={onHowTo} style={btn}>HOW TO PLAY</button>
           <a href="/admin.html" target="_blank" style={{ ...btn, textDecoration: 'none', lineHeight: '1.6', display: 'inline-block' }}>ADMIN</a>
@@ -291,6 +295,8 @@ const SHIP_PREVIEW: Record<string, string> = {
   destroyer:            '/assets/space/models/capital/Destroyer/Destroyer.png',
   cruiser:              '/assets/space/models/capital/Cruiser/Cruiser.png',
   bomber:               '/assets/space/models/capital/Bomber/Bomber.png',
+  // ── Custom Hero (player-designed in Ship Forge) ────────────────────
+  custom_hero:          '/assets/space/models/capital/Battleships/Battleship.png',
   // ── Hero class ships — mapped to closest capital ship preview ──────────
   vanguard_prime:       '/assets/space/models/capital/Battleships/Battleship.png',
   shadow_reaper:        '/assets/space/models/capital/Bomber/Bomber.png',
@@ -784,7 +790,8 @@ function HowToPlay({ onBack }: { onBack: () => void }) {
       <div style={{ position: 'relative', zIndex: 1 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <img src='/assets/space/ui/logo.webp' alt='Gruda Armada' style={{ height: 32, imageRendering: 'auto' }}
+            <img src='/assets/space/ui/logo.webp' alt='Gruda Armada'
+              style={{ height: 32, imageRendering: 'auto', mixBlendMode: 'screen' as any }}
               onError={e => { (e.target as HTMLImageElement).style.display='none'; }} />
             <div style={{ fontSize: 22, fontWeight: 800, color: '#4488ff', letterSpacing: 3 }}>SHIP CODEX</div>
           </div>
@@ -804,11 +811,11 @@ function HowToPlay({ onBack }: { onBack: () => void }) {
           </Section>
           <Section title="Command Shortcuts (with ships selected)">
             <strong style={{color:'#f44'}}>A</strong> — Attack-move (click destination → ships attack enemies en route)<br/>
-            <strong style={{color:'#aaa'}}>S</strong> — Stop all selected ships immediately<br/>
-            <strong style={{color:'#88f'}}>H</strong> — Hold position (ships defend in place, don’t chase)<br/>
+            <strong style={{color:'#88f'}}>H</strong> — Defend position (ships hold ground, attack in range, don't chase)<br/>
             <strong style={{color:'#4f4'}}>Ctrl+1–9</strong> — Assign control group &nbsp;
             <strong style={{color:'#4f4'}}>1–9</strong> — Recall control group<br/>
-            <strong style={{color:'#fc4'}}>Q/W/E/R</strong> — Activate each ship’s labelled ability (cooldown + energy applies)<br/>
+            <strong style={{color:'#fa0'}}>Q/E</strong> — Rotate camera orbit<br/>
+            <strong style={{color:'#fc4'}}>W/R</strong> — Activate ship abilities (cooldown + energy applies)<br/>
             <strong style={{color:'#4df'}}>Right-click ability button</strong> — Toggle auto-cast on/off
           </Section>
           <Section title="Planets &amp; Capture">Click a planet to open its management panel. To capture a neutral planet: send ships near it, defeat the defenders, then your ships auto-capture (green ring shows progress). Captured planets generate Credits, Energy, and Minerals per second plus a Station for building ships.</Section>
@@ -841,14 +848,12 @@ function LoadingScreen() {
     <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, color: '#4488ff', fontFamily: 'monospace', background: '#010308' }}>
       <StarfieldCanvas />
       <div style={{ position: 'relative', zIndex: 1, textAlign: 'center' }}>
-        <div style={{ background:'#010308', borderRadius:8, display:'inline-block',
-          filter:'drop-shadow(0 0 24px rgba(68,136,255,0.55))',
-          marginBottom:16 }}>
-          <img src='/assets/space/ui/logo.webp' alt='GRUDA ARMADA'
-            style={{ width:260, maxWidth:'68vw', display:'block', borderRadius:8 }}
-            onError={e=>{ const t=e.target as HTMLImageElement; if(!t.src.endsWith('.svg')) t.src='/assets/space/ui/logo.svg'; else t.style.display='none'; }}
-          />
-        </div>
+        <img src='/assets/space/ui/logo.webp' alt='GRUDA ARMADA'
+          style={{ width:260, maxWidth:'68vw', display:'block', marginBottom:16,
+            mixBlendMode: 'screen' as any,
+            filter:'drop-shadow(0 0 24px rgba(68,136,255,0.55))' }}
+          onError={e=>{ (e.target as HTMLImageElement).style.display='none'; }}
+        />
         <div style={{ opacity: 0.55, letterSpacing: 3, fontSize: 13 }}>LOADING ASSETS...</div>
       </div>
     </div>

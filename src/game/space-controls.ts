@@ -13,7 +13,7 @@ const ZOOM_REF        = 200;   // zoom level where base speed feels 'normal'
 export class SpaceControls {
   selectionBox: SelectionBox = { active: false, startX: 0, startY: 0, endX: 0, endY: 0 };
   // Solar System Scrim scale: 12 = planet surface, 2400 = full sector view
-  cameraState: CameraState = { x: 0, y: 0, z: 0, zoom: 200, minZoom: 12, maxZoom: 2400, angle: 55, bookmarks: [] };
+  cameraState: CameraState = { x: 0, y: 0, z: 0, zoom: 200, minZoom: 12, maxZoom: 2400, angle: 55, rotation: 0, bookmarks: [] };
 
   private container: HTMLElement;
   private camera: THREE.PerspectiveCamera;
@@ -139,15 +139,15 @@ export class SpaceControls {
 
     const hasSelection = this.state.selectedIds.size > 0;
     switch (e.key.toLowerCase()) {
-      // ─ Ability hotkeys: activate ability whose .key field matches the pressed key
-      // Q/W/E/R each map to the ship ability labelled with that letter.
-      // W can simultaneously pan camera (continuous) without conflict.
-      case 'q': case 'w': case 'e': case 'r':
+      // ─ Ability hotkeys: W/R activate abilities. Q/E reserved for camera orbit.
+      case 'w': case 'r':
         if (hasSelection) this.onAbilityActivateByKey?.(e.key.toUpperCase());
         break;
+      // Q/E are handled continuously in update() for camera rotation
+      case 'q': case 'e': break;
       // ─ Command shortcuts ────────────────────────────────────
       case 'a': this.commandMode = 'attack_move'; break;
-      case 's': if (hasSelection) this.issueStopCommand(); break;
+      // S always pans camera (no stop command). H = hold/defend in place.
       case 'h': if (hasSelection) this.issueHoldCommand(); break;
       case 'p': this.commandMode = 'patrol'; break;
       case 'escape': this.commandMode = 'normal'; this.clearSelection(); break;
@@ -175,27 +175,39 @@ export class SpaceControls {
     const panSpeed  = PAN_SPEED_BASE  * zoomScale;
     const edgeSpeed = EDGE_SPEED_BASE * zoomScale;
 
-  // Camera panning
-    // W/D always pan. A/S also pan BUT only when no units selected —
-    // when units ARE selected, A = attack-move and S = stop (command shortcuts).
-    // Arrow keys ALWAYS pan regardless of selection.
-    const sel = this.state.selectedIds.size > 0;
-    let dx = 0, dy = 0;
-    if (this.keys.has('w') || this.keys.has('arrowup'))                           dy -= panSpeed * dt;
-    if (this.keys.has('arrowdown') || (this.keys.has('s') && !sel))               dy += panSpeed * dt;
-    if (this.keys.has('arrowleft') || (this.keys.has('a') && !sel))               dx -= panSpeed * dt;
-    if (this.keys.has('d') || this.keys.has('arrowright'))                        dx += panSpeed * dt;
-    this.cameraState.x += dx;
-    this.cameraState.y += dy;
+    // ── Camera yaw rotation (Q/E orbit around look-at point) ────────
+    const ROTATE_SPEED = 90; // degrees per second
+    if (this.keys.has('q')) this.cameraState.rotation -= ROTATE_SPEED * dt;
+    if (this.keys.has('e')) this.cameraState.rotation += ROTATE_SPEED * dt;
+    // Normalise to 0–360
+    this.cameraState.rotation = ((this.cameraState.rotation % 360) + 360) % 360;
 
-    // Edge scroll (cursor near viewport edge)
+    // ── Camera panning (relative to current yaw) ─────────────────
+    // W/D always pan. A pans only when no units selected (A = attack-move when selected).
+    // S always pans (no stop command). Arrow keys ALWAYS pan regardless of selection.
+    const sel = this.state.selectedIds.size > 0;
+    let fwd = 0, right = 0; // forward/right in camera-relative space
+    if (this.keys.has('w') || this.keys.has('arrowup'))                           fwd -= panSpeed * dt;
+    if (this.keys.has('arrowdown') || this.keys.has('s'))                         fwd += panSpeed * dt;
+    if (this.keys.has('arrowleft') || (this.keys.has('a') && !sel))               right -= panSpeed * dt;
+    if (this.keys.has('d') || this.keys.has('arrowright'))                        right += panSpeed * dt;
+    // Rotate pan direction by camera yaw so W always pushes "into" the screen
+    const yawRad = this.cameraState.rotation * (Math.PI / 180);
+    const cosY = Math.cos(yawRad), sinY = Math.sin(yawRad);
+    this.cameraState.x += right * cosY - fwd * sinY;
+    this.cameraState.y += right * sinY + fwd * cosY;
+
+    // Edge scroll (cursor near viewport edge) — rotated by camera yaw
     const rect = this.container.getBoundingClientRect();
     const mx = (this.mouseNdc.x + 1) * 0.5 * rect.width;
     const my = (1 - (this.mouseNdc.y + 1) * 0.5) * rect.height;
-    if (mx < EDGE_SCROLL_ZONE)               this.cameraState.x -= edgeSpeed * dt;
-    if (mx > rect.width  - EDGE_SCROLL_ZONE) this.cameraState.x += edgeSpeed * dt;
-    if (my < EDGE_SCROLL_ZONE)               this.cameraState.y -= edgeSpeed * dt;
-    if (my > rect.height - EDGE_SCROLL_ZONE) this.cameraState.y += edgeSpeed * dt;
+    let eRight = 0, eFwd = 0;
+    if (mx < EDGE_SCROLL_ZONE)               eRight -= edgeSpeed * dt;
+    if (mx > rect.width  - EDGE_SCROLL_ZONE) eRight += edgeSpeed * dt;
+    if (my < EDGE_SCROLL_ZONE)               eFwd   -= edgeSpeed * dt;
+    if (my > rect.height - EDGE_SCROLL_ZONE) eFwd   += edgeSpeed * dt;
+    this.cameraState.x += eRight * cosY - eFwd * sinY;
+    this.cameraState.y += eRight * sinY + eFwd * cosY;
   }
 
   // ── Selection ──────────────────────────────────────────────

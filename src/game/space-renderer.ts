@@ -9,7 +9,8 @@ import { SpaceControls } from './space-controls';
 import { SpaceEngine } from './space-engine';
 import { applyShipAnimation } from './space-animations';
 import { SpaceEffectsRenderer } from './space-effects';
-import { hasVoxelShip, buildVoxelShip } from './space-voxel-builder';
+import { hasVoxelShip, buildVoxelShip, buildCapitalVoxelFallback } from './space-voxel-builder';
+import { loadHeroShip, glbBlobToUrl } from './ship-storage';
 
 interface ShipMesh3D {
   group: THREE.Group;
@@ -61,6 +62,17 @@ export class SpaceRenderer {
   private captureRings = new Map<number, THREE.Mesh>();
   private gameMode: GameMode = '1v1';
   private nodeMeshes = new Map<number, THREE.Mesh>();
+  /** Mining laser lines: shipId → Line mesh */
+  private miningLasers = new Map<number, THREE.Line>();
+  /** Cargo progress bars on workers: shipId → { bar, bg } */
+  private cargoBars = new Map<number, { bar: THREE.Mesh; bg: THREE.Mesh }>();
+
+  /** Cached Object URL for the player's custom hero ship GLB. */
+  private customHeroUrl: string | null = null;
+  private customHeroLoading = false;
+
+  /** Set to true before init() if the player has a saved hero ship. */
+  public hasCustomHero = false;
 
   // ── Animated background ─────────────────────────────────
   private twinkleLayers: THREE.Points[] = [];
@@ -106,6 +118,7 @@ export class SpaceRenderer {
     this.setupSelectionBox();
 
     this.engine = new SpaceEngine();
+    this.engine.hasCustomHero = this.hasCustomHero;
     this.engine.initGame(this.gameMode);
 
     this.controls = new SpaceControls(this.container, this.camera, this.engine.state, this.renderer);
@@ -383,63 +396,174 @@ export class SpaceRenderer {
     }
   }
 
+  /** Resource nodes float at Y=2.5 — between ground (0) and ships (5). */
+  private static readonly NODE_Y = 2.5;
+  /** Node visual scale factor — much smaller than before. */
+  private static readonly NODE_SCALE = 0.25;
+
   // ── Resource Nodes ───────────────────────────────────────────
   private buildResourceNodes() {
+    const NS = SpaceRenderer.NODE_SCALE;
     for (const [, node] of this.engine.state.resourceNodes) {
       let geo: THREE.BufferGeometry;
       let color: number;
       let emissive = 0x000000;
       let emissiveIntensity = 0;
+      const r = node.radius * WORLD_SCALE * NS;
       switch (node.kind) {
         case 'moon':
-          geo = new THREE.SphereGeometry(node.radius * WORLD_SCALE, 16, 16);
+          geo = new THREE.SphereGeometry(r, 12, 12);
           color = 0x998877; break;
         case 'asteroid':
-          geo = new THREE.IcosahedronGeometry(node.radius * WORLD_SCALE, 0);
-          color = 0x554433; break;
+          geo = new THREE.IcosahedronGeometry(r, 0);
+          color = 0x776655; break;
         case 'ice_rock':
-          geo = new THREE.SphereGeometry(node.radius * WORLD_SCALE, 10, 10);
-          color = 0x99ccee; emissive = 0x224466; emissiveIntensity = 0.3; break;
+          geo = new THREE.SphereGeometry(r, 8, 8);
+          color = 0x99ccee; emissive = 0x224466; emissiveIntensity = 0.4; break;
         case 'crystal_deposit':
-          geo = new THREE.OctahedronGeometry(node.radius * WORLD_SCALE, 0);
-          color = 0x44ffcc; emissive = 0x00ccaa; emissiveIntensity = 0.5; break;
+          geo = new THREE.OctahedronGeometry(r, 0);
+          color = 0x44ffcc; emissive = 0x00ccaa; emissiveIntensity = 0.6; break;
         default:
-          geo = new THREE.SphereGeometry(node.radius * WORLD_SCALE, 8, 8);
+          geo = new THREE.SphereGeometry(r, 6, 6);
           color = 0x888888;
       }
       const mat = new THREE.MeshStandardMaterial({
-        color, roughness: 0.8, metalness: 0.1,
+        color, roughness: 0.7, metalness: 0.2,
         emissive, emissiveIntensity,
       });
       const mesh = new THREE.Mesh(geo, mat);
-      mesh.position.set(node.x * WORLD_SCALE, 0, node.y * WORLD_SCALE);
-      // Random rotation for variety
+      mesh.position.set(node.x * WORLD_SCALE, SpaceRenderer.NODE_Y, node.y * WORLD_SCALE);
       mesh.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
+      mesh.renderOrder = 1;
+      mesh.userData.baseScale = 1.0; // for harvest shrink animation
       this.scene.add(mesh);
       this.nodeMeshes.set(node.id, mesh);
     }
   }
 
   private syncResourceNodes() {
+    // Build a set of currently-harvested node IDs for shrink effect
+    const harvestedNodeIds = new Set<number>();
+    for (const [, ship] of this.engine.state.ships) {
+      if (!ship.dead && ship.workerState === 'harvesting' && ship.workerNodeId != null) {
+        harvestedNodeIds.add(ship.workerNodeId);
+      }
+    }
+
     for (const [id, mesh] of this.nodeMeshes) {
       const node = this.engine.state.resourceNodes.get(id);
       if (!node) { this.scene.remove(mesh); this.nodeMeshes.delete(id); continue; }
-      mesh.position.set(node.x * WORLD_SCALE, 0, node.y * WORLD_SCALE);
-      // Slow self-rotation for visual interest
-      mesh.rotation.y += 0.004;
+      mesh.position.set(node.x * WORLD_SCALE, SpaceRenderer.NODE_Y, node.y * WORLD_SCALE);
+      mesh.rotation.y += 0.006;
+
+      // Shrink while being harvested, restore otherwise
+      const isBeingHarvested = harvestedNodeIds.has(id);
+      const targetScale = isBeingHarvested ? 0.4 : (node.harvestCooldown > 0 ? 0.2 : 1.0);
+      const cur = mesh.userData.baseScale ?? 1.0;
+      const next = cur + (targetScale - cur) * 0.08;
+      mesh.userData.baseScale = next;
+      mesh.scale.setScalar(next);
+
       // Pulse crystal deposits
       if (node.kind === 'crystal_deposit') {
         const mat = mesh.material as THREE.MeshStandardMaterial;
-        mat.emissiveIntensity = 0.3 + 0.3 * Math.abs(Math.sin(this.twinkleTime * 1.5 + node.id * 0.3));
+        mat.emissiveIntensity = 0.4 + 0.3 * Math.abs(Math.sin(this.twinkleTime * 1.5 + node.id * 0.3));
       }
-      // Dim when on cooldown
+      // Dim when on cooldown (depleted)
       const mat = mesh.material as THREE.MeshStandardMaterial;
       if (node.harvestCooldown > 0) {
-        mat.opacity !== undefined && (mat.transparent = true);
+        mat.transparent = true; mat.opacity = 0.4;
         mat.color.setHex(node.kind === 'crystal_deposit' ? 0x226644 : 0x332211);
       } else {
-        const baseColors: Record<string, number> = { moon: 0x998877, asteroid: 0x554433, ice_rock: 0x99ccee, crystal_deposit: 0x44ffcc };
+        mat.transparent = false; mat.opacity = 1.0;
+        const baseColors: Record<string, number> = { moon: 0x998877, asteroid: 0x776655, ice_rock: 0x99ccee, crystal_deposit: 0x44ffcc };
         mat.color.setHex(baseColors[node.kind]);
+      }
+    }
+  }
+
+  // ── Mining Lasers & Cargo Bars ─────────────────────────────────
+  private syncMiningVisuals() {
+    const activeMiners = new Set<number>();
+
+    for (const [, ship] of this.engine.state.ships) {
+      if (ship.dead || ship.shipClass !== 'worker') continue;
+
+      if (ship.workerState === 'harvesting' && ship.workerNodeId != null) {
+        activeMiners.add(ship.id);
+        const node = this.engine.state.resourceNodes.get(ship.workerNodeId);
+        if (!node) continue;
+
+        const shipPos = new THREE.Vector3(ship.x * WORLD_SCALE, SpaceRenderer.SHIP_Y, ship.y * WORLD_SCALE);
+        const nodePos = new THREE.Vector3(node.x * WORLD_SCALE, SpaceRenderer.NODE_Y, node.y * WORLD_SCALE);
+
+        // ─ Mining laser beam ───────────────────────
+        let laser = this.miningLasers.get(ship.id);
+        if (!laser) {
+          const laserColor = ship.workerCargoType === 'energy' ? 0x44ccff
+            : ship.workerCargoType === 'credits' ? 0xffcc44 : 0x44ff88;
+          const geo = new THREE.BufferGeometry().setFromPoints([shipPos, nodePos]);
+          const mat = new THREE.LineBasicMaterial({
+            color: laserColor, transparent: true, opacity: 0.7,
+            linewidth: 2, depthWrite: false,
+          });
+          laser = new THREE.Line(geo, mat);
+          laser.renderOrder = 3;
+          this.scene.add(laser);
+          this.miningLasers.set(ship.id, laser);
+        } else {
+          // Update positions
+          const pos = laser.geometry.attributes.position as THREE.BufferAttribute;
+          pos.setXYZ(0, shipPos.x, shipPos.y, shipPos.z);
+          pos.setXYZ(1, nodePos.x, nodePos.y, nodePos.z);
+          pos.needsUpdate = true;
+          // Pulse opacity
+          (laser.material as THREE.LineBasicMaterial).opacity = 0.5 + 0.3 * Math.abs(Math.sin(this.twinkleTime * 4));
+        }
+
+        // ─ Cargo progress bar on worker ─────────────
+        const harvestPct = Math.min(1, (ship.workerHarvestTimer ?? 0) / 5);
+        let cb = this.cargoBars.get(ship.id);
+        if (!cb) {
+          const bgGeo = new THREE.PlaneGeometry(1.8, 0.2);
+          const bgMat = new THREE.MeshBasicMaterial({ color: 0x111122, depthTest: false, transparent: true, opacity: 0.8 });
+          const bg = new THREE.Mesh(bgGeo, bgMat);
+          bg.renderOrder = 1001;
+          this.scene.add(bg);
+          const barGeo = new THREE.PlaneGeometry(1.8, 0.2);
+          const barMat = new THREE.MeshBasicMaterial({ color: 0x44ff88, depthTest: false });
+          const bar = new THREE.Mesh(barGeo, barMat);
+          bar.renderOrder = 1002;
+          this.scene.add(bar);
+          cb = { bar, bg };
+          this.cargoBars.set(ship.id, cb);
+        }
+        // Position below the health bar
+        cb.bg.position.set(shipPos.x, SpaceRenderer.SHIP_Y + 3.0, shipPos.z);
+        cb.bg.lookAt(this.camera.position);
+        cb.bg.visible = true;
+        cb.bar.position.copy(cb.bg.position);
+        cb.bar.position.x -= (1 - harvestPct) * 0.9;
+        cb.bar.scale.x = Math.max(0.01, harvestPct);
+        cb.bar.lookAt(this.camera.position);
+        cb.bar.visible = true;
+        // Color based on resource type
+        const barCol = ship.workerCargoType === 'energy' ? 0x44ccff
+          : ship.workerCargoType === 'credits' ? 0xffcc44 : 0x44ff88;
+        (cb.bar.material as THREE.MeshBasicMaterial).color.setHex(barCol);
+      }
+    }
+
+    // Clean up lasers/bars for ships no longer mining
+    for (const [id, laser] of this.miningLasers) {
+      if (!activeMiners.has(id)) {
+        this.scene.remove(laser); laser.geometry.dispose();
+        this.miningLasers.delete(id);
+      }
+    }
+    for (const [id, cb] of this.cargoBars) {
+      if (!activeMiners.has(id)) {
+        cb.bar.visible = false; cb.bg.visible = false;
       }
     }
   }
@@ -479,7 +603,9 @@ export class SpaceRenderer {
           group.traverse(c => { if ((c as THREE.Mesh).isMesh) { (c as THREE.Mesh).material = new THREE.MeshStandardMaterial({ map: tex }); } });
         }
       }
-      group.scale.setScalar(prefab.scale);
+      // NOTE: Do NOT apply prefab.scale here — autoFit() in syncShips
+      // measures the raw model bounding box and scales to match the
+      // target ship class size. Applying scale here would corrupt that.
       if (prefab.offset) group.position.add(prefab.offset);
       if (prefab.rotation) group.rotation.copy(prefab.rotation);
       this.modelCache.set(key, group);
@@ -497,6 +623,23 @@ export class SpaceRenderer {
    * when viewed from the 55° camera angle. Increased for 3× larger ships. */
   private static readonly SHIP_Y = 5.0;
 
+  /** Target diameter (Three.js units) for each ship class — models are auto-scaled to fit. */
+  private static shipClassSize(cls: string): number {
+    switch (cls) {
+      case 'dreadnought':    return 24;
+      case 'battleship':     return 21;
+      case 'carrier':        return 18;
+      case 'cruiser':        return 16.5;
+      case 'light_cruiser':  return 15;
+      case 'destroyer':      return 13.5;
+      case 'frigate':        return 12;
+      case 'corvette':       return 10.5;
+      case 'assault_frigate': return 12;
+      case 'worker':         return 7.5;
+      default:               return 9; // fighters, scouts, etc.
+    }
+  }
+
   private createPlaceholder(team: Team, shipClass: string): THREE.Group {
     const group = new THREE.Group();
 
@@ -506,17 +649,7 @@ export class SpaceRenderer {
     // 3× the original sizes so ships are clearly visible at all zoom levels.
     // At orbital zoom 160: visible width ≈ 264 Three.js — a size-9 fighter
     // occupies ~3.4% of screen (65px) and a size-24 dreadnought ~9% (173px).
-    const size =
-      shipClass === 'dreadnought'   ? 24
-      : shipClass === 'battleship'  ? 21
-      : shipClass === 'carrier'     ? 18
-      : shipClass === 'cruiser'     ? 16.5
-      : shipClass === 'light_cruiser' ? 15
-      : shipClass === 'destroyer'   ? 13.5
-      : shipClass === 'frigate'     ? 12
-      : shipClass === 'corvette'    ? 10.5
-      : shipClass === 'worker'      ? 7.5
-      : 9; // fighters, scouts, etc.
+    const size = SpaceRenderer.shipClassSize(shipClass);
 
     // Forward-pointing cone (rotated to face +Z = ship’s “forward”)
     const geo = new THREE.ConeGeometry(size * 0.4, size * 1.2, 5);
@@ -579,7 +712,7 @@ export class SpaceRenderer {
         });
         const ring = new THREE.Mesh(ringGeo, ringMat);
         ring.rotation.x = -Math.PI / 2;
-        ring.position.y = -SpaceRenderer.SHIP_Y + 0.2; // ground level ring
+        ring.position.y = -0.5; // just below the ship model, not on the ground
         ring.renderOrder = 3;
         group.add(ring);
         meshData.selectionRing = ring;
@@ -599,6 +732,7 @@ export class SpaceRenderer {
         meshData.healthBar = hb;
 
         // Model loading priority:
+        // 0. custom_hero → load player's saved GLB from storage
         // 1. Try real OBJ/FBX prefab (best visual quality)
         // 2. If no prefab OR prefab load fails → build procedural voxel
         // 3. If no voxel either → keep the cone placeholder
@@ -607,11 +741,26 @@ export class SpaceRenderer {
           const c = g.children.find(ch => (ch as THREE.Mesh).geometry?.type === 'ConeGeometry');
           if (c) g.remove(c);
         };
-        if (prefab) {
+
+        // Target size for this ship class (Three.js units)
+        const targetSize = SpaceRenderer.shipClassSize(ship.shipClass);
+
+        // Auto-scale any loaded model to fit targetSize
+        const autoFit = (model: THREE.Group) => {
+          const box = new THREE.Box3().setFromObject(model);
+          const diam = box.getSize(new THREE.Vector3()).length();
+          if (diam > 0) model.scale.setScalar(targetSize / diam);
+        };
+
+        // Custom hero ship: load GLB from player's saved data
+        if (ship.shipType === 'custom_hero') {
+          this.loadCustomHeroModel(id, meshData);
+        } else if (prefab) {
           this.loadModel(prefab).then(model => {
             if (this.disposed) return;
             const ex = this.shipMeshes.get(id);
             if (!ex) return;
+            autoFit(model);
             removeCone(ex.group);
             ex.group.add(model);
           }).catch(() => {
@@ -619,13 +768,14 @@ export class SpaceRenderer {
             const ex = this.shipMeshes.get(id);
             if (!ex || this.disposed) return;
             const vox = hasVoxelShip(ship.shipType)
-              ? buildVoxelShip(ship.shipType, ship.team) : null;
-            if (vox) { removeCone(ex.group); ex.group.add(vox); }
+              ? buildVoxelShip(ship.shipType, ship.team)
+              : buildCapitalVoxelFallback(ship.shipType, ship.team);
+            if (vox) { autoFit(vox); removeCone(ex.group); ex.group.add(vox); }
           });
         } else if (hasVoxelShip(ship.shipType)) {
           // No prefab — build voxel immediately (no async load wait)
           const vox = buildVoxelShip(ship.shipType, ship.team);
-          if (vox) { removeCone(meshData.group); meshData.group.add(vox); }
+          if (vox) { autoFit(vox); removeCone(meshData.group); meshData.group.add(vox); }
         }
       }
 
@@ -659,11 +809,16 @@ export class SpaceRenderer {
         }
       }
 
-      // Selection ring
+      // Selection ring: always visible at 50% for player ships, 80% when selected
       if (meshData.selectionRing) {
         const mat = meshData.selectionRing.material as THREE.MeshBasicMaterial;
-        mat.opacity = ship.selected ? 0.8 : 0;
-        mat.color.setHex(ship.team === 1 ? 0x44ff44 : 0xff4444);
+        if (ship.team === 1) {
+          mat.opacity = ship.selected ? 0.8 : 0.5;
+          mat.color.setHex(ship.selected ? 0x44ff44 : 0x2288aa);
+        } else {
+          mat.opacity = ship.selected ? 0.8 : 0;
+          mat.color.setHex(0xff4444);
+        }
       }
     }
   }
@@ -713,17 +868,24 @@ export class SpaceRenderer {
     }
   }
 
-  // ── Camera ──────────────────────────────────────────────────
+  // ── Camera ─────────────────────────────────────────────────────
   private updateCamera() {
     const cam = this.controls.cameraState;
-    const dist = cam.zoom;
-    const angle = cam.angle * (Math.PI / 180);
+    const dist  = cam.zoom;
+    const pitch = cam.angle    * (Math.PI / 180); // tilt (55°)
+    const yaw   = cam.rotation * (Math.PI / 180); // horizontal orbit (Q/E)
+
+    // Look-at point (centre of the world the camera orbits around)
+    const lookX = cam.x * WORLD_SCALE;
+    const lookZ = cam.y * WORLD_SCALE;
+
+    // Camera position: orbit at `dist` from look-at, rotated by yaw + tilted by pitch
     this.camera.position.set(
-      cam.x * WORLD_SCALE,
-      dist * Math.sin(angle),
-      cam.y * WORLD_SCALE + dist * Math.cos(angle),
+      lookX + Math.sin(yaw) * dist * Math.cos(pitch),
+      dist * Math.sin(pitch),
+      lookZ + Math.cos(yaw) * dist * Math.cos(pitch),
     );
-    this.camera.lookAt(cam.x * WORLD_SCALE, 0, cam.y * WORLD_SCALE);
+    this.camera.lookAt(lookX, 0, lookZ);
   }
 
   // ── Main Loop ───────────────────────────────────────────────
@@ -775,8 +937,9 @@ export class SpaceRenderer {
     // Planet hover glow
     this.updatePlanetHover();
 
-    // Sync resource nodes
+    // Sync resource nodes + mining visuals
     this.syncResourceNodes();
+    this.syncMiningVisuals();
 
     // Sync stations
     this.syncStations(this.engine.state);
@@ -979,12 +1142,51 @@ export class SpaceRenderer {
     }
   }
 
+  // ── Custom hero ship GLB loading ─────────────────────────────
+  private async loadCustomHeroModel(shipId: number, meshData: ShipMesh3D) {
+    const removeCone = (g: THREE.Group) => {
+      const c = g.children.find(ch => (ch as THREE.Mesh).geometry?.type === 'ConeGeometry');
+      if (c) g.remove(c);
+    };
+
+    // Load and cache the player's hero ship URL once
+    if (!this.customHeroUrl && !this.customHeroLoading) {
+      this.customHeroLoading = true;
+      try {
+        const record = await loadHeroShip();
+        if (record) {
+          this.customHeroUrl = glbBlobToUrl(record.glb);
+        }
+      } catch { /* no hero ship saved */ }
+      this.customHeroLoading = false;
+    }
+
+    if (!this.customHeroUrl) return; // no saved ship — keep cone placeholder
+
+    try {
+      const gltf = await this.gltfLoader.loadAsync(this.customHeroUrl);
+      if (this.disposed) return;
+      const ex = this.shipMeshes.get(shipId);
+      if (!ex) return;
+      const model = gltf.scene;
+      // Scale to match dreadnought size (≈24 Three.js units)
+      const box = new THREE.Box3().setFromObject(model);
+      const modelDiam = box.getSize(new THREE.Vector3()).length();
+      if (modelDiam > 0) model.scale.setScalar(24 / modelDiam);
+      removeCone(ex.group);
+      ex.group.add(model);
+    } catch {
+      // GLB load failed — keep cone placeholder
+    }
+  }
+
   dispose() {
     this.disposed = true;
     cancelAnimationFrame(this.animFrame);
     window.removeEventListener('resize', this.onResize);
     this.controls.dispose();
     this.renderer.dispose();
+    if (this.customHeroUrl) { URL.revokeObjectURL(this.customHeroUrl); this.customHeroUrl = null; }
     if (this.renderer.domElement.parentNode) {
       this.renderer.domElement.parentNode.removeChild(this.renderer.domElement);
     }

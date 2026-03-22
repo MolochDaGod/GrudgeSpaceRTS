@@ -64,7 +64,21 @@ function SegmentBar({
 }
 
 // ── Ability SVG Icons ─────────────────────────────────────────────
-const ABILITY_ICONS: Record<string, React.ReactNode> = {
+  // Ability icon images from the HUD pack + scifi-gui skills
+const ABILITY_IMG: Record<string, string> = {
+  barrel_roll:    '/assets/space/ui/scifi-gui/skills/1.png',
+  speed_boost:    '/assets/space/ui/scifi-gui/skills/2.png',
+  cloak:          '/assets/space/ui/scifi-gui/skills/3.png',
+  iron_dome:      '/assets/space/ui/scifi-gui/skills/4.png',
+  warp:           '/assets/space/ui/scifi-gui/skills/5.png',
+  emp:            '/assets/space/ui/scifi-gui/skills/6.png',
+  boarding:       '/assets/space/ui/scifi-gui/skills/7.png',
+  repair:         '/assets/space/ui/scifi-gui/skills/8.png',
+  ram:            '/assets/space/ui/scifi-gui/skills/9.png',
+  launch_fighters:'/assets/space/ui/scifi-gui/skills/10.png',
+};
+
+  const ABILITY_ICONS: Record<string, React.ReactNode> = {
   barrel_roll: (
     <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
       <circle cx="16" cy="16" r="12" stroke="currentColor" strokeWidth="2" strokeDasharray="4 2"/>
@@ -171,20 +185,32 @@ const CLASS_ICONS: Record<string, React.ReactNode> = {
   carrier: <Svg size={20}><rect x="4" y="6" width="16" height="12" rx="2" stroke="#8af" strokeWidth="1.5" fill="none"/><line x1="4" y1="12" x2="20" y2="12" stroke="#8af" strokeWidth="1"/><polygon points="8,3 10,6 6,6" fill="#6af"/><polygon points="16,3 18,6 14,6" fill="#6af"/></Svg>,
 };
 
-// ── Attack Type SVG Icons ─────────────────────────────────────────
-const ATTACK_ICONS: Record<string, React.ReactNode> = {
-  laser: <Svg size={12} color="#f44"><line x1="4" y1="12" x2="20" y2="12" stroke="#f44" strokeWidth="2"/><circle cx="20" cy="12" r="2" fill="#f44"/></Svg>,
-  missile: <Svg size={12} color="#f80"><path d="M4 12L16 12" stroke="#f80" strokeWidth="1.5"/><polygon points="16,8 22,12 16,16" fill="#f80"/><line x1="4" y1="10" x2="2" y2="8" stroke="#f60" strokeWidth="1"/><line x1="4" y1="14" x2="2" y2="16" stroke="#f60" strokeWidth="1"/></Svg>,
-  railgun: <Svg size={12} color="#4df"><line x1="2" y1="12" x2="22" y2="12" stroke="#4df" strokeWidth="2.5"/><line x1="18" y1="8" x2="22" y2="12" stroke="#4df" strokeWidth="1.5"/><line x1="18" y1="16" x2="22" y2="12" stroke="#4df" strokeWidth="1.5"/></Svg>,
-  pulse: <Svg size={12} color="#a6f"><circle cx="12" cy="12" r="4" stroke="#a6f" strokeWidth="1.5" fill="none"/><circle cx="12" cy="12" r="8" stroke="#a6f" strokeWidth="1" opacity=".4"/><circle cx="12" cy="12" r="2" fill="#a6f"/></Svg>,
-  torpedo: <Svg size={12} color="#f44"><ellipse cx="14" cy="12" rx="8" ry="4" stroke="#f44" strokeWidth="1.5" fill="none"/><circle cx="18" cy="12" r="2" fill="#f44"/><line x1="2" y1="10" x2="6" y2="12" stroke="#f60" strokeWidth="1"/><line x1="2" y1="14" x2="6" y2="12" stroke="#f60" strokeWidth="1"/></Svg>,
+// ── Attack Type Icons (PNG weapon icons from icons pack) ─────────
+const ATTACK_IMG: Record<string, string> = {
+  laser:   '/assets/space/ui/icons/1.png',
+  missile: '/assets/space/ui/icons/2.png',
+  railgun: '/assets/space/ui/icons/3.png',
+  pulse:   '/assets/space/ui/icons/4.png',
+  torpedo: '/assets/space/ui/icons/5.png',
 };
+const ATTACK_ICONS: Record<string, React.ReactNode> = {
+  laser:   <img src={ATTACK_IMG.laser}   alt='laser'   style={{width:16,height:16,imageRendering:'auto'}} />,
+  missile: <img src={ATTACK_IMG.missile}  alt='missile'  style={{width:16,height:16,imageRendering:'auto'}} />,
+  railgun: <img src={ATTACK_IMG.railgun}  alt='railgun'  style={{width:16,height:16,imageRendering:'auto'}} />,
+  pulse:   <img src={ATTACK_IMG.pulse}    alt='pulse'    style={{width:16,height:16,imageRendering:'auto'}} />,
+  torpedo: <img src={ATTACK_IMG.torpedo}  alt='torpedo'  style={{width:16,height:16,imageRendering:'auto'}} />,
+};
+// ── Resource Icons (PNG from resource-icons pack) ─────────────
 
-// ── Resource SVG Icons ────────────────────────────────────────────
+const ResIcon = ({ src, fallback }: { src: string; fallback: React.ReactNode }) => (
+  <img src={src} alt="" style={{ width: 18, height: 18, imageRendering: 'pixelated', verticalAlign: 'middle' }}
+    onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+);
+
 const RES_ICONS = {
-  credits: <Svg size={14} color="#fc4"><circle cx="12" cy="12" r="9" stroke="#fc4" strokeWidth="1.5" fill="none"/><path d="M12 6V18M9 9H15M9 15H15" stroke="#fc4" strokeWidth="1.5"/></Svg>,
-  energy: <Svg size={14} color="#4df"><path d="M13 2L6 14H12L11 22L18 10H12Z" stroke="#4df" strokeWidth="1.5" fill="#4df" fillOpacity=".2"/></Svg>,
-  minerals: <Svg size={14} color="#4f8"><path d="M12 3L20 9L16 21H8L4 9Z" stroke="#4f8" strokeWidth="1.5" fill="#4f8" fillOpacity=".15"/><path d="M12 3L12 21" stroke="#4f8" strokeWidth="1" opacity=".4"/></Svg>,
+  credits:  <ResIcon src="/assets/space/ui/resource-icons/Icon39_01.png" fallback={<Svg size={14} color="#fc4"><circle cx="12" cy="12" r="9" stroke="#fc4" strokeWidth="1.5" fill="none"/></Svg>} />,
+  energy:   <ResIcon src="/assets/space/ui/resource-icons/Icon39_02.png" fallback={<Svg size={14} color="#4df"><path d="M13 2L6 14H12L11 22L18 10H12Z" stroke="#4df" strokeWidth="1.5" fill="#4df" fillOpacity=".2"/></Svg>} />,
+  minerals: <ResIcon src="/assets/space/ui/resource-icons/Icon39_03.png" fallback={<Svg size={14} color="#4f8"><path d="M12 3L20 9L16 21H8L4 9Z" stroke="#4f8" strokeWidth="1.5" fill="#4f8" fillOpacity=".15"/></Svg>} />,
 };
 
 // ── Stat line SVG Icons ───────────────────────────────────────────
@@ -257,16 +283,29 @@ export function SpaceHUD({ renderer, onQuit }: SpaceHUDProps) {
 
   return (
     <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', fontFamily: "'Segoe UI', monospace", color: '#cde' }}>
-      {/* ── Game Over Overlay ─────────────────────────── */}
+      {/* ── Game Over Overlay with Victory/Defeat badge art ──── */}
       {state.gameOver && (
-        <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.8)', zIndex: 200, pointerEvents: 'auto' }}>
-          <div style={{ fontSize: 56, fontWeight: 800, color: state.winner === 1 ? '#44ff44' : '#ff4444', marginBottom: 8 }}>
+        <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.85)', zIndex: 200, pointerEvents: 'auto' }}>
+          <img
+            src={state.winner === 1 ? '/assets/space/ui/hud/Victory_Badges.png' : '/assets/space/ui/hud/GameOver_Badges.png'}
+            alt={state.winner === 1 ? 'Victory' : 'Defeat'}
+            style={{ width: 280, maxWidth: '70vw', marginBottom: 16, imageRendering: 'auto',
+              filter: `drop-shadow(0 0 30px ${state.winner === 1 ? 'rgba(68,255,68,0.5)' : 'rgba(255,68,68,0.5)'})` }}
+            onError={e => { (e.target as HTMLImageElement).style.display='none'; }}
+          />
+          <div style={{ fontSize: 48, fontWeight: 900, color: state.winner === 1 ? '#44ff44' : '#ff4444', marginBottom: 8,
+            textShadow: `0 0 30px ${state.winner === 1 ? '#44ff4488' : '#ff444488'}`, letterSpacing: 6 }}>
             {state.winner === 1 ? 'VICTORY' : 'DEFEAT'}
           </div>
-          <div style={{ fontSize: 16, opacity: 0.6, marginBottom: 32 }}>
+          <div style={{ fontSize: 14, opacity: 0.6, marginBottom: 32 }}>
             {state.winCondition === 'domination' ? 'Won by Domination' : 'Won by Elimination'}
           </div>
-          {onQuit && <button onClick={onQuit} style={{ padding: '12px 40px', fontSize: 16, fontWeight: 700, color: '#fff', background: '#2266cc', border: 'none', borderRadius: 6, cursor: 'pointer' }}>BACK TO MENU</button>}
+          {onQuit && (
+            <div onClick={onQuit} style={{ position: 'relative', cursor: 'pointer', display: 'inline-block' }}>
+              <img src='/assets/space/ui/hud/Normal_Btn.png' alt='' style={{ width: 200, height: 48, display: 'block' }} />
+              <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, fontWeight: 700, color: '#fff', letterSpacing: 2 }}>BACK TO MENU</span>
+            </div>
+          )}
         </div>
       )}
 
@@ -277,28 +316,20 @@ export function SpaceHUD({ renderer, onQuit }: SpaceHUDProps) {
         </div>
       )}
 
-      {/* ── Top Resource Bar ───────────────────────────── */}
+      {/* ── Top Resource Bar (using HUD bar art) ──────────── */}
       <div style={{
-        position: 'absolute', top: 0, left: 0, right: 0, height: 36,
-        background: 'linear-gradient(180deg, rgba(8,14,24,0.95) 0%, rgba(8,14,24,0.7) 100%)',
+        position: 'absolute', top: 0, left: 0, right: 0, height: 40,
+        backgroundImage: 'url(/assets/space/ui/hud/BgHudBar.png)',
+        backgroundSize: '100% 100%', backgroundRepeat: 'no-repeat',
         borderBottom: '1px solid #1a3050',
         display: 'flex', alignItems: 'center', padding: '0 16px', gap: 24,
         pointerEvents: 'auto', zIndex: 10,
       }}>
         <img src='/assets/space/ui/logo.webp' alt='Gruda Armada'
           style={{ height: 26, imageRendering: 'auto',
-            mixBlendMode: 'multiply' as React.CSSProperties['mixBlendMode'],
+            mixBlendMode: 'screen' as React.CSSProperties['mixBlendMode'],
             filter: 'drop-shadow(0 0 8px rgba(68,136,255,0.4))' }}
-          onError={e => {
-            const t = e.target as HTMLImageElement;
-            // Fall back to SVG placeholder, which has a dark background
-            if (!t.src.endsWith('.svg')) {
-              t.src = '/assets/space/ui/logo.webp';
-              t.style.mixBlendMode = 'normal';
-            } else {
-              t.style.display = 'none';
-            }
-          }}
+          onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
         />
         <ResourceItem icon={RES_ICONS.credits} label="Credits" value={Math.floor(res.credits)} color="#fc4" />
         <ResourceItem icon={RES_ICONS.energy} label="Energy" value={Math.floor(res.energy)} color="#4df" />
@@ -357,10 +388,11 @@ export function SpaceHUD({ renderer, onQuit }: SpaceHUDProps) {
         />
       )}
 
-      {/* ── Bottom Panel ───────────────────────────────────── */}
+      {/* ── Bottom Panel (using HUD art background) ──────── */}
       <div style={{
         position: 'absolute', bottom: 0, left: 0, right: 0, height: 196,
-        background: 'linear-gradient(0deg, rgba(6,10,18,0.97) 0%, rgba(10,18,30,0.92) 100%)',
+        backgroundImage: 'url(/assets/space/ui/hud/DarkBackground.png)',
+        backgroundSize: 'cover',
         borderTop: '2px solid #1a3050',
         display: 'flex', pointerEvents: 'auto', zIndex: 10,
       }}>
@@ -628,59 +660,60 @@ function CommandCard({ ship, renderer, allSelected }: { ship: SpaceShip; rendere
   };
 
   const ACTION_BTNS: Array<{
-    label: string; key: string; color: string;
+    label: string; key: string; color: string; icon: string;
     active?: boolean; action: () => void;
   }> = [
     {
-      label: 'Attack', key: 'A', color: '#ff5533',
+      label: 'Attack', key: 'A', color: '#ff5533', icon: '/assets/space/ui/icons/6.png',
       active: renderer.controls.commandMode === 'attack_move',
       action: () => { renderer.controls.commandMode = renderer.controls.commandMode === 'attack_move' ? 'normal' : 'attack_move'; },
     },
     {
-      label: 'Move', key: 'RMB', color: '#4488ff',
+      label: 'Move', key: 'RMB', color: '#4488ff', icon: '/assets/space/ui/icons/7.png',
       active: renderer.controls.commandMode === 'normal',
       action: () => { renderer.controls.commandMode = 'normal'; },
     },
     {
-      label: 'Patrol', key: 'P', color: '#44cc88',
+      label: 'Patrol', key: 'P', color: '#44cc88', icon: '/assets/space/ui/icons/8.png',
       active: renderer.controls.commandMode === 'patrol',
       action: () => { renderer.controls.commandMode = renderer.controls.commandMode === 'patrol' ? 'normal' : 'patrol'; },
     },
-    { label: 'Stop',  key: 'S', color: '#aabbcc', active: false, action: stop },
-    { label: 'Hold',  key: 'H', color: '#aa88ff', active: false, action: hold },
+    { label: 'Defend', key: 'H', color: '#aa88ff', icon: '/assets/space/ui/icons/9.png', active: false, action: hold },
   ];
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: 6 }}>
-      {/* ─ Action command row ─────────────────────── */}
+      {/* ─ Action command row (HUD button art) ────────── */}
       <div>
         <div style={{ fontSize: 9, color: 'rgba(160,200,255,0.4)', letterSpacing: 2, marginBottom: 4 }}>COMMANDS</div>
         <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
           {ACTION_BTNS.map(btn => (
-            <button
+            <div
               key={btn.key}
               onClick={btn.action}
               title={`${btn.label} [${btn.key}]`}
               style={{
-                display: 'flex', flexDirection: 'column', alignItems: 'center',
-                width: 44, padding: '5px 2px',
-                border: `1px solid ${btn.active ? btn.color : btn.color + '44'}`,
-                borderRadius: 5, cursor: 'pointer',
-                background: btn.active ? `${btn.color}22` : 'rgba(8,16,32,0.8)',
-                transition: 'all 0.15s',
+                position: 'relative', width: 52, height: 52, cursor: 'pointer',
+                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                transition: 'transform 0.1s',
               }}
+              onMouseEnter={e => (e.currentTarget.style.transform = 'scale(1.08)')}
+              onMouseLeave={e => (e.currentTarget.style.transform = 'scale(1)')}
             >
-              <div style={{ fontSize: 12, fontWeight: 900, color: btn.active ? btn.color : 'rgba(160,200,255,0.5)' }}>
-                {btn.label === 'Move' ? '↵' : btn.label === 'Attack' ? '⚔' : btn.label === 'Patrol' ? '⭕' : btn.label === 'Stop' ? '■' : '⏸'}
-              </div>
-              <div style={{ fontSize: 8, color: btn.active ? btn.color : 'rgba(160,200,255,0.4)', marginTop: 1 }}>{btn.label}</div>
-              <div style={{
-                fontSize: 7, fontWeight: 700, marginTop: 1,
-                background: btn.active ? btn.color + '33' : '#0a1428',
-                color: btn.active ? btn.color : 'rgba(160,200,255,0.35)',
-                padding: '0 3px', borderRadius: 2,
-              }}>{btn.key}</div>
-            </button>
+              <img
+                src={btn.active ? '/assets/space/ui/hud/Hover_Btn.png' : '/assets/space/ui/hud/Normal_Btn.png'}
+                alt='' style={{ position:'absolute', inset:0, width:'100%', height:'100%', objectFit:'fill' }}
+              />
+              <img src={btn.icon} alt={btn.label}
+                style={{ width:20, height:20, position:'relative', zIndex:1, imageRendering:'auto',
+                  filter: btn.active ? 'brightness(1.5)' : 'brightness(0.8)' }}
+                onError={e => { (e.target as HTMLImageElement).style.display='none'; }}
+              />
+              <div style={{ fontSize: 7, fontWeight: 700, color: btn.active ? '#fff' : 'rgba(160,200,255,0.5)',
+                position: 'relative', zIndex: 1, marginTop: 1 }}>{btn.label}</div>
+              <div style={{ fontSize: 6, fontWeight: 700, color: 'rgba(160,200,255,0.35)',
+                position: 'relative', zIndex: 1 }}>{btn.key}</div>
+            </div>
           ))}
         </div>
       </div>
@@ -754,9 +787,18 @@ function AbilityButton({ ab, index, renderer, allSelected }: {
         }} />
       )}
 
-      {/* Icon */}
-      <div style={{ width: 28, height: 28, color: ab.active ? '#ff0' : '#8ac', position: 'relative', zIndex: 1 }}>
-        {icon ?? <Svg size={28}><circle cx="12" cy="12" r="8" stroke="#8ac" strokeWidth="1.5" fill="none"/><circle cx="12" cy="12" r="3" fill="#8ac"/></Svg>}
+      {/* Icon — prefer PNG skill art, fall back to SVG */}
+      <div style={{ width: 36, height: 36, position: 'relative', zIndex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        {ABILITY_IMG[ab.ability.type]
+          ? <img src={ABILITY_IMG[ab.ability.type]} alt={ab.ability.name}
+              style={{ width: 34, height: 34, borderRadius: 4, objectFit: 'cover', imageRendering: 'auto',
+                filter: ab.active ? 'brightness(1.4) saturate(1.5)' : onCooldown ? 'grayscale(0.7) brightness(0.6)' : 'none' }}
+              onError={e => { (e.target as HTMLImageElement).style.display='none'; }}
+            />
+          : <div style={{ width: 28, height: 28, color: ab.active ? '#ff0' : '#8ac' }}>
+              {icon ?? <Svg size={28}><circle cx="12" cy="12" r="8" stroke="#8ac" strokeWidth="1.5" fill="none"/><circle cx="12" cy="12" r="3" fill="#8ac"/></Svg>}
+            </div>
+        }
       </div>
 
       {/* Key label */}
@@ -1015,15 +1057,18 @@ function BuildPanel({ station, renderer, res }: { station: SpaceStation; rendere
           const canAfford = res.credits >= s.creditCost && res.energy >= s.energyCost && res.minerals >= s.mineralCost;
           return (
             <div key={key} onClick={() => canAfford && renderer.engine.queueBuild(station.id, key)} style={{
-              width: 68, padding: '4px 2px', border: '1px solid #1a3050', borderRadius: 4,
-              background: canAfford ? 'rgba(16,24,40,0.8)' : 'rgba(16,24,40,0.3)',
-              opacity: canAfford ? 1 : 0.4, cursor: canAfford ? 'pointer' : 'default',
-              textAlign: 'center', fontSize: 8,
+              position: 'relative', width: 72, height: 72, cursor: canAfford ? 'pointer' : 'default',
+              opacity: canAfford ? 1 : 0.4,
+              display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
             }}>
-              <div style={{ fontSize: 9, fontWeight: 700, color: '#fff', marginBottom: 2 }}>{def.displayName}</div>
-              <div style={{ color: '#fc4' }}>{s.creditCost}c</div>
-              <div style={{ color: '#4df' }}>{s.energyCost}e</div>
-              <div style={{ color: '#4f8' }}>{s.mineralCost}m</div>
+              <img src='/assets/space/ui/hud/Box_Item.png' alt=''
+                style={{ position:'absolute', inset:0, width:'100%', height:'100%', objectFit:'fill', imageRendering:'auto' }} />
+              <div style={{ position:'relative', zIndex:1, textAlign:'center' }}>
+                <div style={{ fontSize: 8, fontWeight: 700, color: '#fff', marginBottom: 1 }}>{def.displayName}</div>
+                <div style={{ fontSize: 7, color: '#fc4' }}>{s.creditCost}c</div>
+                <div style={{ fontSize: 7, color: '#4df' }}>{s.energyCost}e</div>
+                <div style={{ fontSize: 7, color: '#4f8' }}>{s.mineralCost}m</div>
+              </div>
             </div>
           );
         }))}
@@ -1194,7 +1239,12 @@ function TechTreePanel({ state, myPlanets, onResearch, onClose }: {
             Researching… {Math.ceil(techSt.researchTimeRemaining ?? 0)}s
           </span>
         )}
-        <button onClick={onClose} style={{ background:'transparent', border:'1px solid #333', color:'#888', fontSize:11, padding:'2px 8px', borderRadius:4, cursor:'pointer' }}>✕</button>
+        <img src='/assets/space/ui/hud/CloseBtn.png' alt='Close' onClick={onClose}
+          style={{ width:28, height:28, cursor:'pointer', imageRendering:'pixelated', flexShrink:0,
+            filter:'brightness(0.8)', transition:'filter 0.15s' }}
+          onMouseEnter={e => (e.currentTarget.style.filter = 'brightness(1.2)')}
+          onMouseLeave={e => (e.currentTarget.style.filter = 'brightness(0.8)')}
+        />
       </div>
       {/* Tree tabs */}
       <div style={{ display:'flex', gap:4, padding:'6px 10px', borderBottom:`1px solid ${C.border}`, flexWrap:'wrap' }}>
@@ -1293,7 +1343,12 @@ function CommanderPanel({ state, selectedCmdId, selectedPlanetId, onSelectCmd, o
       {/* Header */}
       <div style={{ display:'flex', alignItems:'center', padding:'10px 14px', borderBottom:`1px solid ${C.border}` }}>
         <span style={{ flex:1, fontWeight:800, fontSize:14, color:C.accent, letterSpacing:3 }}>COMMANDER CORPS</span>
-        <button onClick={onClose} style={{ background:'transparent', border:'1px solid #333', color:'#666', fontSize:11, padding:'2px 8px', borderRadius:4, cursor:'pointer' }}>✕</button>
+        <img src='/assets/space/ui/hud/CloseBtn.png' alt='Close' onClick={onClose}
+          style={{ width:28, height:28, cursor:'pointer', imageRendering:'pixelated', flexShrink:0,
+            filter:'brightness(0.8)', transition:'filter 0.15s' }}
+          onMouseEnter={e => (e.currentTarget.style.filter = 'brightness(1.2)')}
+          onMouseLeave={e => (e.currentTarget.style.filter = 'brightness(0.8)')}
+        />
       </div>
 
       <div style={{ display:'flex', gap:0 }}>

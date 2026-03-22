@@ -405,7 +405,8 @@ export interface CameraState {
   zoom: number;
   minZoom: number;
   maxZoom: number;
-  angle: number;       // tilt angle (45° default)
+  angle: number;       // tilt/pitch angle in degrees (55° default)
+  rotation: number;    // yaw rotation in degrees (0 = north, Q/E to orbit)
   bookmarks: Vec3[];   // F1-F4
 }
 
@@ -601,6 +602,17 @@ export const HERO_DEFINITIONS: Record<string, { class: ShipClass; stats: ShipSta
         { id: 'boarding', name: 'Infest', key: 'E', cooldown: 40, energyCost: 80, type: 'boarding', duration: 6 },
       ] },
   },
+  // ── Custom Hero Ship (player-designed in Ship Forge) ─────────────
+  custom_hero: {
+    class: 'dreadnought', displayName: 'Custom Hero Ship',
+    lore: 'Your personal flagship, forged in the Ship Forge. A unique dreadnought built from your home world.',
+    stats: { maxHp: 1000, maxShield: 400, shieldRegen: 7, armor: 14, speed: 25, turnRate: 0.7, attackDamage: 85, attackRange: 380, attackCooldown: 1.6, attackType: 'railgun', supplyCost: 18, buildTime: 80, creditCost: 1800, energyCost: 400, mineralCost: 750, tier: 5,
+      abilities: [
+        { id: 'iron_dome', name: 'Forge Shield', key: 'Q', cooldown: 30, energyCost: 90, type: 'iron_dome', duration: 10, radius: 180 },
+        { id: 'warp', name: 'Homeworld Warp', key: 'W', cooldown: 50, energyCost: 160, type: 'warp', duration: 2 },
+        { id: 'speed_boost', name: 'Forge Drive', key: 'E', cooldown: 18, energyCost: 40, type: 'speed_boost', duration: 5 },
+      ] },
+  },
 };
 
 // ── Ship types available at each tier for building ──────────────
@@ -609,10 +621,10 @@ export const BUILDABLE_SHIPS: Record<number, string[]> = {
   2: ['dual_striker', 'camo_stellar_jet', 'meteor_slicer', 'infrared_furtive', 'interstellar_runner', 'transtellar', 'cf_corvette_02', 'cf_corvette_03', 'cf_frigate_01'],
   3: ['ultraviolet_intruder', 'warship', 'star_marine_trooper', 'pyramid_ship', 'cf_frigate_02', 'cf_frigate_04', 'cf_frigate_05'],
   4: ['destroyer', 'cruiser', 'bomber', 'cf_destroyer_01', 'cf_destroyer_02', 'cf_destroyer_04', 'cf_light_cruiser_03', 'cf_light_cruiser_05'],
-  5: ['battleship'],
+  5: ['battleship', 'custom_hero'],
 };
 
-export const HERO_SHIPS: string[] = ['vanguard_prime', 'shadow_reaper', 'iron_bastion', 'storm_herald', 'plague_mother'];
+export const HERO_SHIPS: string[] = ['custom_hero', 'vanguard_prime', 'shadow_reaper', 'iron_bastion', 'storm_herald', 'plague_mother'];
 
 // All ship definitions combined (stock + hero)
 export function getShipDef(key: string): { class: ShipClass; stats: ShipStats; displayName: string } | null {
@@ -620,18 +632,18 @@ export function getShipDef(key: string): { class: ShipClass; stats: ShipStats; d
 }
 
 // ── Map Constants ────────────────────────────────────────────────
-// 1v1 = 8000x8000, 2v2/ffa4 = 20000x20000
+// 1v1 = 16000x16000, 2v2/ffa4 = 20000x20000
 export function getMapSize(mode: GameMode): { width: number; height: number; depth: number } {
   switch (mode) {
-    case '1v1': return { width: 8000, height: 8000, depth: 800 };
+    case '1v1': return { width: 16000, height: 16000, depth: 800 };
     case '2v2': return { width: 20000, height: 20000, depth: 800 };
     case 'ffa4': return { width: 20000, height: 20000, depth: 800 };
   }
 }
 
 // Default for backward compat
-export const MAP_WIDTH = 8000;
-export const MAP_HEIGHT = 8000;
+export const MAP_WIDTH = 16000;
+export const MAP_HEIGHT = 16000;
 export const MAP_DEPTH = 800;
 
 // ── Commander System ──────────────────────────────────────────────
