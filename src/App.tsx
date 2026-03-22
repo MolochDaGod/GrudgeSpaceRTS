@@ -9,6 +9,7 @@ import {
   UPGRADE_COSTS, UPGRADE_BONUSES, PLANET_TYPE_DATA,
   SHIP_ROLES, SHIP_ROLE_LABELS, SHIP_ROLE_COLORS,
   COMMANDER_SPEC_LABEL, type CommanderSpec,
+  COMMANDER_SPEC_PLANET,
 } from './game/space-types';
 
 type Screen = 'menu' | 'codex' | 'howto' | 'editor' | 'playing';
@@ -162,6 +163,8 @@ export default function App() {
   const [renderer, setRenderer] = useState<SpaceRenderer | null>(null);
   const [gameMode, setGameMode] = useState<GameMode>('1v1');
   const [starMapOpen, setStarMapOpen] = useState(false);
+  const [showCmdModal, setShowCmdModal] = useState(false);
+  const [selectedSpec, setSelectedSpec] = useState<CommanderSpec>('forge');
 
   // M key opens Star Map while playing
   useEffect(() => {
@@ -175,14 +178,15 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKey);
   }, [screen, renderer]);
 
-  const startGame = useCallback(async (mode: GameMode) => {
+  const launchWithSpec = useCallback(async (mode: GameMode, spec: CommanderSpec) => {
     if (!containerRef.current) return;
     if (rendererRef.current) { rendererRef.current.dispose(); rendererRef.current = null; }
+    setShowCmdModal(false);
     setLoading(true);
     setScreen('playing');
     const r = new SpaceRenderer(containerRef.current, mode);
     rendererRef.current = r;
-    // Check if player has a saved hero ship before engine init
+    r.playerCommanderSpec = spec;
     try { r.hasCustomHero = await hasHeroShip(); } catch { /* no hero */ }
     r.init().then(() => { setLoading(false); setRenderer(r); });
   }, []);
@@ -196,7 +200,8 @@ export default function App() {
   return (
     <div style={{ width: '100vw', height: '100vh', overflow: 'hidden', background: '#000', position: 'relative', fontFamily: "'Segoe UI', monospace" }}>
       <div ref={containerRef} style={{ width: '100%', height: '100%', display: screen === 'playing' ? 'block' : 'none' }} />
-      {screen === 'menu'  && <MainMenu onStart={startGame} onCodex={() => setScreen('codex')} onHowTo={() => setScreen('howto')} onEditor={() => setScreen('editor')} mode={gameMode} setMode={setGameMode} />}
+      {screen === 'menu'  && <MainMenu onStart={() => setShowCmdModal(true)} onCodex={() => setScreen('codex')} onHowTo={() => setScreen('howto')} onEditor={() => setScreen('editor')} mode={gameMode} setMode={setGameMode} />}
+      {showCmdModal && <CommanderSelectModal spec={selectedSpec} setSpec={setSelectedSpec} onConfirm={() => launchWithSpec(gameMode, selectedSpec)} onCancel={() => setShowCmdModal(false)} />}
       {screen === 'codex' && <ShipCodex onBack={() => setScreen('menu')} />}
       {screen === 'howto' && <HowToPlay onBack={() => setScreen('menu')} />}
       {screen === 'editor' && <ShipForgeEditor onBack={() => setScreen('menu')} />}
@@ -209,9 +214,88 @@ export default function App() {
   );
 }
 
+// ── Commander Selection Modal (pre-game) ──────────────────────────
+function CommanderSelectModal({ spec, setSpec, onConfirm, onCancel }: {
+  spec: CommanderSpec; setSpec: (s: CommanderSpec) => void;
+  onConfirm: () => void; onCancel: () => void;
+}) {
+  const SPECS: { key: CommanderSpec; label: string; planet: string; color: string; bonus: string; desc: string }[] = [
+    { key: 'forge',  label: 'Forge',  planet: 'Volcanic',    color: '#ff6644', bonus: '+ATK / Weapons',  desc: 'Aggressive weapons specialist. Burns bright on the offensive.' },
+    { key: 'tide',   label: 'Tide',   planet: 'Oceanic',     color: '#4488ff', bonus: '+DEF / Shields',  desc: 'Durable shield expert. Absorbs punishment and holds the line.' },
+    { key: 'prism',  label: 'Prism',  planet: 'Crystalline', color: '#44ddff', bonus: '+ECO / Economy',  desc: 'Economic mastermind. Boosts income and accelerates production.' },
+    { key: 'vortex', label: 'Vortex', planet: 'Gas Giant',   color: '#ffaa22', bonus: '+SPD / Mobility', desc: 'Swift tactician. Outmaneuvers opponents with blazing speed.' },
+    { key: 'void',   label: 'Void',   planet: 'Barren',      color: '#aa8866', bonus: '+ALL / Stealth',  desc: 'Enigmatic operative. Balanced bonuses with covert advantages.' },
+  ];
+  return (
+    <div style={{
+      position: 'absolute', inset: 0, zIndex: 200, display: 'flex',
+      alignItems: 'center', justifyContent: 'center',
+      background: 'rgba(0,0,0,0.88)', fontFamily: "'Segoe UI', monospace", color: '#cde',
+    }}>
+      <div style={{
+        width: 640, maxWidth: '92vw', background: 'rgba(4,10,22,0.97)',
+        border: '2px solid rgba(40,180,160,0.5)', borderRadius: 14,
+        boxShadow: '0 0 60px rgba(40,180,160,0.25)', padding: '28px 32px',
+      }}>
+        <div style={{ fontSize: 18, fontWeight: 800, color: '#28b4a0', letterSpacing: 3, marginBottom: 4 }}>
+          CHOOSE YOUR COMMANDER
+        </div>
+        <div style={{ fontSize: 11, color: 'rgba(160,200,255,0.45)', marginBottom: 20 }}>
+          Your starting commander determines your flagship's bonus spec. You can train more commanders in-game.
+        </div>
+        <div style={{ display: 'flex', gap: 10, marginBottom: 24, flexWrap: 'wrap' }}>
+          {SPECS.map(s => {
+            const sel = spec === s.key;
+            const avatarIdx = SPECS.indexOf(s) + 1;
+            return (
+              <div key={s.key} onClick={() => setSpec(s.key)} style={{
+                flex: '1 1 110px', minWidth: 100, padding: '14px 10px', borderRadius: 10, cursor: 'pointer',
+                border: `2px solid ${sel ? s.color : 'rgba(40,60,80,0.5)'}`,
+                background: sel ? `${s.color}18` : 'rgba(6,14,30,0.8)',
+                boxShadow: sel ? `0 0 16px ${s.color}44` : 'none',
+                transition: 'all 0.2s', textAlign: 'center',
+              }}>
+                <img src={`/assets/space/ui/scifi-gui/avatars/${avatarIdx}.png`}
+                  alt={s.label}
+                  style={{ width: 48, height: 48, borderRadius: '50%',
+                    border: `2px solid ${sel ? s.color : '#1a3050'}`, objectFit: 'cover',
+                    marginBottom: 6, display: 'block', marginLeft: 'auto', marginRight: 'auto' }}
+                  onError={e => { (e.target as HTMLImageElement).style.display='none'; }}
+                />
+                <div style={{ fontSize: 13, fontWeight: 800, color: sel ? s.color : '#fff', marginBottom: 2 }}>
+                  {s.label}
+                </div>
+                <div style={{ fontSize: 8, color: 'rgba(160,200,255,0.4)', letterSpacing: 0.5 }}>{s.planet}</div>
+                <div style={{ fontSize: 9, color: s.color, fontWeight: 700, marginTop: 4 }}>{s.bonus}</div>
+                {sel && (
+                  <div style={{ fontSize: 9, color: 'rgba(160,200,255,0.6)', marginTop: 6, lineHeight: 1.4 }}>
+                    {s.desc}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+        <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
+          <button onClick={onCancel} style={{
+            padding: '10px 28px', fontSize: 12, fontWeight: 600, color: '#888',
+            background: 'transparent', border: '1px solid #333', borderRadius: 6, cursor: 'pointer',
+          }}>BACK</button>
+          <button onClick={onConfirm} style={{
+            padding: '10px 48px', fontSize: 14, fontWeight: 700, color: '#fff',
+            background: 'linear-gradient(135deg, #1a55bb, #4488ff)', border: 'none',
+            borderRadius: 6, cursor: 'pointer', letterSpacing: 2,
+            boxShadow: '0 0 20px #4488ff44',
+          }}>DEPLOY</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Main Menu ─────────────────────────────────────────────────────
 function MainMenu({ onStart, onCodex, onHowTo, onEditor, mode, setMode }: {
-  onStart: (m: GameMode) => void; onCodex: () => void; onHowTo: () => void; onEditor: () => void;
+  onStart: () => void; onCodex: () => void; onHowTo: () => void; onEditor: () => void;
   mode: GameMode; setMode: (m: GameMode) => void;
 }) {
   const modes: { key: GameMode; label: string; desc: string }[] = [
@@ -252,7 +336,7 @@ function MainMenu({ onStart, onCodex, onHowTo, onEditor, mode, setMode }: {
             </div>
           ))}
         </div>
-        <button onClick={() => onStart(mode)} style={{
+        <button onClick={onStart} style={{
           padding: '14px 60px', fontSize: 20, fontWeight: 700, color: '#fff',
           background: 'linear-gradient(135deg, #1a55bb, #4488ff)', border: 'none',
           borderRadius: 8, cursor: 'pointer', letterSpacing: 2, marginBottom: 24,

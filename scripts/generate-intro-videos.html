@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gruda Armada - Intro Video Generator</title>
+  <script src="https://js.puter.com/v2/"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #0a0a1a;
+      color: #e0e0ff;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      padding: 2rem;
+    }
+    h1 {
+      text-align: center;
+      font-size: 2rem;
+      margin-bottom: 0.5rem;
+      background: linear-gradient(90deg, #00c8ff, #a855f7);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .subtitle {
+      text-align: center;
+      color: #888;
+      margin-bottom: 2rem;
+      font-size: 0.9rem;
+    }
+    .controls {
+      text-align: center;
+      margin-bottom: 2rem;
+    }
+    .controls button {
+      padding: 0.75rem 2rem;
+      font-size: 1.1rem;
+      background: linear-gradient(135deg, #00c8ff, #6d28d9);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      margin: 0.5rem;
+      transition: opacity 0.2s;
+    }
+    .controls button:hover { opacity: 0.85; }
+    .controls button:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.5rem;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    .card {
+      background: #111128;
+      border: 1px solid #2a2a4a;
+      border-radius: 12px;
+      padding: 1.25rem;
+      position: relative;
+    }
+    .card h3 {
+      color: #00c8ff;
+      margin-bottom: 0.5rem;
+      font-size: 1rem;
+    }
+    .card .prompt {
+      color: #888;
+      font-size: 0.75rem;
+      margin-bottom: 1rem;
+      line-height: 1.4;
+      max-height: 3.5em;
+      overflow: hidden;
+    }
+    .card .status {
+      padding: 0.5rem;
+      text-align: center;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      min-height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .status.waiting { background: #1a1a3a; color: #666; }
+    .status.generating {
+      background: #1a1a3a;
+      color: #a855f7;
+      animation: pulse 1.5s infinite;
+    }
+    .status.done { background: #0a2a1a; color: #4ade80; }
+    .status.error { background: #2a0a0a; color: #f87171; }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+    .card video {
+      width: 100%;
+      border-radius: 6px;
+      margin-top: 0.75rem;
+      display: none;
+    }
+    .card .actions {
+      margin-top: 0.75rem;
+      display: none;
+    }
+    .card .actions button {
+      padding: 0.4rem 1rem;
+      background: #6d28d9;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.85rem;
+    }
+    .card .actions button:hover { background: #7c3aed; }
+    .overall-status {
+      text-align: center;
+      margin-top: 2rem;
+      color: #888;
+      font-size: 0.9rem;
+    }
+  </style>
+</head>
+<body>
+  <h1>GRUDA ARMADA — Intro Video Generator</h1>
+  <p class="subtitle">Uses Puter.js free Wan-AI txt2vid to generate cinematic intro clips. Save to dist/assets/videos/</p>
+
+  <div class="controls">
+    <button id="btn-generate-all" onclick="generateAll()">Generate All 4 Videos</button>
+  </div>
+
+  <div class="grid" id="video-grid"></div>
+  <div class="overall-status" id="overall-status"></div>
+
+  <script>
+    // ─── Video definitions with cinematic prompts ───
+    const VIDEOS = [
+      {
+        id: 'fleet-travel',
+        filename: 'fleet-in-travel.mp4',
+        title: '1. Fleet in Hyperspace Travel',
+        prompt: 'Cinematic wide shot of a massive sci-fi armada fleet of voxel-style warships traveling through deep space at warp speed, blue and purple hyperspace streaks, glowing engine trails, dark nebula backdrop with distant stars, fleet formation with capital ships and smaller corvettes and frigates, dramatic lighting, space opera cinematography, 4K quality, dark moody atmosphere'
+      },
+      {
+        id: 'galaxy-loop',
+        filename: 'galaxy-views-loop.mp4',
+        title: '2. Galaxy View Loop',
+        prompt: 'Slow cinematic rotating view of a spiral galaxy from above, millions of stars and nebulae glowing in blue purple and gold, cosmic dust clouds swirling, distant star systems twinkling, smooth camera orbit around galaxy center, deep space background with other galaxies visible, volumetric light rays, epic sci-fi atmosphere, seamless loop motion, 4K space cinematography'
+      },
+      {
+        id: 'dogfight',
+        filename: 'dogfighting-ships.mp4',
+        title: '3. Dogfighting Ships',
+        prompt: 'Intense sci-fi space dogfight between small voxel-style fighter ships, laser beams and plasma projectiles firing between ships, explosions and debris, barrel rolls and evasive maneuvers, close-up tracking shot following a fighter through the battle, asteroid field backdrop, glowing weapon trails, cinematic action camera angles, dramatic lighting with fire and sparks, space combat scene, 4K quality'
+      },
+      {
+        id: 'flyover',
+        filename: 'ship-flyover-opening.mp4',
+        title: '4. Capital Ship Flyover (Star Wars Style)',
+        prompt: 'Epic cinematic shot of a massive sci-fi capital battleship flying directly overhead from bottom of frame, camera looking up as the enormous hull passes overhead revealing intricate surface detail and glowing engines, the ship is colossal and fills the entire frame as it passes, starfield background with a planet visible below, dramatic low angle like the opening of Star Wars with a Star Destroyer passing overhead, blue engine glow trailing behind, 4K cinematic quality, awe-inspiring scale'
+      }
+    ];
+
+    // ─── Build UI cards ───
+    const grid = document.getElementById('video-grid');
+    VIDEOS.forEach(v => {
+      grid.innerHTML += `
+        <div class="card" id="card-${v.id}">
+          <h3>${v.title}</h3>
+          <div class="prompt">${v.prompt}</div>
+          <div class="status waiting" id="status-${v.id}">Waiting...</div>
+          <video id="video-${v.id}" controls></video>
+          <div class="actions" id="actions-${v.id}">
+            <button onclick="downloadVideo('${v.id}')">⬇ Download ${v.filename}</button>
+          </div>
+        </div>
+      `;
+    });
+
+    // ─── State ───
+    const videoBlobs = {};
+    let generating = false;
+
+    // ─── Generate a single video ───
+    async function generateVideo(videoDef) {
+      const statusEl = document.getElementById(`status-${videoDef.id}`);
+      const videoEl = document.getElementById(`video-${videoDef.id}`);
+      const actionsEl = document.getElementById(`actions-${videoDef.id}`);
+      const startTime = Date.now();
+
+      statusEl.className = 'status generating';
+      const timerInterval = setInterval(() => {
+        const elapsed = ((Date.now() - startTime) / 1000).toFixed(0);
+        statusEl.textContent = `Generating... (${elapsed}s)`;
+      }, 1000);
+
+      try {
+        const resultVideo = await puter.ai.txt2vid(videoDef.prompt, {
+          model: 'Wan-AI/Wan2.2-T2V-A14B'
+        });
+
+        clearInterval(timerInterval);
+        const totalTime = ((Date.now() - startTime) / 1000).toFixed(1);
+
+        // Extract the video source URL from the returned element
+        const sourceUrl = resultVideo.src || resultVideo.getAttribute('data-source') || resultVideo.querySelector?.('source')?.src;
+
+        if (sourceUrl) {
+          // Fetch the video blob for download
+          const response = await fetch(sourceUrl);
+          const blob = await response.blob();
+          videoBlobs[videoDef.id] = { blob, filename: videoDef.filename };
+
+          // Display the video
+          videoEl.src = URL.createObjectURL(blob);
+          videoEl.style.display = 'block';
+          actionsEl.style.display = 'block';
+
+          statusEl.className = 'status done';
+          statusEl.textContent = `Done in ${totalTime}s — Ready to download`;
+        } else {
+          // Fallback: try to get blob directly from the video element
+          videoEl.src = resultVideo.src;
+          videoEl.style.display = 'block';
+
+          // Try fetching from video element src
+          if (resultVideo.src && resultVideo.src.startsWith('blob:')) {
+            videoBlobs[videoDef.id] = { blobUrl: resultVideo.src, filename: videoDef.filename };
+          }
+
+          actionsEl.style.display = 'block';
+          statusEl.className = 'status done';
+          statusEl.textContent = `Done in ${totalTime}s — Ready to download`;
+        }
+
+        return true;
+      } catch (err) {
+        clearInterval(timerInterval);
+        console.error(`Error generating ${videoDef.id}:`, err);
+        statusEl.className = 'status error';
+        statusEl.textContent = `Error: ${err.message || JSON.stringify(err)}`;
+        return false;
+      }
+    }
+
+    // ─── Download a generated video ───
+    function downloadVideo(videoId) {
+      const data = videoBlobs[videoId];
+      if (!data) {
+        alert('Video not yet generated!');
+        return;
+      }
+
+      const a = document.createElement('a');
+      if (data.blob) {
+        a.href = URL.createObjectURL(data.blob);
+      } else if (data.blobUrl) {
+        a.href = data.blobUrl;
+      }
+      a.download = data.filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }
+
+    // ─── Generate all videos sequentially ───
+    async function generateAll() {
+      if (generating) return;
+      generating = true;
+
+      const btn = document.getElementById('btn-generate-all');
+      const overallStatus = document.getElementById('overall-status');
+      btn.disabled = true;
+      btn.textContent = 'Generating...';
+
+      let success = 0;
+      const totalStart = Date.now();
+
+      for (let i = 0; i < VIDEOS.length; i++) {
+        overallStatus.textContent = `Generating video ${i + 1} of ${VIDEOS.length}...`;
+        const ok = await generateVideo(VIDEOS[i]);
+        if (ok) success++;
+      }
+
+      const totalTime = ((Date.now() - totalStart) / 1000 / 60).toFixed(1);
+      overallStatus.textContent = `Complete! ${success}/${VIDEOS.length} videos generated in ${totalTime} minutes. Save each to D:\\GrudgeSpaceRTS\\dist\\assets\\videos\\`;
+
+      btn.disabled = false;
+      btn.textContent = 'Regenerate All';
+      generating = false;
+
+      // Auto-download all successful videos
+      if (success > 0) {
+        const doDownload = confirm(`${success} videos ready! Download all now?\n\nSave them to: D:\\GrudgeSpaceRTS\\dist\\assets\\videos\\`);
+        if (doDownload) {
+          for (const v of VIDEOS) {
+            if (videoBlobs[v.id]) {
+              await new Promise(r => setTimeout(r, 500)); // small delay between downloads
+              downloadVideo(v.id);
+            }
+          }
+        }
+      }
+    }
+  </script>
+</body>
+</html>
