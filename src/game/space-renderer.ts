@@ -75,6 +75,8 @@ export class SpaceRenderer {
 
   /** Set to true before init() if the player has a saved hero ship. */
   public hasCustomHero = false;
+  /** Commander spec chosen at the pre-game modal. */
+  public playerCommanderSpec: import('./space-types').CommanderSpec | null = null;
 
   // ── Animated background ─────────────────────────────────
   private twinkleLayers: THREE.Points[] = [];
@@ -121,6 +123,7 @@ export class SpaceRenderer {
 
     this.engine = new SpaceEngine();
     this.engine.hasCustomHero = this.hasCustomHero;
+    this.engine.playerCommanderSpec = this.playerCommanderSpec;
     this.engine.initGame(this.gameMode);
 
     this.controls = new SpaceControls(this.container, this.camera, this.engine.state, this.renderer);

@@ -301,16 +301,36 @@ export class SpaceControls {
       return;
     }
 
-    // Move or attack-move
+    // Move, attack-move, or patrol
+    const dest = { x: worldPos.x / WORLD_SCALE, y: worldPos.z / WORLD_SCALE, z: 0 };
     for (const id of this.state.selectedIds) {
       const ship = this.state.ships.get(id);
       if (!ship) continue;
-      ship.moveTarget = { x: worldPos.x / WORLD_SCALE, y: worldPos.z / WORLD_SCALE, z: 0 };
-      ship.targetId = null;
-      ship.holdPosition = false;
-      ship.isAttackMoving = this.commandMode === 'attack_move';
+
+      if (this.commandMode === 'patrol') {
+        // Patrol: bounce between current position and the clicked point
+        ship.patrolPoints = [
+          { x: ship.x, y: ship.y, z: 0 },
+          { ...dest },
+        ];
+        ship.patrolIndex = 1; // head to the clicked point first
+        ship.moveTarget = { ...dest };
+        ship.targetId = null;
+        ship.holdPosition = false;
+        ship.isAttackMoving = true; // patrol always attack-acquires
+      } else {
+        ship.moveTarget = { ...dest };
+        ship.targetId = null;
+        ship.holdPosition = false;
+        ship.isAttackMoving = this.commandMode === 'attack_move';
+        // Clear any active patrol
+        ship.patrolPoints = [];
+        ship.patrolIndex = 0;
+      }
     }
-    this.commandMode = 'normal';
+    // Attack-move is a sticky toggle — stays active until player turns it off.
+    // Patrol resets after one use (one-shot click-to-set behavior).
+    if (this.commandMode === 'patrol') this.commandMode = 'normal';
   }
 
   private issueStopCommand() {

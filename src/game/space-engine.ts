@@ -50,6 +50,8 @@ export class SpaceEngine {
 
   /** Set to true before calling initGame() if the player has a saved hero ship. */
   hasCustomHero = false;
+  /** Commander spec chosen at the pre-game modal. If set, a free level-1 commander spawns on init. */
+  playerCommanderSpec: CommanderSpec | null = null;
 
   initGame(mode: GameMode = '1v1') {
     const map = getMapSize(mode);
@@ -122,6 +124,33 @@ export class SpaceEngine {
     }
     // Generate resource nodes after all planets and states are initialized
     this.generateResourceNodes();
+
+    // Spawn player's starting commander if a spec was chosen pre-game
+    if (this.playerCommanderSpec) {
+      const homeWorld = this.state.planets.find(p => p.isStartingPlanet && p.owner === 1);
+      if (homeWorld) {
+        const portraitIdx = Math.floor(Math.random() * 20) + 1;
+        const portrait = `/assets/space/ui/commanders/${portraitIdx}.png`;
+        const name = COMMANDER_NAMES[Math.floor(Math.random() * COMMANDER_NAMES.length)];
+        const id = this.state.nextId++;
+        const cmd: Commander = {
+          id, name, portrait, spec: this.playerCommanderSpec,
+          level: 1, xp: 0, xpToNextLevel: COMMANDER_XP_LEVELS[2] ?? 250,
+          team: 1 as Team, state: 'idle',
+          trainingPlanetId: null, trainingTimeRemaining: 0, trainingTotalTime: 0,
+          equippedShipId: null,
+          attackBonus: 0.05, defenseBonus: 0.05, speedBonus: 0.05, specialBonus: 0.075,
+        };
+        this.state.commanders.set(id, cmd);
+        // Auto-equip to the player flagship
+        for (const [, ship] of this.state.ships) {
+          if (ship.team === 1 && (ship.shipType === 'pyramid_ship' || ship.shipType === 'custom_hero')) {
+            this.equipCommanderToShip(ship);
+            break;
+          }
+        }
+      }
+    }
 
     // AI autocast
     for (const [, ship] of this.state.ships) {
@@ -383,21 +412,53 @@ export class SpaceEngine {
           ship.x += ship.vx; ship.y += ship.vy;
           ship.animState = 'moving';
           ship.roll = angleDelta(ship.facing, ta) * 2;
-        } else { ship.moveTarget = null; ship.vx = 0; ship.vy = 0; ship.animState = 'idle'; }
+        } else {
+          // Arrived at destination — check if we're patrolling
+          if (ship.patrolPoints.length >= 2) {
+            ship.patrolIndex = (ship.patrolIndex + 1) % ship.patrolPoints.length;
+            const next = ship.patrolPoints[ship.patrolIndex];
+            ship.moveTarget = { x: next.x, y: next.y, z: 0 };
+          } else {
+            ship.moveTarget = null;
+          }
+          ship.vx = 0; ship.vy = 0; ship.animState = 'idle';
+        }
       } else if (!ship.targetId && ship.orbitTarget === null) {
-        ship.animState = 'idle';
+        // If patrolling and idle (e.g. finished a combat detour), resume patrol
+        if (ship.patrolPoints.length >= 2 && !ship.moveTarget) {
+          const next = ship.patrolPoints[ship.patrolIndex];
+          ship.moveTarget = { x: next.x, y: next.y, z: 0 };
+        }
+        ship.animState = ship.moveTarget ? 'moving' : 'idle';
       }
 
-      // Auto-acquire
+      // Auto-acquire — attack-move uses a much wider scan radius so ships
+      // proactively engage enemies along their path, not just in weapon range.
       if (!ship.targetId && !ship.holdPosition) {
+        const scanRange = ship.isAttackMoving ? ship.attackRange * 3 : ship.attackRange * 1.5;
         const nearest = this.findNearestEnemy(ship);
-        if (nearest && dist2d(ship, nearest) < ship.attackRange * 1.5) ship.targetId = nearest.id;
+        if (nearest && dist2d(ship, nearest) < scanRange) {
+          // Save the original destination so we can resume after the fight
+          if (ship.isAttackMoving && ship.moveTarget && !ship.attackMoveTarget) {
+            ship.attackMoveTarget = { ...ship.moveTarget };
+          }
+          ship.targetId = nearest.id;
+          ship.moveTarget = null; // stop moving, engage
+        }
       }
 
       // Combat
       if (ship.targetId) {
         const t = this.state.ships.get(ship.targetId);
-        if (!t || t.dead) { ship.targetId = null; }
+        if (!t || t.dead) {
+          ship.targetId = null;
+          // Resume attack-move toward original destination if we detoured
+          if (ship.attackMoveTarget) {
+            ship.moveTarget = ship.attackMoveTarget;
+            ship.attackMoveTarget = null;
+            // Stay in attack-move mode so we engage the next enemy too
+          }
+        }
         else {
           const d = dist2d(ship, t);
           if (d > ship.attackRange) {
@@ -1366,6 +1427,11 @@ export class SpaceEngine {
           if (!ship.workerNodeId) { ship.workerState = 'idle'; break; }
           const node = this.state.resourceNodes.get(ship.workerNodeId);
           if (!node || node.harvestCooldown > 0) { ship.workerState = 'idle'; ship.moveTarget = null; break; }
+          // Abort if the node's planet was captured by an enemy
+          const tPlanet = this.state.planets.find(p => p.id === node.parentPlanetId);
+          if (tPlanet && tPlanet.owner !== ship.team && tPlanet.owner !== 0) {
+            ship.workerState = 'idle'; ship.moveTarget = null; ship.workerNodeId = null; break;
+          }
           ship.moveTarget = { x: node.x, y: node.y, z: 0 }; // track moving node
           if (dist2d(ship, node) < HARVEST_RANGE) {
             ship.workerState = 'harvesting';
@@ -1379,6 +1445,11 @@ export class SpaceEngine {
           if (!ship.workerNodeId) { ship.workerState = 'idle'; break; }
           const node = this.state.resourceNodes.get(ship.workerNodeId);
           if (!node) { ship.workerState = 'idle'; break; }
+          // Abort if the node's planet was captured by an enemy
+          const hPlanet = this.state.planets.find(p => p.id === node.parentPlanetId);
+          if (hPlanet && hPlanet.owner !== ship.team && hPlanet.owner !== 0) {
+            ship.workerState = 'idle'; ship.holdPosition = false; ship.moveTarget = null; ship.workerNodeId = null; break;
+          }
           // Worker stays at harvest position — laser beam connects to node
           // Face towards the node
           ship.facing = Math.atan2(node.y - ship.y, node.x - ship.x);
