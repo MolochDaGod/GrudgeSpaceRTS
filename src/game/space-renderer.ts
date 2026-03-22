@@ -623,25 +623,25 @@ export class SpaceRenderer {
     return result.clone();
   }
 
-  /** SHIP_Y_OFFSET: ships float this many Three.js units above the scene
-   * ground plane so they always render visibly above planet spheres (r≈14)
-   * when viewed from the 55° camera angle. Increased for 3× larger ships. */
-  private static readonly SHIP_Y = 5.0;
+  /** Ships float above the ground plane so they render above planet equators. */
+  private static readonly SHIP_Y = 3.5;
 
-  /** Target diameter (Three.js units) for each ship class — models are auto-scaled to fit. */
+  /** Target diameter (Three.js units) for each ship class — models are auto-scaled to fit.
+   *  Scaled so fighters ≈ 10% of a starting planet (28 TJS diameter).
+   *  A dreadnought is ≈ 25% of a planet — big but not absurd. */
   private static shipClassSize(cls: string): number {
     switch (cls) {
-      case 'dreadnought':    return 24;
-      case 'battleship':     return 21;
-      case 'carrier':        return 18;
-      case 'cruiser':        return 16.5;
-      case 'light_cruiser':  return 15;
-      case 'destroyer':      return 13.5;
-      case 'frigate':        return 12;
-      case 'corvette':       return 10.5;
-      case 'assault_frigate': return 12;
-      case 'worker':         return 7.5;
-      default:               return 9; // fighters, scouts, etc.
+      case 'dreadnought':    return 7.0;
+      case 'battleship':     return 6.2;
+      case 'carrier':        return 5.5;
+      case 'cruiser':        return 5.0;
+      case 'light_cruiser':  return 4.5;
+      case 'destroyer':      return 4.0;
+      case 'frigate':        return 3.6;
+      case 'corvette':       return 3.2;
+      case 'assault_frigate': return 3.6;
+      case 'worker':         return 2.4;
+      default:               return 2.8; // fighters, scouts, etc.
     }
   }
 
@@ -776,15 +776,26 @@ export class SpaceRenderer {
 
         // Custom hero ship: load GLB from player's saved data
         if (spritePath) {
-          // Load 2D sprite as a billboard that always faces camera
+          // Render 2D ship as a flat textured plane on the XZ plane.
+          // Unlike THREE.Sprite (which always faces camera), this rotates
+          // with ship.facing via group.rotation.y, so it turns when moving.
           const tex = this.textureLoader.load(spritePath);
-          const sMat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false });
-          const spr = new THREE.Sprite(sMat);
-          const sz = targetSize * 1.2;
-          spr.scale.set(sz, sz, 1);
-          spr.renderOrder = 2;
+          tex.colorSpace = THREE.SRGBColorSpace;
+          const planeMat = new THREE.MeshBasicMaterial({
+            map: tex, transparent: true, alphaTest: 0.1,
+            side: THREE.DoubleSide, depthWrite: false,
+          });
+          const sz = targetSize * 1.6; // slightly larger since top-down flat
+          const planeGeo = new THREE.PlaneGeometry(sz, sz);
+          const planeMesh = new THREE.Mesh(planeGeo, planeMat);
+          // Lay flat on XZ plane (face up toward camera)
+          planeMesh.rotation.x = -Math.PI / 2;
+          // Rotate 90° so the ship nose points in the +Z direction (matching facing=0)
+          planeMesh.rotation.z = Math.PI / 2;
+          planeMesh.renderOrder = 2;
+          planeMesh.name = 'spriteShip';
           removeCone(meshData.group);
-          meshData.group.add(spr);
+          meshData.group.add(planeMesh);
         } else if (ship.shipType === 'custom_hero') {
           this.loadCustomHeroModel(id, meshData);
         } else if (prefab) {
