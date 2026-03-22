@@ -397,10 +397,40 @@ export function SpaceHUD({ renderer, onQuit }: SpaceHUDProps) {
             filter: 'drop-shadow(0 0 8px rgba(68,136,255,0.4))' }}
           onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
         />
-        <ResourceItem icon={RES_ICONS.credits} label="Credits" value={Math.floor(res.credits)} color="#fc4" />
-        <ResourceItem icon={RES_ICONS.energy} label="Energy" value={Math.floor(res.energy)} color="#4df" />
-        <ResourceItem icon={RES_ICONS.minerals} label="Minerals" value={Math.floor(res.minerals)} color="#4f8" />
+        {/* Resources with income rates */}
+        {(() => {
+          // Calculate income/s from owned planets
+          let incC = 0, incE = 0, incM = 0;
+          for (const p of state.planets) {
+            if (p.owner !== 1) continue;
+            const m = PLANET_TYPE_DATA[p.planetType].resourceMult;
+            incC += p.resourceYield.credits * m.credits;
+            incE += p.resourceYield.energy * m.energy;
+            incM += p.resourceYield.minerals * m.minerals;
+          }
+          return (<>
+            <ResourceItem icon={RES_ICONS.credits} label="Credits" value={Math.floor(res.credits)} color="#fc4" rate={incC} />
+            <ResourceItem icon={RES_ICONS.energy} label="Energy" value={Math.floor(res.energy)} color="#4df" rate={incE} />
+            <ResourceItem icon={RES_ICONS.minerals} label="Minerals" value={Math.floor(res.minerals)} color="#4f8" rate={incM} />
+          </>);
+        })()}
         <span style={{ fontSize: 10, opacity: 0.5 }}>{Math.floor(res.supply)}/{res.maxSupply} supply</span>
+        {/* Worker status */}
+        {(() => {
+          let workerTotal = 0, workerIdle = 0;
+          for (const [, s] of state.ships) {
+            if (s.dead || s.team !== 1 || s.shipClass !== 'worker') continue;
+            workerTotal++;
+            if (s.workerState === 'idle') workerIdle++;
+          }
+          return workerTotal > 0 ? (
+            <span style={{ fontSize: 10, display: 'flex', alignItems: 'center', gap: 3,
+              color: workerIdle > 0 ? '#ffaa22' : '#4f8',
+              animation: workerIdle > 0 ? 'pulse 1s infinite' : 'none' }}>
+              {RES_ICONS.minerals} {workerTotal}W{workerIdle > 0 && <span style={{ color: '#ff8844', fontWeight: 700 }}> ({workerIdle} idle)</span>}
+            </span>
+          ) : null;
+        })()}
         <div style={{ flex: 1 }} />
         <div style={{ fontSize: 11, opacity: 0.6, display: 'flex', alignItems: 'center', gap: 6 }}>
           <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#4488ff', display: 'inline-block' }} />
@@ -501,7 +531,42 @@ export function SpaceHUD({ renderer, onQuit }: SpaceHUDProps) {
         );
       })()}
 
-      {/* ── Bottom Panel (sci-fi GUI frame) ────────────── */}
+      {/* ── Floating Damage Numbers ─────────────────── */}
+      {renderer && state.floatingTexts.map(ft => {
+        const screen = worldToScreen(ft.x, ft.y, ft.z, renderer);
+        if (!screen) return null;
+        const opacity = 1 - ft.age / ft.maxAge;
+        return (
+          <div key={ft.id} style={{
+            position: 'absolute', left: screen.x, top: screen.y,
+            transform: 'translate(-50%, -50%)',
+            fontSize: 12, fontWeight: 800, color: ft.color,
+            textShadow: '0 0 4px rgba(0,0,0,0.9), 0 1px 2px rgba(0,0,0,0.7)',
+            opacity, pointerEvents: 'none', zIndex: 15,
+            transition: 'none',
+          }}>{ft.text}</div>
+        );
+      })}
+
+      {/* ── Capture Progress Labels on Planets ───────── */}
+      {renderer && state.planets.filter(p => p.captureProgress > 0).map(p => {
+        const screen = worldToScreen(p.x, p.y, 40, renderer);
+        if (!screen) return null;
+        const pct = Math.round((p.captureProgress / CAPTURE_TIME) * 100);
+        const col = TEAM_COLORS[p.captureTeam] ? `#${TEAM_COLORS[p.captureTeam].toString(16).padStart(6, '0')}` : '#ffff44';
+        return (
+          <div key={`cap-${p.id}`} style={{
+            position: 'absolute', left: screen.x, top: screen.y - 16,
+            transform: 'translateX(-50%)',
+            fontSize: 11, fontWeight: 800, color: col,
+            textShadow: `0 0 6px ${col}88, 0 0 12px ${col}44`,
+            pointerEvents: 'none', zIndex: 15,
+            letterSpacing: 1,
+          }}>CAPTURING {pct}%</div>
+        );
+      })}
+
+      {/* ── Bottom Panel (sci-fi GUI frame) ──────────────── */}
       <div style={{
         position: 'absolute', bottom: 0, left: 0, right: 0, height: 196,
         background: 'rgba(4,8,16,0.95)',
@@ -592,11 +657,12 @@ export function SpaceHUD({ renderer, onQuit }: SpaceHUDProps) {
 }
 
 // ── Resource Item ─────────────────────────────────────────────────
-function ResourceItem({ icon, label, value, color }: { icon: React.ReactNode; label: string; value: number; color: string }) {
+function ResourceItem({ icon, label, value, color, rate }: { icon: React.ReactNode; label: string; value: number; color: string; rate?: number }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 13 }}>
       {icon}
       <span style={{ color, fontWeight: 600, minWidth: 48, textAlign: 'right' }}>{value.toLocaleString()}</span>
+      {rate != null && rate > 0 && <span style={{ fontSize: 8, color: '#4f8', opacity: 0.7 }}>+{Math.round(rate)}/s</span>}
       <span style={{ fontSize: 9, opacity: 0.4, textTransform: 'uppercase', letterSpacing: 0.5 }}>{label}</span>
     </div>
   );
@@ -1645,4 +1711,30 @@ function formatTime(seconds: number): string {
   const m = Math.floor(seconds / 60);
   const s = Math.floor(seconds % 60);
   return `${m}:${s.toString().padStart(2, '0')}`;
+}
+
+/** Project a game-world position to screen pixel coordinates for HTML overlays. */
+function worldToScreen(x: number, y: number, z: number, renderer: SpaceRenderer): { x: number; y: number } | null {
+  const WORLD_SCALE = 0.05;
+  const cam = renderer.controls.cameraState;
+  const yawRad = cam.rotation * (Math.PI / 180);
+  const pitchRad = cam.angle * (Math.PI / 180);
+  const lookX = cam.x * WORLD_SCALE, lookZ = cam.y * WORLD_SCALE;
+  const camX = lookX + Math.sin(yawRad) * cam.zoom * Math.cos(pitchRad);
+  const camY = cam.zoom * Math.sin(pitchRad);
+  const camZ = lookZ + Math.cos(yawRad) * cam.zoom * Math.cos(pitchRad);
+  // Cheap perspective project
+  const dx = x * WORLD_SCALE - camX, dy = z * WORLD_SCALE - camY, dz = y * WORLD_SCALE - camZ;
+  const cosY = Math.cos(-yawRad), sinY = Math.sin(-yawRad);
+  const rz = dx * cosY - dz * sinY, rx = dx * sinY + dz * cosY;
+  const cosP = Math.cos(-pitchRad + Math.PI/2), sinP = Math.sin(-pitchRad + Math.PI/2);
+  const ry2 = dy * cosP - rz * sinP, rz2 = dy * sinP + rz * cosP;
+  if (rz2 < 0.1) return null;
+  const fov = 50 * (Math.PI / 180);
+  const aspect = window.innerWidth / window.innerHeight;
+  const scale = 1 / (Math.tan(fov / 2) * rz2);
+  const sx = window.innerWidth * 0.5 + rx * scale * window.innerHeight * 0.5;
+  const sy = window.innerHeight * 0.5 - ry2 * scale * window.innerHeight * 0.5;
+  if (sx < -50 || sx > window.innerWidth + 50 || sy < -50 || sy > window.innerHeight + 50) return null;
+  return { x: sx, y: sy };
 }

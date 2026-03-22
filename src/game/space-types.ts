@@ -345,6 +345,16 @@ export type WinCondition = 'domination' | 'elimination';
 // elimination = destroy all enemy ships and stations
 
 // ── Complete Game State ─────────────────────────────────────────
+// ── Floating Damage Text ────────────────────────────────────────
+export interface FloatingText {
+  id: number;
+  x: number; y: number; z: number;
+  text: string;
+  color: string;
+  age: number;       // seconds alive
+  maxAge: number;    // total display time
+}
+
 export interface SpaceGameState {
   gameMode: GameMode;
   ships: Map<number, SpaceShip>;
@@ -363,6 +373,7 @@ export interface SpaceGameState {
   projectiles: Map<number, Projectile>;
   spriteEffects: SpriteEffect[];
   glbEffects: GLBEffect[];
+  floatingTexts: FloatingText[];
   alerts: Alert[];
   resources: Record<number, PlayerResources>;
   upgrades: Record<number, TeamUpgrades>;
