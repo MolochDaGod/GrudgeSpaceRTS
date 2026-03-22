@@ -1151,28 +1151,24 @@ function BuildPanel({ station, renderer, res }: { station: SpaceStation; rendere
         </div>
       )}
 
-      {/* Stock ships */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, maxHeight: 90, overflowY: 'auto', marginBottom: 6 }}>
+      {/* Stock ships — using Slot frames */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, maxHeight: 100, overflowY: 'auto', marginBottom: 6 }}>
         {tiers.flatMap(tier => (BUILDABLE_SHIPS[tier] ?? []).map(key => {
           const def = SHIP_DEFINITIONS[key];
           if (!def) return null;
           const s = def.stats;
           const canAfford = res.credits >= s.creditCost && res.energy >= s.energyCost && res.minerals >= s.mineralCost;
           return (
-            <div key={key} onClick={() => canAfford && renderer.engine.queueBuild(station.id, key)} style={{
-              position: 'relative', width: 72, height: 72, cursor: canAfford ? 'pointer' : 'default',
-              opacity: canAfford ? 1 : 0.4,
-              display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-            }}>
-              <img src='/assets/space/ui/hud/Box_Item.png' alt=''
-                style={{ position:'absolute', inset:0, width:'100%', height:'100%', objectFit:'fill', imageRendering:'auto' }} />
-              <div style={{ position:'relative', zIndex:1, textAlign:'center' }}>
-                <div style={{ fontSize: 8, fontWeight: 700, color: '#fff', marginBottom: 1 }}>{def.displayName}</div>
-                <div style={{ fontSize: 7, color: '#fc4' }}>{s.creditCost}c</div>
-                <div style={{ fontSize: 7, color: '#4df' }}>{s.energyCost}e</div>
-                <div style={{ fontSize: 7, color: '#4f8' }}>{s.mineralCost}m</div>
+            <Slot key={key} size={68}
+              onClick={() => canAfford ? renderer.engine.queueBuild(station.id, key) : undefined}
+              style={{ opacity: canAfford ? 1 : 0.35 }}>
+              <div style={{ textAlign: 'center', lineHeight: 1.2 }}>
+                <div style={{ fontSize: 7, fontWeight: 700, color: '#fff' }}>{def.displayName}</div>
+                <div style={{ fontSize: 6, color: '#fc4' }}>{s.creditCost}c</div>
+                <div style={{ fontSize: 6, color: '#4df' }}>{s.energyCost}e</div>
+                <div style={{ fontSize: 6, color: '#4f8' }}>{s.mineralCost}m</div>
               </div>
-            </div>
+            </Slot>
           );
         }))}
       </div>
@@ -1209,7 +1205,7 @@ function BuildPanel({ station, renderer, res }: { station: SpaceStation; rendere
   );
 }
 
-// ── Upgrade Panel (when nothing selected) ───────────────────────
+// ── Upgrade Panel (when nothing selected) — using Slot + Bar from ui-lib
 function UpgradePanel({ upg, res, renderer }: { upg: TeamUpgrades; res: PlayerResources; renderer: SpaceRenderer }) {
   const types: { key: keyof TeamUpgrades; label: string; color: string; icon: string }[] = [
     { key: 'attack', label: 'Attack', color: '#f44', icon: '/assets/space/ui/item-icons/PNG/7.png' },
@@ -1228,23 +1224,21 @@ function UpgradePanel({ upg, res, renderer }: { upg: TeamUpgrades; res: PlayerRe
           const cost = !maxed ? UPGRADE_COSTS[level] : null;
           const canAfford = cost ? res.credits >= cost.credits && res.minerals >= cost.minerals && res.energy >= cost.energy : false;
           return (
-            <div key={t.key} onClick={() => canAfford && renderer.engine.purchaseUpgrade(1 as any, t.key)} style={{
-              position: 'relative', width: 80, height: 90, cursor: canAfford ? 'pointer' : 'default',
-              opacity: maxed ? 0.7 : canAfford ? 1 : 0.4,
-              display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-            }}>
-              <img src='/assets/space/ui/hud/Box_Item.png' alt=''
-                style={{ position:'absolute', inset:0, width:'100%', height:'100%', objectFit:'fill' }} />
-              <img src={t.icon} alt={t.label}
-                style={{ width:32, height:32, objectFit:'contain', position:'relative', zIndex:1, imageRendering:'auto' }}
-                onError={e => { (e.target as HTMLImageElement).style.display='none'; }} />
-              <div style={{ position:'relative', zIndex:1, textAlign:'center', marginTop: 2 }}>
-                <div style={{ fontSize: 9, fontWeight: 700, color: t.color }}>{t.label}</div>
-                <div style={{ fontSize: 11, fontWeight: 800, color: '#fff' }}>Lv {level}/5</div>
-                {!maxed && cost && <div style={{ fontSize: 7, opacity: 0.7, color: '#cde' }}>{cost.credits}c {cost.minerals}m</div>}
-                {maxed && <div style={{ fontSize: 8, color: '#4f4' }}>MAX</div>}
+            <Slot key={t.key} size={80}
+              onClick={() => canAfford ? renderer.engine.purchaseUpgrade(1 as any, t.key) : undefined}
+              active={maxed}
+              style={{ opacity: maxed ? 0.8 : canAfford ? 1 : 0.35 }}>
+              <div style={{ textAlign: 'center' }}>
+                <img src={t.icon} alt={t.label}
+                  style={{ width: 26, height: 26, objectFit: 'contain', imageRendering: 'auto' }}
+                  onError={e => { (e.target as HTMLImageElement).style.display='none'; }} />
+                <div style={{ fontSize: 8, fontWeight: 700, color: t.color, marginTop: 1 }}>{t.label}</div>
+                <Bar value={level} max={5} color={t.color} height={4} width={50} />
+                <div style={{ fontSize: 7, color: '#fff', marginTop: 1 }}>Lv {level}/5</div>
+                {!maxed && cost && <div style={{ fontSize: 6, color: '#8ac' }}>{cost.credits}c</div>}
+                {maxed && <div style={{ fontSize: 7, color: '#4f4' }}>MAX</div>}
               </div>
-            </div>
+            </Slot>
           );
         })}
       </div>
