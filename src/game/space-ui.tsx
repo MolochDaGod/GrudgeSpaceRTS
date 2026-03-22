@@ -55,27 +55,7 @@ import { ALL_TECH_TREES, VOID_POWERS, PLANET_TYPE_TO_TECH, TURRET_DEFS } from '.
 import { FlagshipInterior } from './flagship-interior';
 import { Panel, SmallPanel, Btn, Slot, Bar, Frame, ResBox } from './ui-lib';
 
-// ── Segment Bar: Sci-fi blockified health bar ──────────────────
-function SegmentBar({
-  value, max, segments = 10, color = '#44ee44', bg = '#0a1a0a', height = 10,
-}: {
-  value: number; max: number; segments?: number; color?: string; bg?: string; height?: number;
-}) {
-  const filled = Math.round((value / Math.max(max, 1)) * segments);
-  return (
-    <div style={{ display: 'flex', gap: 2 }}>
-      {Array.from({ length: segments }, (_, i) => (
-        <div key={i} style={{
-          flex: 1, height,
-          background: i < filled ? color : bg,
-          borderRadius: 2,
-          boxShadow: i < filled ? `0 0 4px ${color}88` : 'none',
-          transition: 'background 0.2s',
-        }} />
-      ))}
-    </div>
-  );
-}
+// SegmentBar removed — replaced by Bar from ui-lib
 
 // ── Ability SVG Icons ─────────────────────────────────────────────
   // Ability icon images from skill-icons packs (high quality painted art)
@@ -183,21 +163,7 @@ const Svg = ({ children, size = 16, color = 'currentColor' }: { children: React.
   <svg viewBox="0 0 24 24" fill="none" style={{ width: size, height: size, color, display: 'inline-block', verticalAlign: 'middle' }}>{children}</svg>
 );
 
-// ── Ship Class SVG Icons ──────────────────────────────────────────
-const CLASS_ICONS: Record<string, React.ReactNode> = {
-  scout: <Svg size={20}><circle cx="12" cy="12" r="4" stroke="#6af" strokeWidth="1.5"/><ellipse cx="12" cy="12" rx="10" ry="4" stroke="#6af" strokeWidth="1" opacity=".5"/><circle cx="12" cy="12" r="1.5" fill="#6af"/></Svg>,
-  fighter: <Svg size={20}><path d="M12 3L20 19H4Z" stroke="#4df" strokeWidth="1.5" fill="none"/><line x1="12" y1="7" x2="12" y2="15" stroke="#4df" strokeWidth="1"/></Svg>,
-  interceptor: <Svg size={20}><path d="M12 2L15 10H20L16 14L18 22L12 18L6 22L8 14L4 10H9Z" stroke="#fa0" strokeWidth="1.2" fill="#fa0" fillOpacity=".15"/></Svg>,
-  heavy_fighter: <Svg size={20}><path d="M12 3L21 19H3Z" stroke="#f64" strokeWidth="2" fill="none"/><path d="M8 13H16" stroke="#f64" strokeWidth="2"/></Svg>,
-  bomber: <Svg size={20}><circle cx="12" cy="10" r="6" stroke="#f84" strokeWidth="1.5" fill="none"/><path d="M12 16V21" stroke="#f84" strokeWidth="2"/><circle cx="12" cy="10" r="2" fill="#f84"/></Svg>,
-  stealth: <Svg size={20}><path d="M12 4L20 18H4Z" stroke="#88a" strokeWidth="1" strokeDasharray="3 2" fill="none"/><path d="M12 8L16 16H8Z" stroke="#aac" strokeWidth="1" strokeDasharray="2 2" fill="none"/></Svg>,
-  transport: <Svg size={20}><rect x="5" y="7" width="14" height="10" rx="2" stroke="#8bf" strokeWidth="1.5" fill="none"/><line x1="5" y1="12" x2="19" y2="12" stroke="#8bf" strokeWidth="1"/><circle cx="8" cy="14" r="1" fill="#8bf"/><circle cx="16" cy="14" r="1" fill="#8bf"/></Svg>,
-  assault_frigate: <Svg size={20}><path d="M4 18L12 4L20 18" stroke="#f80" strokeWidth="1.5" fill="none"/><path d="M7 18L12 8L17 18" stroke="#f80" strokeWidth="1" fill="#f80" fillOpacity=".15"/><line x1="12" y1="18" x2="12" y2="22" stroke="#f60" strokeWidth="2"/></Svg>,
-  destroyer: <Svg size={20}><path d="M6 18L12 3L18 18" stroke="#e44" strokeWidth="2" fill="none"/><line x1="4" y1="12" x2="20" y2="12" stroke="#e44" strokeWidth="1.5"/><circle cx="12" cy="12" r="2" fill="#e44"/></Svg>,
-  cruiser: <Svg size={20}><rect x="6" y="4" width="12" height="16" rx="3" stroke="#4af" strokeWidth="1.5" fill="none"/><path d="M6 10H18" stroke="#4af" strokeWidth="1"/><circle cx="12" cy="7" r="1.5" fill="#4af"/><rect x="9" y="13" width="6" height="4" rx="1" stroke="#4af" strokeWidth="1"/></Svg>,
-  battleship: <Svg size={20}><path d="M12 2L22 20H2Z" stroke="#fc4" strokeWidth="2" fill="#fc4" fillOpacity=".1"/><line x1="7" y1="14" x2="17" y2="14" stroke="#fc4" strokeWidth="1.5"/><line x1="9" y1="18" x2="15" y2="18" stroke="#fc4" strokeWidth="1"/><circle cx="12" cy="10" r="2" fill="#fc4"/></Svg>,
-  carrier: <Svg size={20}><rect x="4" y="6" width="16" height="12" rx="2" stroke="#8af" strokeWidth="1.5" fill="none"/><line x1="4" y1="12" x2="20" y2="12" stroke="#8af" strokeWidth="1"/><polygon points="8,3 10,6 6,6" fill="#6af"/><polygon points="16,3 18,6 14,6" fill="#6af"/></Svg>,
-};
+// CLASS_ICONS removed — unused SVGs
 
 // ── Attack Type Icons (space-icons pack — ships & weapons) ──────
 const ATTACK_IMG: Record<string, string> = {
@@ -635,17 +601,7 @@ export function SpaceHUD({ renderer, onQuit }: SpaceHUDProps) {
   );
 }
 
-// ── Resource Item ─────────────────────────────────────────────────
-function ResourceItem({ icon, label, value, color, rate }: { icon: React.ReactNode; label: string; value: number; color: string; rate?: number }) {
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 13 }}>
-      {icon}
-      <span style={{ color, fontWeight: 600, minWidth: 48, textAlign: 'right' }}>{value.toLocaleString()}</span>
-      {rate != null && rate > 0 && <span style={{ fontSize: 8, color: '#4f8', opacity: 0.7 }}>+{Math.round(rate)}/s</span>}
-      <span style={{ fontSize: 9, opacity: 0.4, textTransform: 'uppercase', letterSpacing: 0.5 }}>{label}</span>
-    </div>
-  );
-}
+// ResourceItem removed — replaced by ResBox from ui-lib
 
 // ── Single Unit Info — portrait + stats ───────────────────────────
 function SingleUnitInfo({ ship, def }: { ship: SpaceShip; def: { class: string; stats: any; displayName: string } }) {
@@ -719,7 +675,7 @@ function SingleUnitInfo({ ship, def }: { ship: SpaceShip; def: { class: string; 
           <div style={{ display:'flex', justifyContent:'space-between', fontSize:8, marginBottom:1, color:hpColor }}>
             <span>♥ HP</span><span>{Math.ceil(ship.hp)}/{ship.maxHp}</span>
           </div>
-          <SegmentBar value={ship.hp} max={ship.maxHp} segments={10} color={hpColor} height={6} />
+          <Bar value={ship.hp} max={ship.maxHp} color={hpColor} height={6} />
         </div>
 
         {/* Shield bar */}
@@ -728,7 +684,7 @@ function SingleUnitInfo({ ship, def }: { ship: SpaceShip; def: { class: string; 
             <div style={{ display:'flex', justifyContent:'space-between', fontSize:8, marginBottom:1, color:'#44ccff' }}>
               <span>🛡 SHD</span><span>{Math.ceil(ship.shield)}/{ship.maxShield}</span>
             </div>
-            <SegmentBar value={ship.shield} max={ship.maxShield} segments={10} color='#44ccff' height={5} />
+            <Bar value={ship.shield} max={ship.maxShield} color='#44ccff' height={5} />
           </div>
         )}
 
@@ -1586,7 +1542,7 @@ function CommanderPanel({ state, selectedCmdId, selectedPlanetId, onSelectCmd, o
               <div style={{ display:'flex', justifyContent:'space-between', fontSize:9, color:C.muted, marginBottom:2 }}>
                 <span>XP</span><span>{selected.xp}/{selected.xpToNextLevel}</span>
               </div>
-              <SegmentBar value={selected.xp} max={selected.xpToNextLevel} segments={10} color='#cc4400' height={8} />
+              <Bar value={selected.xp} max={selected.xpToNextLevel} color='#cc4400' height={8} />
             </div>
 
             {/* Stats grid matching image 2 style */}
@@ -1630,10 +1586,10 @@ function CommanderPanel({ state, selectedCmdId, selectedPlanetId, onSelectCmd, o
             {selected.state === 'training' && (
               <div style={{ marginTop:6 }}>
                 <div style={{ fontSize:9, color:'#fc4', marginBottom:3 }}>Training… {Math.ceil(selected.trainingTimeRemaining)}s remaining</div>
-                <SegmentBar
+                <Bar
                   value={selected.trainingTotalTime - selected.trainingTimeRemaining}
                   max={selected.trainingTotalTime}
-                  segments={10} color='#fc4' height={6}
+                  color='#fc4' height={6}
                 />
               </div>
             )}
