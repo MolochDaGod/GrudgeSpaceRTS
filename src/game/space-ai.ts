@@ -1,12 +1,18 @@
 /**
  * space-ai.ts — Advanced AI system with 5 difficulty levels
  *
- * Difficulty profiles:
- *  1 – Passive learner. Long cycles, random ships, ignores tech.
- *  2 – Basic. Prefers cheap fighters/corvettes, basic expansion.
- *  3 – Tactical. Composition awareness, T1-2 tech, flanking.
- *  4 – Strategic. Multi-front, full tech, void powers, workers.
- *  5 – Optimal. Perfect composition, all void powers, economy strangling.
+ * CORE PRINCIPLE: AI is a player, not a cheat engine. It uses the exact
+ * same ship stats, cooldowns, costs, and resource rates as the human.
+ * The only difference is DECISION QUALITY:
+ *  1 – Passive: random composition, no tech, no micro, wanders.
+ *  2 – Basic:   cheap fighters, basic expansion, some tech.
+ *  3 – Tactical: good composition, flanking, workers, mid tech.
+ *  4 – Strategic: multi-front, full tech, void powers, retreat micro.
+ *  5 – Optimal:  perfect composition, economy focus, strafe micro.
+ *
+ * Build/tactics/tech poll rates are identical for all difficulties.
+ * A fast poll simply lets the AI check if it CAN build — the same
+ * resource/queue constraints that limit the player limit the AI.
  */
 
 import type {
@@ -71,13 +77,16 @@ export interface AIConfig {
 
 export function getAIConfig(difficulty: number): AIConfig {
   const d = Math.max(1, Math.min(5, difficulty));
+  // ALL difficulties use the same fast poll rates — the AI checks if it
+  // can build every 2s, just like a human clicking the build button.
+  // The queue + resource cost is the real limiter, not an artificial timer.
+  // Difficulty only controls WHAT it builds, WHERE it attacks, and HOW it micros.
   const configs: Record<number, AIConfig> = {
-    // Build cycle slowed so AI doesn't massively outproduce player early game
-    1: { difficulty:1, buildCycleTime:14,  tacticsCycleTime:15, techCycleTime:999, useVoidPowers:false, useTech:false, useWorkers:false, multiFleet:false, responseDelay:8 },
-    2: { difficulty:2, buildCycleTime:10,  tacticsCycleTime:10, techCycleTime:40,  useVoidPowers:false, useTech:true,  useWorkers:false, multiFleet:false, responseDelay:5 },
-    3: { difficulty:3, buildCycleTime:7,   tacticsCycleTime:7,  techCycleTime:25,  useVoidPowers:false, useTech:true,  useWorkers:true,  multiFleet:false, responseDelay:3 },
-    4: { difficulty:4, buildCycleTime:5,   tacticsCycleTime:5,  techCycleTime:18,  useVoidPowers:true,  useTech:true,  useWorkers:true,  multiFleet:true,  responseDelay:2 },
-    5: { difficulty:5, buildCycleTime:3.5, tacticsCycleTime:3,  techCycleTime:12,  useVoidPowers:true,  useTech:true,  useWorkers:true,  multiFleet:true,  responseDelay:1 },
+    1: { difficulty:1, buildCycleTime:2, tacticsCycleTime:5,  techCycleTime:999, useVoidPowers:false, useTech:false, useWorkers:false, multiFleet:false, responseDelay:5 },
+    2: { difficulty:2, buildCycleTime:2, tacticsCycleTime:4,  techCycleTime:20,  useVoidPowers:false, useTech:true,  useWorkers:false, multiFleet:false, responseDelay:3 },
+    3: { difficulty:3, buildCycleTime:2, tacticsCycleTime:3,  techCycleTime:15,  useVoidPowers:false, useTech:true,  useWorkers:true,  multiFleet:false, responseDelay:2 },
+    4: { difficulty:4, buildCycleTime:2, tacticsCycleTime:2,  techCycleTime:10,  useVoidPowers:true,  useTech:true,  useWorkers:true,  multiFleet:true,  responseDelay:1 },
+    5: { difficulty:5, buildCycleTime:2, tacticsCycleTime:2,  techCycleTime:8,   useVoidPowers:true,  useTech:true,  useWorkers:true,  multiFleet:true,  responseDelay:0.5 },
   };
   return configs[d];
 }
@@ -171,13 +180,12 @@ function aiBuildStep(brain: AIBrain, state: SpaceGameState,
     const comp = pool[brain.currentCompositionIdx % pool.length];
     const maxT = cfg.difficulty <= 2 ? 2 : cfg.difficulty === 3 ? 3 : cfg.difficulty === 4 ? 4 : 5;
 
-    // Build ships from composition pattern
+    // Try every ship in the composition (not just the first affordable one)
     let built = false;
     for (const shipType of comp) {
       const def = getShipDef(shipType);
       if (!def) continue;
       if (def.stats.tier > maxT) continue;
-      // Check if unlocked or in standard pool
       const inPool = Object.values(BUILDABLE_SHIPS).flat().includes(shipType);
       const inUnlocked = unlockedExtra.has(shipType);
       if (!inPool && !inUnlocked && !['boss_ship_01','boss_ship_02'].includes(shipType)) continue;
@@ -185,14 +193,23 @@ function aiBuildStep(brain: AIBrain, state: SpaceGameState,
     }
 
     if (!built) {
-      // Fallback to affordable ship
-      if (combatCount < 5 && res.credits >= 100) {
-        queueBuild(st.id, 'red_fighter');
+      // Smart fallback: try tier-appropriate ships instead of always red_fighter.
+      // Walk down from max affordable tier to T1.
+      const fallbacks: string[][] = [
+        ['cf_frigate_01', 'warship', 'dual_striker'],          // T2-3
+        ['cf_corvette_02', 'cf_corvette_03', 'meteor_slicer'], // T2
+        ['red_fighter', 'galactix_racer', 'cf_corvette_01'],   // T1
+      ];
+      for (const tier of fallbacks) {
+        if (built) break;
+        for (const fb of tier) {
+          if (queueBuild(st.id, fb)) { built = true; break; }
+        }
       }
     }
 
-    // Advance composition cycle every few builds
-    if (Math.random() < 0.3) brain.currentCompositionIdx++;
+    // Always advance composition so AI rotates through unit variety
+    brain.currentCompositionIdx++;
   }
 }
 
