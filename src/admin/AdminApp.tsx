@@ -161,47 +161,140 @@ function FleetRegistry() {
   );
 }
 
-// ── ASSET BROWSER ───────────────────────────────────────────────────
-const ASSET_GROUPS = [
-  { label:'Fighter Ships', prefabs:SHIP_PREFABS, color:C.accent },
-  { label:'Battle Fleet', prefabs:BATTLE_SHIP_PREFABS, color:'#ff8844' },
-  { label:'Capital Ships', prefabs:CAPITAL_PREFABS, color:C.gold },
-  { label:'Enemy Ships', prefabs:ENEMY_PREFABS, color:C.danger },
-  { label:'Turrets', prefabs:TURRET_PREFABS, color:'#88ff44' },
-  { label:'Stations', prefabs:STATION_PREFABS, color:C.green },
-  { label:'Effects', prefabs:EFFECT_PREFABS, color:'#aa66ff' },
-  { label:'Voxel Fleet', prefabs:VOXEL_FLEET_PREFABS, color:'#44ddcc' },
-  { label:'Vehicles', prefabs:VEHICLE_PREFABS, color:'#ddaa44' },
-  { label:'Weapons', prefabs:WEAPON_PREFABS, color:'#ff8844' },
+// ── ASSET BROWSER — visual gallery of ALL game assets ───────────────
+// Image galleries: each entry defines a visual category with numbered/named files.
+// range(n) generates [1..n], rangeFrom(a,b) generates [a..b]
+const rng = (n:number) => Array.from({length:n},(_,i)=>i+1);
+const IMG_GALLERIES: Array<{label:string; color:string; count:number; path:(i:number)=>string; size?:number}> = [
+  // ── UI Icons & HUD ────────────────────────────────
+  { label:'Skill Icons Pack 1',    color:'#aa66ff', count:20, path:i=>`/assets/space/ui/skill-icons-1/PNG/${i}.png` },
+  { label:'Skill Icons Pack 2',    color:'#aa66ff', count:20, path:i=>`/assets/space/ui/skill-icons-2/PNG/${i}.png` },
+  { label:'Space Object Icons',    color:C.accent,  count:20, path:i=>`/assets/space/ui/space-icons/PNG/${i}.png` },
+  { label:'Item Icons',            color:C.gold,    count:20, path:i=>`/assets/space/ui/item-icons/PNG/${i}.png` },
+  { label:'Mining Icons',          color:'#44dd88', count:50, path:i=>`/assets/space/ui/mining-icons/PNG/without background/${i}.png` },
+  { label:'Resource Icons',        color:'#44ddcc', count:40, path:i=>`/assets/space/ui/resource-icons/${i}.png` },
+  { label:'Misc Icons',            color:'#8ac',    count:20, path:i=>`/assets/space/ui/icons/${i}.png` },
+  // ── Avatars & Portraits ───────────────────────────
+  { label:'Cyber Avatars (no bg)', color:'#ff8844', count:18, path:i=>`/assets/space/ui/avatars-cyber/PNG/without background/${i}.png` },
+  { label:'Cyber Avatars (bg)',    color:'#ff8844', count:18, path:i=>`/assets/space/ui/avatars-cyber/PNG/background/${i}.png` },
+  { label:'Commander Portraits',   color:C.green,   count:20, path:i=>`/assets/space/ui/commanders/${i}.png`, size:64 },
+  { label:'Commander Portraits BG',color:C.green,   count:20, path:i=>`/assets/space/ui/commanders-bg/${i}.png`, size:64 },
+  { label:'Sci-Fi GUI Avatars',    color:'#4488ff', count:6,  path:i=>`/assets/space/ui/scifi-gui/avatars/${i}.png`, size:64 },
+  // ── HUD Elements ──────────────────────────────────
+  { label:'Bomb Sprites',          color:'#ff4444', count:20, path:i=>`/assets/space/ui/bombs/1 Bombs/${i}.png` },
+  { label:'Bomb Effects',          color:'#ff6644', count:12, path:i=>`/assets/space/ui/bombs/3 Effects/${i}.png` },
+  // ── Ship Sprites ──────────────────────────────────
+  { label:'Pirate Ships',          color:'#cc8844', count:6,  path:i=>`/assets/space/sprites/pirate-ships/PNG/Ships/Ship_0${i}.png`, size:80 },
+  { label:'Pirate Ships (Damaged)',color:'#886633',  count:6,  path:i=>`/assets/space/sprites/pirate-ships/PNG/Ships/Damaged_Ship_0${i}.png`, size:80 },
+  { label:'Boss Ship Icons',       color:'#ffaa22', count:3,  path:i=>`/assets/space/sprites/boss-ships/PNG/Boss_Icons/Icon_0${i}.png`, size:80 },
+  { label:'Boss 01 Full',          color:'#ffaa22', count:1,  path:()=>`/assets/space/sprites/boss-ships/PNG/Boss_01/Boss_Full.png`, size:120 },
+  { label:'Boss 02 Full',          color:'#ffaa22', count:1,  path:()=>`/assets/space/sprites/boss-ships/PNG/Boss_02/Boss_Full.png`, size:120 },
+  { label:'Boss 03 Full',          color:'#ffaa22', count:1,  path:()=>`/assets/space/sprites/boss-ships/PNG/Boss_03/Boss_Full.png`, size:120 },
+  // ── Ship Model Previews ───────────────────────────
+  { label:'Voxel Ship GIFs',       color:C.accent, count:13, path:i=>{
+    const names=['MicroRecon','RedFighter','GalactixRacer','DualStriker','CamoStellarJet','MeteorSlicer','InfraredFurtive','UltravioletIntruder','Warship','StarMarineTrooper','InterstellarRunner','Transtellar','PyramidShip'];
+    const n=names[i-1]; return n?`/assets/space/models/ships/${n}/${n==='PyramidShip'?'AncientPyramidShip':n}.gif`:'';
+  }, size:80 },
+  { label:'Capital Ship PNGs',     color:C.gold, count:4, path:i=>{
+    const names=['Battleships/Battleship','Destroyer/Destroyer','Cruiser/Cruiser','Bomber/Bomber'];
+    return `/assets/space/models/capital/${names[i-1]}.png`;
+  }, size:80 },
+  // ── Explosion Spritesheets ────────────────────────
+  { label:'Explosions',            color:'#ff4444', count:8, path:i=>{
+    const names=['explosion-1-a','explosion-1-b','explosion-1-c','explosion-1-d','explosion-1-e','explosion-1-f','explosion-1-g','explosion-b'];
+    return `/assets/space/sprites/explosions/${names[i-1]}.png`;
+  }, size:80 },
+  { label:'Hit Effects',           color:'#ffaa44', count:6, path:i=>`/assets/space/sprites/hits/hits-${i}.png`, size:60 },
+  { label:'Shooting Effects',      color:'#44eeff', count:6, path:i=>{
+    const names=['bolt','charged','crossed','pulse','spark','waveform'];
+    return `/assets/space/sprites/shooting/${names[i-1]}.png`;
+  }, size:60 },
+  // ── Backgrounds ───────────────────────────────────
+  { label:'Backgrounds',           color:'#4466aa', count:12, path:i=>{
+    const names=['blue-back','blue-stars','blue-with-stars','asteroid-1','asteroid-2','prop-planet-big','prop-planet-small',
+      'parallax-space-backgound','parallax-space-big-planet','parallax-space-far-planets','parallax-space-ring-planet','parallax-space-stars'];
+    return `/assets/space/backgrounds/${names[i-1]}.png`;
+  }, size:100 },
+];
+
+// 3D model prefab groups (non-visual, list only)
+const MODEL_GROUPS = [
+  { label:'Fighter Ship Models', prefabs:SHIP_PREFABS, color:C.accent },
+  { label:'Battle Fleet Models', prefabs:BATTLE_SHIP_PREFABS, color:'#ff8844' },
+  { label:'Capital Ship Models', prefabs:CAPITAL_PREFABS, color:C.gold },
+  { label:'Enemy Ship Models',   prefabs:ENEMY_PREFABS, color:C.danger },
+  { label:'Turret Models',       prefabs:TURRET_PREFABS, color:'#88ff44' },
+  { label:'Station Models',      prefabs:STATION_PREFABS, color:C.green },
+  { label:'Effect Models (GLB)', prefabs:EFFECT_PREFABS, color:'#aa66ff' },
+  { label:'Voxel Fleet Models',  prefabs:VOXEL_FLEET_PREFABS, color:'#44ddcc' },
+  { label:'Vehicle Models',      prefabs:VEHICLE_PREFABS, color:'#ddaa44' },
+  { label:'Weapon Models',       prefabs:WEAPON_PREFABS, color:'#ff8844' },
 ];
 
 function AssetBrowser() {
-  const [expanded, setExpanded] = useState<Set<string>>(new Set(['Fighter Ships']));
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const toggle = (l:string)=>setExpanded(p=>{const n=new Set(p);n.has(l)?n.delete(l):n.add(l);return n;});
-  const total = ASSET_GROUPS.reduce((s,g)=>s+Object.keys(g.prefabs).length,0);
+  const totalImages = IMG_GALLERIES.reduce((s,g)=>s+g.count,0);
+  const totalModels = MODEL_GROUPS.reduce((s,g)=>s+Object.keys(g.prefabs).length,0);
+
   return (
     <div>
       <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:20 }}>
         <div style={{ fontWeight:800, fontSize:18, color:C.accent }}>Asset Browser</div>
-        <span style={{ fontSize:11, color:C.muted }}>{total} total</span>
+        <span style={{ fontSize:11, color:C.muted }}>{totalImages} images · {totalModels} 3D models · 1925 total files</span>
       </div>
-      <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
-        {ASSET_GROUPS.map(({label,prefabs,color})=>{
+
+      {/* ── Image Galleries ────────────────────────── */}
+      <div style={{ fontSize:14, fontWeight:700, color:'#44ddcc', marginBottom:12, marginTop:8 }}>IMAGE GALLERIES</div>
+      <div style={{ display:'flex', flexDirection:'column', gap:8, marginBottom:24 }}>
+        {IMG_GALLERIES.map(g=>{
+          const open=expanded.has(g.label);
+          return (
+            <div key={g.label} style={card}>
+              <div onClick={()=>toggle(g.label)} style={{ padding:'10px 16px', cursor:'pointer', display:'flex', alignItems:'center', gap:10, background:open?'rgba(68,136,255,0.06)':'transparent' }}>
+                <span style={{ color:g.color, fontWeight:700, fontSize:12 }}>{g.label}</span>
+                <span style={{ fontSize:10, color:C.muted }}>{g.count}</span>
+                <span style={{ marginLeft:'auto', color:C.muted, fontSize:10 }}>{open?'▲':'▼'}</span>
+              </div>
+              {open&&(<div style={{ padding:'8px 16px 16px', display:'flex', flexWrap:'wrap', gap:6 }}>
+                {rng(g.count).map(i=>{
+                  const src=g.path(i); if(!src)return null;
+                  const sz=g.size??48;
+                  return (
+                    <div key={i} style={{ width:sz+8, textAlign:'center' }}>
+                      <img src={src} alt={`${g.label} ${i}`}
+                        style={{ width:sz, height:sz, objectFit:'contain', imageRendering:'auto',
+                          border:`1px solid ${C.border}`, borderRadius:4, background:'rgba(2,4,12,0.9)' }}
+                        onError={e=>{(e.target as HTMLImageElement).style.display='none'}} />
+                      <div style={{ fontSize:8, color:C.muted, marginTop:2 }}>{i}</div>
+                    </div>
+                  );
+                })}
+              </div>)}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* ── 3D Model Prefabs ───────────────────────── */}
+      <div style={{ fontSize:14, fontWeight:700, color:'#ff8844', marginBottom:12 }}>3D MODEL PREFABS</div>
+      <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+        {MODEL_GROUPS.map(({label,prefabs,color})=>{
           const keys=Object.keys(prefabs); if(!keys.length)return null;
           const open=expanded.has(label);
           return (
             <div key={label} style={card}>
-              <div onClick={()=>toggle(label)} style={{ padding:'12px 16px', cursor:'pointer', display:'flex', alignItems:'center', gap:10, background:open?'rgba(68,136,255,0.06)':'transparent' }}>
-                <span style={{ color, fontWeight:700, fontSize:13 }}>{label}</span>
+              <div onClick={()=>toggle(label)} style={{ padding:'10px 16px', cursor:'pointer', display:'flex', alignItems:'center', gap:10, background:open?'rgba(68,136,255,0.06)':'transparent' }}>
+                <span style={{ color, fontWeight:700, fontSize:12 }}>{label}</span>
                 <span style={{ fontSize:10, color:C.muted }}>{keys.length}</span>
-                <span style={{ marginLeft:'auto', color:C.muted }}>{open?'▲':'▼'}</span>
+                <span style={{ marginLeft:'auto', color:C.muted, fontSize:10 }}>{open?'▲':'▼'}</span>
               </div>
-              {open&&(<div style={{ padding:'0 16px 16px', display:'flex', flexWrap:'wrap', gap:8 }}>
+              {open&&(<div style={{ padding:'8px 16px 16px', display:'flex', flexWrap:'wrap', gap:8 }}>
                 {keys.map(k=>{const p=(prefabs as any)[k];return(
                   <div key={k} style={{ padding:'6px 10px', border:`1px solid ${C.border}`, borderRadius:6, background:'rgba(4,10,22,0.8)', minWidth:180 }}>
                     <div style={{ fontWeight:600, color, fontSize:11, marginBottom:2 }}>{k}</div>
-                    <div style={{ fontSize:10, color:C.muted, wordBreak:'break-all' }}>{p.modelPath}</div>
-                    <div style={{ fontSize:9, color:'rgba(120,160,200,0.5)', marginTop:2 }}>{p.format.toUpperCase()} · scale {p.scale}{p.hasParts?' · destructible':''}</div>
+                    <div style={{ fontSize:9, color:C.muted, wordBreak:'break-all' }}>{p.modelPath}</div>
+                    <div style={{ fontSize:8, color:'rgba(120,160,200,0.5)', marginTop:2 }}>{p.format.toUpperCase()} · scale {p.scale}{p.hasParts?' · destructible':''}</div>
                   </div>
                 );})}
               </div>)}
