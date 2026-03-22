@@ -301,29 +301,41 @@ export class SpaceControls {
       return;
     }
 
-    // Move, attack-move, or patrol
+    // Move, attack-move, or patrol — with formation spread
     const dest = { x: worldPos.x / WORLD_SCALE, y: worldPos.z / WORLD_SCALE, z: 0 };
+    const count = this.state.selectedIds.size;
+    // Formation spread: arrange ships in a grid centered on destination.
+    // Spacing scales with count so large groups fan out more.
+    const spacing = count <= 1 ? 0 : Math.min(120, 40 + count * 8);
+    const cols = Math.max(1, Math.ceil(Math.sqrt(count)));
+    let idx = 0;
     for (const id of this.state.selectedIds) {
       const ship = this.state.ships.get(id);
       if (!ship) continue;
 
+      // Calculate formation offset (grid centered on dest)
+      const col = idx % cols;
+      const row = Math.floor(idx / cols);
+      const ox = (col - (cols - 1) / 2) * spacing;
+      const oy = (row - (Math.ceil(count / cols) - 1) / 2) * spacing;
+      const shipDest = { x: dest.x + ox, y: dest.y + oy, z: 0 };
+      idx++;
+
       if (this.commandMode === 'patrol') {
-        // Patrol: bounce between current position and the clicked point
         ship.patrolPoints = [
           { x: ship.x, y: ship.y, z: 0 },
-          { ...dest },
+          { ...shipDest },
         ];
-        ship.patrolIndex = 1; // head to the clicked point first
-        ship.moveTarget = { ...dest };
+        ship.patrolIndex = 1;
+        ship.moveTarget = { ...shipDest };
         ship.targetId = null;
         ship.holdPosition = false;
-        ship.isAttackMoving = true; // patrol always attack-acquires
+        ship.isAttackMoving = true;
       } else {
-        ship.moveTarget = { ...dest };
+        ship.moveTarget = { ...shipDest };
         ship.targetId = null;
         ship.holdPosition = false;
         ship.isAttackMoving = this.commandMode === 'attack_move';
-        // Clear any active patrol
         ship.patrolPoints = [];
         ship.patrolIndex = 0;
       }
