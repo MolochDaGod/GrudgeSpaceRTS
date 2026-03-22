@@ -11,6 +11,7 @@ import {
   COMMANDER_SPEC_LABEL, type CommanderSpec,
   COMMANDER_SPEC_PLANET,
 } from './game/space-types';
+import { Panel, Btn, Slot, SmallPanel } from './game/ui-lib';
 
 type Screen = 'intro' | 'menu' | 'codex' | 'howto' | 'editor' | 'playing';
 
@@ -233,16 +234,10 @@ function CommanderSelectModal({ spec, setSpec, onConfirm, onCancel }: {
       alignItems: 'center', justifyContent: 'center',
       background: 'rgba(0,0,0,0.88)', fontFamily: "'Segoe UI', monospace", color: '#cde',
     }}>
-      <div style={{
-        width: 640, maxWidth: '92vw', background: 'rgba(4,10,22,0.97)',
-        border: '2px solid rgba(40,180,160,0.5)', borderRadius: 14,
-        boxShadow: '0 0 60px rgba(40,180,160,0.25)', padding: '28px 32px',
-      }}>
-        <div style={{ fontSize: 18, fontWeight: 800, color: '#28b4a0', letterSpacing: 3, marginBottom: 4 }}>
-          CHOOSE YOUR COMMANDER
-        </div>
-        <div style={{ fontSize: 11, color: 'rgba(160,200,255,0.45)', marginBottom: 20 }}>
-          Your starting commander determines your flagship's bonus spec. You can train more commanders in-game.
+      <Panel title="CHOOSE YOUR COMMANDER" variant="green" width={660}
+        style={{ maxWidth: '92vw' }}>
+        <div style={{ fontSize: 11, color: 'rgba(160,200,255,0.45)', marginBottom: 16, textAlign: 'center' }}>
+          Your starting commander determines your flagship's bonus spec.
         </div>
         <div style={{ display: 'flex', gap: 10, marginBottom: 24, flexWrap: 'wrap' }}>
           {SPECS.map(s => {
@@ -278,18 +273,10 @@ function CommanderSelectModal({ spec, setSpec, onConfirm, onCancel }: {
           })}
         </div>
         <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
-          <button onClick={onCancel} style={{
-            padding: '10px 28px', fontSize: 12, fontWeight: 600, color: '#888',
-            background: 'transparent', border: '1px solid #333', borderRadius: 6, cursor: 'pointer',
-          }}>BACK</button>
-          <button onClick={onConfirm} style={{
-            padding: '10px 48px', fontSize: 14, fontWeight: 700, color: '#fff',
-            background: 'linear-gradient(135deg, #1a55bb, #4488ff)', border: 'none',
-            borderRadius: 6, cursor: 'pointer', letterSpacing: 2,
-            boxShadow: '0 0 20px #4488ff44',
-          }}>DEPLOY</button>
+          <Btn label="BACK" onClick={onCancel} style={{ minWidth: 100, height: 36 }} />
+          <Btn label="DEPLOY" wide active onClick={onConfirm} />
         </div>
-      </div>
+      </Panel>
     </div>
   );
 }
@@ -337,28 +324,19 @@ function MainMenu({ onStart, onCodex, onHowTo, onEditor, mode, setMode }: {
             </div>
           ))}
         </div>
-        <button onClick={onStart} style={{
-          padding: '14px 60px', fontSize: 20, fontWeight: 700, color: '#fff',
-          background: 'linear-gradient(135deg, #1a55bb, #4488ff)', border: 'none',
-          borderRadius: 8, cursor: 'pointer', letterSpacing: 2, marginBottom: 24,
-          boxShadow: '0 0 30px #4488ff55',
-        }}>LAUNCH GAME</button>
-        <div style={{ display: 'flex', gap: 16 }}>
-          <button onClick={onEditor} style={{ ...btn, color: '#fc4', borderColor: '#ffaa2244' }}>SHIP FORGE</button>
-          <button onClick={onCodex} style={btn}>SHIP CODEX</button>
-          <button onClick={onHowTo} style={btn}>HOW TO PLAY</button>
-          <a href="/admin.html" target="_blank" style={{ ...btn, textDecoration: 'none', lineHeight: '1.6', display: 'inline-block' }}>ADMIN</a>
+        <Btn label="LAUNCH GAME" wide active onClick={onStart} style={{ minWidth: 240, height: 48, marginBottom: 24 }} />
+        <div style={{ display: 'flex', gap: 12 }}>
+          <Btn label="SHIP FORGE" onClick={onEditor} style={{ minWidth: 100 }} />
+          <Btn label="CODEX" onClick={onCodex} style={{ minWidth: 80 }} />
+          <Btn label="HOW TO PLAY" onClick={onHowTo} style={{ minWidth: 100 }} />
+          <Btn label="ADMIN" onClick={() => window.open('/admin.html', '_blank')} style={{ minWidth: 70 }} />
         </div>
       </div>
     </div>
   );
 }
 
-const btn: React.CSSProperties = {
-  padding: '10px 28px', fontSize: 13, fontWeight: 600, color: '#8ac',
-  background: 'transparent', border: '1px solid #1a3050', borderRadius: 6,
-  cursor: 'pointer', letterSpacing: 1,
-};
+// btn CSS removed — replaced by Btn component from ui-lib
 
 // ── Shared codex helpers ──────────────────────────────────
 // Ship preview images — GIF for voxel ships, PNG for capital/battle ships
@@ -590,7 +568,7 @@ function ShipCodex({ onBack }: { onBack: () => void }) {
           <button style={tabStyle('commanders')} onClick={() => setTab('commanders')}>👤 Commanders</button>
           <button style={tabStyle('upgrades')}  onClick={() => setTab('upgrades')}>  ⚡ Upgrades</button>
           <div style={{ flex: 1 }} />
-          <button onClick={onBack} style={btn}>← BACK</button>
+          <Btn label="← BACK" onClick={onBack} style={{ minWidth: 80, height: 32 }} />
         </div>
 
         {/* ── SHIPS TAB ───────────────────────────────── */}
@@ -880,7 +858,7 @@ function HowToPlay({ onBack }: { onBack: () => void }) {
               onError={e => { (e.target as HTMLImageElement).style.display='none'; }} />
             <div style={{ fontSize: 22, fontWeight: 800, color: '#4488ff', letterSpacing: 3 }}>SHIP CODEX</div>
           </div>
-          <button onClick={onBack} style={btn}>BACK</button>
+          <Btn label="BACK" onClick={onBack} style={{ minWidth: 80, height: 32 }} />
         </div>
         <div style={{ maxWidth: 700, lineHeight: 1.8, fontSize: 13 }}>
           <Section title="Objective">Conquer planets, build fleets, and destroy your enemies. Win by <strong style={{color:'#ff4444'}}>Elimination</strong> (destroy all enemy ships &amp; stations) or <strong style={{color:'#4488ff'}}>Domination</strong> (own 70%+ of planets for 60 continuous seconds).</Section>
