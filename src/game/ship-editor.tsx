@@ -10,8 +10,12 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { GLTFExporter } from 'three/examples/jsm/exporters/GLTFExporter.js';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { saveHeroShip, loadHeroShip, type HeroShipRecord } from './ship-storage';
 import { TEAM_COLORS } from './space-types';
+import { buildGroup } from './space-voxel-builder';
+import { SHIP_PARTS, PART_CATEGORIES, type ShipPart } from './ship-prefabs-editor';
+import { Btn } from './ui-lib';
 
 // ── Constants ─────────────────────────────────────────────────────
 const GRID_W = 32;
@@ -21,6 +25,16 @@ const CELL = 1.0;
 
 type VoxelType = 1 | 2 | 3 | 4 | 5;
 type Tool = 'place' | 'erase' | 'paint';
+type EditorMode = 'voxel' | 'prefab';
+
+/** A placed prefab part instance in the scene */
+interface PlacedPart {
+  id: number;
+  partId: string;
+  group: THREE.Group;
+  position: THREE.Vector3;
+  rotationY: number; // 0, 90, 180, 270
+}
 
 /** Undo entry: stores keys and their previous state (null = didn't exist) */
 interface UndoEntry { changes: Array<{ key: string; prev: VoxelType | null }> }
@@ -58,6 +72,7 @@ export function ShipForgeEditor({ onBack }: { onBack: () => void }) {
     groundPlane: THREE.Mesh;
   } | null>(null);
 
+  const [mode, setMode] = useState<EditorMode>('prefab');
   const [tool, setTool] = useState<Tool>('place');
   const [voxelType, setVoxelType] = useState<VoxelType>(1);
   const [mirror, setMirror] = useState(true);
@@ -66,6 +81,13 @@ export function ShipForgeEditor({ onBack }: { onBack: () => void }) {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
   const [existingShip, setExistingShip] = useState<HeroShipRecord | null>(null);
+
+  // Prefab mode state
+  const [selectedPartId, setSelectedPartId] = useState<string | null>(null);
+  const [placedParts, setPlacedParts] = useState<PlacedPart[]>([]);
+  const [selectedPlacedId, setSelectedPlacedId] = useState<number | null>(null);
+  const nextPartId = useRef(1);
+  const gltfLoader = useRef(new GLTFLoader());
 
   // Persistent voxel data ref (survives re-renders)
   const voxelDataRef = useRef<Map<string, VoxelType>>(new Map());
@@ -357,7 +379,86 @@ export function ShipForgeEditor({ onBack }: { onBack: () => void }) {
     }
   }, [getGridPos, tool, voxelType]);
 
+  // ── Prefab placement handler ──────────────────────────────
+  const handlePrefabClick = useCallback((e: React.MouseEvent) => {
+    if (e.button !== 0 || mode !== 'prefab') return;
+    if (mouseDownPos.current) {
+      const dx = e.clientX - mouseDownPos.current.x;
+      const dy = e.clientY - mouseDownPos.current.y;
+      if (dx * dx + dy * dy > 16) { mouseDownPos.current = null; return; }
+    }
+    mouseDownPos.current = null;
+    const ctx = sceneRef.current;
+    if (!ctx) return;
+
+    const rect = ctx.renderer.domElement.getBoundingClientRect();
+    ctx.mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+    ctx.mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+    ctx.raycaster.setFromCamera(ctx.mouse, ctx.camera);
+
+    // Check if clicking an existing placed part
+    const allPartMeshes = placedParts.flatMap(p => {
+      const meshes: THREE.Object3D[] = [];
+      p.group.traverse(c => { if ((c as THREE.Mesh).isMesh) meshes.push(c); });
+      return meshes.map(m => ({ mesh: m, partId: p.id }));
+    });
+    const partHits = ctx.raycaster.intersectObjects(allPartMeshes.map(pm => pm.mesh));
+    if (partHits.length > 0 && !selectedPartId) {
+      const hitMesh = partHits[0].object;
+      const match = allPartMeshes.find(pm => pm.mesh === hitMesh);
+      if (match) { setSelectedPlacedId(match.partId); return; }
+    }
+
+    // Place new part
+    if (!selectedPartId) return;
+    const groundHits = ctx.raycaster.intersectObject(ctx.groundPlane);
+    if (groundHits.length === 0) return;
+    const pt = groundHits[0].point;
+    const gx = Math.round(pt.x), gz = Math.round(pt.z);
+
+    const partDef = SHIP_PARTS.find(p => p.id === selectedPartId);
+    if (!partDef) return;
+
+    const id = nextPartId.current++;
+    let group: THREE.Group;
+
+    if (partDef.glbPath) {
+      // GLB turret — load async, place immediately with placeholder
+      group = new THREE.Group();
+      const placeholder = new THREE.Mesh(
+        new THREE.BoxGeometry(partDef.size[0] * 0.9, partDef.size[1] * 0.9, partDef.size[2] * 0.9),
+        new THREE.MeshBasicMaterial({ color: 0xffaa44, wireframe: true }),
+      );
+      group.add(placeholder);
+      gltfLoader.current.load(partDef.glbPath, (gltf) => {
+        group.remove(placeholder);
+        const model = gltf.scene;
+        // Auto-scale to fit part size
+        const box = new THREE.Box3().setFromObject(model);
+        const diam = box.getSize(new THREE.Vector3()).length();
+        const target = Math.max(...partDef.size);
+        if (diam > 0) model.scale.setScalar(target / diam);
+        group.add(model);
+      });
+    } else if (partDef.pattern) {
+      // Voxel prefab
+      const voxMap = partDef.pattern();
+      group = buildGroup(voxMap, 1, 0.9);
+    } else {
+      return;
+    }
+
+    const pos = new THREE.Vector3(gx + 0.5, partDef.size[1] / 2, gz + 0.5);
+    group.position.copy(pos);
+    ctx.scene.add(group);
+
+    setPlacedParts(prev => [...prev, { id, partId: selectedPartId, group, position: pos, rotationY: 0 }]);
+    setSelectedPlacedId(id);
+    setSelectedPartId(null); // Deselect from catalog after placing
+  }, [mode, selectedPartId, placedParts]);
+
   const handleClick = useCallback((e: React.MouseEvent) => {
+    if (mode === 'prefab') { handlePrefabClick(e); return; }
     // Only process left-click
     if (e.button !== 0) return;
     // If mouse moved significantly since mousedown, it was an orbit drag — ignore
@@ -564,10 +665,10 @@ export function ShipForgeEditor({ onBack }: { onBack: () => void }) {
         onClick={handleClick}
       />
 
-      {/* ── Sidebar Panel ────────────────────────────── */}
+      {/* ── Sidebar Panel ──────────────────────────── */}
       <div style={{
-        width: 280, background: 'rgba(6,14,30,0.97)', borderLeft: '1px solid #1a3050',
-        display: 'flex', flexDirection: 'column', padding: 16, gap: 16, overflowY: 'auto',
+        width: 300, background: 'rgba(6,14,30,0.97)', borderLeft: '1px solid #1a3050',
+        display: 'flex', flexDirection: 'column', padding: 16, gap: 12, overflowY: 'auto',
       }}>
         {/* Header */}
         <div>
@@ -577,123 +678,159 @@ export function ShipForgeEditor({ onBack }: { onBack: () => void }) {
           <div style={{ fontSize: 10, color: 'rgba(160,200,255,0.4)', letterSpacing: 2 }}>
             DESIGN YOUR HERO SHIP
           </div>
-          <div style={{ fontSize: 8, color: 'rgba(160,200,255,0.25)', marginTop: 6, lineHeight: 1.6 }}>
-            Left-click: place/edit · Right-drag: orbit · Scroll: zoom<br/>
-            Q/E/R: tools · 1-5: blocks · X: mirror · Ctrl+Z: undo
-          </div>
+        </div>
+
+        {/* Mode Toggle */}
+        <div style={{ display: 'flex', gap: 4 }}>
+          <Btn label="PARTS" active={mode==='prefab'} onClick={() => setMode('prefab')} style={{ flex:1, height:30, minWidth:0 }} />
+          <Btn label="VOXEL" active={mode==='voxel'} onClick={() => setMode('voxel')} style={{ flex:1, height:30, minWidth:0 }} />
         </div>
 
         {/* Ship Name */}
         <div>
           <div style={labelStyle}>SHIP NAME</div>
-          <input
-            value={shipName}
-            onChange={e => setShipName(e.target.value)}
-            maxLength={32}
-            style={inputStyle}
-            placeholder="Enter ship name..."
-          />
+          <input value={shipName} onChange={e => setShipName(e.target.value)} maxLength={32} style={inputStyle} placeholder="Enter ship name..." />
         </div>
 
-        {/* Tool Selection */}
-        <div>
-          <div style={labelStyle}>TOOL</div>
-          <div style={{ display: 'flex', gap: 6 }}>
-            {(['place', 'erase', 'paint'] as Tool[]).map(t => (
-              <button key={t} onClick={() => setTool(t)} style={{
-                ...toolBtn, background: tool === t ? '#4488ff' : 'transparent',
-                color: tool === t ? '#fff' : 'rgba(160,200,255,0.5)',
-                borderColor: tool === t ? '#4488ff' : '#1a3050',
-              }}>
-                {t === 'place' ? 'Q Place' : t === 'erase' ? 'E Erase' : 'R Paint'}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Voxel Type (for place/paint) */}
-        {tool !== 'erase' && (
-          <div>
-            <div style={labelStyle}>BLOCK TYPE</div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              {([1, 2, 3, 4, 5] as VoxelType[]).map(t => (
-                <button key={t} onClick={() => setVoxelType(t)} style={{
-                  display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px',
-                  border: `1px solid ${voxelType === t ? VOXEL_COLORS[t] : '#1a3050'}`,
-                  borderRadius: 4, cursor: 'pointer', fontSize: 11, fontWeight: 600,
-                  background: voxelType === t ? `${VOXEL_COLORS[t]}22` : 'transparent',
-                  color: voxelType === t ? VOXEL_COLORS[t] : 'rgba(160,200,255,0.5)',
-                }}>
-                  <div style={{
-                    width: 14, height: 14, borderRadius: 2,
-                    background: VOXEL_COLORS[t],
-                    boxShadow: t >= 3 ? `0 0 6px ${VOXEL_COLORS[t]}88` : 'none',
-                  }} />
-                  {VOXEL_LABELS[t]}
-                </button>
-              ))}
+        {/* ── PREFAB MODE ─────────────────────────────── */}
+        {mode === 'prefab' && (
+          <>
+            <div style={{ fontSize: 8, color: 'rgba(160,200,255,0.25)', lineHeight: 1.6 }}>
+              Click part → click grid to place · Click placed part to select<br/>
+              E: rotate 90° · X: delete selected · Right-drag: orbit
             </div>
-          </div>
+
+            {/* Parts Catalog */}
+            {PART_CATEGORIES.map(cat => (
+              <div key={cat.key}>
+                <div style={{ fontSize: 9, color: cat.color, fontWeight: 700, letterSpacing: 1.5, marginBottom: 4 }}>{cat.label}</div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                  {SHIP_PARTS.filter(p => p.category === cat.key).map(part => (
+                    <button key={part.id} onClick={() => { setSelectedPartId(selectedPartId === part.id ? null : part.id); setSelectedPlacedId(null); }}
+                      style={{
+                        padding: '4px 8px', fontSize: 9, fontWeight: 600,
+                        border: `1px solid ${selectedPartId === part.id ? cat.color : '#1a3050'}`,
+                        borderRadius: 4, cursor: 'pointer',
+                        background: selectedPartId === part.id ? `${cat.color}22` : 'transparent',
+                        color: selectedPartId === part.id ? cat.color : 'rgba(160,200,255,0.5)',
+                        fontFamily: "'Segoe UI', monospace",
+                      }}>
+                      <div style={{ width: 8, height: 8, borderRadius: 2, background: part.color, display: 'inline-block', marginRight: 4 }} />
+                      {part.name}
+                      {part.glbPath && <span style={{ fontSize: 7, color: '#ffaa44', marginLeft: 3 }}>3D</span>}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ))}
+
+            {/* Selected placed part controls */}
+            {selectedPlacedId !== null && (
+              <div style={{ padding: '8px 10px', background: 'rgba(68,136,255,0.08)', border: '1px solid #4488ff44', borderRadius: 6 }}>
+                <div style={{ fontSize: 9, color: '#4488ff', fontWeight: 700, marginBottom: 6 }}>SELECTED PART</div>
+                <div style={{ display: 'flex', gap: 4 }}>
+                  <Btn label="ROTATE" onClick={() => {
+                    setPlacedParts(prev => prev.map(p => {
+                      if (p.id !== selectedPlacedId) return p;
+                      const newRot = (p.rotationY + 90) % 360;
+                      p.group.rotation.y = newRot * (Math.PI / 180);
+                      return { ...p, rotationY: newRot };
+                    }));
+                  }} style={{ flex:1, height:28, minWidth:0 }} />
+                  <Btn label="DELETE" onClick={() => {
+                    const ctx = sceneRef.current;
+                    if (!ctx) return;
+                    const part = placedParts.find(p => p.id === selectedPlacedId);
+                    if (part) { ctx.scene.remove(part.group); }
+                    setPlacedParts(prev => prev.filter(p => p.id !== selectedPlacedId));
+                    setSelectedPlacedId(null);
+                  }} style={{ flex:1, height:28, minWidth:0 }} />
+                </div>
+              </div>
+            )}
+
+            {/* Stats */}
+            <div style={{ padding: '8px 10px', background: 'rgba(2,4,12,0.6)', borderRadius: 6, border: '1px solid #1a3050' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}>
+                <span style={{ color: 'rgba(160,200,255,0.4)' }}>PARTS PLACED</span>
+                <span style={{ color: '#4488ff', fontWeight: 700 }}>{placedParts.length}</span>
+              </div>
+            </div>
+          </>
         )}
 
-        {/* Mirror Mode */}
-        <div>
-          <button onClick={() => setMirror(!mirror)} style={{
-            ...toolBtn, width: '100%', justifyContent: 'center',
-            background: mirror ? 'rgba(68,136,255,0.15)' : 'transparent',
-            borderColor: mirror ? '#4488ff' : '#1a3050',
-            color: mirror ? '#4488ff' : 'rgba(160,200,255,0.5)',
-          }}>
-            {mirror ? '⇔ Mirror ON' : '⇔ Mirror OFF'}
-          </button>
-        </div>
-
-        {/* Stats */}
-        <div style={{ padding: '10px 12px', background: 'rgba(2,4,12,0.6)', borderRadius: 6, border: '1px solid #1a3050' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, marginBottom: 4 }}>
-            <span style={{ color: 'rgba(160,200,255,0.4)' }}>VOXELS</span>
-            <span style={{ color: '#4488ff', fontWeight: 700 }}>{voxelCount}</span>
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}>
-            <span style={{ color: 'rgba(160,200,255,0.4)' }}>GRID</span>
-            <span style={{ color: 'rgba(160,200,255,0.4)' }}>{GRID_W}×{GRID_H}×{GRID_D}</span>
-          </div>
-        </div>
+        {/* ── VOXEL MODE ──────────────────────── */}
+        {mode === 'voxel' && (
+          <>
+            <div style={{ fontSize: 8, color: 'rgba(160,200,255,0.25)', lineHeight: 1.6 }}>
+              Left-click: place/edit · Right-drag: orbit · Scroll: zoom<br/>
+              Q/E/R: tools · 1-5: blocks · X: mirror · Ctrl+Z: undo
+            </div>
+            <div>
+              <div style={labelStyle}>TOOL</div>
+              <div style={{ display: 'flex', gap: 6 }}>
+                {(['place', 'erase', 'paint'] as Tool[]).map(t => (
+                  <button key={t} onClick={() => setTool(t)} style={{
+                    ...toolBtn, background: tool === t ? '#4488ff' : 'transparent',
+                    color: tool === t ? '#fff' : 'rgba(160,200,255,0.5)',
+                    borderColor: tool === t ? '#4488ff' : '#1a3050',
+                  }}>{t === 'place' ? 'Q Place' : t === 'erase' ? 'E Erase' : 'R Paint'}</button>
+                ))}
+              </div>
+            </div>
+            {tool !== 'erase' && (
+              <div>
+                <div style={labelStyle}>BLOCK TYPE</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  {([1, 2, 3, 4, 5] as VoxelType[]).map(t => (
+                    <button key={t} onClick={() => setVoxelType(t)} style={{
+                      display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px',
+                      border: `1px solid ${voxelType === t ? VOXEL_COLORS[t] : '#1a3050'}`,
+                      borderRadius: 4, cursor: 'pointer', fontSize: 11, fontWeight: 600,
+                      background: voxelType === t ? `${VOXEL_COLORS[t]}22` : 'transparent',
+                      color: voxelType === t ? VOXEL_COLORS[t] : 'rgba(160,200,255,0.5)',
+                    }}>
+                      <div style={{ width: 14, height: 14, borderRadius: 2, background: VOXEL_COLORS[t], boxShadow: t >= 3 ? `0 0 6px ${VOXEL_COLORS[t]}88` : 'none' }} />
+                      {VOXEL_LABELS[t]}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            <button onClick={() => setMirror(!mirror)} style={{
+              ...toolBtn, width: '100%', justifyContent: 'center',
+              background: mirror ? 'rgba(68,136,255,0.15)' : 'transparent',
+              borderColor: mirror ? '#4488ff' : '#1a3050',
+              color: mirror ? '#4488ff' : 'rgba(160,200,255,0.5)',
+            }}>{mirror ? '⇔ Mirror ON' : '⇔ Mirror OFF'}</button>
+            <div style={{ padding: '8px 10px', background: 'rgba(2,4,12,0.6)', borderRadius: 6, border: '1px solid #1a3050' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}>
+                <span style={{ color: 'rgba(160,200,255,0.4)' }}>VOXELS</span>
+                <span style={{ color: '#4488ff', fontWeight: 700 }}>{voxelCount}</span>
+              </div>
+            </div>
+          </>
+        )}
 
         {/* Existing ship warning */}
         {existingShip && (
-          <div style={{
-            padding: '8px 12px', borderRadius: 6, fontSize: 10,
-            background: 'rgba(255,170,0,0.1)', border: '1px solid rgba(255,170,0,0.3)',
-            color: '#ffaa22',
-          }}>
-            You already have a hero ship: <strong>{existingShip.meta.name}</strong>.
-            Saving will replace it.
+          <div style={{ padding: '8px 12px', borderRadius: 6, fontSize: 10, background: 'rgba(255,170,0,0.1)', border: '1px solid rgba(255,170,0,0.3)', color: '#ffaa22' }}>
+            You already have a hero ship: <strong>{existingShip.meta.name}</strong>. Saving will replace it.
           </div>
         )}
 
         {/* Actions */}
         <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {message && (
-            <div style={{ fontSize: 11, color: message.includes('fail') ? '#ff4444' : '#44dd88', textAlign: 'center' }}>
-              {message}
-            </div>
-          )}
+          {message && <div style={{ fontSize: 11, color: message.includes('fail') ? '#ff4444' : '#44dd88', textAlign: 'center' }}>{message}</div>}
           <button onClick={handleSave} disabled={saving} style={{
             padding: '12px', fontSize: 14, fontWeight: 700, color: '#fff',
             background: saving ? '#333' : 'linear-gradient(135deg, #1a55bb, #4488ff)',
             border: 'none', borderRadius: 6, cursor: saving ? 'wait' : 'pointer',
             letterSpacing: 1, boxShadow: '0 0 20px #4488ff44',
-          }}>
-            {saving ? 'SAVING...' : 'SAVE HERO SHIP'}
-          </button>
+          }}>{saving ? 'SAVING...' : 'SAVE HERO SHIP'}</button>
           <div style={{ display: 'flex', gap: 8 }}>
-            <button onClick={handleClear} style={{ ...actionBtn, flex: 1, color: '#ff6644', borderColor: '#ff664444' }}>
-              CLEAR ALL
-            </button>
-            <button onClick={onBack} style={{ ...actionBtn, flex: 1 }}>
-              ← BACK
-            </button>
+            <button onClick={handleClear} style={{ ...actionBtn, flex: 1, color: '#ff6644', borderColor: '#ff664444' }}>CLEAR ALL</button>
+            <button onClick={onBack} style={{ ...actionBtn, flex: 1 }}>← BACK</button>
           </div>
         </div>
       </div>
