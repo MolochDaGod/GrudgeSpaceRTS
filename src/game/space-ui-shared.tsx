@@ -68,16 +68,19 @@ export const SHIP_PREVIEW: Record<string, string> = {
   destroyer: '/assets/space/models/capital/Destroyer/Destroyer.png',
   cruiser: '/assets/space/models/capital/Cruiser/Cruiser.png',
   bomber: '/assets/space/models/capital/Bomber/Bomber.png',
-  vanguard_prime: '/assets/space/models/capital/Battleships/Battleship.png',
-  shadow_reaper: '/assets/space/models/capital/Bomber/Bomber.png',
-  iron_bastion: '/assets/space/models/capital/Cruiser/Cruiser.png',
+  // Hero ships — each uses a unique hull preview
+  vanguard_prime: '/assets/space/models/new-ships/Spaceship_main_01_Hull.png',
+  shadow_reaper: '/assets/space/models/new-ships/Spaceship_main_02_Hull.png',
+  iron_bastion: '/assets/space/models/new-ships/Spaceship_main_03_Hull.png',
   storm_herald: '/assets/space/models/capital/Destroyer/Destroyer.png',
-  plague_mother: '/assets/space/models/capital/Battleships/Battleship.png',
+  plague_mother: '/assets/space/models/capital/Battleships/Battleship2.png',
+  custom_hero: '/assets/space/models/new-ships/Ship_Boos_01_Hull.png',
+  // Boss ships
   boss_ship_01: '/assets/space/models/new-ships/Ship_Boos_01_Hull.png',
   boss_ship_02: '/assets/space/models/new-ships/Ship_Boss_02_Hull.png',
-  // Workers
-  mining_drone: '/assets/space/models/ships/MicroRecon/MicroRecon.gif',
-  energy_skimmer: '/assets/space/models/ships/MicroRecon/MicroRecon.gif',
+  // Workers — use their actual vehicle textures
+  mining_drone: '/assets/space/models/vehicles/Tracer/Tracer-0-Tracer.png',
+  energy_skimmer: '/assets/space/models/vehicles/Scooter/Scooter-0-Scooter.png',
   // Corvettes (battle fleet)
   cf_corvette_01: '/assets/space/models/battle-ships/Corvette_01.png',
   cf_corvette_02: '/assets/space/models/battle-ships/Corvette_02.png',
@@ -102,21 +105,51 @@ export const SHIP_PREVIEW: Record<string, string> = {
   cf_destroyer_03: '/assets/space/models/battle-ships/Destroyer_03.png',
   cf_destroyer_04: '/assets/space/models/battle-ships/Destroyer_04.png',
   cf_destroyer_05: '/assets/space/models/battle-ships/Destroyer_05.png',
+  // Voxel fleet
+  voxel_ship_1: '/assets/space/models/voxel-fleet/Spaceship1.png',
+  voxel_ship_2: '/assets/space/models/voxel-fleet/Spaceship2.png',
+  voxel_ship_3: '/assets/space/models/voxel-fleet/Spaceship3.png',
+  voxel_ship_4: '/assets/space/models/voxel-fleet/Spaceship4.png',
+  voxel_ship_5: '/assets/space/models/voxel-fleet/Spaceship5.png',
+  voxel_ship_6: '/assets/space/models/voxel-fleet/Spaceship6.png',
+  // Enemy ships (new-ships pack)
+  enemy_fighter: '/assets/space/models/enemies/Enemies/Fighter/Fighter.png',
+  enemy_cruiser: '/assets/space/models/enemies/Enemies/Enemy Cruiser.png',
+  enemy_destroyer: '/assets/space/models/enemies/Enemies/Enemy destroyer.png',
+  enemy_huge: '/assets/space/models/enemies/Enemies/EnemyHuge.png',
+  enemy_mega_boss: '/assets/space/models/enemies/Enemies/EnemyHuge2.png',
+  // Stations
+  station: '/assets/space/models/stations/Station/Station.png',
+  energy_ship: '/assets/space/models/stations/EnergyShip/EnergyShip.png',
+  minador: '/assets/space/models/stations/Minador/Minador.png',
 };
 
-// ── Ability SVG Icons ─────────────────────────────────────────────
-// Ability icon images from skill-icons packs (high quality painted art)
+// ── Ability icons — scifi-gui/skills premium cyberpunk painted art ─────────
+const SK = '/assets/space/ui/scifi-gui/skills';
 export const ABILITY_IMG: Record<string, string> = {
-  barrel_roll: '/assets/space/ui/skill-icons-1/PNG/3.png', // evasion/dodge
-  speed_boost: '/assets/space/ui/skill-icons-1/PNG/7.png', // speed/boost
-  cloak: '/assets/space/ui/skill-icons-2/PNG/5.png', // stealth/shadow
-  iron_dome: '/assets/space/ui/skill-icons-1/PNG/9.png', // shield/defense
-  warp: '/assets/space/ui/skill-icons-2/PNG/3.png', // teleport/warp
-  emp: '/assets/space/ui/skill-icons-1/PNG/5.png', // lightning/emp
-  boarding: '/assets/space/ui/skill-icons-2/PNG/1.png', // assault/boarding
-  repair: '/assets/space/ui/skill-icons-1/PNG/11.png', // repair/heal
-  ram: '/assets/space/ui/skill-icons-1/PNG/13.png', // charge/ram
-  launch_fighters: '/assets/space/ui/skill-icons-1/PNG/15.png', // swarm/launch
+  barrel_roll: `${SK}/3.png`, // green plasma vortex — evasive roll
+  speed_boost: `${SK}/2.png`, // red laser beam — afterburner thrust
+  cloak: `${SK}/4.png`, // VR visor stealth figure — cloaking
+  iron_dome: `${SK}/13.png`, // glowing brain dome — psi shield
+  warp: `${SK}/10.png`, // cybernetic head with cables — warp jump
+  emp: `${SK}/5.png`, // cyborg circuit eye — EMP disruption
+  boarding: `${SK}/6.png`, // shadow army figures — boarding assault
+  repair: `${SK}/7.png`, // hand holding gear — repair
+  ram: `${SK}/8.png`, // golden energy blade — ram charge
+  launch_fighters: `${SK}/1.png`, // dual pistols firing — launch fighters
+};
+// Fallback for ability art (skill-icon packs — same quality, different style)
+export const ABILITY_IMG_FALLBACK: Record<string, string> = {
+  barrel_roll: '/assets/space/ui/skill-icons-1/PNG/3.png',
+  speed_boost: '/assets/space/ui/skill-icons-1/PNG/7.png',
+  cloak: '/assets/space/ui/skill-icons-2/PNG/5.png',
+  iron_dome: '/assets/space/ui/skill-icons-1/PNG/9.png',
+  warp: '/assets/space/ui/skill-icons-2/PNG/3.png',
+  emp: '/assets/space/ui/skill-icons-1/PNG/5.png',
+  boarding: '/assets/space/ui/skill-icons-2/PNG/1.png',
+  repair: '/assets/space/ui/skill-icons-1/PNG/11.png',
+  ram: '/assets/space/ui/skill-icons-1/PNG/13.png',
+  launch_fighters: '/assets/space/ui/skill-icons-1/PNG/15.png',
 };
 
 export const ABILITY_ICONS: Record<string, React.ReactNode> = {
@@ -307,6 +340,69 @@ export const STAT_ICONS = {
       <path d="M13 2L6 14H12L11 22L18 10H12Z" stroke="#4df" strokeWidth="1.5" fill="#4df" fillOpacity=".3" />
     </Svg>
   ),
+};
+
+// ── Ship class abbreviations & tier colors ────────────────────────
+export const CLASS_ABBR: Record<string, string> = {
+  scout: 'SCT',
+  fighter: 'FTR',
+  interceptor: 'INT',
+  heavy_fighter: 'HVY',
+  bomber: 'BMR',
+  stealth: 'STL',
+  transport: 'TRP',
+  assault_frigate: 'AFG',
+  corvette: 'CRV',
+  frigate: 'FRG',
+  light_cruiser: 'LCR',
+  destroyer: 'DST',
+  cruiser: 'CRS',
+  battleship: 'BSH',
+  carrier: 'CAR',
+  worker: 'WRK',
+  dreadnought: 'DRN',
+};
+export const TIER_COLORS: Record<number, string> = {
+  1: '#44cc88',
+  2: '#4488ff',
+  3: '#aa44ff',
+  4: '#ff8822',
+  5: '#ffcc00',
+};
+// ── UI frame assets (complete standalone images, not 9-slice fragments) ───
+const H = '/assets/space/ui/hud';
+const G_SLICED = '/assets/space/ui/scifi-gui/sliced';
+export const GUI_FRAMES = {
+  // Complete metallic octagonal frames (panel-sq is a full frame, works with objectFit:fill)
+  portraitFrame: `${G_SLICED}/panel-sq.png`,
+  portraitFrameGold: `${G_SLICED}/panel-sq-gold.png`,
+  portraitFramePurple: `${G_SLICED}/panel-sq-purple.png`,
+  // HUD pack assets — these are complete standalone backgrounds
+  inventorySlot: `${H}/InventorySlot.png`,
+  shipInfoCard: `${H}/SmallitemBox.png`,
+  boxMenu: `${H}/BoxMenu.png`,
+  shopBox: `${H}/Shop_Box.png`,
+  boxItem: `${H}/Box_Item.png`,
+  settingSmallBox: `${H}/BgSettingSmallBox.png`,
+  hudBar: `${H}/BgHudBar.png`,
+  titleBox: `${H}/TitleBox.png`,
+  healthBarTrack: `${H}/HealthBar_Line.png`,
+  healthBarFill: `${H}/HealthBar.png`,
+  crystalBar: `${H}/CrystalBarHUD.png`,
+  closeBtn: `${H}/CloseBtn.png`,
+  hudIconBg: `${H}/Bg_Hud-Icon.png`,
+  // Legacy aliases for existing code
+  slotLg: `${G_SLICED}/panel-sq.png`,
+  slotMd: `${H}/InventorySlot.png`,
+  titleChevronGold: `${G_SLICED}/panel-sq-gold.png`,
+};
+// ── Upgrade icons — scifi-gui/skills premium painted art ───────────────
+export const UPGRADE_HUD_ICONS: Record<string, string> = {
+  attack: `${SK}/1.png`, // dual pistols firing — attack power
+  armor: `${SK}/11.png`, // muscular arm flexing — armor strength
+  speed: `${SK}/9.png`, // CPU circuit board — processing speed
+  health: `${SK}/12.png`, // DNA helix — bio health
+  shield: `${SK}/13.png`, // glowing brain — shield dome
 };
 
 export function formatTime(seconds: number): string {
