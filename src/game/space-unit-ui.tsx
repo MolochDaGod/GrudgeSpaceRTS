@@ -3,9 +3,11 @@ import React from 'react';
 import {
   SHIP_PREVIEW,
   ABILITY_IMG,
+  ABILITY_IMG_FALLBACK,
   ABILITY_ICONS,
   Svg,
   STAT_ICONS,
+  ATTACK_IMG,
   SHIP_DEFINITIONS,
   BUILDABLE_SHIPS,
   UPGRADE_COSTS,
@@ -16,6 +18,10 @@ import {
   SHIP_ROLES,
   SHIP_ROLE_LABELS,
   SHIP_ROLE_COLORS,
+  CLASS_ABBR,
+  TIER_COLORS,
+  GUI_FRAMES,
+  UPGRADE_HUD_ICONS,
   type SpaceRenderer,
   type SpaceShip,
   type SpaceStation,
@@ -34,67 +40,114 @@ function SingleUnitInfo({ ship, def }: { ship: SpaceShip; def: { class: string; 
   const role = SHIP_ROLES[ship.shipType];
   const roleColor = role ? SHIP_ROLE_COLORS[role] : null;
   const isHero = ship.shipClass === 'dreadnought' || 'lore' in def;
+  const tierColor = TIER_COLORS[def.stats.tier] ?? '#4488ff';
+  const classAbbr = CLASS_ABBR[def.class] ?? def.class.slice(0, 3).toUpperCase();
+  const heroLore = 'lore' in def ? (def as any).lore : null;
 
   return (
-    <div style={{ display: 'flex', gap: 10, height: '100%' }}>
-      {/* ─ Portrait ──────────────────────────────── */}
+    <div style={{ display: 'flex', gap: 12, height: '100%' }}>
+      {/* ─ Portrait — large with scifi-gui frame ───────── */}
       <div
         style={{
-          width: 84,
-          height: 84,
+          width: 120,
+          height: 120,
           flexShrink: 0,
-          border: `1px solid ${isHero ? '#443300' : (roleColor ?? '#1a4060')}`,
-          borderRadius: 6,
-          overflow: 'hidden',
-          background: 'rgba(2,6,18,0.95)',
+          position: 'relative',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          position: 'relative',
-          boxShadow: isHero ? '0 0 12px rgba(255,180,0,0.2)' : roleColor ? `0 0 8px ${roleColor}44` : 'none',
         }}
       >
-        {preview ? (
-          <img
-            src={preview}
-            alt={def.displayName}
-            style={{ width: '100%', height: '100%', objectFit: 'contain', imageRendering: 'pixelated' }}
-            onError={(e) => {
-              (e.target as HTMLImageElement).style.display = 'none';
-            }}
-          />
-        ) : (
-          <div style={{ fontSize: 34, opacity: 0.2 }}>{isHero ? '⭐' : ship.shipClass === 'worker' ? '⛏️' : '🚀'}</div>
-        )}
+        {/* Metallic octagonal portrait frame (panel-sq from scifi-gui) */}
+        <img
+          src={isHero ? GUI_FRAMES.portraitFrameGold : GUI_FRAMES.portraitFrame}
+          alt=""
+          style={{
+            position: 'absolute',
+            inset: 0,
+            width: '100%',
+            height: '100%',
+            objectFit: 'fill',
+            pointerEvents: 'none',
+          }}
+          onError={(e) => {
+            (e.target as HTMLImageElement).style.display = 'none';
+          }}
+        />
+        {/* Ship image */}
+        <div
+          style={{
+            width: 100,
+            height: 100,
+            borderRadius: 6,
+            overflow: 'hidden',
+            background: 'rgba(2,6,18,0.95)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            boxShadow: isHero ? '0 0 16px rgba(255,180,0,0.25)' : roleColor ? `0 0 10px ${roleColor}44` : 'none',
+          }}
+        >
+          {preview ? (
+            <img
+              src={preview}
+              alt={def.displayName}
+              style={{ width: '100%', height: '100%', objectFit: 'contain', imageRendering: 'auto' }}
+              onError={(e) => {
+                (e.target as HTMLImageElement).style.display = 'none';
+              }}
+            />
+          ) : (
+            <div style={{ fontSize: 40, opacity: 0.2 }}>{isHero ? '⭐' : ship.shipClass === 'worker' ? '⛏️' : '🚀'}</div>
+          )}
+        </div>
         {/* Tier / HERO badge */}
         <div
           style={{
             position: 'absolute',
-            top: 2,
-            right: 2,
-            fontSize: 8,
-            fontWeight: 700,
-            padding: '1px 4px',
-            borderRadius: 2,
+            top: 4,
+            right: 4,
+            fontSize: 9,
+            fontWeight: 800,
+            padding: '2px 6px',
+            borderRadius: 3,
             letterSpacing: 0.5,
-            background: isHero ? 'rgba(255,180,0,0.25)' : 'rgba(10,20,40,0.85)',
-            color: isHero ? '#fc4' : '#4488ff',
-            border: `1px solid ${isHero ? '#ffcc0055' : '#4488ff33'}`,
+            background: isHero ? 'rgba(255,180,0,0.3)' : 'rgba(10,20,40,0.9)',
+            color: isHero ? '#fc4' : tierColor,
+            border: `1px solid ${isHero ? '#ffcc0066' : tierColor + '44'}`,
           }}
         >
           {isHero ? 'HERO' : `T${def.stats.tier}`}
+        </div>
+        {/* Class abbreviation badge */}
+        <div
+          style={{
+            position: 'absolute',
+            top: 4,
+            left: 4,
+            fontSize: 8,
+            fontWeight: 700,
+            padding: '1px 5px',
+            borderRadius: 3,
+            background: 'rgba(10,20,40,0.85)',
+            color: tierColor,
+            letterSpacing: 0.5,
+            border: `1px solid ${tierColor}33`,
+          }}
+        >
+          {classAbbr}
         </div>
         {/* Role badge */}
         {role && (
           <div
             style={{
               position: 'absolute',
-              bottom: 2,
-              left: 2,
-              fontSize: 7,
+              bottom: 4,
+              left: 4,
+              fontSize: 8,
               fontWeight: 700,
-              padding: '1px 4px',
-              borderRadius: 2,
+              padding: '1px 5px',
+              borderRadius: 3,
               background: `${roleColor}22`,
               border: `1px solid ${roleColor}55`,
               color: roleColor!,
@@ -106,14 +159,14 @@ function SingleUnitInfo({ ship, def }: { ship: SpaceShip; def: { class: string; 
         )}
       </div>
 
-      {/* ─ Stats ───────────────────────────────── */}
+      {/* ─ Stats ────────────────────────────────── */}
       <div style={{ flex: 1, minWidth: 0 }}>
         {/* Name + rank */}
-        <div style={{ marginBottom: 3 }}>
+        <div style={{ marginBottom: 4 }}>
           <div
             style={{
-              fontSize: 12,
-              fontWeight: 700,
+              fontSize: 14,
+              fontWeight: 800,
               color: isHero ? '#fc4' : '#fff',
               lineHeight: 1.2,
               whiteSpace: 'nowrap',
@@ -123,14 +176,13 @@ function SingleUnitInfo({ ship, def }: { ship: SpaceShip; def: { class: string; 
           >
             {def.displayName}
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 1 }}>
-            <span style={{ fontSize: 8, opacity: 0.4, textTransform: 'uppercase' }}>{def.class.replace(/_/g, ' ')}</span>
-            {/* Rank stars */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 2 }}>
+            <span style={{ fontSize: 9, opacity: 0.4, textTransform: 'uppercase' }}>{def.class.replace(/_/g, ' ')}</span>
             {Array.from({ length: 5 }, (_, i) => (
               <span
                 key={i}
                 style={{
-                  fontSize: 9,
+                  fontSize: 10,
                   color: i < (ship.rank ?? 0) ? '#ffcc00' : '#1e2e40',
                   textShadow: i < (ship.rank ?? 0) ? '0 0 4px #ffcc0088' : 'none',
                 }}
@@ -139,35 +191,58 @@ function SingleUnitInfo({ ship, def }: { ship: SpaceShip; def: { class: string; 
               </span>
             ))}
           </div>
+          {heroLore && <div style={{ fontSize: 8, color: '#8ac', fontStyle: 'italic', marginTop: 2, opacity: 0.7 }}>{heroLore}</div>}
         </div>
 
         {/* HP bar */}
-        <div style={{ marginBottom: 3 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 8, marginBottom: 1, color: hpColor }}>
+        <div style={{ marginBottom: 4 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9, marginBottom: 1, color: hpColor }}>
             <span>♥ HP</span>
             <span>
               {Math.ceil(ship.hp)}/{ship.maxHp}
             </span>
           </div>
-          <Bar value={ship.hp} max={ship.maxHp} color={hpColor} height={6} />
+          <Bar value={ship.hp} max={ship.maxHp} color={hpColor} height={8} />
         </div>
 
         {/* Shield bar */}
         {ship.maxShield > 0 && (
-          <div style={{ marginBottom: 3 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 8, marginBottom: 1, color: '#44ccff' }}>
+          <div style={{ marginBottom: 4 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9, marginBottom: 1, color: '#44ccff' }}>
               <span>🛡 SHD</span>
               <span>
                 {Math.ceil(ship.shield)}/{ship.maxShield}
               </span>
             </div>
-            <Bar value={ship.shield} max={ship.maxShield} color="#44ccff" height={5} />
+            <Bar value={ship.shield} max={ship.maxShield} color="#44ccff" height={6} />
           </div>
         )}
 
-        {/* Stats compact */}
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 8px', fontSize: 8, color: 'rgba(160,200,255,0.6)', marginTop: 2 }}>
-          <span style={{ color: '#ff8844' }}>⚔ {ship.attackDamage}dmg</span>
+        {/* Stats with attack type icon */}
+        <div
+          style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: '4px 10px',
+            fontSize: 9,
+            color: 'rgba(160,200,255,0.6)',
+            marginTop: 3,
+            alignItems: 'center',
+          }}
+        >
+          <span style={{ display: 'flex', alignItems: 'center', gap: 2, color: '#ff8844' }}>
+            {ATTACK_IMG[ship.attackType] && (
+              <img
+                src={ATTACK_IMG[ship.attackType]}
+                alt=""
+                style={{ width: 14, height: 14, imageRendering: 'auto' }}
+                onError={(e) => {
+                  (e.target as HTMLImageElement).style.display = 'none';
+                }}
+              />
+            )}
+            {ship.attackDamage}dmg
+          </span>
           <span>
             {STAT_ICONS.armor} {ship.armor}ar
           </span>
@@ -176,6 +251,9 @@ function SingleUnitInfo({ ship, def }: { ship: SpaceShip; def: { class: string; 
           </span>
           <span>
             {STAT_ICONS.range} {ship.attackRange}
+          </span>
+          <span style={{ color: '#8ac' }}>
+            {STAT_ICONS.cooldown} {ship.attackCooldown.toFixed(1)}s
           </span>
           {ship.xp > 0 && <span style={{ color: '#88a' }}>XP {ship.xp}</span>}
         </div>
@@ -187,7 +265,6 @@ function SingleUnitInfo({ ship, def }: { ship: SpaceShip; def: { class: string; 
 // ── Multi Unit Info — clickable cards (LMB = isolate that ship) ──────────
 
 function MultiUnitInfo({ ships, onIsolate }: { ships: SpaceShip[]; onIsolate: (shipId: number) => void }) {
-  // Group ships by type, preserving individual IDs for isolation
   const groups = new Map<string, SpaceShip[]>();
   for (const s of ships) {
     if (!groups.has(s.shipType)) groups.set(s.shipType, []);
@@ -199,7 +276,7 @@ function MultiUnitInfo({ ships, onIsolate }: { ships: SpaceShip[]; onIsolate: (s
       <div style={{ fontSize: 10, fontWeight: 600, marginBottom: 5, color: 'rgba(160,200,255,0.55)' }}>
         {ships.length} UNITS · <span style={{ fontSize: 9, opacity: 0.6 }}>Click to select one type</span>
       </div>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, overflowY: 'auto' }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, overflowY: 'auto' }}>
         {Array.from(groups.entries()).map(([type, group]) => {
           const def = getShipDef(type);
           const preview = SHIP_PREVIEW[type];
@@ -207,15 +284,18 @@ function MultiUnitInfo({ ships, onIsolate }: { ships: SpaceShip[]; onIsolate: (s
           const avgHp = group.reduce((sum, s) => sum + s.hp / s.maxHp, 0) / group.length;
           const hpCol = avgHp > 0.5 ? '#44cc44' : avgHp > 0.25 ? '#ccaa00' : '#cc4444';
           const maxRank = Math.max(...group.map((s) => s.rank ?? 0));
+          const tierCol = def ? (TIER_COLORS[def.stats.tier] ?? '#4488ff') : '#4488ff';
+          const abbr = def ? (CLASS_ABBR[def.class] ?? '') : '';
           return (
             <div
               key={type}
               onClick={() => onIsolate(group[0].id)}
               title={`${def?.displayName ?? type} ×${group.length} — Click to select`}
               style={{
-                width: 56,
+                width: 72,
                 flexShrink: 0,
                 border: `1px solid ${role ? SHIP_ROLE_COLORS[role] + '66' : '#1a3050'}`,
+                borderLeft: `3px solid ${tierCol}`,
                 borderRadius: 5,
                 cursor: 'pointer',
                 background: 'rgba(8,16,34,0.85)',
@@ -230,10 +310,10 @@ function MultiUnitInfo({ ships, onIsolate }: { ships: SpaceShip[]; onIsolate: (s
                 (e.currentTarget as HTMLDivElement).style.borderColor = role ? SHIP_ROLE_COLORS[role] + '66' : '#1a3050';
               }}
             >
-              {/* Ship image or fallback icon */}
+              {/* Ship image */}
               <div
                 style={{
-                  height: 40,
+                  height: 52,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -245,23 +325,26 @@ function MultiUnitInfo({ ships, onIsolate }: { ships: SpaceShip[]; onIsolate: (s
                   <img
                     src={preview}
                     alt={type}
-                    style={{ width: '100%', height: '100%', objectFit: 'contain', imageRendering: 'pixelated' }}
+                    style={{ width: '100%', height: '100%', objectFit: 'contain', imageRendering: 'auto' }}
                     onError={(e) => {
                       (e.target as HTMLImageElement).style.display = 'none';
                     }}
                   />
                 ) : (
-                  <div style={{ fontSize: 20, opacity: 0.15 }}>🚀</div>
+                  <div style={{ fontSize: 22, opacity: 0.15 }}>🚀</div>
                 )}
               </div>
-              {/* Count + rank */}
-              <div style={{ padding: '2px 3px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: 10, fontWeight: 700, color: '#fff' }}>x{group.length}</span>
-                {maxRank > 0 && <span style={{ fontSize: 8, color: '#ffcc00' }}>★{maxRank}</span>}
+              {/* Count + rank + class */}
+              <div style={{ padding: '3px 4px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: '#fff' }}>x{group.length}</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+                  {maxRank > 0 && <span style={{ fontSize: 8, color: '#ffcc00' }}>★{maxRank}</span>}
+                  {abbr && <span style={{ fontSize: 7, color: tierCol, fontWeight: 700, letterSpacing: 0.3 }}>{abbr}</span>}
+                </div>
               </div>
               {/* HP bar */}
-              <div style={{ height: 3, background: '#0a1020' }}>
-                <div style={{ height: '100%', width: `${avgHp * 100}%`, background: hpCol }} />
+              <div style={{ height: 4, background: '#0a1020' }}>
+                <div style={{ height: '100%', width: `${avgHp * 100}%`, background: hpCol, borderRadius: 1 }} />
               </div>
             </div>
           );
@@ -645,28 +728,100 @@ function BuildPanel({ station, renderer, res }: { station: SpaceStation; rendere
         </div>
       )}
 
-      {/* Stock ships — using Slot frames */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, maxHeight: 100, overflowY: 'auto', marginBottom: 6 }}>
+      {/* Stock ships — visual slot cards with ship previews */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, maxHeight: 140, overflowY: 'auto', marginBottom: 6 }}>
         {tiers.flatMap((tier) =>
           (BUILDABLE_SHIPS[tier] ?? []).map((key) => {
             const def = SHIP_DEFINITIONS[key];
             if (!def) return null;
             const s = def.stats;
             const canAfford = res.credits >= s.creditCost && res.energy >= s.energyCost && res.minerals >= s.mineralCost;
+            const preview = SHIP_PREVIEW[key];
+            const tierCol = TIER_COLORS[s.tier] ?? '#4488ff';
+            const abbr = CLASS_ABBR[def.class] ?? '';
             return (
-              <Slot
+              <div
                 key={key}
-                size={68}
                 onClick={() => (canAfford ? renderer.engine.queueBuild(station.id, key) : undefined)}
-                style={{ opacity: canAfford ? 1 : 0.35 }}
+                title={`${def.displayName} — ${s.creditCost}c / ${s.energyCost}e / ${s.mineralCost}m · ${s.buildTime}s`}
+                style={{
+                  width: 88,
+                  position: 'relative',
+                  borderRadius: 6,
+                  overflow: 'hidden',
+                  border: `1px solid ${tierCol}44`,
+                  borderLeft: `3px solid ${tierCol}`,
+                  background: 'rgba(6,14,32,0.9)',
+                  cursor: canAfford ? 'pointer' : 'default',
+                  opacity: canAfford ? 1 : 0.35,
+                  transition: 'transform 0.1s',
+                }}
+                onMouseEnter={(e) => {
+                  if (canAfford) (e.currentTarget as HTMLDivElement).style.transform = 'scale(1.04)';
+                }}
+                onMouseLeave={(e) => {
+                  (e.currentTarget as HTMLDivElement).style.transform = 'scale(1)';
+                }}
               >
-                <div style={{ textAlign: 'center', lineHeight: 1.2 }}>
-                  <div style={{ fontSize: 7, fontWeight: 700, color: '#fff' }}>{def.displayName}</div>
-                  <div style={{ fontSize: 6, color: '#fc4' }}>{s.creditCost}c</div>
-                  <div style={{ fontSize: 6, color: '#4df' }}>{s.energyCost}e</div>
-                  <div style={{ fontSize: 6, color: '#4f8' }}>{s.mineralCost}m</div>
+                {/* Ship preview image */}
+                <div
+                  style={{ height: 52, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(2,6,18,0.8)' }}
+                >
+                  {preview ? (
+                    <img
+                      src={preview}
+                      alt={def.displayName}
+                      style={{ width: '100%', height: '100%', objectFit: 'contain', imageRendering: 'auto' }}
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).style.display = 'none';
+                      }}
+                    />
+                  ) : (
+                    <div style={{ fontSize: 20, opacity: 0.15 }}>🚀</div>
+                  )}
                 </div>
-              </Slot>
+                {/* Info bar */}
+                <div style={{ padding: '3px 4px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 }}>
+                    <span
+                      style={{
+                        fontSize: 8,
+                        fontWeight: 700,
+                        color: '#fff',
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        maxWidth: 54,
+                      }}
+                    >
+                      {def.displayName}
+                    </span>
+                    <span style={{ fontSize: 7, fontWeight: 700, color: tierCol, letterSpacing: 0.3 }}>{abbr}</span>
+                  </div>
+                  <div style={{ display: 'flex', gap: 4, fontSize: 7 }}>
+                    <span style={{ color: '#fc4' }}>{s.creditCost}c</span>
+                    <span style={{ color: '#4df' }}>{s.energyCost}e</span>
+                    <span style={{ color: '#4f8' }}>{s.mineralCost}m</span>
+                  </div>
+                </div>
+                {/* Tier badge */}
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: 2,
+                    right: 2,
+                    fontSize: 7,
+                    fontWeight: 700,
+                    padding: '1px 4px',
+                    borderRadius: 2,
+                    background: 'rgba(10,20,40,0.85)',
+                    color: tierCol,
+                    border: `1px solid ${tierCol}33`,
+                  }}
+                >
+                  T{s.tier}
+                </div>
+              </div>
             );
           }),
         )}
@@ -675,36 +830,108 @@ function BuildPanel({ station, renderer, res }: { station: SpaceStation; rendere
       {/* Hero ships (only if station can build heroes) */}
       {station.canBuildHeroes && (
         <>
-          <div style={{ fontSize: 10, fontWeight: 700, color: '#fc4', marginBottom: 4, borderTop: '1px solid #1a3050', paddingTop: 4 }}>
+          <div
+            style={{
+              fontSize: 11,
+              fontWeight: 800,
+              color: '#fc4',
+              marginBottom: 6,
+              borderTop: '1px solid #443300',
+              paddingTop: 6,
+              letterSpacing: 1,
+              backgroundImage: `url(${GUI_FRAMES.portraitFrameGold})`,
+              backgroundSize: '100% 100%',
+              padding: '4px 12px',
+              textAlign: 'center',
+            }}
+          >
             HERO SHIPS
           </div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
             {HERO_SHIPS.map((key) => {
               const def = HERO_DEFINITIONS[key];
               if (!def) return null;
               const s = def.stats;
               const canAfford = res.credits >= s.creditCost && res.energy >= s.energyCost && res.minerals >= s.mineralCost;
+              const preview = SHIP_PREVIEW[key];
               return (
                 <div
                   key={key}
                   onClick={() => canAfford && renderer.engine.queueBuild(station.id, key)}
+                  title={`${def.displayName} — ${(def as any).lore ?? ''}`}
                   style={{
-                    width: 78,
-                    padding: '4px 2px',
-                    border: '1px solid #443300',
-                    borderRadius: 4,
+                    width: 92,
+                    position: 'relative',
+                    borderRadius: 6,
+                    overflow: 'hidden',
+                    border: '1px solid #ffcc0044',
+                    borderLeft: '3px solid #ffcc00',
                     background: canAfford ? 'rgba(40,30,10,0.9)' : 'rgba(20,15,5,0.5)',
                     opacity: canAfford ? 1 : 0.4,
                     cursor: canAfford ? 'pointer' : 'default',
-                    textAlign: 'center',
-                    fontSize: 8,
+                    boxShadow: '0 0 10px rgba(255,180,0,0.15)',
+                  }}
+                  onMouseEnter={(e) => {
+                    if (canAfford) (e.currentTarget as HTMLDivElement).style.transform = 'scale(1.04)';
+                  }}
+                  onMouseLeave={(e) => {
+                    (e.currentTarget as HTMLDivElement).style.transform = 'scale(1)';
                   }}
                 >
-                  <div style={{ fontSize: 9, fontWeight: 700, color: '#fc4', marginBottom: 2 }}>{def.displayName}</div>
-                  <div style={{ color: '#fc4' }}>{s.creditCost}c</div>
-                  <div style={{ color: '#4df' }}>{s.energyCost}e</div>
-                  <div style={{ color: '#4f8' }}>{s.mineralCost}m</div>
-                  <div style={{ color: '#888', fontSize: 7, marginTop: 1 }}>{s.buildTime}s</div>
+                  {/* Preview */}
+                  <div
+                    style={{ height: 56, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(2,4,10,0.8)' }}
+                  >
+                    {preview ? (
+                      <img
+                        src={preview}
+                        alt={def.displayName}
+                        style={{ width: '100%', height: '100%', objectFit: 'contain', imageRendering: 'auto' }}
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).style.display = 'none';
+                        }}
+                      />
+                    ) : (
+                      <div style={{ fontSize: 24, opacity: 0.2 }}>⭐</div>
+                    )}
+                  </div>
+                  <div style={{ padding: '3px 4px' }}>
+                    <div
+                      style={{
+                        fontSize: 9,
+                        fontWeight: 800,
+                        color: '#fc4',
+                        marginBottom: 2,
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                      }}
+                    >
+                      {def.displayName}
+                    </div>
+                    <div style={{ display: 'flex', gap: 4, fontSize: 7 }}>
+                      <span style={{ color: '#fc4' }}>{s.creditCost}c</span>
+                      <span style={{ color: '#4df' }}>{s.energyCost}e</span>
+                      <span style={{ color: '#4f8' }}>{s.mineralCost}m</span>
+                    </div>
+                    <div style={{ fontSize: 7, color: '#888', marginTop: 1 }}>{s.buildTime}s</div>
+                  </div>
+                  <div
+                    style={{
+                      position: 'absolute',
+                      top: 2,
+                      right: 2,
+                      fontSize: 8,
+                      fontWeight: 800,
+                      padding: '1px 5px',
+                      borderRadius: 3,
+                      background: 'rgba(255,180,0,0.3)',
+                      color: '#fc4',
+                      border: '1px solid #ffcc0066',
+                    }}
+                  >
+                    HERO
+                  </div>
                 </div>
               );
             })}
@@ -718,46 +945,81 @@ function BuildPanel({ station, renderer, res }: { station: SpaceStation; rendere
 // ── Upgrade Panel (when nothing selected) — using Slot + Bar from ui-lib
 
 function UpgradePanel({ upg, res, renderer }: { upg: TeamUpgrades; res: PlayerResources; renderer: SpaceRenderer }) {
-  const types: { key: keyof TeamUpgrades; label: string; color: string; icon: string }[] = [
-    { key: 'attack', label: 'Attack', color: '#f44', icon: '/assets/space/ui/item-icons/PNG/7.png' },
-    { key: 'armor', label: 'Armor', color: '#8ac', icon: '/assets/space/ui/item-icons/PNG/1.png' },
-    { key: 'speed', label: 'Speed', color: '#fa0', icon: '/assets/space/ui/item-icons/PNG/3.png' },
-    { key: 'health', label: 'Health', color: '#4f4', icon: '/assets/space/ui/item-icons/PNG/5.png' },
-    { key: 'shield', label: 'Shield', color: '#4df', icon: '/assets/space/ui/item-icons/PNG/9.png' },
+  const types: { key: keyof TeamUpgrades; label: string; color: string }[] = [
+    { key: 'attack', label: 'Attack', color: '#f44' },
+    { key: 'armor', label: 'Armor', color: '#8ac' },
+    { key: 'speed', label: 'Speed', color: '#fa0' },
+    { key: 'health', label: 'Health', color: '#4f4' },
+    { key: 'shield', label: 'Shield', color: '#4df' },
   ];
   return (
     <div>
-      <div style={{ fontSize: 11, fontWeight: 600, marginBottom: 6, color: '#fa0' }}>GLOBAL UPGRADES</div>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+      <div style={{ fontSize: 12, fontWeight: 800, marginBottom: 8, color: '#fa0', letterSpacing: 1 }}>GLOBAL UPGRADES</div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
         {types.map((t) => {
           const level = upg[t.key];
           const maxed = level >= 5;
           const cost = !maxed ? UPGRADE_COSTS[level] : null;
           const canAfford = cost ? res.credits >= cost.credits && res.minerals >= cost.minerals && res.energy >= cost.energy : false;
+          const hudIcon = UPGRADE_HUD_ICONS[t.key];
           return (
-            <Slot
+            <div
               key={t.key}
-              size={80}
               onClick={() => (canAfford ? renderer.engine.purchaseUpgrade(1 as any, t.key) : undefined)}
-              active={maxed}
-              style={{ opacity: maxed ? 0.8 : canAfford ? 1 : 0.35 }}
+              style={{
+                width: 100,
+                position: 'relative',
+                borderRadius: 8,
+                overflow: 'hidden',
+                cursor: canAfford ? 'pointer' : 'default',
+                opacity: maxed ? 0.85 : canAfford ? 1 : 0.35,
+                transition: 'transform 0.1s',
+              }}
+              onMouseEnter={(e) => {
+                if (canAfford) (e.currentTarget as HTMLDivElement).style.transform = 'scale(1.05)';
+              }}
+              onMouseLeave={(e) => {
+                (e.currentTarget as HTMLDivElement).style.transform = 'scale(1)';
+              }}
             >
-              <div style={{ textAlign: 'center' }}>
+              {/* InventorySlot hexagonal frame background */}
+              <img
+                src={GUI_FRAMES.inventorySlot}
+                alt=""
+                style={{
+                  position: 'absolute',
+                  inset: 0,
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'fill',
+                  pointerEvents: 'none',
+                  filter: maxed ? 'brightness(1.3) hue-rotate(40deg)' : 'brightness(0.85)',
+                }}
+                onError={(e) => {
+                  (e.target as HTMLImageElement).style.display = 'none';
+                }}
+              />
+              <div style={{ position: 'relative', zIndex: 1, textAlign: 'center', padding: '10px 6px 8px' }}>
+                {/* Large HUD ability icon */}
                 <img
-                  src={t.icon}
+                  src={hudIcon}
                   alt={t.label}
-                  style={{ width: 26, height: 26, objectFit: 'contain', imageRendering: 'auto' }}
+                  style={{ width: 40, height: 40, objectFit: 'contain', imageRendering: 'auto', marginBottom: 4 }}
                   onError={(e) => {
                     (e.target as HTMLImageElement).style.display = 'none';
                   }}
                 />
-                <div style={{ fontSize: 8, fontWeight: 700, color: t.color, marginTop: 1 }}>{t.label}</div>
-                <Bar value={level} max={5} color={t.color} height={4} width={50} />
-                <div style={{ fontSize: 7, color: '#fff', marginTop: 1 }}>Lv {level}/5</div>
-                {!maxed && cost && <div style={{ fontSize: 6, color: '#8ac' }}>{cost.credits}c</div>}
-                {maxed && <div style={{ fontSize: 7, color: '#4f4' }}>MAX</div>}
+                <div style={{ fontSize: 10, fontWeight: 800, color: t.color, marginBottom: 4, letterSpacing: 0.5 }}>{t.label}</div>
+                <Bar value={level} max={5} color={t.color} height={6} width={70} />
+                <div style={{ fontSize: 9, color: '#fff', marginTop: 3, fontWeight: 700 }}>Lv {level}/5</div>
+                {!maxed && cost && (
+                  <div style={{ fontSize: 7, color: '#8ac', marginTop: 2 }}>
+                    {cost.credits}c / {cost.energy}e / {cost.minerals}m
+                  </div>
+                )}
+                {maxed && <div style={{ fontSize: 9, color: '#4f4', fontWeight: 800, marginTop: 2 }}>✔ MAX</div>}
               </div>
-            </Slot>
+            </div>
           );
         })}
       </div>
