@@ -1,8 +1,8 @@
-﻿import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import type { SpaceRenderer } from './space-renderer';
 import type {
   SpaceShip, SpaceStation, ShipAbilityState, PlayerResources,
-  SpaceGameState, TeamUpgrades, Commander,
+  SpaceGameState, TeamUpgrades, Commander, Planet,
 } from './space-types';
 import {
   SHIP_DEFINITIONS, BUILDABLE_SHIPS, UPGRADE_COSTS, UPGRADE_BONUSES,
@@ -229,6 +229,19 @@ export function SpaceHUD({ renderer, onQuit }: SpaceHUDProps) {
     return () => { running = false; clearTimeout(animRef.current); };
   }, []);
 
+  // Planet selection wiring: world click -> HUD selected planet
+  useEffect(() => {
+    if (!renderer) return;
+    const prev = renderer.onPlanetClick;
+    const handler = (planetId: number) => {
+      setSelectedPlanetId(planetId > 0 ? planetId : null);
+    };
+    renderer.onPlanetClick = handler;
+    return () => {
+      if (renderer.onPlanetClick === handler) renderer.onPlanetClick = prev;
+    };
+  }, [renderer]);
+
   if (!renderer?.engine?.state) return null;
   const state = renderer.engine.state;
   const res = state.resources[1]; // player resources
@@ -253,6 +266,9 @@ export function SpaceHUD({ renderer, onQuit }: SpaceHUDProps) {
   // Primary selected ship — use getShipDef so Hero ships resolve correctly
   const primary = selectedShips[0] ?? null;
   const def = primary ? getShipDef(primary.shipType) : null;
+  const selectedPlanet = selectedPlanetId != null
+    ? state.planets.find(p => p.id === selectedPlanetId) ?? null
+    : null;
 
   // Count alive ships per team
   const teamCounts = new Map<number, number>();
@@ -592,6 +608,8 @@ export function SpaceHUD({ renderer, onQuit }: SpaceHUDProps) {
               )}
               <CommandCard ship={primary} renderer={renderer} allSelected={selectedShips} />
             </>
+          ) : selectedPlanet ? (
+            <PlanetInfoPanel planet={selectedPlanet} state={state} renderer={renderer} />
           ) : upg ? (
             <UpgradePanel upg={upg} res={res} renderer={renderer} />
           ) : null}
@@ -1108,6 +1126,96 @@ function Minimap({ state, renderer }: { state: SpaceGameState; renderer: SpaceRe
   );
 }
 
+// ── Planet Info Panel (when planet selected) ─────────────────────
+function PlanetInfoPanel({ planet, state, renderer }: {
+  planet: Planet;
+  state: SpaceGameState;
+  renderer: SpaceRenderer;
+}) {
+  const td = PLANET_TYPE_DATA[planet.planetType];
+  const ownerColor = TEAM_COLORS[planet.owner] ?? td.baseColor;
+  const ownerLabel = planet.owner === 0 ? 'Neutral' : (planet.owner === 1 ? 'Player' : `Enemy Team ${planet.owner}`);
+  const capPct = Math.max(0, Math.min(100, Math.round((planet.captureProgress / CAPTURE_TIME) * 100)));
+  const station = planet.stationId ? state.stations.get(planet.stationId) : null;
+  let turretCount = 0;
+  for (const [, turret] of state.planetTurrets) {
+    if (!turret.dead && turret.planetId === planet.id) turretCount++;
+  }
+  const m = td.resourceMult;
+  const yieldCredits = Math.round(planet.resourceYield.credits * m.credits);
+  const yieldEnergy = Math.round(planet.resourceYield.energy * m.energy);
+  const yieldMinerals = Math.round(planet.resourceYield.minerals * m.minerals);
+
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: '#8ac', letterSpacing: 1 }}>PLANET FOCUS</div>
+        <div style={{ fontSize: 9, padding: '2px 6px', borderRadius: 4, background: '#0d182a', border: '1px solid #1a3050', color: '#6a8a9a' }}>
+          ID {planet.id}
+        </div>
+      </div>
+
+      <SmallPanel title={planet.name} style={{ width: '100%' }}>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+          <div style={{
+            width: 56, height: 56, borderRadius: 8,
+            background: `radial-gradient(circle at 30% 30%, #ffffff22, #${td.baseColor.toString(16).padStart(6,'0')}88)`,
+            border: `1px solid #${td.baseColor.toString(16).padStart(6,'0')}`,
+            boxShadow: `0 0 14px #${td.baseColor.toString(16).padStart(6,'0')}55`,
+          }} />
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: '#fff' }}>{td.label}</div>
+            <div style={{ fontSize: 9, color: '#8ac', marginTop: 2 }}>Tech Focus: {td.techFocus}</div>
+            <div style={{ marginTop: 4, display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 9, color: `#${ownerColor.toString(16).padStart(6,'0')}` }}>
+              <span style={{ width: 8, height: 8, borderRadius: '50%', background: `#${ownerColor.toString(16).padStart(6,'0')}`, display: 'inline-block' }} />
+              {ownerLabel}
+            </div>
+          </div>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginBottom: 8 }}>
+          <div style={{ padding: '6px 8px', border: '1px solid #1a3050', borderRadius: 6, background: 'rgba(6,14,28,0.7)' }}>
+            <div style={{ fontSize: 8, color: '#6a8a9a' }}>RESOURCE YIELD</div>
+            <div style={{ fontSize: 10, color: '#fc4', marginTop: 2 }}>+{yieldCredits} credits</div>
+            <div style={{ fontSize: 10, color: '#4df' }}>+{yieldEnergy} energy</div>
+            <div style={{ fontSize: 10, color: '#4f8' }}>+{yieldMinerals} minerals</div>
+          </div>
+          <div style={{ padding: '6px 8px', border: '1px solid #1a3050', borderRadius: 6, background: 'rgba(6,14,28,0.7)' }}>
+            <div style={{ fontSize: 8, color: '#6a8a9a' }}>ORBITAL STATUS</div>
+            <div style={{ fontSize: 10, color: station ? '#4f8' : '#f88', marginTop: 2 }}>
+              Station: {station && !station.dead ? 'Online' : 'None'}
+            </div>
+            <div style={{ fontSize: 10, color: '#8ac' }}>Defense Turrets: {turretCount}</div>
+            <div style={{ fontSize: 10, color: '#8ac' }}>Capture Radius: {Math.round(planet.captureRadius)}</div>
+          </div>
+        </div>
+
+        {planet.captureProgress > 0 && (
+          <div style={{ marginBottom: 8 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9, color: '#8ac', marginBottom: 2 }}>
+              <span>Capture Progress</span>
+              <span style={{ color: '#fc4' }}>{capPct}%</span>
+            </div>
+            <Bar value={planet.captureProgress} max={CAPTURE_TIME} color={planet.captureTeam !== 0 ? `#${(TEAM_COLORS[planet.captureTeam] ?? 0xffff44).toString(16).padStart(6,'0')}` : '#ffdd44'} height={8} />
+          </div>
+        )}
+
+        <div style={{ display: 'flex', gap: 6 }}>
+          <Btn label="CENTER CAMERA" onClick={() => {
+            renderer.controls.cameraState.x = planet.x;
+            renderer.controls.cameraState.y = planet.y;
+          }} style={{ flex: 1, minWidth: 0 }} />
+          {station && !station.dead && station.team === 1 && (
+            <Btn label="SELECT STATION" active onClick={() => {
+              for (const [, st] of state.stations) st.selected = false;
+              station.selected = true;
+            }} style={{ flex: 1, minWidth: 0 }} />
+          )}
+        </div>
+      </SmallPanel>
+    </div>
+  );
+}
 // ── Build Panel (when station selected) ─────────────────────────
 function BuildPanel({ station, renderer, res }: { station: SpaceStation; renderer: SpaceRenderer; res: PlayerResources }) {
   const tiers = [1, 2, 3, 4, 5];
@@ -1308,6 +1416,37 @@ function VoidPowerBar({ state, techSt, onCast }: {
   );
 }
 
+// ── Draggable floating panel helper ─────────────────────────────
+function useDraggablePanel(initialX: number, initialY: number) {
+  const [pos, setPos] = useState({ x: initialX, y: initialY });
+  const dragState = useRef<{ sx: number; sy: number; ox: number; oy: number } | null>(null);
+
+  useEffect(() => {
+    const onMove = (e: MouseEvent) => {
+      const d = dragState.current;
+      if (!d) return;
+      const nx = d.ox + (e.clientX - d.sx);
+      const ny = d.oy + (e.clientY - d.sy);
+      setPos({ x: Math.max(0, nx), y: Math.max(0, ny) });
+    };
+    const onUp = () => { dragState.current = null; };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    return () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+  }, []);
+
+  const onDragStart = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragState.current = { sx: e.clientX, sy: e.clientY, ox: pos.x, oy: pos.y };
+  };
+
+  return { pos, onDragStart };
+}
+
 // ── Tech Tree Panel ─────────────────────────────────────────────
 function TechTreePanel({ state, myPlanets, onResearch, onClose }: {
   state: SpaceGameState;
@@ -1323,14 +1462,25 @@ function TechTreePanel({ state, myPlanets, onResearch, onClose }: {
   const res = state.resources[1];
   const tree = ALL_TECH_TREES[activeTab];
   const C = { bg:'rgba(4,10,22,0.97)', border:'#1a3050', accent:'#4488ff', text:'#cde', muted:'rgba(160,200,255,0.4)' };
+  const drag = useDraggablePanel(210, 45);
 
   // Available planet tech trees (only show trees for owned planets)
   const availTrees = Object.values(ALL_TECH_TREES).filter(t =>
     t.id === 'command' || myPlanets.some(p => PLANET_TYPE_TO_TECH[p.planetType] === t.id));
 
   return (
-    <Panel title="TECH TREES" variant="green" onClose={onClose}
-      width={500} style={{ position:'absolute', top:45, left:210, maxHeight:'80vh', zIndex:50, overflow:'auto' }}>
+    <div style={{ position:'absolute', left: drag.pos.x, top: drag.pos.y, zIndex:50, pointerEvents:'auto' }}>
+      <Panel title="TECH TREES" variant="green" onClose={onClose}
+        width={500} style={{ maxHeight:'80vh', overflow:'auto' }}>
+      <div
+        onMouseDown={drag.onDragStart}
+        style={{
+          marginBottom: 8, padding: '4px 8px', borderRadius: 4, cursor: 'move',
+          fontSize: 9, color: '#8ac', letterSpacing: 1, textAlign: 'center',
+          background: 'rgba(10,20,40,0.65)', border: '1px dashed #2a4a70',
+          userSelect: 'none',
+        }}
+      >DRAG PANEL</div>
       {techSt?.inResearch && (
         <div style={{ fontSize:10, color:'#fc4', textAlign:'center', marginBottom:8 }}>
           Researching… {Math.ceil(techSt.researchTimeRemaining ?? 0)}s
@@ -1401,7 +1551,8 @@ function TechTreePanel({ state, myPlanets, onResearch, onClose }: {
           })}
         </div>
       )}
-    </Panel>
+      </Panel>
+    </div>
   );
 }
 
@@ -1422,10 +1573,22 @@ function CommanderPanel({ state, selectedCmdId, selectedPlanetId, onSelectCmd, o
   const selected = selectedCmdId != null ? state.commanders.get(selectedCmdId) : null;
   const myPlanets = state.planets.filter(p => p.owner === 1);
   const C = { bg:'rgba(4,12,8,0.97)', accent:'#00ee88', border:'#1a3a22', text:'#aae0b0', muted:'rgba(100,200,120,0.4)' };
+  const defaultX = typeof window !== 'undefined' ? Math.max(220, window.innerWidth - 470) : 980;
+  const drag = useDraggablePanel(defaultX, 45);
 
   return (
+    <div style={{ position:'absolute', left: drag.pos.x, top: drag.pos.y, zIndex:50, pointerEvents:'auto' }}>
     <Panel title="COMMANDER CORPS" variant="green" onClose={onClose}
-      width={440} style={{ position:'absolute', top:45, right:10, maxHeight:'85vh', zIndex:50, overflow:'auto' }}>
+      width={440} style={{ maxHeight:'85vh', overflow:'auto' }}>
+      <div
+        onMouseDown={drag.onDragStart}
+        style={{
+          marginBottom: 8, padding: '4px 8px', borderRadius: 4, cursor: 'move',
+          fontSize: 9, color: '#7fcf9f', letterSpacing: 1, textAlign: 'center',
+          background: 'rgba(8,24,12,0.7)', border: '1px dashed #1f5f35',
+          userSelect: 'none',
+        }}
+      >DRAG PANEL</div>
 
       <div style={{ display:'flex', gap:0 }}>
         {/* Left: commander list + planet train */}
@@ -1575,6 +1738,7 @@ function CommanderPanel({ state, selectedCmdId, selectedPlanetId, onSelectCmd, o
         )}
       </div>
     </Panel>
+    </div>
   );
 }
 

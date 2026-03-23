@@ -10,6 +10,7 @@ import {
   SHIP_ROLES, SHIP_ROLE_LABELS, SHIP_ROLE_COLORS,
   COMMANDER_SPEC_LABEL, type CommanderSpec,
   COMMANDER_SPEC_PLANET,
+  TEAM_COLOR_PALETTE, type EnemyColorMode, type TeamColorPrefs, applyColorPreferences,
 } from './game/space-types';
 import { Panel, Btn, Slot, SmallPanel } from './game/ui-lib';
 
@@ -166,6 +167,9 @@ export default function App() {
   const [starMapOpen, setStarMapOpen] = useState(false);
   const [showCmdModal, setShowCmdModal] = useState(false);
   const [selectedSpec, setSelectedSpec] = useState<CommanderSpec>('forge');
+  const [playerColorIdx, setPlayerColorIdx] = useState(0);           // Blue default
+  const [enemyColorMode, setEnemyColorMode] = useState<EnemyColorMode>('unique');
+  const [enemyColorIdx, setEnemyColorIdx] = useState(1);             // Red default
 
   // M key opens Star Map while playing
   useEffect(() => {
@@ -179,9 +183,11 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKey);
   }, [screen, renderer]);
 
-  const launchWithSpec = useCallback(async (mode: GameMode, spec: CommanderSpec) => {
+  const launchWithSpec = useCallback(async (mode: GameMode, spec: CommanderSpec, colorPrefs: TeamColorPrefs) => {
     if (!containerRef.current) return;
     if (rendererRef.current) { rendererRef.current.dispose(); rendererRef.current = null; }
+    // Apply color preferences before anything initializes
+    applyColorPreferences(colorPrefs);
     setShowCmdModal(false);
     setLoading(true);
     setScreen('playing');
@@ -203,7 +209,14 @@ export default function App() {
       <div ref={containerRef} style={{ width: '100%', height: '100%', display: screen === 'playing' ? 'block' : 'none' }} />
       {screen === 'intro' && <IntroScreen onFinish={() => setScreen('menu')} />}
       {screen === 'menu'  && <MainMenu onStart={() => setShowCmdModal(true)} onCodex={() => setScreen('codex')} onHowTo={() => setScreen('howto')} onEditor={() => setScreen('editor')} mode={gameMode} setMode={setGameMode} />}
-      {showCmdModal && <CommanderSelectModal spec={selectedSpec} setSpec={setSelectedSpec} onConfirm={() => launchWithSpec(gameMode, selectedSpec)} onCancel={() => setShowCmdModal(false)} />}
+      {showCmdModal && <CommanderSelectModal
+        spec={selectedSpec} setSpec={setSelectedSpec}
+        playerColorIdx={playerColorIdx} setPlayerColorIdx={setPlayerColorIdx}
+        enemyColorMode={enemyColorMode} setEnemyColorMode={setEnemyColorMode}
+        enemyColorIdx={enemyColorIdx} setEnemyColorIdx={setEnemyColorIdx}
+        onConfirm={() => launchWithSpec(gameMode, selectedSpec, { playerColorIdx, enemyColorMode, enemyColorIdx })}
+        onCancel={() => setShowCmdModal(false)}
+      />}
       {screen === 'codex' && <ShipCodex onBack={() => setScreen('menu')} />}
       {screen === 'howto' && <HowToPlay onBack={() => setScreen('menu')} />}
       {screen === 'editor' && <ShipForgeEditor onBack={() => setScreen('menu')} />}
@@ -217,8 +230,11 @@ export default function App() {
 }
 
 // ── Commander Selection Modal (pre-game) ──────────────────────────
-function CommanderSelectModal({ spec, setSpec, onConfirm, onCancel }: {
+function CommanderSelectModal({ spec, setSpec, playerColorIdx, setPlayerColorIdx, enemyColorMode, setEnemyColorMode, enemyColorIdx, setEnemyColorIdx, onConfirm, onCancel }: {
   spec: CommanderSpec; setSpec: (s: CommanderSpec) => void;
+  playerColorIdx: number; setPlayerColorIdx: (i: number) => void;
+  enemyColorMode: EnemyColorMode; setEnemyColorMode: (m: EnemyColorMode) => void;
+  enemyColorIdx: number; setEnemyColorIdx: (i: number) => void;
   onConfirm: () => void; onCancel: () => void;
 }) {
   const SPECS: { key: CommanderSpec; label: string; planet: string; color: string; bonus: string; desc: string }[] = [
@@ -228,18 +244,22 @@ function CommanderSelectModal({ spec, setSpec, onConfirm, onCancel }: {
     { key: 'vortex', label: 'Vortex', planet: 'Gas Giant',   color: '#ffaa22', bonus: '+SPD / Mobility', desc: 'Swift tactician. Outmaneuvers opponents with blazing speed.' },
     { key: 'void',   label: 'Void',   planet: 'Barren',      color: '#aa8866', bonus: '+ALL / Stealth',  desc: 'Enigmatic operative. Balanced bonuses with covert advantages.' },
   ];
+
+  const hexStr = (hex: number) => `#${hex.toString(16).padStart(6, '0')}`;
+
   return (
     <div style={{
       position: 'absolute', inset: 0, zIndex: 200, display: 'flex',
       alignItems: 'center', justifyContent: 'center',
       background: 'rgba(0,0,0,0.88)', fontFamily: "'Segoe UI', monospace", color: '#cde',
     }}>
-      <Panel title="CHOOSE YOUR COMMANDER" variant="green" width={660}
-        style={{ maxWidth: '92vw' }}>
+      <Panel title="CHOOSE YOUR COMMANDER" variant="green" width={700}
+        style={{ maxWidth: '94vw' }}>
         <div style={{ fontSize: 11, color: 'rgba(160,200,255,0.45)', marginBottom: 16, textAlign: 'center' }}>
           Your starting commander determines your flagship's bonus spec.
         </div>
-        <div style={{ display: 'flex', gap: 10, marginBottom: 24, flexWrap: 'wrap' }}>
+        {/* Commander spec cards */}
+        <div style={{ display: 'flex', gap: 10, marginBottom: 18, flexWrap: 'wrap' }}>
           {SPECS.map(s => {
             const sel = spec === s.key;
             const avatarIdx = SPECS.indexOf(s) + 1;
@@ -272,6 +292,69 @@ function CommanderSelectModal({ spec, setSpec, onConfirm, onCancel }: {
             );
           })}
         </div>
+
+        {/* ── Team Color Selection ─────────────────────────── */}
+        <div style={{
+          padding: '12px 14px', borderRadius: 8, marginBottom: 14,
+          background: 'rgba(6,14,30,0.7)', border: '1px solid rgba(40,60,80,0.4)',
+        }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: '#8ac', marginBottom: 8, letterSpacing: 1 }}>YOUR TEAM COLOR</div>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {TEAM_COLOR_PALETTE.map((c, i) => (
+              <div key={i} onClick={() => setPlayerColorIdx(i)} title={c.label} style={{
+                width: 28, height: 28, borderRadius: 6, cursor: 'pointer',
+                background: hexStr(c.hex),
+                border: playerColorIdx === i ? '3px solid #fff' : '2px solid rgba(255,255,255,0.15)',
+                boxShadow: playerColorIdx === i ? `0 0 10px ${hexStr(c.hex)}` : 'none',
+                transition: 'all 0.15s',
+              }} />
+            ))}
+          </div>
+        </div>
+
+        {/* ── Enemy Color Mode ─────────────────────────────── */}
+        <div style={{
+          padding: '12px 14px', borderRadius: 8, marginBottom: 18,
+          background: 'rgba(6,14,30,0.7)', border: '1px solid rgba(40,60,80,0.4)',
+        }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: '#8ac', marginBottom: 8, letterSpacing: 1 }}>ENEMY COLORS</div>
+          <div style={{ display: 'flex', gap: 10, marginBottom: 8 }}>
+            <div onClick={() => setEnemyColorMode('unique')} style={{
+              padding: '6px 14px', borderRadius: 6, cursor: 'pointer', fontSize: 10, fontWeight: 700,
+              background: enemyColorMode === 'unique' ? 'rgba(68,136,255,0.25)' : 'rgba(6,14,30,0.6)',
+              border: enemyColorMode === 'unique' ? '1px solid #4488ff' : '1px solid rgba(40,60,80,0.4)',
+              color: enemyColorMode === 'unique' ? '#6af' : '#68a',
+            }}>UNIQUE (EACH THEIR OWN)</div>
+            <div onClick={() => setEnemyColorMode('all_one')} style={{
+              padding: '6px 14px', borderRadius: 6, cursor: 'pointer', fontSize: 10, fontWeight: 700,
+              background: enemyColorMode === 'all_one' ? 'rgba(255,68,68,0.25)' : 'rgba(6,14,30,0.6)',
+              border: enemyColorMode === 'all_one' ? '1px solid #ff4444' : '1px solid rgba(40,60,80,0.4)',
+              color: enemyColorMode === 'all_one' ? '#f66' : '#68a',
+            }}>ALL ENEMIES ONE COLOR</div>
+          </div>
+          {enemyColorMode === 'all_one' && (
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              {TEAM_COLOR_PALETTE.map((c, i) => (
+                <div key={i} onClick={() => { if (i !== playerColorIdx) setEnemyColorIdx(i); }}
+                  title={i === playerColorIdx ? `${c.label} (your color)` : c.label}
+                  style={{
+                    width: 24, height: 24, borderRadius: 5, cursor: i === playerColorIdx ? 'not-allowed' : 'pointer',
+                    background: hexStr(c.hex),
+                    border: enemyColorIdx === i ? '3px solid #fff' : '2px solid rgba(255,255,255,0.12)',
+                    boxShadow: enemyColorIdx === i ? `0 0 8px ${hexStr(c.hex)}` : 'none',
+                    opacity: i === playerColorIdx ? 0.25 : 1,
+                    transition: 'all 0.15s',
+                  }} />
+              ))}
+            </div>
+          )}
+          {enemyColorMode === 'unique' && (
+            <div style={{ fontSize: 9, color: 'rgba(160,200,255,0.4)' }}>
+              Each enemy team will have a different color, just like Warcraft III.
+            </div>
+          )}
+        </div>
+
         <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
           <Btn label="BACK" onClick={onCancel} style={{ minWidth: 100, height: 36 }} />
           <Btn label="DEPLOY" wide active onClick={onConfirm} />

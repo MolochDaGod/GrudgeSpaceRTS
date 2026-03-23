@@ -11,6 +11,73 @@ export const TEAM_COLORS: Record<number, number> = {
   0: 0x44ff44, 1: 0x4488ff, 2: 0xff4444, 3: 0xffaa22, 4: 0xaa44ff,
 };
 
+// ── Team Color Customization ──────────────────────────────────────
+export interface TeamColorOption {
+  label: string;
+  hex: number;
+}
+
+export const TEAM_COLOR_PALETTE: TeamColorOption[] = [
+  { label: 'Blue',      hex: 0x4488ff },
+  { label: 'Red',       hex: 0xff4444 },
+  { label: 'Orange',    hex: 0xffaa22 },
+  { label: 'Purple',    hex: 0xaa44ff },
+  { label: 'Green',     hex: 0x44ff44 },
+  { label: 'Yellow',    hex: 0xffdd22 },
+  { label: 'Teal',      hex: 0x22ddaa },
+  { label: 'Pink',      hex: 0xff44aa },
+  { label: 'Cyan',      hex: 0x44ddff },
+  { label: 'Crimson',   hex: 0xcc2244 },
+];
+
+/** How to display enemy colors. */
+export type EnemyColorMode = 'unique' | 'all_one';
+// unique  = each enemy team gets its own distinct palette color (default WC3-style)
+// all_one = all enemy teams share a single chosen color
+
+export interface TeamColorPrefs {
+  playerColorIdx: number;         // index into TEAM_COLOR_PALETTE for player (team 1)
+  enemyColorMode: EnemyColorMode;
+  enemyColorIdx: number;          // index into palette, used when mode = 'all_one'
+}
+
+const DEFAULT_ENEMY_COLORS = [1, 2, 3]; // Red, Orange, Purple — for teams 2,3,4
+
+/**
+ * Mutates the global TEAM_COLORS to reflect the player's color preferences.
+ * Call this once before initializing the game engine/renderer.
+ */
+export function applyColorPreferences(prefs: TeamColorPrefs): void {
+  const pal = TEAM_COLOR_PALETTE;
+  // Player team
+  TEAM_COLORS[1] = pal[prefs.playerColorIdx]?.hex ?? 0x4488ff;
+
+  if (prefs.enemyColorMode === 'all_one') {
+    // All enemies share one color
+    const col = pal[prefs.enemyColorIdx]?.hex ?? 0xff4444;
+    TEAM_COLORS[2] = col;
+    TEAM_COLORS[3] = col;
+    TEAM_COLORS[4] = col;
+  } else {
+    // Unique colors per enemy — pick from palette, skipping the player's color
+    const used = new Set<number>([prefs.playerColorIdx]);
+    const enemyTeams = [2, 3, 4];
+    let fallbackIdx = 0;
+    for (const t of enemyTeams) {
+      // Try the default first, then find next unused
+      let idx = DEFAULT_ENEMY_COLORS[t - 2];
+      if (used.has(idx)) {
+        while (used.has(fallbackIdx) || fallbackIdx === prefs.playerColorIdx) fallbackIdx++;
+        idx = fallbackIdx;
+      }
+      used.add(idx);
+      TEAM_COLORS[t] = pal[idx]?.hex ?? 0xff4444;
+    }
+  }
+  // Neutral stays green
+  TEAM_COLORS[0] = 0x44ff44;
+}
+
 // ── Ship Classification ─────────────────────────────────────────
 export type ShipClass =
   | 'scout' | 'fighter' | 'interceptor' | 'heavy_fighter'
