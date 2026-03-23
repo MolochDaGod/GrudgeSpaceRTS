@@ -12,6 +12,9 @@ const base = process.env.VITE_BASE_PATH ?? '/';
 export default defineConfig({
   base,
   plugins: [react()],
+  resolve: {
+    alias: { '@': resolve(__dirname, 'src') },
+  },
   build: {
     rollupOptions: {
       input: {
