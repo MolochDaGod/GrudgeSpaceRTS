@@ -44,8 +44,8 @@ export class SpaceControls {
     window.addEventListener('keyup', this.onKeyUp);
   }
 
-  /** Set by SpaceRenderer so clicking an empty area checks planet collision. */
-  public onPlanetClick?: (planetId: number) => void;
+  /** Set by SpaceRenderer so clicking can select/clear planet focus. */
+  public onPlanetClick?: (planetId: number | null) => void;
   /** Set by SpaceRenderer to route Q/W/E/R ability hotkeys (matches ability.key). */
   public onAbilityActivateByKey?: (key: string) => void;
 
@@ -226,6 +226,8 @@ export class SpaceControls {
         this.state.selectedIds.add(ship.id);
         // Deselect any station
         for (const [, st] of this.state.stations) st.selected = false;
+        // Selecting a ship clears planet focus
+        this.onPlanetClick?.(null);
       } else {
         // Check if clicking near a friendly station
         const worldPos = this.screenToWorld(e.clientX, e.clientY);
@@ -243,13 +245,18 @@ export class SpaceControls {
               this.state.selectedIds.clear();
               for (const [, ost] of this.state.stations) ost.selected = false;
               st.selected = true;
+              // Selecting a station clears planet focus
+              this.onPlanetClick?.(null);
               clickedStation = true;
               break;
             }
           }
         }
-        if (!clickedStation && this.onPlanetClick) {
-          this.onPlanetClick(-1);
+        if (!clickedStation) {
+          // Deselect stale stations when clicking ground/planet
+          for (const [, st] of this.state.stations) st.selected = false;
+          // -1 means "try select hovered planet if any", handled in renderer
+          this.onPlanetClick?.(-1);
         }
       }
     } else {
@@ -271,6 +278,9 @@ export class SpaceControls {
           this.state.selectedIds.add(id);
         }
       }
+      // Box-selecting ships should clear station + planet focus
+      for (const [, st] of this.state.stations) st.selected = false;
+      this.onPlanetClick?.(null);
     }
   }
 
