@@ -30,6 +30,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Validate (typecheck + lint + test)
+        run: npx tsc --noEmit && npx eslint src/ && npx vitest run
+
       - name: Build game (with GitHub Pages base path)
         run: npm run build
         env:

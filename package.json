@@ -10,8 +10,9 @@
     "check": "tsc --noEmit",
     "lint": "eslint src/",
     "format": "prettier --write src/",
+    "test": "vitest run",
     "prepare": "husky",
-    "validate": "tsc --noEmit && vite build"
+    "validate": "tsc --noEmit && eslint src/ && vitest run && vite build"
   },
   "lint-staged": {
     "*.{ts,tsx}": [
@@ -42,6 +43,7 @@
     "sharp": "^0.34.5",
     "typescript": "~5.8.3",
     "typescript-eslint": "^8.57.1",
-    "vite": "^6.4.1"
+    "vite": "^6.4.1",
+    "vitest": "^4.1.0"
   }
 }
