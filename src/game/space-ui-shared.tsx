@@ -73,8 +73,35 @@ export const SHIP_PREVIEW: Record<string, string> = {
   iron_bastion: '/assets/space/models/capital/Cruiser/Cruiser.png',
   storm_herald: '/assets/space/models/capital/Destroyer/Destroyer.png',
   plague_mother: '/assets/space/models/capital/Battleships/Battleship.png',
-  boss_ship_01: '/assets/space/models/capital/Battleships/Battleship.png',
-  boss_ship_02: '/assets/space/models/capital/Battleships/Battleship.png',
+  boss_ship_01: '/assets/space/models/new-ships/Ship_Boos_01_Hull.png',
+  boss_ship_02: '/assets/space/models/new-ships/Ship_Boss_02_Hull.png',
+  // Workers
+  mining_drone: '/assets/space/models/ships/MicroRecon/MicroRecon.gif',
+  energy_skimmer: '/assets/space/models/ships/MicroRecon/MicroRecon.gif',
+  // Corvettes (battle fleet)
+  cf_corvette_01: '/assets/space/models/battle-ships/Corvette_01.png',
+  cf_corvette_02: '/assets/space/models/battle-ships/Corvette_02.png',
+  cf_corvette_03: '/assets/space/models/battle-ships/Corvette_03.png',
+  cf_corvette_04: '/assets/space/models/battle-ships/Corvette_04.png',
+  cf_corvette_05: '/assets/space/models/battle-ships/Corvette_05.png',
+  // Frigates
+  cf_frigate_01: '/assets/space/models/battle-ships/Frigate_01.png',
+  cf_frigate_02: '/assets/space/models/battle-ships/Frigate_02.png',
+  cf_frigate_03: '/assets/space/models/battle-ships/Frigate_03.png',
+  cf_frigate_04: '/assets/space/models/battle-ships/Frigate_04.png',
+  cf_frigate_05: '/assets/space/models/battle-ships/Frigate_05.png',
+  // Light Cruisers
+  cf_light_cruiser_01: '/assets/space/models/battle-ships/Light cruiser_01.png',
+  cf_light_cruiser_02: '/assets/space/models/battle-ships/Light cruiser_02.png',
+  cf_light_cruiser_03: '/assets/space/models/battle-ships/Light cruiser_03.png',
+  cf_light_cruiser_04: '/assets/space/models/battle-ships/Light cruiser_04.png',
+  cf_light_cruiser_05: '/assets/space/models/battle-ships/Light cruiser_05.png',
+  // Destroyers (battle fleet)
+  cf_destroyer_01: '/assets/space/models/battle-ships/Destroyer_01.png',
+  cf_destroyer_02: '/assets/space/models/battle-ships/Destroyer_02.png',
+  cf_destroyer_03: '/assets/space/models/battle-ships/Destroyer_03.png',
+  cf_destroyer_04: '/assets/space/models/battle-ships/Destroyer_04.png',
+  cf_destroyer_05: '/assets/space/models/battle-ships/Destroyer_05.png',
 };
 
 // ── Ability SVG Icons ─────────────────────────────────────────────
