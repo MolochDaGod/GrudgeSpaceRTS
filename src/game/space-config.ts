@@ -17,6 +17,7 @@ import type {
   CommanderSpec,
   ShipRoleType,
   TeamTechBonuses,
+  SpaceFaction,
 } from './space-types';
 import { TEAM_COLORS } from './space-types';
 
@@ -144,18 +145,155 @@ export const DOMINATION_TIME = 60;
 export function getMapSize(mode: GameMode): { width: number; height: number; depth: number } {
   switch (mode) {
     case '1v1':
-      return { width: 16000, height: 16000, depth: 800 };
+      return { width: 24000, height: 24000, depth: 800 };
     case '2v2':
-      return { width: 20000, height: 20000, depth: 800 };
+      return { width: 32000, height: 32000, depth: 800 };
     case 'ffa4':
-      return { width: 20000, height: 20000, depth: 800 };
+      return { width: 32000, height: 32000, depth: 800 };
+    case 'campaign':
+      return CAMPAIGN_SECTOR_SIZE;
   }
 }
-export const MAP_WIDTH = 16000;
-export const MAP_HEIGHT = 16000;
+export const MAP_WIDTH = 24000;
+export const MAP_HEIGHT = 24000;
 export const MAP_DEPTH = 800;
 
-// ── Tech Bonuses Default ──────────────────────────────────────────
+// ── Campaign Constants ────────────────────────────────────────────
+/** All dt values are multiplied by this in campaign mode (10x slower gameplay). */
+export const CAMPAIGN_TIME_SCALE = 0.1;
+export const CAMPAIGN_SECTOR_SIZE = { width: 48000, height: 48000, depth: 1200 };
+export const CAMPAIGN_PLANET_COUNT = { min: 15, max: 25 };
+export const CAMPAIGN_AI_FACTIONS = 3;
+export const CAMPAIGN_HOMEWORLD_INVINCIBLE = true;
+/** Starting resources are higher in campaign — player needs a head-start. */
+export const CAMPAIGN_START_RESOURCES = { credits: 1000, energy: 400, minerals: 600 };
+/** Domination not used in campaign — conquest is the only win condition. */
+export const CAMPAIGN_NEUTRAL_DEFENDERS = 5;
+
+export const CAMPAIGN_LORE_INTRO = [
+  'In the age before the networks, before the factions...',
+  'there was one.',
+  '',
+  'A commander who looked beyond the edge of their world',
+  'and saw the infinite.',
+  '',
+  'You built the first drive.',
+  'You crossed the void.',
+  'You are the first.',
+  '',
+  'Now an entire sector lies before you —',
+  'uncharted stars, silent worlds, and enemies',
+  'who will not welcome your arrival.',
+  '',
+  'Conquer every world.',
+  'Earn the title: CONQUEROR OF GALAXY.',
+  'Then... the real war begins.',
+];
+
+/** Story beats triggered at conquest milestones. */
+export const CAMPAIGN_STORY_BEATS: { atPercent: number; id: string; title: string; text: string }[] = [
+  {
+    atPercent: 0,
+    id: 'awakening',
+    title: 'The Awakening',
+    text: 'Your drive activates. The stars stretch around you. A new galaxy awaits.',
+  },
+  {
+    atPercent: 15,
+    id: 'first_contact',
+    title: 'First Contact',
+    text: 'Sensors detect organized fleet movements. You are not alone in this sector.',
+  },
+  {
+    atPercent: 30,
+    id: 'rival_emerges',
+    title: 'A Rival Emerges',
+    text: 'An enemy commander broadcasts a challenge. They have been watching you.',
+  },
+  {
+    atPercent: 50,
+    id: 'midpoint',
+    title: 'The Tipping Point',
+    text: 'Half the sector bends to your will. The remaining factions fortify.',
+  },
+  { atPercent: 70, id: 'desperation', title: 'Acts of Desperation', text: 'Your enemies form uneasy alliances. Their fleets grow bolder.' },
+  { atPercent: 90, id: 'final_push', title: 'The Final Push', text: 'Only a handful of worlds remain. Victory is within grasp.' },
+  {
+    atPercent: 100,
+    id: 'conqueror',
+    title: 'Conqueror of Galaxy',
+    text: 'Every star in this sector answers to your command. The galaxy is yours.',
+  },
+];
+
+// ── Space Factions ────────────────────────────────────────────
+export interface FactionData {
+  label: string;
+  color: string;
+  icon: string; // emoji for quick display
+  description: string;
+  bonuses: { attack: number; defense: number; speed: number; economy: number };
+  perks: string[]; // unlocked at faction levels 2, 4, 6, 8, 10
+}
+
+export const FACTION_DATA: Record<SpaceFaction, FactionData> = {
+  wisdom: {
+    label: 'Wisdom',
+    color: '#44ddff',
+    icon: '💠',
+    description: 'Seekers of knowledge. Tech research 30% faster, scan range +50%.',
+    bonuses: { attack: 0, defense: 0.05, speed: 0.1, economy: 0.15 },
+    perks: ['fast_research', 'deep_scan', 'ai_advisor', 'precognition', 'omniscience'],
+  },
+  construct: {
+    label: 'Construct',
+    color: '#ffaa22',
+    icon: '⚙️',
+    description: 'Builders of empires. Build speed +25%, planet levels cost 20% less.',
+    bonuses: { attack: 0.05, defense: 0.1, speed: 0, economy: 0.1 },
+    perks: ['rapid_build', 'fortify', 'megastructure', 'planetary_shield', 'dyson_sphere'],
+  },
+  void: {
+    label: 'Void',
+    color: '#aa44ff',
+    icon: '🕳️',
+    description: 'Masters of dark energy. Void powers 40% stronger, cloak duration +50%.',
+    bonuses: { attack: 0.15, defense: 0, speed: 0.05, economy: 0 },
+    perks: ['void_mastery', 'dark_cloak', 'rift_walker', 'entropy_field', 'annihilation'],
+  },
+  legion: {
+    label: 'Legion',
+    color: '#ff4444',
+    icon: '⚔️',
+    description: 'Strength in numbers. Fleet supply +30%, ship XP gain +25%.',
+    bonuses: { attack: 0.1, defense: 0.05, speed: 0.05, economy: 0 },
+    perks: ['mass_production', 'veteran_crew', 'war_cry', 'orbital_strike', 'armada'],
+  },
+};
+
+export const FACTION_LABELS: Record<SpaceFaction, string> = {
+  wisdom: 'Wisdom',
+  construct: 'Construct',
+  void: 'Void',
+  legion: 'Legion',
+};
+
+/** XP required to reach each faction level (cumulative). */
+export const FACTION_LEVEL_XP = [0, 100, 300, 600, 1000, 1500, 2200, 3000, 4000, 5500, 7500];
+
+/** Planet XP thresholds for each level (1→5). */
+export const PLANET_LEVEL_XP = [0, 200, 500, 1000, 2000];
+
+/** Resource yield multiplier per planet level. */
+export const PLANET_LEVEL_YIELD_MULT = [1.0, 1.25, 1.5, 1.8, 2.2];
+
+/** Max turret slots per planet level. */
+export const PLANET_LEVEL_TURRET_SLOTS = [2, 3, 4, 5, 6];
+
+/** Supply bonus per planet level. */
+export const PLANET_LEVEL_SUPPLY_BONUS = [0, 5, 10, 15, 25];
+
+// ── Tech Bonuses Default ────────────────────────────────────────
 export function defaultTechBonuses(): TeamTechBonuses {
   return {
     attackMult: 1,
@@ -1618,4 +1756,278 @@ export const SHIP_ROLES: Partial<Record<string, ShipRoleType>> = {
   storm_herald: 'star_splitter',
   cf_destroyer_05: 'star_splitter',
   micro_recon: 'star_splitter',
+  // Faction heroes
+  hero_wisdom_oracle: 'void_caster',
+  hero_construct_titan: 'juggernaut',
+  hero_void_wraith: 'star_splitter',
+  hero_legion_warlord: 'juggernaut',
+};
+
+// ── Faction Resources ─────────────────────────────────────────
+import type { FactionResource, PlanetBuildingType } from './space-types';
+
+export interface FactionResourceData {
+  key: FactionResource;
+  label: string;
+  faction: SpaceFaction;
+  color: string;
+  icon: string;
+  description: string;
+  minPlanetLevel: 3 | 4 | 5;
+  baseRate: number; // per game-minute at L3
+}
+
+export const FACTION_RESOURCE_DATA: Record<FactionResource, FactionResourceData> = {
+  aetheric_ore: {
+    key: 'aetheric_ore',
+    label: 'Aetheric Ore',
+    faction: 'wisdom',
+    color: '#44ddff',
+    icon: '🔮',
+    description: 'Crystallized knowledge from beyond spacetime. Powers Wisdom hero ships.',
+    minPlanetLevel: 3,
+    baseRate: 2,
+  },
+  forge_alloy: {
+    key: 'forge_alloy',
+    label: 'Forge Alloy',
+    faction: 'construct',
+    color: '#ffaa22',
+    icon: '⚙️',
+    description: 'Hyper-dense alloy forged in planetary cores. Powers Construct hero ships.',
+    minPlanetLevel: 3,
+    baseRate: 2,
+  },
+  void_crystal: {
+    key: 'void_crystal',
+    label: 'Void Crystal',
+    faction: 'void',
+    color: '#aa44ff',
+    icon: '💎',
+    description: 'Dark matter crystallized into pure energy. Powers Void hero ships.',
+    minPlanetLevel: 3,
+    baseRate: 2,
+  },
+  legion_core: {
+    key: 'legion_core',
+    label: 'Legion Core',
+    faction: 'legion',
+    color: '#ff4444',
+    icon: '🛡️',
+    description: 'Armored command module replicated from ancient warlord tech. Powers Legion hero ships.',
+    minPlanetLevel: 3,
+    baseRate: 2,
+  },
+};
+
+/** Maps faction → its unique resource. */
+export const FACTION_TO_RESOURCE: Record<SpaceFaction, FactionResource> = {
+  wisdom: 'aetheric_ore',
+  construct: 'forge_alloy',
+  void: 'void_crystal',
+  legion: 'legion_core',
+};
+
+// ── Faction Hero Ship Definitions ─────────────────────────────
+export const FACTION_HERO_DEFINITIONS: Record<
+  string,
+  { class: ShipClass; stats: ShipStats; displayName: string; lore: string; faction: SpaceFaction; factionResourceCost: number }
+> = {
+  hero_wisdom_oracle: {
+    class: 'carrier',
+    faction: 'wisdom',
+    factionResourceCost: 50,
+    displayName: 'Oracle of Wisdom',
+    lore: 'A vessel of pure insight. Its AI advisor predicts enemy movements before they happen.',
+    stats: {
+      maxHp: 900,
+      maxShield: 500,
+      shieldRegen: 8,
+      armor: 10,
+      speed: 22,
+      turnRate: 0.7,
+      attackDamage: 40,
+      attackRange: 400,
+      attackCooldown: 2.0,
+      attackType: 'laser',
+      supplyCost: 20,
+      buildTime: 90,
+      creditCost: 1800,
+      energyCost: 500,
+      mineralCost: 600,
+      tier: 5,
+      abilities: [
+        { id: 'launch_fighters', name: 'Oracle Drones', key: 'Q', cooldown: 25, energyCost: 60, type: 'launch_fighters', duration: 0 },
+        { id: 'repair', name: 'Wisdom Pulse', key: 'W', cooldown: 40, energyCost: 100, type: 'repair', duration: 10, radius: 250 },
+        { id: 'emp', name: 'Mind Shatter', key: 'E', cooldown: 50, energyCost: 150, type: 'emp', duration: 4, radius: 300 },
+      ],
+    },
+  },
+  hero_construct_titan: {
+    class: 'dreadnought',
+    faction: 'construct',
+    factionResourceCost: 60,
+    displayName: 'Construct Titan',
+    lore: 'A walking factory. Self-repairs, deploys turret platforms, and crushes anything in its path.',
+    stats: {
+      maxHp: 2000,
+      maxShield: 800,
+      shieldRegen: 12,
+      armor: 22,
+      speed: 14,
+      turnRate: 0.4,
+      attackDamage: 150,
+      attackRange: 420,
+      attackCooldown: 2.0,
+      attackType: 'railgun',
+      supplyCost: 28,
+      buildTime: 110,
+      creditCost: 2800,
+      energyCost: 600,
+      mineralCost: 1200,
+      tier: 5,
+      abilities: [
+        { id: 'repair', name: 'Self-Reconstruct', key: 'Q', cooldown: 30, energyCost: 80, type: 'repair', duration: 8, radius: 0 },
+        { id: 'iron_dome', name: 'Fortress Mode', key: 'W', cooldown: 45, energyCost: 120, type: 'iron_dome', duration: 14, radius: 220 },
+        { id: 'launch_fighters', name: 'Deploy Turrets', key: 'E', cooldown: 35, energyCost: 100, type: 'launch_fighters', duration: 0 },
+      ],
+    },
+  },
+  hero_void_wraith: {
+    class: 'stealth',
+    faction: 'void',
+    factionResourceCost: 45,
+    displayName: 'Void Wraith',
+    lore: 'A shadow given form. Phases through dimensions, tears rifts in reality, strikes unseen.',
+    stats: {
+      maxHp: 350,
+      maxShield: 200,
+      shieldRegen: 6,
+      armor: 6,
+      speed: 95,
+      turnRate: 3.5,
+      attackDamage: 100,
+      attackRange: 200,
+      attackCooldown: 1.0,
+      attackType: 'pulse',
+      supplyCost: 16,
+      buildTime: 75,
+      creditCost: 1600,
+      energyCost: 450,
+      mineralCost: 500,
+      tier: 5,
+      abilities: [
+        { id: 'cloak', name: 'Phase Shift', key: 'Q', cooldown: 12, energyCost: 40, type: 'cloak', duration: 14 },
+        { id: 'warp', name: 'Rift Walk', key: 'W', cooldown: 20, energyCost: 80, type: 'warp', duration: 1.5 },
+        { id: 'emp', name: 'Void Tear', key: 'E', cooldown: 30, energyCost: 120, type: 'emp', duration: 5, radius: 200 },
+        { id: 'speed_boost', name: 'Dark Rush', key: 'R', cooldown: 15, energyCost: 30, type: 'speed_boost', duration: 5 },
+      ],
+    },
+  },
+  hero_legion_warlord: {
+    class: 'battleship',
+    faction: 'legion',
+    factionResourceCost: 55,
+    displayName: 'Legion Warlord',
+    lore: 'The embodiment of war. Its war cry empowers the entire fleet. Where it goes, armies follow.',
+    stats: {
+      maxHp: 1400,
+      maxShield: 600,
+      shieldRegen: 8,
+      armor: 16,
+      speed: 24,
+      turnRate: 0.7,
+      attackDamage: 90,
+      attackRange: 380,
+      attackCooldown: 1.5,
+      attackType: 'missile',
+      supplyCost: 22,
+      buildTime: 95,
+      creditCost: 2200,
+      energyCost: 500,
+      mineralCost: 900,
+      tier: 5,
+      abilities: [
+        { id: 'launch_fighters', name: 'Summon Legion', key: 'Q', cooldown: 20, energyCost: 70, type: 'launch_fighters', duration: 0 },
+        { id: 'iron_dome', name: 'War Cry', key: 'W', cooldown: 40, energyCost: 100, type: 'iron_dome', duration: 12, radius: 300 },
+        { id: 'ram', name: 'Warlord Charge', key: 'E', cooldown: 25, energyCost: 60, type: 'ram', duration: 2 },
+      ],
+    },
+  },
+};
+
+// ── Planet Building Definitions ───────────────────────────────
+export interface PlanetBuildingDef {
+  type: PlanetBuildingType;
+  label: string;
+  description: string;
+  icon: string;
+  cost: { credits: number; minerals: number; energy: number };
+  buildTime: number; // game-seconds
+  minPlanetLevel: number; // minimum planet level to build
+  maxPerPlanet: number; // how many can exist on one planet
+  factionLocked?: SpaceFaction; // only this faction can build it
+}
+
+export const PLANET_BUILDING_DEFS: Record<PlanetBuildingType, PlanetBuildingDef> = {
+  station: {
+    type: 'station',
+    label: 'Station',
+    icon: '🛠️',
+    description: 'Core orbital station. Builds ships and provides supply.',
+    cost: { credits: 0, minerals: 0, energy: 0 },
+    buildTime: 0,
+    minPlanetLevel: 1,
+    maxPerPlanet: 1,
+  },
+  refinery: {
+    type: 'refinery',
+    label: 'Refinery',
+    icon: '⛏️',
+    description: 'Boosts planet resource output by 25% per level.',
+    cost: { credits: 300, minerals: 200, energy: 100 },
+    buildTime: 30,
+    minPlanetLevel: 1,
+    maxPerPlanet: 2,
+  },
+  barracks: {
+    type: 'barracks',
+    label: 'Barracks',
+    icon: '🏢',
+    description: 'Increases fleet supply cap by 10 per level.',
+    cost: { credits: 250, minerals: 150, energy: 80 },
+    buildTime: 25,
+    minPlanetLevel: 1,
+    maxPerPlanet: 2,
+  },
+  turret_platform: {
+    type: 'turret_platform',
+    label: 'Turret Platform',
+    icon: '🛡️',
+    description: 'Adds an orbital defense turret slot to the planet.',
+    cost: { credits: 400, minerals: 250, energy: 120 },
+    buildTime: 35,
+    minPlanetLevel: 2,
+    maxPerPlanet: 3,
+  },
+  research_lab: {
+    type: 'research_lab',
+    label: 'Research Lab',
+    icon: '🔬',
+    description: 'Enables tech research on this planet. +15% research speed per level.',
+    cost: { credits: 500, minerals: 300, energy: 200 },
+    buildTime: 45,
+    minPlanetLevel: 2,
+    maxPerPlanet: 1,
+  },
+  faction_forge: {
+    type: 'faction_forge',
+    label: 'Faction Forge',
+    icon: '🔥',
+    description: "Produces your faction's endgame resource. Required for faction hero ships.",
+    cost: { credits: 800, minerals: 500, energy: 400 },
+    buildTime: 60,
+    minPlanetLevel: 3,
+    maxPerPlanet: 1,
+  },
 };

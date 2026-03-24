@@ -165,6 +165,9 @@ export class SpaceControls {
       case 'p':
         this.commandMode = 'patrol';
         break;
+      case 'v':
+        if (hasSelection) this.splitSelection();
+        break;
       case 'escape':
         this.commandMode = 'normal';
         this.clearSelection();
@@ -419,7 +422,49 @@ export class SpaceControls {
     }
   }
 
-  // ── Raycasting ─────────────────────────────────────────────
+  /** V = Split: divide selected ships into 2 groups, send in opposite directions */
+  private splitSelection() {
+    const ids = [...this.state.selectedIds];
+    if (ids.length < 2) return;
+    const half = Math.ceil(ids.length / 2);
+    // Find center of selected group
+    let cx = 0,
+      cy = 0,
+      n = 0;
+    for (const id of ids) {
+      const s = this.state.ships.get(id);
+      if (s && !s.dead) {
+        cx += s.x;
+        cy += s.y;
+        n++;
+      }
+    }
+    if (n === 0) return;
+    cx /= n;
+    cy /= n;
+    const splitDist = 300;
+    for (let i = 0; i < ids.length; i++) {
+      const ship = this.state.ships.get(ids[i]);
+      if (!ship || ship.dead) continue;
+      const sign = i < half ? -1 : 1;
+      const perpAngle = ship.facing + Math.PI / 2;
+      ship.moveTarget = {
+        x: ship.x + Math.cos(perpAngle) * splitDist * sign,
+        y: ship.y + Math.sin(perpAngle) * splitDist * sign,
+        z: 0,
+      };
+      ship.targetId = null;
+      ship.holdPosition = false;
+    }
+    // Deselect second half so each group can be commanded independently
+    for (let i = half; i < ids.length; i++) {
+      const ship = this.state.ships.get(ids[i]);
+      if (ship) ship.selected = false;
+      this.state.selectedIds.delete(ids[i]);
+    }
+  }
+
+  // ── Raycasting ─────────────────────────────────────
   private screenToWorld(clientX: number, clientY: number): THREE.Vector3 | null {
     const rect = this.container.getBoundingClientRect();
     const ndc = new THREE.Vector2(((clientX - rect.left) / rect.width) * 2 - 1, -((clientY - rect.top) / rect.height) * 2 + 1);

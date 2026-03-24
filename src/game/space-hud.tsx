@@ -23,6 +23,7 @@ import {
 import { SingleUnitInfo, MultiUnitInfo, CommandCard, BuildPanel, UpgradePanel } from './space-unit-ui';
 import { Minimap, PlanetInfoPanel } from './space-planet-ui';
 import { VoidPowerBar, TechTreePanel, CommanderPanel } from './space-panels';
+import { ProductionSidebar } from './production-sidebar';
 import { FlagshipInterior } from './flagship-interior';
 import { VOID_POWERS } from './space-techtree';
 import type { CommanderSpec } from './space-types';
@@ -330,8 +331,7 @@ export function SpaceHUD({ renderer, onQuit }: SpaceHUDProps) {
           left: 0,
           right: 0,
           height: 52,
-          backgroundImage: 'url(/assets/space/ui/hud/DarkBackground.png)',
-          backgroundSize: '100% 100%',
+          background: '#060c18',
           borderBottom: '2px solid rgba(40,180,160,0.35)',
           display: 'flex',
           alignItems: 'center',
@@ -342,9 +342,19 @@ export function SpaceHUD({ renderer, onQuit }: SpaceHUDProps) {
         }}
       >
         <img
+          src="/assets/space/ui/hud/BgHudBar.png"
+          alt=""
+          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'fill', opacity: 0.7, pointerEvents: 'none' }}
+          onError={(e) => {
+            (e.target as HTMLImageElement).style.display = 'none';
+          }}
+        />
+        <img
           src="/assets/space/ui/logo.webp"
           alt="Gruda Armada"
           style={{
+            position: 'relative',
+            zIndex: 1,
             height: 34,
             imageRendering: 'auto',
             mixBlendMode: 'screen' as React.CSSProperties['mixBlendMode'],
@@ -435,6 +445,9 @@ export function SpaceHUD({ renderer, onQuit }: SpaceHUDProps) {
         })()}
         {onQuit && <Btn label="QUIT" onClick={onQuit} style={{ minWidth: 48, height: 28 }} />}
       </div>
+
+      {/* ── Production Sidebar (left) ───────────── */}
+      {!state.gameOver && <ProductionSidebar state={state} renderer={renderer} />}
 
       {/* ── Void Power Castbar ──────────────────── */}
       {techSt && Object.values(VOID_POWERS).some((p) => techSt.researchedNodes.has(p.techNodeId)) && (
@@ -615,14 +628,22 @@ export function SpaceHUD({ renderer, onQuit }: SpaceHUDProps) {
           left: 0,
           right: 0,
           height: 240,
-          backgroundImage: 'url(/assets/space/ui/hud/DarkBackground.png)',
-          backgroundSize: '100% 100%',
+          background: '#060c18',
           borderTop: '2px solid rgba(40,180,160,0.45)',
           display: 'flex',
           pointerEvents: 'auto',
           zIndex: 10,
         }}
       >
+        {/* Opaque dark base — then overlay art */}
+        <img
+          src="/assets/space/ui/hud/DarkBackground.png"
+          alt=""
+          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'fill', opacity: 0.85, pointerEvents: 'none' }}
+          onError={(e) => {
+            (e.target as HTMLImageElement).style.display = 'none';
+          }}
+        />
         {/* ── Minimap (far left) ──────────────────────── */}
         <div
           style={{
@@ -631,6 +652,8 @@ export function SpaceHUD({ renderer, onQuit }: SpaceHUDProps) {
             borderRight: '1px solid #1a3050',
             position: 'relative',
             overflow: 'hidden',
+            background: '#080c14',
+            zIndex: 1,
           }}
         >
           <Minimap state={state} renderer={renderer} />
@@ -649,12 +672,39 @@ export function SpaceHUD({ renderer, onQuit }: SpaceHUDProps) {
             alignItems: 'center',
             justifyContent: 'center',
             borderRight: '1px solid rgba(40,180,160,0.2)',
-            background: 'rgba(2,6,16,0.6)',
+            background: '#060c18',
             position: 'relative',
+            zIndex: 1,
           }}
         >
+          <img
+            src="/assets/space/ui/hud/BgSettingSmallBox.png"
+            alt=""
+            style={{
+              position: 'absolute',
+              inset: 0,
+              width: '100%',
+              height: '100%',
+              objectFit: 'fill',
+              opacity: 0.5,
+              pointerEvents: 'none',
+            }}
+            onError={(e) => {
+              (e.target as HTMLImageElement).style.display = 'none';
+            }}
+          />
           {primary && def ? (
-            <>
+            <div
+              style={{
+                position: 'relative',
+                zIndex: 1,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: '100%',
+                height: '100%',
+              }}
+            >
               <img
                 src={SHIP_PREVIEW[primary.shipType] ?? ''}
                 alt={def.displayName}
@@ -686,9 +736,13 @@ export function SpaceHUD({ renderer, onQuit }: SpaceHUDProps) {
               >
                 {def.displayName}
               </div>
-            </>
+            </div>
           ) : (
-            <div style={{ opacity: 0.15, fontSize: 10, color: '#8ab', textAlign: 'center', lineHeight: 1.8 }}>No unit selected</div>
+            <div
+              style={{ position: 'relative', zIndex: 1, opacity: 0.15, fontSize: 10, color: '#8ab', textAlign: 'center', lineHeight: 1.8 }}
+            >
+              No unit selected
+            </div>
           )}
         </div>
 
@@ -699,39 +753,57 @@ export function SpaceHUD({ renderer, onQuit }: SpaceHUDProps) {
             height: '100%',
             padding: '10px 14px',
             borderRight: '1px solid rgba(40,180,160,0.2)',
-            backgroundImage: 'url(/assets/space/ui/hud/BgSettingSmallBox.png)',
-            backgroundSize: 'cover',
-            backgroundPosition: 'center',
+            background: '#060c18',
+            position: 'relative',
             display: 'flex',
             flexDirection: 'column',
             overflowY: 'auto',
+            zIndex: 1,
           }}
         >
-          {selectedShips.length === 0 ? (
-            <div style={{ opacity: 0.25, fontSize: 11, marginTop: 60, textAlign: 'center', lineHeight: 1.8, color: '#8ab' }}>
-              No units selected
-              <br />
-              <span style={{ fontSize: 9 }}>Left-drag to box-select · Double-click to select type</span>
-            </div>
-          ) : selectedShips.length === 1 && primary && def ? (
-            <SingleUnitInfo ship={primary} def={def} />
-          ) : (
-            <MultiUnitInfo
-              ships={selectedShips}
-              onIsolate={(shipId) => {
-                for (const id of state.selectedIds) {
-                  const s = state.ships.get(id);
-                  if (s) s.selected = false;
-                }
-                state.selectedIds.clear();
-                const target = state.ships.get(shipId);
-                if (target) {
-                  target.selected = true;
-                  state.selectedIds.add(shipId);
-                }
-              }}
-            />
-          )}
+          <img
+            src="/assets/space/ui/hud/BgSettingSmallBox.png"
+            alt=""
+            style={{
+              position: 'absolute',
+              inset: 0,
+              width: '100%',
+              height: '100%',
+              objectFit: 'fill',
+              opacity: 0.6,
+              pointerEvents: 'none',
+            }}
+            onError={(e) => {
+              (e.target as HTMLImageElement).style.display = 'none';
+            }}
+          />
+          <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', flex: 1 }}>
+            {selectedShips.length === 0 ? (
+              <div style={{ opacity: 0.25, fontSize: 11, marginTop: 60, textAlign: 'center', lineHeight: 1.8, color: '#8ab' }}>
+                No units selected
+                <br />
+                <span style={{ fontSize: 9 }}>Left-drag to box-select · Double-click to select type</span>
+              </div>
+            ) : selectedShips.length === 1 && primary && def ? (
+              <SingleUnitInfo ship={primary} def={def} />
+            ) : (
+              <MultiUnitInfo
+                ships={selectedShips}
+                onIsolate={(shipId) => {
+                  for (const id of state.selectedIds) {
+                    const s = state.ships.get(id);
+                    if (s) s.selected = false;
+                  }
+                  state.selectedIds.clear();
+                  const target = state.ships.get(shipId);
+                  if (target) {
+                    target.selected = true;
+                    state.selectedIds.add(shipId);
+                  }
+                }}
+              />
+            )}
+          </div>
         </div>
 
         {/* ── Command Card / Build Panel (right — SC2 grid) ──── */}
@@ -741,22 +813,38 @@ export function SpaceHUD({ renderer, onQuit }: SpaceHUDProps) {
             height: '100%',
             padding: '10px 16px',
             overflowY: 'auto',
-            backgroundImage: 'url(/assets/space/ui/hud/BgSettingSmallBox.png)',
-            backgroundSize: 'cover',
-            backgroundPosition: 'center',
+            background: '#060c18',
+            position: 'relative',
+            zIndex: 1,
           }}
         >
-          {selectedStation ? (
-            <BuildPanel station={selectedStation} renderer={renderer} res={res} />
-          ) : primary ? (
-            <>
+          <img
+            src="/assets/space/ui/hud/BgSettingSmallBox.png"
+            alt=""
+            style={{
+              position: 'absolute',
+              inset: 0,
+              width: '100%',
+              height: '100%',
+              objectFit: 'fill',
+              opacity: 0.6,
+              pointerEvents: 'none',
+            }}
+            onError={(e) => {
+              (e.target as HTMLImageElement).style.display = 'none';
+            }}
+          />
+          <div style={{ position: 'relative', zIndex: 1, flex: 1 }}>
+            {selectedStation ? (
+              <BuildPanel station={selectedStation} renderer={renderer} res={res} />
+            ) : primary ? (
               <CommandCard ship={primary} renderer={renderer} allSelected={selectedShips} />
-            </>
-          ) : selectedPlanet ? (
-            <PlanetInfoPanel planet={selectedPlanet} state={state} renderer={renderer} />
-          ) : upg ? (
-            <UpgradePanel upg={upg} res={res} renderer={renderer} />
-          ) : null}
+            ) : selectedPlanet ? (
+              <PlanetInfoPanel planet={selectedPlanet} state={state} renderer={renderer} />
+            ) : upg ? (
+              <UpgradePanel upg={upg} res={res} renderer={renderer} />
+            ) : null}
+          </div>
         </div>
       </div>
     </div>

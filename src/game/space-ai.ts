@@ -15,12 +15,8 @@
  * resource/queue constraints that limit the player limit the AI.
  */
 
-import type {
-  SpaceGameState, SpaceShip, Team, Vec3,
-} from './space-types';
-import {
-  BUILDABLE_SHIPS, getShipDef,
-} from './space-types';
+import type { SpaceGameState, SpaceShip, Team, Vec3 } from './space-types';
+import { BUILDABLE_SHIPS, getShipDef } from './space-types';
 import { VOID_POWERS } from './space-techtree';
 
 // ── Helpers ─────────────────────────────────────────────────────────
@@ -57,22 +53,43 @@ const TECH_PRIORITY: Record<number, string[]> = {
   1: [],
   2: ['forge_t1_cannons', 'forge_t1_plating'],
   3: ['forge_t1_cannons', 'forge_t1_plating', 'forge_t2_siege', 'tide_t1_shields', 'tide_t1_regen'],
-  4: ['forge_t1_cannons', 'forge_t1_plating', 'forge_t2_siege', 'forge_t2_overcharge', 'tide_t1_shields', 'tide_t2_barrier', 'cmd_t1_link', 'cmd_t1_recon'],
-  5: ['forge_t1_cannons', 'forge_t1_plating', 'forge_t2_siege', 'forge_t2_overcharge', 'forge_t2_molten',
-      'tide_t1_shields', 'tide_t1_regen', 'tide_t2_barrier',
-      'cmd_t1_link', 'cmd_t1_recon', 'cmd_t1_coord', 'cmd_t2_bombardment', 'cmd_t2_boss'],
+  4: [
+    'forge_t1_cannons',
+    'forge_t1_plating',
+    'forge_t2_siege',
+    'forge_t2_overcharge',
+    'tide_t1_shields',
+    'tide_t2_barrier',
+    'cmd_t1_link',
+    'cmd_t1_recon',
+  ],
+  5: [
+    'forge_t1_cannons',
+    'forge_t1_plating',
+    'forge_t2_siege',
+    'forge_t2_overcharge',
+    'forge_t2_molten',
+    'tide_t1_shields',
+    'tide_t1_regen',
+    'tide_t2_barrier',
+    'cmd_t1_link',
+    'cmd_t1_recon',
+    'cmd_t1_coord',
+    'cmd_t2_bombardment',
+    'cmd_t2_boss',
+  ],
 };
 
 export interface AIConfig {
-  difficulty: number;          // 1-5
-  buildCycleTime: number;      // seconds between build decisions
-  tacticsCycleTime: number;    // seconds between tactics decisions
-  techCycleTime: number;       // seconds between tech decisions
+  difficulty: number; // 1-5
+  buildCycleTime: number; // seconds between build decisions
+  tacticsCycleTime: number; // seconds between tactics decisions
+  techCycleTime: number; // seconds between tech decisions
   useVoidPowers: boolean;
   useTech: boolean;
   useWorkers: boolean;
-  multiFleet: boolean;         // attack multiple targets simultaneously
-  responseDelay: number;       // seconds before reacting to threats
+  multiFleet: boolean; // attack multiple targets simultaneously
+  responseDelay: number; // seconds before reacting to threats
 }
 
 export function getAIConfig(difficulty: number): AIConfig {
@@ -82,11 +99,61 @@ export function getAIConfig(difficulty: number): AIConfig {
   // The queue + resource cost is the real limiter, not an artificial timer.
   // Difficulty only controls WHAT it builds, WHERE it attacks, and HOW it micros.
   const configs: Record<number, AIConfig> = {
-    1: { difficulty:1, buildCycleTime:2, tacticsCycleTime:5,  techCycleTime:999, useVoidPowers:false, useTech:false, useWorkers:false, multiFleet:false, responseDelay:5 },
-    2: { difficulty:2, buildCycleTime:2, tacticsCycleTime:4,  techCycleTime:20,  useVoidPowers:false, useTech:true,  useWorkers:false, multiFleet:false, responseDelay:3 },
-    3: { difficulty:3, buildCycleTime:2, tacticsCycleTime:3,  techCycleTime:15,  useVoidPowers:false, useTech:true,  useWorkers:true,  multiFleet:false, responseDelay:2 },
-    4: { difficulty:4, buildCycleTime:2, tacticsCycleTime:2,  techCycleTime:10,  useVoidPowers:true,  useTech:true,  useWorkers:true,  multiFleet:true,  responseDelay:1 },
-    5: { difficulty:5, buildCycleTime:2, tacticsCycleTime:2,  techCycleTime:8,   useVoidPowers:true,  useTech:true,  useWorkers:true,  multiFleet:true,  responseDelay:0.5 },
+    1: {
+      difficulty: 1,
+      buildCycleTime: 2,
+      tacticsCycleTime: 5,
+      techCycleTime: 999,
+      useVoidPowers: false,
+      useTech: false,
+      useWorkers: false,
+      multiFleet: false,
+      responseDelay: 5,
+    },
+    2: {
+      difficulty: 2,
+      buildCycleTime: 2,
+      tacticsCycleTime: 4,
+      techCycleTime: 20,
+      useVoidPowers: false,
+      useTech: true,
+      useWorkers: false,
+      multiFleet: false,
+      responseDelay: 3,
+    },
+    3: {
+      difficulty: 3,
+      buildCycleTime: 2,
+      tacticsCycleTime: 3,
+      techCycleTime: 15,
+      useVoidPowers: false,
+      useTech: true,
+      useWorkers: true,
+      multiFleet: false,
+      responseDelay: 2,
+    },
+    4: {
+      difficulty: 4,
+      buildCycleTime: 2,
+      tacticsCycleTime: 2,
+      techCycleTime: 10,
+      useVoidPowers: true,
+      useTech: true,
+      useWorkers: true,
+      multiFleet: true,
+      responseDelay: 1,
+    },
+    5: {
+      difficulty: 5,
+      buildCycleTime: 2,
+      tacticsCycleTime: 2,
+      techCycleTime: 8,
+      useVoidPowers: true,
+      useTech: true,
+      useWorkers: true,
+      multiFleet: true,
+      responseDelay: 0.5,
+    },
   };
   return configs[d];
 }
@@ -106,7 +173,8 @@ export interface AIBrain {
 
 export function createAIBrain(team: Team, difficulty: number): AIBrain {
   return {
-    team, cfg: getAIConfig(difficulty),
+    team,
+    cfg: getAIConfig(difficulty),
     buildTimer: Math.random() * 3,
     tacticsTimer: Math.random() * 5,
     techTimer: Math.random() * 10,
@@ -117,17 +185,51 @@ export function createAIBrain(team: Team, difficulty: number): AIBrain {
   };
 }
 
+/**
+ * Create an AI brain for campaign mode with escalating difficulty.
+ * Difficulty scales from 1→5 based on player conquest percentage.
+ * AI never targets the player homeworld.
+ */
+export function createCampaignAI(team: Team, conquestPct: number): AIBrain {
+  // Escalate: 0-20% = D1, 20-40% = D2, 40-60% = D3, 60-80% = D4, 80-100% = D5
+  const difficulty = Math.min(5, Math.max(1, Math.ceil(conquestPct / 20)));
+  return createAIBrain(team, difficulty);
+}
+
+/**
+ * Recalibrate campaign AI difficulty based on current conquest progress.
+ * Call this periodically (e.g. on planet capture) to update AI behavior.
+ */
+export function updateCampaignAIDifficulty(brain: AIBrain, conquestPct: number): void {
+  const newDiff = Math.min(5, Math.max(1, Math.ceil(conquestPct / 20)));
+  if (newDiff !== brain.cfg.difficulty) {
+    brain.cfg = getAIConfig(newDiff);
+  }
+}
+
+/**
+ * Campaign AI homeworld protection filter.
+ * Returns true if the target planet should be excluded from attack targets.
+ */
+export function isCampaignHomeworldProtected(state: SpaceGameState, planetId: number): boolean {
+  if (state.gameMode !== 'campaign') return false;
+  return state.campaignProgress?.homeworldId === planetId;
+}
+
 // ── Main AI update ───────────────────────────────────────────────────
-export function updateAIBrain(brain: AIBrain, state: SpaceGameState, dt: number,
+export function updateAIBrain(
+  brain: AIBrain,
+  state: SpaceGameState,
+  dt: number,
   queueBuildFn: (stId: number, type: string) => boolean,
   startResearchFn: (team: Team, nodeId: string) => void,
   castVoidFn: (team: Team, powerId: string, x: number, y: number) => void,
   buildTurretFn: (team: Team, planetId: number, turretType: string) => void,
 ) {
   if (state.gameOver) return;
-  brain.buildTimer   += dt;
+  brain.buildTimer += dt;
   brain.tacticsTimer += dt;
-  brain.techTimer    += dt;
+  brain.techTimer += dt;
   brain.responseTimer = Math.max(0, brain.responseTimer - dt);
 
   if (brain.buildTimer >= brain.cfg.buildCycleTime) {
@@ -150,18 +252,18 @@ export function updateAIBrain(brain: AIBrain, state: SpaceGameState, dt: number,
 }
 
 // ── Build step ──────────────────────────────────────────────────────
-function aiBuildStep(brain: AIBrain, state: SpaceGameState,
-  queueBuild: (stId: number, type: string) => boolean,
-) {
+function aiBuildStep(brain: AIBrain, state: SpaceGameState, queueBuild: (stId: number, type: string) => boolean) {
   const { team, cfg } = brain;
   const res = state.resources[team];
   if (!res) return;
 
   // Count current ships (excluding workers)
-  let combatCount = 0, workerCount = 0;
+  let combatCount = 0,
+    workerCount = 0;
   for (const [, s] of state.ships) {
     if (s.dead || s.team !== team) continue;
-    if (s.shipClass === 'worker') workerCount++; else combatCount++;
+    if (s.shipClass === 'worker') workerCount++;
+    else combatCount++;
   }
 
   const techState = state.techState?.get(team);
@@ -188,22 +290,28 @@ function aiBuildStep(brain: AIBrain, state: SpaceGameState,
       if (def.stats.tier > maxT) continue;
       const inPool = Object.values(BUILDABLE_SHIPS).flat().includes(shipType);
       const inUnlocked = unlockedExtra.has(shipType);
-      if (!inPool && !inUnlocked && !['boss_ship_01','boss_ship_02'].includes(shipType)) continue;
-      if (queueBuild(st.id, shipType)) { built = true; break; }
+      if (!inPool && !inUnlocked && !['boss_ship_01', 'boss_ship_02'].includes(shipType)) continue;
+      if (queueBuild(st.id, shipType)) {
+        built = true;
+        break;
+      }
     }
 
     if (!built) {
       // Smart fallback: try tier-appropriate ships instead of always red_fighter.
       // Walk down from max affordable tier to T1.
       const fallbacks: string[][] = [
-        ['cf_frigate_01', 'warship', 'dual_striker'],          // T2-3
+        ['cf_frigate_01', 'warship', 'dual_striker'], // T2-3
         ['cf_corvette_02', 'cf_corvette_03', 'meteor_slicer'], // T2
-        ['red_fighter', 'galactix_racer', 'cf_corvette_01'],   // T1
+        ['red_fighter', 'galactix_racer', 'cf_corvette_01'], // T1
       ];
       for (const tier of fallbacks) {
         if (built) break;
         for (const fb of tier) {
-          if (queueBuild(st.id, fb)) { built = true; break; }
+          if (queueBuild(st.id, fb)) {
+            built = true;
+            break;
+          }
         }
       }
     }
@@ -217,16 +325,19 @@ function aiBuildStep(brain: AIBrain, state: SpaceGameState,
 function aiTacticsStep(brain: AIBrain, state: SpaceGameState) {
   const { team, cfg } = brain;
 
-  const ownPlanets    = state.planets.filter(p => p.owner === team);
-  const enemyPlanets  = state.planets.filter(p => p.owner !== 0 && p.owner !== team);
-  const neutralPlanets = state.planets.filter(p => p.owner === 0);
+  const ownPlanets = state.planets.filter((p) => p.owner === team);
+  const enemyPlanets = state.planets.filter((p) => p.owner !== 0 && p.owner !== team);
+  const neutralPlanets = state.planets.filter((p) => p.owner === 0);
 
   // Collect idle combat ships
   const idle: SpaceShip[] = [];
   const workers: SpaceShip[] = [];
   for (const [, s] of state.ships) {
     if (s.dead || s.team !== team) continue;
-    if (s.shipClass === 'worker') { workers.push(s); continue; }
+    if (s.shipClass === 'worker') {
+      workers.push(s);
+      continue;
+    }
     if (!s.moveTarget && !s.targetId && s.orbitTarget === null) idle.push(s);
   }
 
@@ -259,17 +370,23 @@ function aiTacticsStep(brain: AIBrain, state: SpaceGameState) {
     // Group 1: grab nearest neutral planet
     if (neutralPlanets.length > 0) {
       const tgt = nearestTo(g1[0], neutralPlanets);
-      for (const s of g1) { s.moveTarget = jitter(tgt, 150); s.isAttackMoving = true; }
+      for (const s of g1) {
+        s.moveTarget = jitter(tgt, 150);
+        s.isAttackMoving = true;
+      }
     }
     // Group 2: assault weakest enemy planet
     if (enemyPlanets.length > 0) {
-      const weakest = enemyPlanets.reduce((a, b) => b.captureProgress > a.captureProgress ? b : a);
+      const weakest = enemyPlanets.reduce((a, b) => (b.captureProgress > a.captureProgress ? b : a));
       const attackAngle = flankerAngle(g2[0], weakest, ownPlanets[0]);
       const flankPos = {
         x: weakest.x + Math.cos(attackAngle) * 400,
         y: weakest.y + Math.sin(attackAngle) * 400,
       };
-      for (const s of g2) { s.moveTarget = { ...flankPos, z: 0 }; s.isAttackMoving = true; }
+      for (const s of g2) {
+        s.moveTarget = { ...flankPos, z: 0 };
+        s.isAttackMoving = true;
+      }
     }
   } else {
     // Single-front logic
@@ -281,9 +398,12 @@ function aiTacticsStep(brain: AIBrain, state: SpaceGameState) {
       // D5: attack most resource-rich, D4: attack nearest, D3: flank
       let tgt = enemyPlanets[0];
       if (cfg.difficulty === 5) {
-        tgt = enemyPlanets.reduce((a,b) =>
-          (b.resourceYield.credits + b.resourceYield.energy + b.resourceYield.minerals) >
-          (a.resourceYield.credits + a.resourceYield.energy + a.resourceYield.minerals) ? b : a);
+        tgt = enemyPlanets.reduce((a, b) =>
+          b.resourceYield.credits + b.resourceYield.energy + b.resourceYield.minerals >
+          a.resourceYield.credits + a.resourceYield.energy + a.resourceYield.minerals
+            ? b
+            : a,
+        );
       } else {
         tgt = nearestTo(idle[0], enemyPlanets);
       }
@@ -307,7 +427,8 @@ function aiTacticsStep(brain: AIBrain, state: SpaceGameState) {
 
 // ── Tech step ───────────────────────────────────────────────────────
 function aiTechStep(
-  brain: AIBrain, state: SpaceGameState,
+  brain: AIBrain,
+  state: SpaceGameState,
   startResearch: (team: Team, nodeId: string) => void,
   buildTurret: (team: Team, planetId: number, type: string) => void,
 ) {
@@ -328,7 +449,7 @@ function aiTechStep(
   if (cfg.difficulty >= 4) {
     for (const p of state.planets) {
       if (p.owner !== team) continue;
-      const turretCount = [...state.planetTurrets.values()].filter(t => t.planetId === p.id && !t.dead).length;
+      const turretCount = [...state.planetTurrets.values()].filter((t) => t.planetId === p.id && !t.dead).length;
       if (turretCount < 2) {
         const type = techSt.unlockedTurrets.has('railgun_turret') ? 'railgun_turret' : 'laser_turret';
         buildTurret(team, p.id, type);
@@ -339,10 +460,7 @@ function aiTechStep(
 }
 
 // ── Void Power step ─────────────────────────────────────────────────
-function aiVoidPowerStep(
-  brain: AIBrain, state: SpaceGameState,
-  castVoid: (team: Team, powerId: string, x: number, y: number) => void,
-) {
+function aiVoidPowerStep(brain: AIBrain, state: SpaceGameState, castVoid: (team: Team, powerId: string, x: number, y: number) => void) {
   const { team } = brain;
   const techSt = state.techState?.get(team);
   if (!techSt) return;
@@ -357,28 +475,50 @@ function aiVoidPowerStep(
     if (!res || res.credits < pwr.cost.credits || res.energy < pwr.cost.energy || res.minerals < pwr.cost.minerals) continue;
 
     // Find best target for this void power
-    let castX = 0, castY = 0, shouldCast = false;
+    let castX = 0,
+      castY = 0,
+      shouldCast = false;
 
     if (pwr.effect === 'aoe_damage' || pwr.effect === 'aoe_scatter') {
       // Find densest enemy cluster
       const cluster = densestEnemyCluster(team, state, pwr.radius);
-      if (cluster) { castX = cluster.x; castY = cluster.y; shouldCast = true; }
+      if (cluster) {
+        castX = cluster.x;
+        castY = cluster.y;
+        shouldCast = true;
+      }
     } else if (pwr.effect === 'push') {
       // Cast on planet with most enemies nearby
       const p = mostEnemiesNearOwnedPlanet(team, state);
-      if (p) { castX = p.x; castY = p.y; shouldCast = true; }
+      if (p) {
+        castX = p.x;
+        castY = p.y;
+        shouldCast = true;
+      }
     } else if (pwr.effect === 'pull_damage') {
       const cluster = densestEnemyCluster(team, state, pwr.radius);
-      if (cluster) { castX = cluster.x; castY = cluster.y; shouldCast = true; }
+      if (cluster) {
+        castX = cluster.x;
+        castY = cluster.y;
+        shouldCast = true;
+      }
     } else if (pwr.effect === 'teleport_fleet') {
       // Warp fleet near weakest enemy planet
-      const tgt = state.planets.find(p => p.owner !== 0 && p.owner !== team && p.owner !== (0 as Team));
-      if (tgt) { castX = tgt.x + 300; castY = tgt.y; shouldCast = true; }
+      const tgt = state.planets.find((p) => p.owner !== 0 && p.owner !== team && p.owner !== (0 as Team));
+      if (tgt) {
+        castX = tgt.x + 300;
+        castY = tgt.y;
+        shouldCast = true;
+      }
     } else if (pwr.effect === 'destroy_planet') {
       // Only destroy neutral planets if D5
       if (brain.cfg.difficulty >= 5) {
-        const neutral = state.planets.find(p => p.owner === 0);
-        if (neutral) { castX = neutral.x; castY = neutral.y; shouldCast = true; }
+        const neutral = state.planets.find((p) => p.owner === 0);
+        if (neutral) {
+          castX = neutral.x;
+          castY = neutral.y;
+          shouldCast = true;
+        }
       }
     }
 
@@ -414,8 +554,8 @@ function aiMicroStep(brain: AIBrain, state: SpaceGameState, dt: number) {
         if (d < s.attackRange && d > s.attackRange * 0.4) {
           const a = Math.atan2(t.y - s.y, t.x - s.x);
           const dir = s.id % 2 === 0 ? 1 : -1;
-          s.x += Math.cos(a + Math.PI / 2 * dir) * s.speed * 0.25 * dt;
-          s.y += Math.sin(a + Math.PI / 2 * dir) * s.speed * 0.25 * dt;
+          s.x += Math.cos(a + (Math.PI / 2) * dir) * s.speed * 0.25 * dt;
+          s.y += Math.sin(a + (Math.PI / 2) * dir) * s.speed * 0.25 * dt;
         }
       }
     }
@@ -431,11 +571,8 @@ function jitter(pos: { x: number; y: number; z?: number }, range: number): Vec3 
   };
 }
 
-function nearestTo<T extends { x: number; y: number }>(
-  origin: { x: number; y: number },
-  targets: T[],
-): T {
-  return targets.reduce((best, t) => dist2d(origin, t) < dist2d(origin, best) ? t : best);
+function nearestTo<T extends { x: number; y: number }>(origin: { x: number; y: number }, targets: T[]): T {
+  return targets.reduce((best, t) => (dist2d(origin, t) < dist2d(origin, best) ? t : best));
 }
 
 function flankerAngle(
@@ -446,12 +583,10 @@ function flankerAngle(
   // Attack from an angle perpendicular to the line between own base and target
   if (!ownBase) return Math.atan2(target.y - attacker.y, target.x - attacker.x);
   const baseAngle = Math.atan2(target.y - ownBase.y, target.x - ownBase.x);
-  return baseAngle + Math.PI / 2 * (Math.random() > 0.5 ? 1 : -1);
+  return baseAngle + (Math.PI / 2) * (Math.random() > 0.5 ? 1 : -1);
 }
 
-function densestEnemyCluster(
-  myTeam: Team, state: SpaceGameState, radius: number,
-): { x: number; y: number } | null {
+function densestEnemyCluster(myTeam: Team, state: SpaceGameState, radius: number): { x: number; y: number } | null {
   let bestPos: { x: number; y: number } | null = null;
   let bestCount = 0;
   const enemies: SpaceShip[] = [];
@@ -463,7 +598,10 @@ function densestEnemyCluster(
     for (const other of enemies) {
       if (dist2d(e, other) < radius) count++;
     }
-    if (count > bestCount) { bestCount = count; bestPos = { x: e.x, y: e.y }; }
+    if (count > bestCount) {
+      bestCount = count;
+      bestPos = { x: e.x, y: e.y };
+    }
   }
   return bestCount >= 2 ? bestPos : null;
 }
@@ -477,7 +615,10 @@ function mostEnemiesNearOwnedPlanet(myTeam: Team, state: SpaceGameState) {
     for (const [, s] of state.ships) {
       if (!s.dead && s.team !== myTeam && dist2d(s, p) < p.captureRadius * 1.5) count++;
     }
-    if (count > bestCount) { bestCount = count; best = p; }
+    if (count > bestCount) {
+      bestCount = count;
+      best = p;
+    }
   }
   return bestCount >= 2 ? best : null;
 }

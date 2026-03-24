@@ -20,7 +20,7 @@ function set(m: VoxMap, x: number, y: number, z: number, t: number) {
   m.set(k(x, y, z), t);
 }
 
-export type PartCategory = 'hull' | 'engine' | 'weapon' | 'fin';
+export type PartCategory = 'hull' | 'engine' | 'weapon' | 'fin' | 'ship';
 
 export interface ShipPart {
   id: string;
@@ -247,8 +247,9 @@ function cockpitDome(): VoxMap {
   return m;
 }
 
-// ── GLB TURRET WEAPONS ──────────────────────────────────────────────
+// ── GLB TURRET WEAPONS ────────────────────────────────────
 const WPN = '/assets/space/models/weapons';
+const FP = '/assets/space/models/forge-prefabs';
 
 // ── STARTER SHIP TEMPLATES (full ships users can start from) ─────
 function starterFighter(): VoxMap {
@@ -495,9 +496,45 @@ export const SHIP_PARTS: ShipPart[] = [
   { id: 'fin_swept', name: 'Swept Fin', category: 'fin', pattern: finSwept, size: [4, 2, 1], color: '#88ccff' },
   { id: 'antenna', name: 'Antenna Spike', category: 'fin', pattern: antenna, size: [1, 1, 6], color: '#88ccff' },
   { id: 'cockpit_dome', name: 'Cockpit Dome', category: 'fin', pattern: cockpitDome, size: [3, 3, 3], color: '#88ccff' },
+
+  // 3D Ship prefabs (full ship models for drag-and-place mothership building)
+  {
+    id: 'ship_heavy_black',
+    name: 'Heavy Ship (Dark)',
+    category: 'ship',
+    glbPath: `${FP}/heavy_ship_black.glb`,
+    size: [6, 4, 10],
+    color: '#445588',
+  },
+  {
+    id: 'ship_heavy_white',
+    name: 'Heavy Ship (Light)',
+    category: 'ship',
+    glbPath: `${FP}/heavy_ship_white.glb`,
+    size: [6, 4, 10],
+    color: '#aabbcc',
+  },
+  { id: 'ship_fighter_1', name: 'Fighter Alpha', category: 'ship', glbPath: `${FP}/spaceship_1.fbx`, size: [4, 3, 6], color: '#44aaff' },
+  { id: 'ship_fighter_2', name: 'Fighter Beta', category: 'ship', glbPath: `${FP}/spaceship_2.fbx`, size: [4, 3, 6], color: '#44aaff' },
+  { id: 'ship_fighter_3', name: 'Fighter Gamma', category: 'ship', glbPath: `${FP}/spaceship_3.fbx`, size: [4, 3, 6], color: '#44aaff' },
+  { id: 'ship_cruiser_4', name: 'Cruiser Mk.I', category: 'ship', glbPath: `${FP}/spaceship_4.fbx`, size: [5, 4, 8], color: '#ff8844' },
+  { id: 'ship_cruiser_5', name: 'Cruiser Mk.II', category: 'ship', glbPath: `${FP}/spaceship_5.fbx`, size: [5, 4, 8], color: '#ff8844' },
+  { id: 'ship_frigate_6', name: 'Frigate Mk.I', category: 'ship', glbPath: `${FP}/spaceship_6.fbx`, size: [4, 3, 7], color: '#44ffaa' },
+  { id: 'ship_frigate_7', name: 'Frigate Mk.II', category: 'ship', glbPath: `${FP}/spaceship_7.fbx`, size: [4, 3, 7], color: '#44ffaa' },
+  { id: 'ship_destroyer_8', name: 'Destroyer Mk.I', category: 'ship', glbPath: `${FP}/spaceship_8.fbx`, size: [5, 4, 9], color: '#ff4488' },
+  {
+    id: 'ship_destroyer_9',
+    name: 'Destroyer Mk.II',
+    category: 'ship',
+    glbPath: `${FP}/spaceship_9.fbx`,
+    size: [5, 4, 9],
+    color: '#ff4488',
+  },
+  { id: 'ship_capital_10', name: 'Capital Hull', category: 'ship', glbPath: `${FP}/spaceship_10.fbx`, size: [6, 5, 12], color: '#ffaa44' },
 ];
 
 export const PART_CATEGORIES: { key: PartCategory; label: string; color: string }[] = [
+  { key: 'ship', label: '3D SHIPS', color: '#ffaa44' },
   { key: 'hull', label: 'HULL FRAMES', color: '#4488ff' },
   { key: 'engine', label: 'ENGINES', color: '#00ccff' },
   { key: 'weapon', label: 'WEAPONS', color: '#ff8800' },

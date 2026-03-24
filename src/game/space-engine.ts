@@ -48,6 +48,13 @@ import {
 import { ALL_TECH_TREES, VOID_POWERS, PLANET_TYPE_TO_TECH, TURRET_DEFS, XP_THRESHOLDS, RANK_STAT_BONUS } from './space-techtree';
 import { createAIBrain, updateAIBrain, type AIBrain } from './space-ai';
 import { gameAudio } from './space-audio';
+import { getMuzzleWorldPosition } from './space-rig';
+import { CAMPAIGN_TIME_SCALE, CAMPAIGN_START_RESOURCES, CAMPAIGN_STORY_BEATS } from './space-types';
+import { generateSector } from './campaign-sector';
+import { logConquest, logStoryBeat, generateUuid } from './captains-log';
+import { startLogAutoFlush, stopLogAutoFlush } from './captains-log';
+import { tickCampaignEvents, autoResolveExpired } from './campaign-events';
+import { startAutoSave, stopAutoSave, checkConquestMilestone } from './campaign-state';
 
 // ── Helpers ──────────────────────────────────────────────────────
 function lerpAngle(a: number, b: number, t: number): number {
@@ -70,6 +77,7 @@ export class SpaceEngine {
   state!: SpaceGameState;
   private resourceTimer = 0;
   private winCheckTimer = 0;
+  private campaignEventTimer = 0;
   private aiBrains = new Map<number, AIBrain>();
   mapW = 16000;
   mapH = 16000;
@@ -79,15 +87,38 @@ export class SpaceEngine {
   hasCustomHero = false;
   /** Commander spec chosen at the pre-game modal. If set, a free level-1 commander spawns on init. */
   playerCommanderSpec: CommanderSpec | null = null;
+  /** Campaign: the player's grudgeId for sector generation. */
+  campaignGrudgeId: string | null = null;
+  /** Campaign: commander portrait from Grudge account / CNFT. */
+  campaignPortrait: string | null = null;
+  /** Campaign: commander name from Grudge account. */
+  campaignCommanderName: string | null = null;
+  /** Campaign: chosen faction for evolution. */
+  campaignFaction: 'wisdom' | 'construct' | 'void' | 'legion' = 'legion';
 
   initGame(mode: GameMode = '1v1') {
     const map = getMapSize(mode);
     this.mapW = map.width;
     this.mapH = map.height;
 
-    const activePlayers: Team[] = mode === '1v1' ? [1 as Team, 2 as Team] : [1 as Team, 2 as Team, 3 as Team, 4 as Team];
+    const activePlayers: Team[] =
+      mode === '1v1'
+        ? [1 as Team, 2 as Team]
+        : mode === 'campaign'
+          ? [1 as Team, 2 as Team, 3 as Team, 4 as Team]
+          : [1 as Team, 2 as Team, 3 as Team, 4 as Team];
 
-    const makeRes = (): PlayerResources => ({ credits: 500, energy: 200, minerals: 300, supply: 0, maxSupply: 50 });
+    const isCampaign = mode === 'campaign';
+    const makeRes = (): PlayerResources =>
+      isCampaign
+        ? {
+            credits: CAMPAIGN_START_RESOURCES.credits,
+            energy: CAMPAIGN_START_RESOURCES.energy,
+            minerals: CAMPAIGN_START_RESOURCES.minerals,
+            supply: 0,
+            maxSupply: 50,
+          }
+        : { credits: 500, energy: 200, minerals: 300, supply: 0, maxSupply: 50 };
     const makeUpg = (): TeamUpgrades => ({ attack: 0, armor: 0, speed: 0, health: 0, shield: 0 });
     const resources: Record<number, PlayerResources> = { 0: { credits: 0, energy: 0, minerals: 0, supply: 0, maxSupply: 0 } };
     const upgrades: Record<number, TeamUpgrades> = { 0: makeUpg() };
@@ -115,12 +146,14 @@ export class SpaceEngine {
       gameMode: mode,
       ships: new Map(),
       stations: new Map(),
-      planets: this.generatePlanets(mode, activePlayers),
+      planets: isCampaign ? [] : this.generatePlanets(mode, activePlayers), // campaign planets set below
       resourceNodes: new Map(),
       planetTurrets: new Map(),
       techState,
       voidCooldowns: voidCds,
       activeVoidEffects: [],
+      darkRifts: [],
+      darkRiftTimer: 90 + Math.random() * 30, // first rift at 90-120s
       aiDifficulty: this.aiDifficulty,
       commanders: new Map(),
       fleets: new Map(),
@@ -143,7 +176,44 @@ export class SpaceEngine {
       dominationTimer: 0,
       dominationTeam: null,
       activePlayers,
+      fog: new Map(),
+      pois: [],
+      campaignProgress: null,
+      captainsLog: [],
+      campaignEvents: [],
     };
+
+    // ── Campaign sector generation ─────────────────────────────
+    if (isCampaign) {
+      const grudgeId = this.campaignGrudgeId ?? 'guest';
+      const sector = generateSector(grudgeId, this.state.nextId);
+      this.state.planets = sector.planets;
+      this.state.pois = sector.pois;
+      this.state.nextId = Math.max(this.state.nextId, ...sector.planets.map((p) => p.id + 1), ...sector.pois.map((p) => p.id + 1));
+      this.state.campaignProgress = {
+        sectorSeed: sector.sectorSeed,
+        conqueredPlanetIds: [sector.homeworldId],
+        totalPlanets: sector.planets.length,
+        homeworldId: sector.homeworldId,
+        campaignStartTime: Date.now(),
+        elapsedGameTime: 0,
+        titlesEarned: [],
+        storyBeatsCompleted: [],
+        pvpUnlocked: false,
+        postConquestWaves: 0,
+        factionProgress: {
+          faction: this.campaignFaction,
+          xp: 0,
+          level: 1,
+          unlockedPerks: [],
+        },
+      };
+      // Log first story beat
+      logStoryBeat(this.state, 'awakening', 'The Awakening', CAMPAIGN_STORY_BEATS[0].text);
+      // Start auto-flush and auto-save
+      startLogAutoFlush();
+      startAutoSave(() => this.state);
+    }
 
     for (const team of activePlayers) {
       if (team !== 1) {
@@ -540,26 +610,68 @@ export class SpaceEngine {
   // ── Main Loop ──────────────────────────────────────────────────
   update(dt: number) {
     if (this.state.gameOver) return;
-    this.state.gameTime += dt;
-    this.updateResourceNodes(dt);
-    this.updateWorkers(dt);
-    this.updateCommanderTraining(dt);
-    this.updateShipRoles(dt);
-    this.updateTacticalOrders(dt);
-    this.updateShipSeparation(dt);
-    this.updateShips(dt);
-    this.updateProjectiles(dt);
-    this.updateEffects(dt);
-    this.updateStations(dt);
-    this.updateCapture(dt);
-    this.updateResources(dt);
-    this.updateTechResearch(dt);
-    this.updatePlanetTurrets(dt);
-    this.updateVoidEffects(dt);
-    this.updateVoidCooldowns(dt);
-    this.updateAdvancedAI(dt);
-    this.updateWinCondition(dt);
+    // Campaign: 10x slower time scale
+    const effectiveDt = this.state.gameMode === 'campaign' ? dt * CAMPAIGN_TIME_SCALE : dt;
+    this.state.gameTime += effectiveDt;
+    if (this.state.campaignProgress) {
+      this.state.campaignProgress.elapsedGameTime = this.state.gameTime;
+    }
+    // Override dt for all subsystems
+    const _dt = effectiveDt;
+    this.updateResourceNodes(_dt);
+    this.updateWorkers(_dt);
+    this.updateCommanderTraining(_dt);
+    this.updateShipRoles(_dt);
+    this.updateTacticalOrders(_dt);
+    this.updateShipSeparation(_dt);
+    this.updateShips(_dt);
+    this.updateProjectiles(_dt);
+    this.updateEffects(_dt);
+    this.updateStations(_dt);
+    this.updateCapture(_dt);
+    this.updateResources(_dt);
+    this.updateTechResearch(_dt);
+    this.updatePlanetTurrets(_dt);
+    this.updateVoidEffects(_dt);
+    this.updateVoidCooldowns(_dt);
+    this.updateDarkRifts(_dt);
+    this.updateAdvancedAI(_dt);
+    this.updateWinCondition(_dt);
+    // Campaign event ticker (every ~30 game-seconds)
+    if (this.state.gameMode === 'campaign') {
+      this.campaignEventTimer += _dt;
+      if (this.campaignEventTimer >= 30) {
+        this.campaignEventTimer = 0;
+        tickCampaignEvents(this.state);
+        autoResolveExpired(this.state);
+        this.checkCampaignStoryBeats();
+        checkConquestMilestone(this.state);
+      }
+    }
     this.cleanupDead();
+  }
+
+  /** Check if any story beats should trigger based on conquest progress. */
+  private checkCampaignStoryBeats(): void {
+    const p = this.state.campaignProgress;
+    if (!p) return;
+    const pct = (p.conqueredPlanetIds.length / Math.max(p.totalPlanets, 1)) * 100;
+    for (const beat of CAMPAIGN_STORY_BEATS) {
+      if (pct >= beat.atPercent && !p.storyBeatsCompleted.includes(beat.id)) {
+        p.storyBeatsCompleted.push(beat.id);
+        logStoryBeat(this.state, beat.id, beat.title, beat.text);
+        // Add alert
+        this.state.alerts.push({
+          id: this.state.nextId++,
+          x: 0,
+          y: 0,
+          z: 0,
+          type: 'conquest',
+          time: this.state.gameTime,
+          message: `STORY: ${beat.title}`,
+        });
+      }
+    }
   }
 
   // ── Ships ──────────────────────────────────────────────────────
@@ -733,6 +845,8 @@ export class SpaceEngine {
     const id = this.state.nextId++;
     const a = Math.atan2(tgt.y - src.y, tgt.x - src.x);
     const spd = src.attackType === 'missile' ? 300 : src.attackType === 'railgun' ? 600 : 400;
+    // Spawn from inferred rig muzzle hardpoint (nose/front weapons) instead of ship center.
+    const muzzle = getMuzzleWorldPosition(src, id);
     // Star Splitter ambush: +80% damage on first hit against a new target
     let dmgMult = 1;
     if (SHIP_ROLES[src.shipType] === 'star_splitter' && src.lastTargetId !== tgt.id) {
@@ -741,8 +855,8 @@ export class SpaceEngine {
     }
     this.state.projectiles.set(id, {
       id,
-      x: src.x,
-      y: src.y,
+      x: muzzle.x,
+      y: muzzle.y,
       z: src.z,
       vx: Math.cos(a) * spd,
       vy: Math.sin(a) * spd,
@@ -765,7 +879,7 @@ export class SpaceEngine {
     const isCapital = src.shipClass === 'battleship' || src.shipClass === 'dreadnought' || src.shipClass === 'carrier';
     const isMed = src.shipClass === 'cruiser' || src.shipClass === 'destroyer' || src.shipClass === 'light_cruiser';
     const mfxScale = isCapital ? 1.0 : isMed ? 0.7 : 0.4;
-    this.spawnSpriteEffect(src.x, src.y, 0, mfx, mfxScale);
+    this.spawnSpriteEffect(muzzle.x, muzzle.y, 0, mfx, mfxScale);
     // SFX: weapon fire (only for player team to avoid spam)
     if (src.team === 1) {
       const sfx =
@@ -1320,6 +1434,142 @@ export class SpaceEngine {
         if (val > 0) cdMap.set(key, Math.max(0, val - dt));
       }
     }
+  }
+
+  // ── Dark Rifts (PvE random map events) ──────────────────
+  private updateDarkRifts(dt: number) {
+    // Countdown to next rift
+    this.state.darkRiftTimer -= dt;
+    if (this.state.darkRiftTimer <= 0 && this.state.darkRifts.filter((r) => !r.done).length < 3) {
+      this.state.darkRiftTimer = 90 + Math.random() * 30; // next rift in 90-120s
+      // Spawn at random map location away from all planets
+      const margin = 2000;
+      let rx = margin + Math.random() * (this.mapW - margin * 2);
+      let ry = margin + Math.random() * (this.mapH - margin * 2);
+      // Push away from nearest planet
+      for (const p of this.state.planets) {
+        const d = Math.sqrt((p.x - rx) ** 2 + (p.y - ry) ** 2);
+        if (d < 1500) {
+          const a = Math.atan2(ry - p.y, rx - p.x);
+          rx += Math.cos(a) * (1500 - d);
+          ry += Math.sin(a) * (1500 - d);
+        }
+      }
+      // Scale bounty and ship count with game time
+      const gameMin = this.state.gameTime / 60;
+      const shipCount = Math.min(8, 3 + Math.floor(gameMin / 3));
+      const bountyC = Math.round(30 + gameMin * 5);
+      const bountyM = Math.round(15 + gameMin * 3);
+
+      const rift: import('./space-types').DarkRift = {
+        id: this.state.nextId++,
+        x: rx,
+        y: ry,
+        spawnDelay: 5,
+        lifetime: 0,
+        maxLifetime: 35,
+        shipsSpawned: false,
+        shipIds: [],
+        done: false,
+        bountyCredits: bountyC,
+        bountyMinerals: bountyM,
+      };
+      this.state.darkRifts.push(rift);
+      // Alert all players
+      this.state.alerts.push({
+        id: this.state.nextId++,
+        x: rx,
+        y: ry,
+        z: 0,
+        type: 'dark_rift',
+        time: this.state.gameTime,
+        message: 'Dark Rift detected!',
+      });
+      // VFX at rift location
+      this.spawnSpriteEffect(rx, ry, 0, 'waveform', 4.0);
+      this.spawnSpriteEffect(rx, ry, 0, 'crossed', 3.0);
+      gameAudio.play('alert', 0.7);
+    }
+
+    // Update active rifts
+    for (const rift of this.state.darkRifts) {
+      if (rift.done) continue;
+      rift.lifetime += dt;
+
+      // Spawn ships after delay
+      if (!rift.shipsSpawned && rift.lifetime >= rift.spawnDelay) {
+        rift.shipsSpawned = true;
+        const gameMin = this.state.gameTime / 60;
+        const shipCount = Math.min(8, 3 + Math.floor(gameMin / 3));
+        // Composition scales with game time
+        const pool =
+          gameMin < 3
+            ? ['micro_recon', 'red_fighter']
+            : gameMin < 7
+              ? ['red_fighter', 'dual_striker', 'galactix_racer']
+              : gameMin < 12
+                ? ['cf_corvette_02', 'cf_frigate_01', 'dual_striker']
+                : ['cf_frigate_03', 'cf_destroyer_01', 'warship'];
+
+        for (let i = 0; i < shipCount; i++) {
+          const type = pool[Math.floor(Math.random() * pool.length)];
+          const angle = (i / shipCount) * Math.PI * 2;
+          const spread = 100 + Math.random() * 80;
+          const ship = this.spawnShip(
+            type,
+            0 as import('./space-types').Team,
+            rift.x + Math.cos(angle) * spread,
+            rift.y + Math.sin(angle) * spread,
+          );
+          rift.shipIds.push(ship.id);
+        }
+        this.spawnSpriteEffect(rift.x, rift.y, 0, 'bomb-high-3', 5.0);
+        this.spawnSpriteEffect(rift.x, rift.y, 0, 'explosion-1-e', 4.0);
+      }
+
+      // Check if all rift ships are dead
+      if (rift.shipsSpawned) {
+        const allDead = rift.shipIds.every((id) => {
+          const s = this.state.ships.get(id);
+          return !s || s.dead;
+        });
+        if (allDead) {
+          rift.done = true;
+          // Bonus resources to all active players who participated
+          for (const team of this.state.activePlayers) {
+            const r = this.state.resources[team];
+            if (r) {
+              r.credits += rift.bountyCredits;
+              r.minerals += rift.bountyMinerals;
+            }
+          }
+          this.state.alerts.push({
+            id: this.state.nextId++,
+            x: rift.x,
+            y: rift.y,
+            z: 0,
+            type: 'conquest',
+            time: this.state.gameTime,
+            message: `Rift cleared! +${rift.bountyCredits}c +${rift.bountyMinerals}m`,
+          });
+        }
+      }
+
+      // Time out
+      if (rift.lifetime >= rift.maxLifetime) {
+        rift.done = true;
+        // Kill remaining rift ships
+        for (const id of rift.shipIds) {
+          const s = this.state.ships.get(id);
+          if (s && !s.dead) {
+            s.hp = 0;
+            s.dead = true;
+          }
+        }
+      }
+    }
+    // Cleanup done rifts
+    this.state.darkRifts = this.state.darkRifts.filter((r) => !r.done || r.lifetime < r.maxLifetime + 5);
   }
 
   // ── Planet Turrets ────────────────────────────────────────────
