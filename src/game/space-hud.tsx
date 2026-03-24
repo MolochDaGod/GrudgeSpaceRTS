@@ -689,7 +689,7 @@ export function SpaceHUD({ renderer, onQuit }: SpaceHUDProps) {
             borderRight: '1px solid rgba(40,180,160,0.2)',
           }}
         >
-          {/* Portrait (left half) */}
+          {/* Portrait (left half) — uses space-shooter-gui avatar frame */}
           <div
             style={{
               width: 160,
@@ -699,41 +699,117 @@ export function SpaceHUD({ renderer, onQuit }: SpaceHUDProps) {
               justifyContent: 'center',
               position: 'relative',
               borderRight: '1px solid rgba(40,180,160,0.1)',
+              padding: 6,
             }}
           >
             {primary && def ? (
-              <>
+              <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+                {/* Avatar frame background */}
                 <img
-                  src={SHIP_PREVIEW[primary.shipType] ?? ''}
-                  alt={def.displayName}
+                  src="/assets/space/ui/space-shooter-gui/PNG/Ingame_Interface/ingame_0017_ava_frame1.png"
+                  alt=""
                   style={{
-                    maxWidth: 140,
-                    maxHeight: '90%',
-                    objectFit: 'contain',
-                    imageRendering: 'auto',
-                    filter: 'drop-shadow(0 0 12px rgba(68,136,255,0.35))',
+                    position: 'absolute',
+                    inset: 0,
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'fill',
+                    pointerEvents: 'none',
                   }}
                   onError={(e) => {
                     (e.target as HTMLImageElement).style.display = 'none';
                   }}
                 />
+                {/* Ship preview image — fills the portrait square area */}
                 <div
                   style={{
                     position: 'absolute',
-                    bottom: 6,
-                    left: 0,
-                    right: 0,
-                    textAlign: 'center',
-                    fontSize: 11,
-                    fontWeight: 800,
-                    color: '#fff',
-                    letterSpacing: 1,
-                    textShadow: '0 2px 8px rgba(0,0,0,0.95)',
+                    left: 4,
+                    top: 4,
+                    width: '45%',
+                    height: 'calc(100% - 8px)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    overflow: 'hidden',
+                    borderRadius: 4,
                   }}
                 >
-                  {def.displayName}
+                  <img
+                    src={SHIP_PREVIEW[primary.shipType] ?? ''}
+                    alt={def.displayName}
+                    style={{
+                      maxWidth: '100%',
+                      maxHeight: '100%',
+                      objectFit: 'contain',
+                      imageRendering: 'auto',
+                      filter: 'drop-shadow(0 0 10px rgba(68,136,255,0.4))',
+                    }}
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).style.display = 'none';
+                    }}
+                  />
                 </div>
-              </>
+                {/* Ship name + HP bar in the right area of the frame */}
+                <div
+                  style={{
+                    position: 'absolute',
+                    left: '50%',
+                    top: 6,
+                    right: 6,
+                    bottom: 6,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'center',
+                    padding: '0 4px',
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 800,
+                      color: '#fff',
+                      letterSpacing: 0.5,
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      marginBottom: 4,
+                    }}
+                  >
+                    {def.displayName}
+                  </div>
+                  {/* HP bar */}
+                  <div style={{ height: 6, background: '#0a0e18', borderRadius: 2, marginBottom: 3 }}>
+                    <div
+                      style={{
+                        height: '100%',
+                        borderRadius: 2,
+                        width: `${(primary.hp / primary.maxHp) * 100}%`,
+                        background:
+                          primary.hp / primary.maxHp > 0.5 ? '#44ee44' : primary.hp / primary.maxHp > 0.25 ? '#eebb00' : '#ee4444',
+                      }}
+                    />
+                  </div>
+                  {/* Shield bar */}
+                  {primary.maxShield > 0 && (
+                    <div style={{ height: 4, background: '#0a0e18', borderRadius: 2, marginBottom: 3 }}>
+                      <div
+                        style={{
+                          height: '100%',
+                          borderRadius: 2,
+                          width: `${(primary.shield / primary.maxShield) * 100}%`,
+                          background: '#44ccff',
+                        }}
+                      />
+                    </div>
+                  )}
+                  {/* Class + rank */}
+                  <div style={{ fontSize: 8, color: 'rgba(160,200,255,0.5)', display: 'flex', gap: 4, alignItems: 'center' }}>
+                    <span>{def.class.replace(/_/g, ' ')}</span>
+                    {primary.rank > 0 && <span style={{ color: '#ffcc00' }}>{'★'.repeat(primary.rank)}</span>}
+                  </div>
+                </div>
+              </div>
             ) : (
               <div style={{ opacity: 0.12, fontSize: 10, color: '#8ab', textAlign: 'center', lineHeight: 1.8 }}>
                 No unit
