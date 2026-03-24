@@ -271,7 +271,7 @@ export function SpaceHUD({ renderer, onQuit }: SpaceHUDProps) {
         <div
           style={{
             position: 'absolute',
-            bottom: 210,
+            bottom: 252,
             left: 12,
             zIndex: 25,
             pointerEvents: 'auto',
@@ -329,14 +329,14 @@ export function SpaceHUD({ renderer, onQuit }: SpaceHUDProps) {
           top: 0,
           left: 0,
           right: 0,
-          height: 44,
+          height: 52,
           backgroundImage: 'url(/assets/space/ui/hud/DarkBackground.png)',
           backgroundSize: '100% 100%',
           borderBottom: '2px solid rgba(40,180,160,0.35)',
           display: 'flex',
           alignItems: 'center',
-          padding: '0 12px',
-          gap: 8,
+          padding: '0 16px',
+          gap: 14,
           pointerEvents: 'auto',
           zIndex: 10,
         }}
@@ -345,7 +345,7 @@ export function SpaceHUD({ renderer, onQuit }: SpaceHUDProps) {
           src="/assets/space/ui/logo.webp"
           alt="Gruda Armada"
           style={{
-            height: 28,
+            height: 34,
             imageRendering: 'auto',
             mixBlendMode: 'screen' as React.CSSProperties['mixBlendMode'],
             filter: 'drop-shadow(0 0 8px rgba(68,136,255,0.4))',
@@ -378,8 +378,8 @@ export function SpaceHUD({ renderer, onQuit }: SpaceHUDProps) {
           style={{
             backgroundImage: 'url(/assets/space/ui/hud/BgSettingSmallBox.png)',
             backgroundSize: '100% 100%',
-            padding: '2px 8px',
-            fontSize: 10,
+            padding: '4px 12px',
+            fontSize: 12,
             color: '#8ac',
           }}
         >
@@ -586,14 +586,14 @@ export function SpaceHUD({ renderer, onQuit }: SpaceHUDProps) {
             );
           })}
 
-      {/* ── Bottom Panel ──────────────────────────────── */}
+      {/* ── Bottom Panel — SC2-style: [minimap] [portrait | stats] [command grid] ── */}
       <div
         style={{
           position: 'absolute',
           bottom: 0,
           left: 0,
           right: 0,
-          height: 200,
+          height: 240,
           backgroundImage: 'url(/assets/space/ui/hud/DarkBackground.png)',
           backgroundSize: '100% 100%',
           borderTop: '2px solid rgba(40,180,160,0.45)',
@@ -602,10 +602,10 @@ export function SpaceHUD({ renderer, onQuit }: SpaceHUDProps) {
           zIndex: 10,
         }}
       >
-        {/* ── Minimap Area (left) with click interactions ─────── */}
+        {/* ── Minimap (far left) ──────────────────────── */}
         <div
           style={{
-            width: 200,
+            width: 220,
             height: '100%',
             borderRight: '1px solid #1a3050',
             position: 'relative',
@@ -613,29 +613,81 @@ export function SpaceHUD({ renderer, onQuit }: SpaceHUDProps) {
           }}
         >
           <Minimap state={state} renderer={renderer} />
-          {/* Shortcut buttons below minimap */}
-          <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, display: 'flex', gap: 2, padding: '3px' }}>
-            <Btn label="TECH" onClick={() => setTechOpen((t) => !t)} active={techOpen} style={{ flex: 1, height: 26, minWidth: 0 }} />
-            <Btn label="CMDR" onClick={() => setCmdOpen((t) => !t)} active={cmdOpen} style={{ flex: 1, height: 26, minWidth: 0 }} />
+          <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, display: 'flex', gap: 2, padding: '4px' }}>
+            <Btn label="TECH" onClick={() => setTechOpen((t) => !t)} active={techOpen} style={{ flex: 1, height: 28, minWidth: 0 }} />
+            <Btn label="CMDR" onClick={() => setCmdOpen((t) => !t)} active={cmdOpen} style={{ flex: 1, height: 28, minWidth: 0 }} />
           </div>
         </div>
 
-        {/* ── Unit Info Panel (center-left) ─────────────── */}
+        {/* ── Ship Portrait (large image) ─────────────── */}
         <div
           style={{
-            width: 280,
+            width: 200,
             height: '100%',
-            padding: '8px 10px',
-            borderRight: '1px solid rgba(40,180,160,0.25)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            borderRight: '1px solid rgba(40,180,160,0.2)',
+            background: 'rgba(2,6,16,0.6)',
+            position: 'relative',
+          }}
+        >
+          {primary && def ? (
+            <>
+              <img
+                src={SHIP_PREVIEW[primary.shipType] ?? ''}
+                alt={def.displayName}
+                style={{
+                  maxWidth: 180,
+                  maxHeight: 180,
+                  objectFit: 'contain',
+                  imageRendering: 'auto',
+                  filter: 'drop-shadow(0 0 12px rgba(68,136,255,0.4))',
+                }}
+                onError={(e) => {
+                  (e.target as HTMLImageElement).style.display = 'none';
+                }}
+              />
+              {/* Ship name overlay at bottom */}
+              <div
+                style={{
+                  position: 'absolute',
+                  bottom: 8,
+                  left: 0,
+                  right: 0,
+                  textAlign: 'center',
+                  fontSize: 12,
+                  fontWeight: 800,
+                  color: '#fff',
+                  textShadow: '0 2px 8px rgba(0,0,0,0.9)',
+                  letterSpacing: 1,
+                }}
+              >
+                {def.displayName}
+              </div>
+            </>
+          ) : (
+            <div style={{ opacity: 0.15, fontSize: 10, color: '#8ab', textAlign: 'center', lineHeight: 1.8 }}>No unit selected</div>
+          )}
+        </div>
+
+        {/* ── Unit Stats (center) ─────────────────────── */}
+        <div
+          style={{
+            width: 300,
+            height: '100%',
+            padding: '10px 14px',
+            borderRight: '1px solid rgba(40,180,160,0.2)',
             backgroundImage: 'url(/assets/space/ui/hud/BgSettingSmallBox.png)',
             backgroundSize: 'cover',
             backgroundPosition: 'center',
             display: 'flex',
             flexDirection: 'column',
+            overflowY: 'auto',
           }}
         >
           {selectedShips.length === 0 ? (
-            <div style={{ opacity: 0.25, fontSize: 11, marginTop: 50, textAlign: 'center', lineHeight: 1.8, color: '#8ab' }}>
+            <div style={{ opacity: 0.25, fontSize: 11, marginTop: 60, textAlign: 'center', lineHeight: 1.8, color: '#8ab' }}>
               No units selected
               <br />
               <span style={{ fontSize: 9 }}>Left-drag to box-select · Double-click to select type</span>
@@ -646,7 +698,6 @@ export function SpaceHUD({ renderer, onQuit }: SpaceHUDProps) {
             <MultiUnitInfo
               ships={selectedShips}
               onIsolate={(shipId) => {
-                // Deselect all, then select only the target ship
                 for (const id of state.selectedIds) {
                   const s = state.ships.get(id);
                   if (s) s.selected = false;
@@ -662,12 +713,12 @@ export function SpaceHUD({ renderer, onQuit }: SpaceHUDProps) {
           )}
         </div>
 
-        {/* ── Command Card / Build Panel (center-right) ──── */}
+        {/* ── Command Card / Build Panel (right — SC2 grid) ──── */}
         <div
           style={{
             flex: 1,
             height: '100%',
-            padding: '8px 12px',
+            padding: '10px 16px',
             overflowY: 'auto',
             backgroundImage: 'url(/assets/space/ui/hud/BgSettingSmallBox.png)',
             backgroundSize: 'cover',
@@ -678,9 +729,8 @@ export function SpaceHUD({ renderer, onQuit }: SpaceHUDProps) {
             <BuildPanel station={selectedStation} renderer={renderer} res={res} />
           ) : primary ? (
             <>
-              {/* Enter Ship button for flagship */}
               {(primary.shipType === 'pyramid_ship' || primary.shipType === 'custom_hero') && (
-                <Btn label="ENTER SHIP" wide active onClick={() => setInteriorOpen(true)} style={{ marginBottom: 6 }} />
+                <Btn label="ENTER SHIP" wide active onClick={() => setInteriorOpen(true)} style={{ marginBottom: 8 }} />
               )}
               <CommandCard ship={primary} renderer={renderer} allSelected={selectedShips} />
             </>
