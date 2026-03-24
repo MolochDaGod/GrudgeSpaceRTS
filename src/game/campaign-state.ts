@@ -133,7 +133,15 @@ export async function loadCampaign(): Promise<CampaignSaveData | null> {
       const res = await authFetch(`${API_URL}/campaign/load`);
       if (res.ok) {
         const data = await res.json();
-        if (data?.progress) return data as CampaignSaveData;
+        if (data?.progress) {
+          // Sync backend data to IDB so offline play has latest state
+          try {
+            await idbPut(IDB_KEY, data);
+          } catch {
+            /* non-critical */
+          }
+          return data as CampaignSaveData;
+        }
       }
     } catch {
       /* fall through to IDB */
@@ -208,13 +216,21 @@ export async function grantTitle(titleKey: string): Promise<boolean> {
 /** Check if player has earned the "Conqueror of Galaxy" title. */
 export function checkConquestMilestone(state: SpaceGameState): boolean {
   if (!state.campaignProgress) return false;
-  const { conqueredPlanetIds, totalPlanets, titlesEarned } = state.campaignProgress;
+  const { titlesEarned } = state.campaignProgress;
   // All non-AI-homeworld planets conquered (player owns everything)
   const playerPlanets = state.planets.filter((p) => p.owner === 1).length;
-  if (playerPlanets >= totalPlanets && !titlesEarned.includes('conqueror_of_galaxy')) {
+  if (playerPlanets >= state.campaignProgress.totalPlanets && !titlesEarned.includes('conqueror_of_galaxy')) {
     state.campaignProgress.titlesEarned.push('conqueror_of_galaxy');
     state.campaignProgress.pvpUnlocked = true;
-    grantTitle('conqueror_of_galaxy');
+    // Retry title grant up to 3 times with backoff
+    (async () => {
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const ok = await grantTitle('conqueror_of_galaxy');
+        if (ok) return;
+        await new Promise((r) => setTimeout(r, 2000 * (attempt + 1)));
+      }
+      console.warn('[campaign-state] Failed to grant title after 3 attempts');
+    })();
     return true;
   }
   return false;
