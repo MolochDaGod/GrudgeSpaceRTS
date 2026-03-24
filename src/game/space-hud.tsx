@@ -464,6 +464,27 @@ export function SpaceHUD({ renderer, onQuit }: SpaceHUDProps) {
         />
       )}
 
+      {/* ── ENTER SHIP popup (flagship selected) ───── */}
+      {!interiorOpen && primary && (primary.shipType === 'pyramid_ship' || primary.shipType === 'custom_hero') && (
+        <div
+          style={{
+            position: 'absolute',
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            zIndex: 50,
+            pointerEvents: 'auto',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: 8,
+          }}
+        >
+          <div style={{ fontSize: 10, color: 'rgba(160,200,255,0.5)', letterSpacing: 2 }}>FLAGSHIP SELECTED · F1</div>
+          <Btn label="ENTER SHIP" wide active onClick={() => setInteriorOpen(true)} style={{ minWidth: 200, height: 48, fontSize: 16 }} />
+        </div>
+      )}
+
       {/* ── Flagship Interior Overlay ───────────────── */}
       {interiorOpen &&
         (() => {
@@ -729,9 +750,6 @@ export function SpaceHUD({ renderer, onQuit }: SpaceHUDProps) {
             <BuildPanel station={selectedStation} renderer={renderer} res={res} />
           ) : primary ? (
             <>
-              {(primary.shipType === 'pyramid_ship' || primary.shipType === 'custom_hero') && (
-                <Btn label="ENTER SHIP" wide active onClick={() => setInteriorOpen(true)} style={{ marginBottom: 8 }} />
-              )}
               <CommandCard ship={primary} renderer={renderer} allSelected={selectedShips} />
             </>
           ) : selectedPlanet ? (

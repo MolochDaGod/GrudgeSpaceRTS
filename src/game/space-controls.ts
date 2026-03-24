@@ -1,14 +1,14 @@
 import * as THREE from 'three';
 import type { SpaceGameState, SelectionBox, CameraState, Vec3, Command } from './space-types';
 
-const WORLD_SCALE      = 0.05;
+const WORLD_SCALE = 0.05;
 const EDGE_SCROLL_ZONE = 30;
 // Pan/edge speeds are intentionally a multiplier — actual pixel-speed
 // scales with zoom level so navigation feels the same at any distance.
 // Formula: effective_speed = BASE × (zoom / ZOOM_REF)
-const PAN_SPEED_BASE  = 1200;  // game units/s at reference zoom
+const PAN_SPEED_BASE = 1200; // game units/s at reference zoom
 const EDGE_SPEED_BASE = 1200;
-const ZOOM_REF        = 200;   // zoom level where base speed feels 'normal'
+const ZOOM_REF = 200; // zoom level where base speed feels 'normal'
 
 export class SpaceControls {
   selectionBox: SelectionBox = { active: false, startX: 0, startY: 0, endX: 0, endY: 0 };
@@ -37,7 +37,7 @@ export class SpaceControls {
     container.addEventListener('mousedown', this.onMouseDown);
     container.addEventListener('mousemove', this.onMouseMove);
     container.addEventListener('mouseup', this.onMouseUp);
-    container.addEventListener('contextmenu', e => e.preventDefault());
+    container.addEventListener('contextmenu', (e) => e.preventDefault());
     container.addEventListener('wheel', this.onWheel, { passive: false });
     container.addEventListener('dblclick', this.onDoubleClick);
     window.addEventListener('keydown', this.onKeyDown);
@@ -53,7 +53,13 @@ export class SpaceControls {
     if (e.button === 0) {
       this.mouseDown = true;
       const rect = this.container.getBoundingClientRect();
-      this.selectionBox = { active: true, startX: e.clientX - rect.left, startY: e.clientY - rect.top, endX: e.clientX - rect.left, endY: e.clientY - rect.top };
+      this.selectionBox = {
+        active: true,
+        startX: e.clientX - rect.left,
+        startY: e.clientY - rect.top,
+        endX: e.clientX - rect.left,
+        endY: e.clientY - rect.top,
+      };
     } else if (e.button === 2) {
       this.rightMouseDown = true;
       this.issueCommand(e);
@@ -89,13 +95,13 @@ export class SpaceControls {
   private onWheel = (e: WheelEvent) => {
     e.preventDefault();
     // Any manual scroll cancels the opening cinematic.
-    if (this.onIntroCancel) { this.onIntroCancel(); this.onIntroCancel = null; }
+    if (this.onIntroCancel) {
+      this.onIntroCancel();
+      this.onIntroCancel = null;
+    }
     // Logarithmic zoom: step proportional to current distance.
     const factor = 1 + e.deltaY * 0.0012;
-    this.cameraState.zoom = Math.max(
-      this.cameraState.minZoom,
-      Math.min(this.cameraState.maxZoom, this.cameraState.zoom * factor),
-    );
+    this.cameraState.zoom = Math.max(this.cameraState.minZoom, Math.min(this.cameraState.maxZoom, this.cameraState.zoom * factor));
   };
 
   private onDoubleClick = (e: MouseEvent) => {
@@ -140,18 +146,52 @@ export class SpaceControls {
     const hasSelection = this.state.selectedIds.size > 0;
     switch (e.key.toLowerCase()) {
       // ─ Ability hotkeys: W/R activate abilities. Q/E reserved for camera orbit.
-      case 'w': case 'r':
+      case 'w':
+      case 'r':
         if (hasSelection) this.onAbilityActivateByKey?.(e.key.toUpperCase());
         break;
       // Q/E are handled continuously in update() for camera rotation
-      case 'q': case 'e': break;
+      case 'q':
+      case 'e':
+        break;
       // ─ Command shortcuts (G = attack-move, A = always pan) ────────
-      case 'g': this.commandMode = 'attack_move'; break;
+      case 'g':
+        this.commandMode = 'attack_move';
+        break;
       // S always pans camera (no stop command). H = hold/defend in place.
-      case 'h': if (hasSelection) this.issueHoldCommand(); break;
-      case 'p': this.commandMode = 'patrol'; break;
-      case 'escape': this.commandMode = 'normal'; this.clearSelection(); break;
-      case 'f1': case 'f2': case 'f3': case 'f4': {
+      case 'h':
+        if (hasSelection) this.issueHoldCommand();
+        break;
+      case 'p':
+        this.commandMode = 'patrol';
+        break;
+      case 'escape':
+        this.commandMode = 'normal';
+        this.clearSelection();
+        break;
+      case 'f1': {
+        // F1 = select flagship (pyramid_ship / custom_hero) and center camera
+        e.preventDefault();
+        if (e.ctrlKey) {
+          this.cameraState.bookmarks[0] = { x: this.cameraState.x, y: this.cameraState.y, z: 0 };
+        } else {
+          this.clearSelection();
+          for (const [id, ship] of this.state.ships) {
+            if (ship.dead || ship.team !== 1) continue;
+            if (ship.shipType === 'pyramid_ship' || ship.shipType === 'custom_hero') {
+              ship.selected = true;
+              this.state.selectedIds.add(id);
+              this.cameraState.x = ship.x;
+              this.cameraState.y = ship.y;
+              break;
+            }
+          }
+        }
+        break;
+      }
+      case 'f2':
+      case 'f3':
+      case 'f4': {
         const idx = parseInt(e.key.slice(1)) - 1;
         if (e.ctrlKey) {
           this.cameraState.bookmarks[idx] = { x: this.cameraState.x, y: this.cameraState.y, z: 0 };
@@ -172,7 +212,7 @@ export class SpaceControls {
   update(dt: number) {
     // Speed scales linearly with zoom so panning feels consistent at any distance.
     const zoomScale = this.cameraState.zoom / ZOOM_REF;
-    const panSpeed  = PAN_SPEED_BASE  * zoomScale;
+    const panSpeed = PAN_SPEED_BASE * zoomScale;
     const edgeSpeed = EDGE_SPEED_BASE * zoomScale;
 
     // ── Camera yaw rotation (Q/E orbit around look-at point) ────────
@@ -186,14 +226,16 @@ export class SpaceControls {
     // W/D always pan. A pans only when no units selected (A = attack-move when selected).
     // S always pans (no stop command). Arrow keys ALWAYS pan regardless of selection.
     const sel = this.state.selectedIds.size > 0;
-    let fwd = 0, right = 0; // forward/right in camera-relative space
-    if (this.keys.has('w') || this.keys.has('arrowup'))                           fwd -= panSpeed * dt;
-    if (this.keys.has('arrowdown') || this.keys.has('s'))                         fwd += panSpeed * dt;
-    if (this.keys.has('arrowleft') || this.keys.has('a'))                          right -= panSpeed * dt;
-    if (this.keys.has('d') || this.keys.has('arrowright'))                        right += panSpeed * dt;
+    let fwd = 0,
+      right = 0; // forward/right in camera-relative space
+    if (this.keys.has('w') || this.keys.has('arrowup')) fwd -= panSpeed * dt;
+    if (this.keys.has('arrowdown') || this.keys.has('s')) fwd += panSpeed * dt;
+    if (this.keys.has('arrowleft') || this.keys.has('a')) right -= panSpeed * dt;
+    if (this.keys.has('d') || this.keys.has('arrowright')) right += panSpeed * dt;
     // Rotate pan direction by camera yaw so W always pushes "into" the screen
     const yawRad = this.cameraState.rotation * (Math.PI / 180);
-    const cosY = Math.cos(yawRad), sinY = Math.sin(yawRad);
+    const cosY = Math.cos(yawRad),
+      sinY = Math.sin(yawRad);
     this.cameraState.x += right * cosY - fwd * sinY;
     this.cameraState.y += right * sinY + fwd * cosY;
 
@@ -201,11 +243,12 @@ export class SpaceControls {
     const rect = this.container.getBoundingClientRect();
     const mx = (this.mouseNdc.x + 1) * 0.5 * rect.width;
     const my = (1 - (this.mouseNdc.y + 1) * 0.5) * rect.height;
-    let eRight = 0, eFwd = 0;
-    if (mx < EDGE_SCROLL_ZONE)               eRight -= edgeSpeed * dt;
-    if (mx > rect.width  - EDGE_SCROLL_ZONE) eRight += edgeSpeed * dt;
-    if (my < EDGE_SCROLL_ZONE)               eFwd   -= edgeSpeed * dt;
-    if (my > rect.height - EDGE_SCROLL_ZONE) eFwd   += edgeSpeed * dt;
+    let eRight = 0,
+      eFwd = 0;
+    if (mx < EDGE_SCROLL_ZONE) eRight -= edgeSpeed * dt;
+    if (mx > rect.width - EDGE_SCROLL_ZONE) eRight += edgeSpeed * dt;
+    if (my < EDGE_SCROLL_ZONE) eFwd -= edgeSpeed * dt;
+    if (my > rect.height - EDGE_SCROLL_ZONE) eFwd += edgeSpeed * dt;
     this.cameraState.x += eRight * cosY - eFwd * sinY;
     this.cameraState.y += eRight * sinY + eFwd * cosY;
   }
@@ -233,14 +276,17 @@ export class SpaceControls {
         const worldPos = this.screenToWorld(e.clientX, e.clientY);
         let clickedStation = false;
         if (worldPos) {
-          const wx = worldPos.x / WORLD_SCALE, wy = worldPos.z / WORLD_SCALE;
+          const wx = worldPos.x / WORLD_SCALE,
+            wy = worldPos.z / WORLD_SCALE;
           for (const [, st] of this.state.stations) {
             if (st.dead || st.team !== 1) continue;
             const d = Math.sqrt((st.x - wx) ** 2 + (st.y - wy) ** 2);
-            if (d < 80) { // station click radius
+            if (d < 80) {
+              // station click radius
               // Deselect all ships, select this station
               for (const sid of this.state.selectedIds) {
-                const s = this.state.ships.get(sid); if (s) s.selected = false;
+                const s = this.state.ships.get(sid);
+                if (s) s.selected = false;
               }
               this.state.selectedIds.clear();
               for (const [, ost] of this.state.stations) ost.selected = false;
@@ -332,10 +378,7 @@ export class SpaceControls {
       idx++;
 
       if (this.commandMode === 'patrol') {
-        ship.patrolPoints = [
-          { x: ship.x, y: ship.y, z: 0 },
-          { ...shipDest },
-        ];
+        ship.patrolPoints = [{ x: ship.x, y: ship.y, z: 0 }, { ...shipDest }];
         ship.patrolIndex = 1;
         ship.moveTarget = { ...shipDest };
         ship.targetId = null;
@@ -358,24 +401,28 @@ export class SpaceControls {
   private issueStopCommand() {
     for (const id of this.state.selectedIds) {
       const ship = this.state.ships.get(id);
-      if (ship) { ship.moveTarget = null; ship.targetId = null; ship.isAttackMoving = false; }
+      if (ship) {
+        ship.moveTarget = null;
+        ship.targetId = null;
+        ship.isAttackMoving = false;
+      }
     }
   }
 
   private issueHoldCommand() {
     for (const id of this.state.selectedIds) {
       const ship = this.state.ships.get(id);
-      if (ship) { ship.holdPosition = true; ship.moveTarget = null; }
+      if (ship) {
+        ship.holdPosition = true;
+        ship.moveTarget = null;
+      }
     }
   }
 
   // ── Raycasting ─────────────────────────────────────────────
   private screenToWorld(clientX: number, clientY: number): THREE.Vector3 | null {
     const rect = this.container.getBoundingClientRect();
-    const ndc = new THREE.Vector2(
-      ((clientX - rect.left) / rect.width) * 2 - 1,
-      -((clientY - rect.top) / rect.height) * 2 + 1,
-    );
+    const ndc = new THREE.Vector2(((clientX - rect.left) / rect.width) * 2 - 1, -((clientY - rect.top) / rect.height) * 2 + 1);
     this.raycaster.setFromCamera(ndc, this.camera);
     const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
     const target = new THREE.Vector3();
@@ -401,7 +448,8 @@ export class SpaceControls {
     let closest: { id: number; dist: number } | null = null;
     for (const [id, ship] of this.state.ships) {
       if (ship.dead) continue;
-      const dx = ship.x - wx, dy = ship.y - wy;
+      const dx = ship.x - wx,
+        dy = ship.y - wy;
       const dist = Math.sqrt(dx * dx + dy * dy);
       if (dist < 30 && (!closest || dist < closest.dist)) {
         closest = { id, dist };
