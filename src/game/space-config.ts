@@ -761,6 +761,129 @@ export const FACTION_SHIP_TREES: Record<SpaceFaction, FactionShipTree> = {
 export const SHARED_SHIP_UNLOCK_THRESHOLD = 60;
 export const SHARED_SHIPS = ['battleship'];
 
+/**
+ * Cross-faction Spark cost multiplier.
+ * Your own faction tree = 1.0x (base cost).
+ * Other faction trees = 1.5x (50% more expensive).
+ * This makes branching into other trees a real strategic investment,
+ * not impossible but not free either.
+ */
+export const CROSS_FACTION_SPARK_MULT = 1.5;
+
+/** Calculate the effective Spark cost for a node, considering faction alignment. */
+export function getEffectiveSparkCost(node: SparkShipNode, nodeFaction: SpaceFaction, playerFaction: SpaceFaction): number {
+  const base = node.sparkCost;
+  if (nodeFaction === playerFaction) return base;
+  return Math.ceil(base * CROSS_FACTION_SPARK_MULT);
+}
+
+/** Check if a node's prerequisites are all unlocked. */
+export function canUnlockNode(nodeId: string, faction: SpaceFaction, unlockedNodes: Set<string>): boolean {
+  const tree = FACTION_SHIP_TREES[faction];
+  if (!tree) return false;
+  const node = tree.nodes.find((n) => n.id === nodeId);
+  if (!node) return false;
+  if (unlockedNodes.has(nodeId)) return false; // already unlocked
+  return node.requires.every((reqId) => unlockedNodes.has(reqId));
+}
+
+/** Get all nodes a player can currently unlock (prereqs met, not yet unlocked). */
+export function getAvailableNodes(
+  playerFaction: SpaceFaction,
+  unlockedNodes: Set<string>,
+): { node: SparkShipNode; faction: SpaceFaction; cost: number }[] {
+  const available: { node: SparkShipNode; faction: SpaceFaction; cost: number }[] = [];
+  for (const [fac, tree] of Object.entries(FACTION_SHIP_TREES) as [SpaceFaction, FactionShipTree][]) {
+    for (const node of tree.nodes) {
+      if (unlockedNodes.has(node.id)) continue;
+      if (node.requires.every((r) => unlockedNodes.has(r))) {
+        available.push({ node, faction: fac, cost: getEffectiveSparkCost(node, fac, playerFaction) });
+      }
+    }
+  }
+  return available;
+}
+
+/** Get starting unlocked node IDs for a commander (their faction starters + commander bonus node). */
+export function getStartingUnlocks(commanderId: string): Set<string> {
+  const cmd = FACTION_COMMANDERS.find((c) => c.id === commanderId);
+  if (!cmd) return new Set();
+  const nodes = new Set<string>();
+  // Commander's bonus starting unlock
+  nodes.add(cmd.startingUnlock);
+  // Also unlock all nodes whose shipType matches a faction starter ship
+  // (so the player's starting ships are shown as unlocked in the tree)
+  const starters = FACTION_STARTER_SHIPS[cmd.faction] ?? [];
+  const tree = FACTION_SHIP_TREES[cmd.faction];
+  if (tree) {
+    for (const node of tree.nodes) {
+      if (starters.includes(node.shipType)) {
+        nodes.add(node.id);
+      }
+    }
+  }
+  return nodes;
+}
+
+/**
+ * Planet-granted ship unlocks.
+ * Capturing a planet of a specific type instantly unlocks these ships
+ * for production — no Spark required, but you lose them if you lose the planet.
+ * The planet's unique resource enables specialized ship construction.
+ */
+export const PLANET_SHIP_UNLOCKS: Record<PlanetType, { ships: string[]; reason: string }> = {
+  volcanic: { ships: ['cf_destroyer_05', 'cf_frigate_03'], reason: 'Volcanic ore forges siege-grade hull plating' },
+  oceanic: { ships: ['transtellar', 'cf_corvette_04'], reason: 'Oceanic hydrogen fuels advanced shield generators' },
+  barren: { ships: ['cf_destroyer_02', 'cf_corvette_03'], reason: 'Barren rare metals enable heavy railgun construction' },
+  crystalline: { ships: ['cf_light_cruiser_05', 'cf_frigate_05'], reason: 'Crystalline lattices power precision energy weapons' },
+  gas_giant: { ships: ['cf_light_cruiser_02', 'cf_destroyer_03'], reason: 'Gas giant isotopes fuel capital-class warp drives' },
+  frozen: { ships: ['cf_corvette_02', 'cf_frigate_02'], reason: 'Cryo-minerals enable advanced torpedo warheads' },
+};
+
+/** Get all ships unlocked by currently owned planets. */
+export function getPlanetUnlockedShips(ownedPlanetTypes: PlanetType[]): Set<string> {
+  const ships = new Set<string>();
+  for (const pt of ownedPlanetTypes) {
+    const unlock = PLANET_SHIP_UNLOCKS[pt];
+    if (unlock) {
+      for (const s of unlock.ships) ships.add(s);
+    }
+  }
+  return ships;
+}
+
+/** Check if a ship type is buildable for a team. Sources checked in order:
+ * 1. Faction starter ships (always)
+ * 2. Planet-granted unlocks (own a planet of the right type)
+ * 3. Spark tree unlocks (any faction tree)
+ * 4. Shared ships (total Spark threshold)
+ */
+export function isShipBuildable(
+  shipType: string,
+  playerFaction: SpaceFaction,
+  unlockedNodes: Set<string>,
+  sparkTotal: number,
+  ownedPlanetTypes?: PlanetType[],
+): boolean {
+  // 1. Faction starters
+  if (FACTION_STARTER_SHIPS[playerFaction]?.includes(shipType)) return true;
+  // 2. Planet-granted
+  if (ownedPlanetTypes) {
+    for (const pt of ownedPlanetTypes) {
+      if (PLANET_SHIP_UNLOCKS[pt]?.ships.includes(shipType)) return true;
+    }
+  }
+  // 3. Spark tree (any faction)
+  for (const tree of Object.values(FACTION_SHIP_TREES)) {
+    for (const node of tree.nodes) {
+      if (node.shipType === shipType && unlockedNodes.has(node.id)) return true;
+    }
+  }
+  // 4. Shared ships
+  if (SHARED_SHIPS.includes(shipType) && sparkTotal >= SHARED_SHIP_UNLOCK_THRESHOLD) return true;
+  return false;
+}
+
 // ── Tech Bonuses Default ────────────────────────────────────────
 export function defaultTechBonuses(): TeamTechBonuses {
   return {

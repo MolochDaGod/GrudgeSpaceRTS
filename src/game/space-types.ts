@@ -405,9 +405,11 @@ export interface FactionCommander {
 }
 
 // ── Spark State (per team, tracked in game state) ─────────────
+// All 4 faction trees are visible and investable by any player.
+// Your faction's tree costs base Spark. Other faction trees cost more.
 export interface SparkState {
-  unlockedNodes: Set<string>; // node IDs unlocked in the ship tree
-  faction: SpaceFaction;
+  unlockedNodes: Set<string>; // node IDs across ALL faction trees
+  faction: SpaceFaction; // player's chosen faction (cheaper tree)
   commanderId: string; // which faction commander was chosen
 }
 
