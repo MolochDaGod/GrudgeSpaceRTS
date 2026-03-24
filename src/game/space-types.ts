@@ -502,6 +502,21 @@ export type WinCondition = 'domination' | 'elimination' | 'campaign_conquest';
 // elimination = destroy all enemy ships and stations
 // campaign_conquest = conquer every planet in the sector
 
+// ── Commander Build (Campaign creation questionnaire) ──────────
+export type CommanderOrigin = 'scientist' | 'engineer' | 'soldier' | 'outcast';
+export type CommanderPersonality = 'strategic' | 'aggressive' | 'diplomatic' | 'mysterious';
+export type CommanderMotivation = 'knowledge' | 'survival' | 'revenge' | 'legacy';
+
+export interface CommanderBuild {
+  name: string;
+  origin: CommanderOrigin;
+  personality: CommanderPersonality;
+  motivation: CommanderMotivation;
+  faction: SpaceFaction; // derived from answers
+  portraitUrl: string | null; // AI-generated portrait URL (saved to account)
+  portraitPrompt: string; // the prompt used to generate the portrait
+}
+
 // ── Space Factions (Campaign Evolution) ─────────────────────────
 export type SpaceFaction = 'wisdom' | 'construct' | 'void' | 'legion';
 
