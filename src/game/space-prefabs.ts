@@ -706,9 +706,31 @@ export const UI_ASSETS = {
 };
 
 // ── Audio ────────────────────────────────────────────────────────
+const A = '/assets/space/audio';
 export const AUDIO_ASSETS = {
-  weaponFire: '/assets/space/audio/warped-shooting-fx.mp3',
-  weaponFireOgg: '/assets/space/audio/warped-shooting-fx.ogg',
+  // Music (MP3, loopable)
+  music: {
+    battle: `${A}/music/battle.mp3`,
+    menu: `${A}/music/menu.mp3`,
+    main: `${A}/music/main.mp3`,
+  },
+  // SFX (WAV, short clips)
+  sfx: {
+    laser: `${A}/sfx/laser.wav`,
+    heavy_shot: `${A}/sfx/heavy_shot.wav`,
+    missile_shot: `${A}/sfx/missile_shot.wav`,
+    death_small: `${A}/sfx/death_small.wav`,
+    death_large: `${A}/sfx/death_large.wav`,
+    capture: `${A}/sfx/capture.wav`,
+    harvest: `${A}/sfx/harvest.wav`,
+    build_complete: `${A}/sfx/build_complete.wav`,
+    hero_built: `${A}/sfx/hero_built.wav`,
+    commander: `${A}/sfx/commander.wav`,
+    ui_click: `${A}/sfx/ui_click.wav`,
+    upgrade: `${A}/sfx/upgrade.wav`,
+    alert: `${A}/sfx/alert.wav`,
+    weapon_fire: `${A}/warped-shooting-fx.mp3`,
+  },
 };
 
 // ── Helper: get all prefabs for a ship type ─────────────────────
