@@ -1,0 +1,24 @@
+# Exclude non-web assets from Vercel deploy
+**/*.psd
+**/*.PSD
+**/__MACOSX/**
+**/.DS_Store
+**/._*
+**/*.kenshape
+**/license.txt
+**/License.txt
+**/readme.txt
+**/Free Assets Craftpix!.url
+
+# Source files not needed in production
+*.log
+.husky
+.github
+scripts
+docs
+SKILL.md
+vitest.config.ts
+tsconfig.tsbuildinfo
+
+# Stray root files
+19d1266228439.webp
