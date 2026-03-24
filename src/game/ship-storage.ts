@@ -5,15 +5,23 @@
  * Falls back to IndexedDB when backend is unavailable (dev mode).
  */
 
+import { getToken } from './grudge-auth';
+
 const API_BASE = import.meta.env.VITE_GRUDGE_API ?? '';
 const IDB_NAME = 'gruda-armada';
 const IDB_STORE = 'hero-ships';
 const IDB_KEY = 'player-hero';
 
+/** Build auth headers for API calls */
+function authHeaders(): Record<string, string> {
+  const token = getToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
 // ── Types ─────────────────────────────────────────────────────────
 export interface HeroShipMeta {
   name: string;
-  createdAt: number;      // epoch ms
+  createdAt: number; // epoch ms
   voxelCount: number;
   /** Grid data for re-editing (JSON-serialised VoxMap) */
   gridData?: string;
@@ -60,11 +68,16 @@ async function idbPut<T>(key: string, value: T): Promise<void> {
 
 /** Check if the player already has a saved hero ship. */
 export async function hasHeroShip(): Promise<boolean> {
-  if (API_BASE) {
+  if (API_BASE && getToken()) {
     try {
-      const res = await fetch(`${API_BASE}/api/hero-ship/exists`, { credentials: 'include' });
-      if (res.ok) { const j = await res.json(); return !!j.exists; }
-    } catch { /* fall through to IDB */ }
+      const res = await fetch(`${API_BASE}/hero-ship/exists`, { headers: authHeaders() });
+      if (res.ok) {
+        const j = await res.json();
+        return !!j.exists;
+      }
+    } catch {
+      /* fall through to IDB */
+    }
   }
   const record = await idbGet<HeroShipRecord>(IDB_KEY);
   return !!record;
@@ -72,17 +85,19 @@ export async function hasHeroShip(): Promise<boolean> {
 
 /** Load the player's hero ship (meta + GLB blob). Returns null if none saved. */
 export async function loadHeroShip(): Promise<HeroShipRecord | null> {
-  if (API_BASE) {
+  if (API_BASE && getToken()) {
     try {
-      const res = await fetch(`${API_BASE}/api/hero-ship`, { credentials: 'include' });
+      const res = await fetch(`${API_BASE}/hero-ship`, { headers: authHeaders() });
       if (res.ok) {
         const data = await res.json();
         if (data.meta && data.glbBase64) {
-          const bin = Uint8Array.from(atob(data.glbBase64), c => c.charCodeAt(0));
+          const bin = Uint8Array.from(atob(data.glbBase64), (c) => c.charCodeAt(0));
           return { meta: data.meta, glb: new Blob([bin], { type: 'model/gltf-binary' }) };
         }
       }
-    } catch { /* fall through to IDB */ }
+    } catch {
+      /* fall through to IDB */
+    }
   }
   return (await idbGet<HeroShipRecord>(IDB_KEY)) ?? null;
 }
@@ -92,14 +107,13 @@ export async function saveHeroShip(record: HeroShipRecord): Promise<boolean> {
   // Always save to IDB for instant offline access
   await idbPut(IDB_KEY, record);
 
-  if (API_BASE) {
+  if (API_BASE && getToken()) {
     try {
       const buf = await record.glb.arrayBuffer();
       const glbBase64 = btoa(String.fromCharCode(...new Uint8Array(buf)));
-      const res = await fetch(`${API_BASE}/api/hero-ship`, {
+      const res = await fetch(`${API_BASE}/hero-ship`, {
         method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
         body: JSON.stringify({ meta: record.meta, glbBase64 }),
       });
       return res.ok;
