@@ -41,13 +41,13 @@ export function SpaceHUD({ renderer, onQuit }: SpaceHUDProps) {
   const [selectedPlanetId, setSelectedPlanetId] = useState<number | null>(null);
   const [selectedCmdId, setSelectedCmdId] = useState<number | null>(null);
 
-  // Re-render HUD at 10fps for perf
+  // Re-render HUD at 15fps for smoother counters
   useEffect(() => {
     let running = true;
     const tick = () => {
       if (!running) return;
       forceUpdate((n) => n + 1);
-      animRef.current = window.setTimeout(tick, 100);
+      animRef.current = window.setTimeout(tick, 66);
     };
     tick();
     return () => {

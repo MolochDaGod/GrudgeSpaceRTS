@@ -693,22 +693,37 @@ export class SpaceEngine {
     ab.activeTimer = ab.ability.duration;
     ab.cooldownRemaining = ab.ability.cooldown;
     res.energy -= ab.ability.energyCost;
-    if (ab.ability.type === 'barrel_roll') ship.animState = 'barrel_roll';
-    else if (ab.ability.type === 'speed_boost') {
+    if (ab.ability.type === 'barrel_roll') {
+      ship.animState = 'barrel_roll';
+      this.spawnSpriteEffect(ship.x, ship.y, 0, 'crossed', 0.8);
+    } else if (ab.ability.type === 'speed_boost') {
       ship.animState = 'speed_boost';
-      ship.baseSpeed = ship.speed; // snapshot current speed
-      ship.speed *= 1.5; // +50% speed for duration
-    } else if (ab.ability.type === 'cloak') ship.animState = 'cloaked';
-    else if (ab.ability.type === 'warp') ship.animState = 'warping';
-    else if (ab.ability.type === 'iron_dome') {
+      ship.baseSpeed = ship.speed;
+      ship.speed *= 1.5;
+      this.spawnSpriteEffect(ship.x, ship.y, 0, 'spark', 0.6);
+    } else if (ab.ability.type === 'cloak') {
+      ship.animState = 'cloaked';
+      this.spawnSpriteEffect(ship.x, ship.y, 0, 'spark', 1.0);
+    } else if (ab.ability.type === 'warp') {
+      ship.animState = 'warping';
+      this.spawnSpriteEffect(ship.x, ship.y, 0, 'crossed', 1.5);
+    } else if (ab.ability.type === 'iron_dome') {
       this.spawnSpriteEffect(ship.x, ship.y, 0, 'waveform', 3.0);
       this.spawnSpriteEffect(ship.x, ship.y, 0, 'bomb-low', 2.0);
     } else if (ab.ability.type === 'emp') {
       this.spawnSpriteEffect(ship.x, ship.y, 0, 'spark', 2.5);
       this.spawnSpriteEffect(ship.x, ship.y, 0, 'bomb-tiny', 1.5);
     } else if (ab.ability.type === 'ram') {
-      ship.baseSpeed = ship.speed; // snapshot current speed
-      ship.speed *= 2.5; // ram charge
+      ship.baseSpeed = ship.speed;
+      ship.speed *= 2.5;
+      this.spawnSpriteEffect(ship.x, ship.y, 0, 'charged', 1.2);
+    } else if (ab.ability.type === 'boarding') {
+      const tgt = ship.targetId ? this.state.ships.get(ship.targetId) : null;
+      if (tgt) this.spawnSpriteEffect(tgt.x, tgt.y, 0, 'hits-6', 1.0);
+    } else if (ab.ability.type === 'launch_fighters') {
+      this.spawnSpriteEffect(ship.x, ship.y, 0, 'bomb-low-2', 1.5);
+    } else if (ab.ability.type === 'repair') {
+      this.spawnSpriteEffect(ship.x, ship.y, 0, 'bomb-tiny-3', 0.8);
     }
     ship.animTimer = 0;
   }
@@ -744,6 +759,13 @@ export class SpaceEngine {
       homingStrength: 3,
       trailColor: TEAM_COLORS[src.team] ?? 0x4488ff,
     });
+    // ── Muzzle flash at shooter position ──
+    const MUZZLE_FX: Record<string, string> = { laser: 'bolt', missile: 'charged', railgun: 'crossed', pulse: 'pulse', torpedo: 'spark' };
+    const mfx = MUZZLE_FX[src.attackType] ?? 'bolt';
+    const isCapital = src.shipClass === 'battleship' || src.shipClass === 'dreadnought' || src.shipClass === 'carrier';
+    const isMed = src.shipClass === 'cruiser' || src.shipClass === 'destroyer' || src.shipClass === 'light_cruiser';
+    const mfxScale = isCapital ? 1.0 : isMed ? 0.7 : 0.4;
+    this.spawnSpriteEffect(src.x, src.y, 0, mfx, mfxScale);
     // SFX: weapon fire (only for player team to avoid spam)
     if (src.team === 1) {
       const sfx =
@@ -780,35 +802,49 @@ export class SpaceEngine {
       if (t && !t.dead && Math.sqrt((p.x - t.x) ** 2 + (p.y - t.y) ** 2) < 20) {
         this.applyDamage(t, p.damage);
         this.state.projectiles.delete(id);
-        // Hit flash — use bomb effect for torpedo/missile, standard hits for others
+        // Hit flash — weapon-type-specific effects
         if (p.type === 'torpedo' || p.type === 'missile') {
           const bombTier = p.type === 'torpedo' ? 'bomb-high' : 'bomb-mid';
           this.spawnSpriteEffect(t.x, t.y, 0, bombTier, p.type === 'torpedo' ? 2.0 : 1.4);
         } else {
-          const ht: HitFxType[] = ['hits-1', 'hits-2', 'hits-3', 'hits-4', 'hits-5', 'hits-6'];
-          this.spawnSpriteEffect(t.x, t.y, 0, ht[Math.floor(Math.random() * 6)], 0.6);
+          // Weapon-specific hit sprites
+          const HIT_MAP: Record<string, HitFxType> = { laser: 'hits-1', pulse: 'hits-2', railgun: 'hits-3' };
+          const hitType = HIT_MAP[p.type] ?? (['hits-4', 'hits-5', 'hits-6'] as const)[Math.floor(Math.random() * 3)];
+          this.spawnSpriteEffect(t.x, t.y, 0, hitType, 0.6);
+          // Impact overlay for extra punch
+          this.spawnSpriteEffect(t.x, t.y, 0, 'bomb-tiny', 0.4);
         }
         if (t.dead) {
           // ─ Layered death explosions scaled by ship class ─
           const isMega = t.shipClass === 'dreadnought' || t.shipClass === 'battleship';
           const isMed = t.shipClass === 'cruiser' || t.shipClass === 'destroyer' || t.shipClass === 'light_cruiser';
-          const sc = isMega ? 6 : isMed ? 3 : 1.2;
-          const et: ExplosionType = isMega ? 'explosion-1-e' : isMed ? 'explosion-1-d' : 'explosion-1-b';
-          // Primary blast
-          this.spawnSpriteEffect(t.x, t.y, 0, et, sc);
-          // Bomb cloud overlay for bigger ships
-          if (isMed || isMega) {
+          const isWorker = t.shipClass === 'worker';
+          const isSmall = t.shipClass === 'fighter' || t.shipClass === 'scout' || t.shipClass === 'interceptor';
+          if (isWorker) {
+            // Workers: tiny pop
+            this.spawnSpriteEffect(t.x, t.y, 0, 'bomb-tiny', 0.6);
+          } else if (isSmall) {
+            // Small ships: random from the lighter explosion variants
+            const smallEx: ExplosionType[] = ['explosion-1-a', 'explosion-1-b', 'explosion-1-g'];
+            this.spawnSpriteEffect(t.x, t.y, 0, smallEx[Math.floor(Math.random() * 3)], 1.2);
+            this.spawnSpriteEffect(t.x, t.y, 0, 'bomb-tiny-2', 0.5);
+          } else {
+            const sc = isMega ? 6 : isMed ? 3 : 1.8;
+            const et: ExplosionType = isMega ? 'explosion-1-e' : isMed ? 'explosion-1-d' : 'explosion-1-c';
+            // Primary blast
+            this.spawnSpriteEffect(t.x, t.y, 0, et, sc);
+            // Bomb cloud overlay for bigger ships
             this.spawnSpriteEffect(t.x, t.y, 0, 'bomb-high-3', sc * 0.7);
-          }
-          // Secondary debris cloud (offset)
-          if (isMed || isMega) {
+            // Secondary debris cloud (offset)
             this.spawnSpriteEffect(t.x + 30, t.y - 20, 0, 'explosion-1-c', sc * 0.6);
             this.spawnSpriteEffect(t.x - 20, t.y + 25, 0, 'explosion-1-a', sc * 0.5);
-          }
-          // Mega ships: third wave + shockwave ring
-          if (isMega) {
-            this.spawnSpriteEffect(t.x, t.y, 0, 'explosion-b', sc * 0.8);
-            this.spawnSpriteEffect(t.x + 60, t.y + 40, 0, 'explosion-1-f', sc * 0.4);
+            // Mega ships: third wave + sparkle overlay + extra bomb cloud
+            if (isMega) {
+              this.spawnSpriteEffect(t.x, t.y, 0, 'explosion-b', sc * 0.8);
+              this.spawnSpriteEffect(t.x + 60, t.y + 40, 0, 'explosion-1-f', sc * 0.4);
+              this.spawnSpriteEffect(t.x - 40, t.y - 50, 0, 'explosion-1-g', sc * 0.5);
+              this.spawnSpriteEffect(t.x + 20, t.y - 30, 0, 'bomb-high-2', sc * 0.6);
+            }
           }
           // Grant XP to killing ship
           const killer = this.state.ships.get(p.sourceId);
@@ -830,10 +866,16 @@ export class SpaceEngine {
     let r = damage;
     // Juggernaut role: 30% incoming damage reduction
     if (SHIP_ROLES[ship.shipType] === 'juggernaut') r *= 0.7;
+    const hadShield = ship.shield > 0;
     if (ship.shield > 0) {
       const ab = Math.min(ship.shield, r);
       ship.shield -= ab;
       r -= ab;
+    }
+    // Shield break flash
+    if (hadShield && ship.shield <= 0) {
+      this.spawnSpriteEffect(ship.x, ship.y, 0, 'waveform', 1.2);
+      this.spawnSpriteEffect(ship.x, ship.y, 0, 'bomb-tiny-2', 0.8);
     }
     r = Math.max(0, r - ship.armor);
     ship.hp -= r;
@@ -1356,6 +1398,8 @@ export class SpaceEngine {
         } else {
           this.applyDamage(target, def.attackDamage);
           this.spawnSpriteEffect(target.x, target.y, 0, 'hits-3', 0.6);
+          // Turret muzzle flash
+          this.spawnSpriteEffect(t.x, t.y, 0, 'bolt', 0.5);
           t.attackTimer = def.attackCooldown;
         }
       }
