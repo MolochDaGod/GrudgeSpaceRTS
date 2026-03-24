@@ -24,6 +24,9 @@ import {
   type EnemyColorMode,
   type TeamColorPrefs,
   applyColorPreferences,
+  type SpaceFaction,
+  FACTION_DATA,
+  CAMPAIGN_LORE_INTRO,
 } from './game/space-types';
 import { UPGRADE_HUD_ICONS, SHIP_PREVIEW as SHARED_SHIP_PREVIEW } from './game/space-ui-shared';
 import { Panel, Btn, Slot, SmallPanel } from './game/ui-lib';
@@ -331,6 +334,8 @@ export default function App() {
   const [gameMode, setGameMode] = useState<GameMode>('1v1');
   const [starMapOpen, setStarMapOpen] = useState(false);
   const [showCmdModal, setShowCmdModal] = useState(false);
+  const [showCampaignIntro, setShowCampaignIntro] = useState(false);
+  const [selectedFaction, setSelectedFaction] = useState<SpaceFaction>('legion');
   const [selectedSpec, setSelectedSpec] = useState<CommanderSpec>('forge');
   const [playerColorIdx, setPlayerColorIdx] = useState(0); // Blue default
   const [enemyColorMode, setEnemyColorMode] = useState<EnemyColorMode>('unique');
@@ -348,32 +353,42 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKey);
   }, [screen, renderer]);
 
-  const launchWithSpec = useCallback(async (mode: GameMode, spec: CommanderSpec, colorPrefs: TeamColorPrefs) => {
-    if (!containerRef.current) return;
-    if (rendererRef.current) {
-      rendererRef.current.dispose();
-      rendererRef.current = null;
-    }
-    // Apply color preferences before anything initializes
-    applyColorPreferences(colorPrefs);
-    setShowCmdModal(false);
-    setLoading(true);
-    setScreen('playing');
-    // Load remote balance overrides before engine init (non-blocking on failure)
-    await loadRemoteBalance();
-    const r = new SpaceRenderer(containerRef.current, mode);
-    rendererRef.current = r;
-    r.playerCommanderSpec = spec;
-    try {
-      r.hasCustomHero = await hasHeroShip();
-    } catch {
-      /* no hero */
-    }
-    r.init().then(() => {
-      setLoading(false);
-      setRenderer(r);
-    });
-  }, []);
+  const launchWithSpec = useCallback(
+    async (mode: GameMode, spec: CommanderSpec, colorPrefs: TeamColorPrefs) => {
+      if (!containerRef.current) return;
+      if (rendererRef.current) {
+        rendererRef.current.dispose();
+        rendererRef.current = null;
+      }
+      // Apply color preferences before anything initializes
+      applyColorPreferences(colorPrefs);
+      setShowCmdModal(false);
+      setLoading(true);
+      setScreen('playing');
+      // Load remote balance overrides before engine init (non-blocking on failure)
+      await loadRemoteBalance();
+      const r = new SpaceRenderer(containerRef.current, mode);
+      rendererRef.current = r;
+      r.playerCommanderSpec = spec;
+      // Campaign-specific: set faction + grudgeId on engine
+      if (mode === 'campaign') {
+        r.engine.campaignFaction = (r as any)._campaignFaction ?? 'legion';
+        r.engine.campaignGrudgeId = authUser?.grudgeId ?? 'guest';
+        r.engine.campaignCommanderName = authUser?.displayName ?? 'Commander';
+        r.engine.campaignPortrait = authUser?.avatarUrl ?? null;
+      }
+      try {
+        r.hasCustomHero = await hasHeroShip();
+      } catch {
+        /* no hero */
+      }
+      r.init().then(() => {
+        setLoading(false);
+        setRenderer(r);
+      });
+    },
+    [authUser],
+  );
 
   const backToMenu = useCallback(() => {
     if (rendererRef.current) {
@@ -728,6 +743,7 @@ function MainMenu({
     { key: '1v1', label: 'INNER SYSTEM', desc: '2 commanders · 7 planets · Solar System Scrim' },
     { key: '2v2', label: 'OUTER SYSTEM', desc: '4 commanders · 14 planets · Solar System Scrim' },
     { key: 'ffa4', label: 'FULL SECTOR', desc: '4 commanders · 14 planets · Free-for-All Scrim' },
+    { key: 'campaign', label: "CAPTAIN'S CAMPAIGN", desc: 'Endless conquest · Your shattered homeworld · AI story' },
   ];
   return (
     <div

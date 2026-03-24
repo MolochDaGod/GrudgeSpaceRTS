@@ -449,6 +449,66 @@ export function ResBox({ icon, value, rate, color }: { icon: ReactNode; value: n
   );
 }
 
+// ── Tooltip: styled hover popup with game-art background ───────────
+export function Tooltip({
+  text,
+  title,
+  children,
+  position = 'top',
+}: {
+  text: string;
+  title?: string;
+  children: ReactNode;
+  position?: 'top' | 'bottom' | 'left' | 'right';
+}) {
+  const [show, setShow] = useState(false);
+  const posStyle: CSSProperties =
+    position === 'top'
+      ? { bottom: '100%', left: '50%', transform: 'translateX(-50%)', marginBottom: 6 }
+      : position === 'bottom'
+        ? { top: '100%', left: '50%', transform: 'translateX(-50%)', marginTop: 6 }
+        : position === 'right'
+          ? { left: '100%', top: '50%', transform: 'translateY(-50%)', marginLeft: 6 }
+          : { right: '100%', top: '50%', transform: 'translateY(-50%)', marginRight: 6 };
+  return (
+    <div style={{ position: 'relative', display: 'inline-flex' }} onMouseEnter={() => setShow(true)} onMouseLeave={() => setShow(false)}>
+      {children}
+      {show && (
+        <div
+          style={{
+            position: 'absolute',
+            zIndex: 9999,
+            pointerEvents: 'none',
+            whiteSpace: 'nowrap',
+            backgroundImage: `url(${H}/BgSettingSmallBox.png)`,
+            backgroundSize: '100% 100%',
+            padding: '6px 12px',
+            minWidth: 80,
+            filter: 'drop-shadow(0 2px 8px rgba(0,0,0,0.7))',
+            ...posStyle,
+          }}
+        >
+          {title && (
+            <div
+              style={{
+                fontSize: 10,
+                fontWeight: 800,
+                color: '#fff',
+                letterSpacing: 1,
+                marginBottom: 2,
+                textShadow: '0 0 6px rgba(68,255,200,0.4)',
+              }}
+            >
+              {title}
+            </div>
+          )}
+          <div style={{ fontSize: 9, color: 'rgba(160,200,255,0.8)', lineHeight: 1.4 }}>{text}</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Img helper: loads with fallback ─────────────────────────────────
 export function Img({ src, alt, style, fallback }: { src: string; alt?: string; style?: CSSProperties; fallback?: ReactNode }) {
   const [err, setErr] = useState(false);
