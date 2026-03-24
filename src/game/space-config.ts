@@ -106,6 +106,34 @@ export const PLANET_TYPE_DATA: Record<PlanetType, PlanetTypeData> = {
     techFocus: 'Cryo Tech',
     baseColor: 0x88aacc,
   },
+  plasma: {
+    label: 'Plasma',
+    resourceMult: { credits: 0.7, energy: 2.5, minerals: 0.6 },
+    upgradeDiscount: 'attack',
+    techFocus: 'Plasma Tech',
+    baseColor: 0xff66aa,
+  },
+  fungal: {
+    label: 'Fungal',
+    resourceMult: { credits: 1.3, energy: 1.3, minerals: 1.0 },
+    upgradeDiscount: 'health',
+    techFocus: 'Bio-Organic Tech',
+    baseColor: 0x66aa44,
+  },
+  metallic: {
+    label: 'Metallic',
+    resourceMult: { credits: 1.0, energy: 0.5, minerals: 2.5 },
+    upgradeDiscount: 'armor',
+    techFocus: 'Alloy Tech',
+    baseColor: 0xaaaacc,
+  },
+  dark_matter: {
+    label: 'Dark Matter',
+    resourceMult: { credits: 1.5, energy: 1.5, minerals: 1.5 },
+    upgradeDiscount: 'speed',
+    techFocus: 'Void Tech',
+    baseColor: 0x6622aa,
+  },
 };
 
 // ── VFX Scale Values ──────────────────────────────────────────────
@@ -838,6 +866,13 @@ export const PLANET_SHIP_UNLOCKS: Record<PlanetType, { ships: string[]; reason: 
   crystalline: { ships: ['cf_light_cruiser_05', 'cf_frigate_05'], reason: 'Crystalline lattices power precision energy weapons' },
   gas_giant: { ships: ['cf_light_cruiser_02', 'cf_destroyer_03'], reason: 'Gas giant isotopes fuel capital-class warp drives' },
   frozen: { ships: ['cf_corvette_02', 'cf_frigate_02'], reason: 'Cryo-minerals enable advanced torpedo warheads' },
+  plasma: { ships: ['cf_light_cruiser_01', 'cf_destroyer_01'], reason: 'Plasma conduits power devastating energy lance arrays' },
+  fungal: {
+    ships: ['star_marine_trooper', 'interstellar_runner'],
+    reason: 'Bio-organic compounds enable advanced boarding pods and repair drones',
+  },
+  metallic: { ships: ['cf_light_cruiser_04', 'cf_destroyer_04'], reason: 'Dense alloy cores enable ultra-heavy armor plating' },
+  dark_matter: { ships: ['cf_light_cruiser_03', 'cf_frigate_04'], reason: 'Dark matter reactors power void-phase stealth systems' },
 };
 
 /** Get all ships unlocked by currently owned planets. */

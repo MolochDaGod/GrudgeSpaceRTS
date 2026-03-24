@@ -104,7 +104,17 @@ export interface GameEntity {
 
 // ── Space Ship ──────────────────────────────────────────────────
 // ── Planet Types ────────────────────────────────────────────────
-export type PlanetType = 'volcanic' | 'oceanic' | 'barren' | 'crystalline' | 'gas_giant' | 'frozen';
+export type PlanetType =
+  | 'volcanic'
+  | 'oceanic'
+  | 'barren'
+  | 'crystalline'
+  | 'gas_giant'
+  | 'frozen'
+  | 'plasma'
+  | 'fungal'
+  | 'metallic'
+  | 'dark_matter';
 export type ResourceNodeKind = 'moon' | 'asteroid' | 'ice_rock' | 'crystal_deposit' | 'home_chunk';
 
 export interface PlanetTypeData {
