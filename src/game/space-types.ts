@@ -390,12 +390,16 @@ export interface FactionShipTree {
   capstoneNodeId: string; // the hero ship node
 }
 
+export type CommanderArchetype = 'caster' | 'tank' | 'strategist';
+
 export interface FactionCommander {
   id: string; // unique key (e.g. 'wisdom_lyra')
   name: string;
   faction: SpaceFaction;
+  archetype: CommanderArchetype;
   portraitIndex: number; // index into commanders-bg PNG pack (1-20)
-  bonus: { stat: string; value: number; label: string };
+  bonuses: { stat: string; value: number }[]; // all under 7% at start
+  bonusLabel: string; // short display string
   startingUnlock: string; // ship tree node ID unlocked for free at start
   lore: string;
 }

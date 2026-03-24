@@ -477,6 +477,290 @@ export const PLANET_LEVEL_TURRET_SLOTS = [2, 3, 4, 5, 6];
 /** Supply bonus per planet level. */
 export const PLANET_LEVEL_SUPPLY_BONUS = [0, 5, 10, 15, 25];
 
+// ── Spark System ───────────────────────────────────────────
+import type { SparkShipNode, FactionShipTree, FactionCommander, CommanderArchetype } from './space-types';
+
+export const SPARK_GAINS = {
+  planetCapture: 10,
+  shipKill: 1,
+  capitalKill: 3, // dreadnought, battleship, cruiser
+  neutralKill: 1,
+  majorBattle: 5, // 5+ enemy ships destroyed in 30s
+  techResearch: 3,
+  globalUpgrade: 2, // per upgrade level purchased
+  commanderLevelUp: 5,
+  passivePerMinute: 1, // commander genius over time
+  campaignEventMin: 2,
+  campaignEventMax: 15,
+};
+
+/** Ships each faction starts with (buildable without any Spark). */
+export const FACTION_STARTER_SHIPS: Record<SpaceFaction, string[]> = {
+  wisdom: ['micro_recon', 'galactix_racer', 'energy_skimmer'],
+  construct: ['cf_corvette_01', 'dual_striker', 'mining_drone'],
+  void: ['cf_corvette_05', 'camo_stellar_jet', 'energy_skimmer'],
+  legion: ['red_fighter', 'cf_corvette_01', 'mining_drone'],
+};
+
+/** 12 faction commanders — 3 per faction (caster / tank / strategist). All bonuses under 7%. */
+export const FACTION_COMMANDERS: FactionCommander[] = [
+  // Wisdom
+  {
+    id: 'wisdom_lyra',
+    name: 'Lyra Axiom',
+    faction: 'wisdom',
+    archetype: 'caster',
+    portraitIndex: 9,
+    bonuses: [{ stat: 'cooldownReduction', value: 0.05 }],
+    bonusLabel: '+5% Cooldown Reduction',
+    startingUnlock: 'w_infrared',
+    lore: 'Her mind processes battle data faster than any AI.',
+  },
+  {
+    id: 'wisdom_solis',
+    name: 'Solis Prism',
+    faction: 'wisdom',
+    archetype: 'tank',
+    portraitIndex: 3,
+    bonuses: [{ stat: 'shieldRegen', value: 0.04 }],
+    bonusLabel: '+4% Shield Regen',
+    startingUnlock: 'w_corvette_04',
+    lore: 'A crystalline shield around every ship in his fleet.',
+  },
+  {
+    id: 'wisdom_nova',
+    name: 'Nova Sage',
+    faction: 'wisdom',
+    archetype: 'strategist',
+    portraitIndex: 7,
+    bonuses: [{ stat: 'energyIncome', value: 0.05 }],
+    bonusLabel: '+5% Energy Income',
+    startingUnlock: 'w_runner',
+    lore: 'Every resource is a weapon in the right hands.',
+  },
+  // Construct
+  {
+    id: 'construct_vex',
+    name: 'Vex Forge',
+    faction: 'construct',
+    archetype: 'caster',
+    portraitIndex: 1,
+    bonuses: [{ stat: 'buildSpeed', value: 0.05 }],
+    bonusLabel: '+5% Build Speed',
+    startingUnlock: 'c_warship',
+    lore: 'Forges ships from raw asteroid in record time.',
+  },
+  {
+    id: 'construct_orn',
+    name: 'Orn Bastion',
+    faction: 'construct',
+    archetype: 'tank',
+    portraitIndex: 5,
+    bonuses: [{ stat: 'armor', value: 0.06 }],
+    bonusLabel: '+6% Armor',
+    startingUnlock: 'c_frigate_03',
+    lore: 'His hull plating has never been breached.',
+  },
+  {
+    id: 'construct_drak',
+    name: 'Drak Anvil',
+    faction: 'construct',
+    archetype: 'strategist',
+    portraitIndex: 11,
+    bonuses: [{ stat: 'mineralIncome', value: 0.04 }],
+    bonusLabel: '+4% Mineral Income',
+    startingUnlock: 'c_intruder',
+    lore: "The galaxy's greatest mining architect.",
+  },
+  // Void
+  {
+    id: 'void_nyx',
+    name: 'Nyx Shadow',
+    faction: 'void',
+    archetype: 'caster',
+    portraitIndex: 13,
+    bonuses: [{ stat: 'cloakDuration', value: 0.05 }],
+    bonusLabel: '+5% Cloak Duration',
+    startingUnlock: 'v_infrared',
+    lore: 'Invisible. Untouchable. Everywhere at once.',
+  },
+  {
+    id: 'void_zar',
+    name: 'Zar Rift',
+    faction: 'void',
+    archetype: 'tank',
+    portraitIndex: 17,
+    bonuses: [{ stat: 'health', value: 0.04 }],
+    bonusLabel: '+4% HP',
+    startingUnlock: 'v_frigate_04',
+    lore: 'Survived the void itself. Nothing kills him twice.',
+  },
+  {
+    id: 'void_kira',
+    name: 'Kira Null',
+    faction: 'void',
+    archetype: 'strategist',
+    portraitIndex: 15,
+    bonuses: [{ stat: 'speed', value: 0.05 }],
+    bonusLabel: '+5% Speed',
+    startingUnlock: 'v_slicer',
+    lore: 'Strikes before the enemy knows she exists.',
+  },
+  // Legion
+  {
+    id: 'legion_thar',
+    name: 'Thar Warcry',
+    faction: 'legion',
+    archetype: 'caster',
+    portraitIndex: 2,
+    bonuses: [{ stat: 'attack', value: 0.05 }],
+    bonusLabel: '+5% Attack Damage',
+    startingUnlock: 'l_corvette_02',
+    lore: 'His battle cry alone has shattered enemy morale.',
+  },
+  {
+    id: 'legion_rynn',
+    name: 'Rynn Striker',
+    faction: 'legion',
+    archetype: 'tank',
+    portraitIndex: 6,
+    bonuses: [{ stat: 'supply', value: 0.06 }],
+    bonusLabel: '+6% Fleet Supply',
+    startingUnlock: 'l_dual_striker',
+    lore: 'Where one falls, ten more take their place.',
+  },
+  {
+    id: 'legion_axon',
+    name: 'Axon Swarm',
+    faction: 'legion',
+    archetype: 'strategist',
+    portraitIndex: 10,
+    bonuses: [
+      { stat: 'buildSpeed', value: 0.03 },
+      { stat: 'sparkGain', value: 0.03 },
+    ],
+    bonusLabel: '+3% Build +3% Spark',
+    startingUnlock: 'l_marine',
+    lore: 'Efficiency is the ultimate weapon of war.',
+  },
+];
+
+/** Get commanders for a specific faction. */
+export function getFactionCommanders(faction: SpaceFaction): FactionCommander[] {
+  return FACTION_COMMANDERS.filter((c) => c.faction === faction);
+}
+
+// ── Faction Ship Trees ─────────────────────────────────────
+export const FACTION_SHIP_TREES: Record<SpaceFaction, FactionShipTree> = {
+  wisdom: {
+    faction: 'wisdom',
+    capstoneNodeId: 'w_oracle',
+    nodes: [
+      // Left branch: scout → support
+      { id: 'w_corvette_01', shipType: 'cf_corvette_01', sparkCost: 5, requires: [], x: 20, y: 20 },
+      { id: 'w_infrared', shipType: 'infrared_furtive', sparkCost: 10, requires: ['w_corvette_01'], x: 20, y: 40 },
+      { id: 'w_runner', shipType: 'interstellar_runner', sparkCost: 15, requires: ['w_infrared'], x: 10, y: 60 },
+      { id: 'w_frigate_01', shipType: 'cf_frigate_01', sparkCost: 12, requires: ['w_infrared'], x: 30, y: 60 },
+      { id: 'w_lc_01', shipType: 'cf_light_cruiser_01', sparkCost: 25, requires: ['w_frigate_01'], x: 30, y: 80 },
+      // Right branch: fighter → assault
+      { id: 'w_racer', shipType: 'galactix_racer', sparkCost: 5, requires: [], x: 70, y: 20 },
+      { id: 'w_camo', shipType: 'camo_stellar_jet', sparkCost: 15, requires: ['w_racer'], x: 60, y: 40 },
+      { id: 'w_corvette_04', shipType: 'cf_corvette_04', sparkCost: 12, requires: ['w_racer'], x: 80, y: 40 },
+      { id: 'w_pyramid', shipType: 'pyramid_ship', sparkCost: 30, requires: ['w_camo'], x: 60, y: 65 },
+      { id: 'w_lc_02', shipType: 'cf_light_cruiser_02', sparkCost: 28, requires: ['w_corvette_04'], x: 80, y: 65 },
+      // Capstone
+      {
+        id: 'w_oracle',
+        shipType: 'hero_wisdom_oracle',
+        sparkCost: 50,
+        requires: ['w_lc_01', 'w_pyramid'],
+        x: 50,
+        y: 95,
+        factionResourceCost: 50,
+      },
+    ],
+  },
+  construct: {
+    faction: 'construct',
+    capstoneNodeId: 'c_titan',
+    nodes: [
+      { id: 'c_corvette_02', shipType: 'cf_corvette_02', sparkCost: 5, requires: [], x: 20, y: 20 },
+      { id: 'c_warship', shipType: 'warship', sparkCost: 15, requires: ['c_corvette_02'], x: 15, y: 40 },
+      { id: 'c_frigate_03', shipType: 'cf_frigate_03', sparkCost: 12, requires: ['c_corvette_02'], x: 35, y: 40 },
+      { id: 'c_destroyer_01', shipType: 'cf_destroyer_01', sparkCost: 25, requires: ['c_warship'], x: 15, y: 60 },
+      { id: 'c_destroyer_04', shipType: 'cf_destroyer_04', sparkCost: 28, requires: ['c_frigate_03'], x: 35, y: 60 },
+      { id: 'c_striker', shipType: 'dual_striker', sparkCost: 5, requires: [], x: 70, y: 20 },
+      { id: 'c_intruder', shipType: 'ultraviolet_intruder', sparkCost: 15, requires: ['c_striker'], x: 60, y: 40 },
+      { id: 'c_frigate_02', shipType: 'cf_frigate_02', sparkCost: 10, requires: ['c_striker'], x: 80, y: 40 },
+      { id: 'c_bomber', shipType: 'bomber', sparkCost: 30, requires: ['c_intruder'], x: 60, y: 65 },
+      { id: 'c_lc_04', shipType: 'cf_light_cruiser_04', sparkCost: 28, requires: ['c_frigate_02'], x: 80, y: 65 },
+      {
+        id: 'c_titan',
+        shipType: 'hero_construct_titan',
+        sparkCost: 55,
+        requires: ['c_destroyer_01', 'c_bomber'],
+        x: 50,
+        y: 95,
+        factionResourceCost: 60,
+      },
+    ],
+  },
+  void: {
+    faction: 'void',
+    capstoneNodeId: 'v_wraith',
+    nodes: [
+      { id: 'v_corvette_05', shipType: 'cf_corvette_05', sparkCost: 5, requires: [], x: 20, y: 20 },
+      { id: 'v_camo', shipType: 'camo_stellar_jet', sparkCost: 12, requires: ['v_corvette_05'], x: 15, y: 40 },
+      { id: 'v_frigate_04', shipType: 'cf_frigate_04', sparkCost: 15, requires: ['v_corvette_05'], x: 35, y: 40 },
+      { id: 'v_infrared', shipType: 'infrared_furtive', sparkCost: 20, requires: ['v_camo'], x: 15, y: 60 },
+      { id: 'v_destroyer_03', shipType: 'cf_destroyer_03', sparkCost: 28, requires: ['v_frigate_04'], x: 35, y: 60 },
+      { id: 'v_racer', shipType: 'galactix_racer', sparkCost: 5, requires: [], x: 70, y: 20 },
+      { id: 'v_slicer', shipType: 'meteor_slicer', sparkCost: 10, requires: ['v_racer'], x: 60, y: 40 },
+      { id: 'v_frigate_05', shipType: 'cf_frigate_05', sparkCost: 15, requires: ['v_racer'], x: 80, y: 40 },
+      { id: 'v_corvette_03', shipType: 'cf_corvette_03', sparkCost: 18, requires: ['v_slicer'], x: 60, y: 60 },
+      { id: 'v_lc_03', shipType: 'cf_light_cruiser_03', sparkCost: 25, requires: ['v_frigate_05'], x: 80, y: 60 },
+      {
+        id: 'v_wraith',
+        shipType: 'hero_void_wraith',
+        sparkCost: 45,
+        requires: ['v_infrared', 'v_corvette_03'],
+        x: 50,
+        y: 95,
+        factionResourceCost: 45,
+      },
+    ],
+  },
+  legion: {
+    faction: 'legion',
+    capstoneNodeId: 'l_warlord',
+    nodes: [
+      { id: 'l_corvette_01', shipType: 'cf_corvette_01', sparkCost: 4, requires: [], x: 20, y: 20 },
+      { id: 'l_corvette_02', shipType: 'cf_corvette_02', sparkCost: 8, requires: ['l_corvette_01'], x: 15, y: 40 },
+      { id: 'l_corvette_03', shipType: 'cf_corvette_03', sparkCost: 10, requires: ['l_corvette_01'], x: 35, y: 40 },
+      { id: 'l_frigate_01', shipType: 'cf_frigate_01', sparkCost: 15, requires: ['l_corvette_02'], x: 15, y: 60 },
+      { id: 'l_frigate_04', shipType: 'cf_frigate_04', sparkCost: 18, requires: ['l_corvette_03'], x: 35, y: 60 },
+      { id: 'l_dual_striker', shipType: 'dual_striker', sparkCost: 5, requires: [], x: 70, y: 20 },
+      { id: 'l_warship', shipType: 'warship', sparkCost: 12, requires: ['l_dual_striker'], x: 60, y: 40 },
+      { id: 'l_marine', shipType: 'star_marine_trooper', sparkCost: 15, requires: ['l_dual_striker'], x: 80, y: 40 },
+      { id: 'l_destroyer', shipType: 'destroyer', sparkCost: 25, requires: ['l_warship'], x: 60, y: 65 },
+      { id: 'l_cruiser', shipType: 'cruiser', sparkCost: 30, requires: ['l_marine'], x: 80, y: 65 },
+      {
+        id: 'l_warlord',
+        shipType: 'hero_legion_warlord',
+        sparkCost: 50,
+        requires: ['l_destroyer', 'l_cruiser'],
+        x: 50,
+        y: 95,
+        factionResourceCost: 55,
+      },
+    ],
+  },
+};
+
+/** Battleship is shared across all factions — unlocks at 60 total Spark earned. */
+export const SHARED_SHIP_UNLOCK_THRESHOLD = 60;
+export const SHARED_SHIPS = ['battleship'];
+
 // ── Tech Bonuses Default ────────────────────────────────────────
 export function defaultTechBonuses(): TeamTechBonuses {
   return {
