@@ -27,7 +27,12 @@ import {
   type SpaceFaction,
   FACTION_DATA,
   CAMPAIGN_LORE_INTRO,
+  type CommanderOrigin,
+  type CommanderPersonality,
+  type CommanderMotivation,
+  type CommanderBuild,
 } from './game/space-types';
+import { authFetch } from './game/grudge-auth';
 import { UPGRADE_HUD_ICONS, SHIP_PREVIEW as SHARED_SHIP_PREVIEW } from './game/space-ui-shared';
 import { Panel, Btn, Slot, SmallPanel } from './game/ui-lib';
 import { gameAudio } from './game/space-audio';
@@ -334,8 +339,9 @@ export default function App() {
   const [gameMode, setGameMode] = useState<GameMode>('1v1');
   const [starMapOpen, setStarMapOpen] = useState(false);
   const [showCmdModal, setShowCmdModal] = useState(false);
-  const [showCampaignIntro, setShowCampaignIntro] = useState(false);
+  const [showCampaignBuilder, setShowCampaignBuilder] = useState(false);
   const [selectedFaction, setSelectedFaction] = useState<SpaceFaction>('legion');
+  const [campaignBuild, setCampaignBuild] = useState<CommanderBuild | null>(null);
   const [selectedSpec, setSelectedSpec] = useState<CommanderSpec>('forge');
   const [playerColorIdx, setPlayerColorIdx] = useState(0); // Blue default
   const [enemyColorMode, setEnemyColorMode] = useState<EnemyColorMode>('unique');
@@ -370,9 +376,14 @@ export default function App() {
       const r = new SpaceRenderer(containerRef.current, mode);
       rendererRef.current = r;
       r.playerCommanderSpec = spec;
-      // Campaign-specific: set faction + grudgeId on engine
-      if (mode === 'campaign') {
-        r.engine.campaignFaction = (r as any)._campaignFaction ?? 'legion';
+      // Campaign-specific: set faction + grudgeId + commander build on engine
+      if (mode === 'campaign' && campaignBuild) {
+        r.engine.campaignFaction = campaignBuild.faction;
+        r.engine.campaignGrudgeId = authUser?.grudgeId ?? 'guest';
+        r.engine.campaignCommanderName = campaignBuild.name;
+        r.engine.campaignPortrait = campaignBuild.portraitUrl;
+      } else if (mode === 'campaign') {
+        r.engine.campaignFaction = selectedFaction;
         r.engine.campaignGrudgeId = authUser?.grudgeId ?? 'guest';
         r.engine.campaignCommanderName = authUser?.displayName ?? 'Commander';
         r.engine.campaignPortrait = authUser?.avatarUrl ?? null;
@@ -415,6 +426,7 @@ export default function App() {
       {screen === 'menu' && (
         <MainMenu
           onStart={() => setShowCmdModal(true)}
+          onCampaign={() => setShowCampaignBuilder(true)}
           onCodex={() => setScreen('codex')}
           onHowTo={() => setScreen('howto')}
           onEditor={() => setScreen('editor')}
@@ -437,6 +449,24 @@ export default function App() {
           setEnemyColorIdx={setEnemyColorIdx}
           onConfirm={() => launchWithSpec(gameMode, selectedSpec, { playerColorIdx, enemyColorMode, enemyColorIdx })}
           onCancel={() => setShowCmdModal(false)}
+        />
+      )}
+      {showCampaignBuilder && (
+        <CampaignBuilderModal
+          user={authUser}
+          onComplete={(build) => {
+            setCampaignBuild(build);
+            setShowCampaignBuilder(false);
+            // Map origin to commander spec for engine compatibility
+            const specMap: Record<CommanderOrigin, CommanderSpec> = {
+              scientist: 'prism',
+              engineer: 'forge',
+              soldier: 'tide',
+              outcast: 'void',
+            };
+            launchWithSpec('campaign', specMap[build.origin] ?? 'forge', { playerColorIdx, enemyColorMode, enemyColorIdx });
+          }}
+          onCancel={() => setShowCampaignBuilder(false)}
         />
       )}
       {screen === 'codex' && <ShipCodex onBack={() => setScreen('menu')} />}
@@ -720,6 +750,7 @@ function CommanderSelectModal({
 // ── Main Menu ─────────────────────────────────────────────────────
 function MainMenu({
   onStart,
+  onCampaign,
   onCodex,
   onHowTo,
   onEditor,
@@ -730,6 +761,7 @@ function MainMenu({
   onLogout,
 }: {
   onStart: () => void;
+  onCampaign: () => void;
   onCodex: () => void;
   onHowTo: () => void;
   onEditor: () => void;
@@ -953,12 +985,12 @@ function MainMenu({
               Build your base · Conquer the galaxy
             </div>
             <Btn
-              label="START CAMPAIGN"
+              label="CREATE COMMANDER"
               wide
               active={mode === 'campaign'}
               onClick={() => {
                 setMode('campaign');
-                onStart();
+                onCampaign();
               }}
               style={{ width: '100%', height: 40 }}
             />
@@ -972,6 +1004,289 @@ function MainMenu({
           <Btn label="ADMIN" onClick={() => window.open('/admin.html', '_blank')} style={{ minWidth: 70 }} />
         </div>
       </div>
+    </div>
+  );
+}
+
+// ── Campaign Commander Builder Modal ────────────────────────
+const ORIGINS: { key: CommanderOrigin; label: string; icon: string; desc: string; faction: SpaceFaction }[] = [
+  { key: 'scientist', label: 'Scientist', icon: '🔬', desc: 'Knowledge drives you. Research faster, see further.', faction: 'wisdom' },
+  { key: 'engineer', label: 'Engineer', icon: '⚙️', desc: 'You build. Faster construction, stronger structures.', faction: 'construct' },
+  { key: 'soldier', label: 'Soldier', icon: '⚔️', desc: 'War is all you know. Bigger fleets, harder hits.', faction: 'legion' },
+  { key: 'outcast', label: 'Outcast', icon: '🕳️', desc: 'Cast out. You learned the dark arts of the void.', faction: 'void' },
+];
+const PERSONALITIES: { key: CommanderPersonality; label: string; icon: string }[] = [
+  { key: 'strategic', label: 'Strategic', icon: '🎯' },
+  { key: 'aggressive', label: 'Aggressive', icon: '🔥' },
+  { key: 'diplomatic', label: 'Diplomatic', icon: '🤝' },
+  { key: 'mysterious', label: 'Mysterious', icon: '🌙' },
+];
+const MOTIVATIONS: { key: CommanderMotivation; label: string; icon: string }[] = [
+  { key: 'knowledge', label: 'Knowledge', icon: '📚' },
+  { key: 'survival', label: 'Survival', icon: '🛡️' },
+  { key: 'revenge', label: 'Revenge', icon: '💢' },
+  { key: 'legacy', label: 'Legacy', icon: '⭐' },
+];
+
+function CampaignBuilderModal({
+  user,
+  onComplete,
+  onCancel,
+}: {
+  user: GrudgeUser | null;
+  onComplete: (build: CommanderBuild) => void;
+  onCancel: () => void;
+}) {
+  const [step, setStep] = useState(0); // 0=name, 1=origin, 2=personality, 3=motivation, 4=generating, 5=done
+  const [name, setName] = useState(user?.displayName ?? '');
+  const [origin, setOrigin] = useState<CommanderOrigin>('soldier');
+  const [personality, setPersonality] = useState<CommanderPersonality>('strategic');
+  const [motivation, setMotivation] = useState<CommanderMotivation>('survival');
+  const [portraitUrl, setPortraitUrl] = useState<string | null>(null);
+  const [portraitPrompt, setPortraitPrompt] = useState('');
+  const [generating, setGenerating] = useState(false);
+
+  const faction = ORIGINS.find((o) => o.key === origin)?.faction ?? 'legion';
+  const fData = FACTION_DATA[faction];
+
+  const generatePortrait = async () => {
+    setGenerating(true);
+    setStep(4);
+    try {
+      const API_URL = import.meta.env.VITE_GRUDGE_API ?? '';
+      if (API_URL) {
+        const res = await authFetch(`${API_URL}/ai/narrate/portrait`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, origin, personality, motivation, faction }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setPortraitUrl(data.imageUrl || null);
+          setPortraitPrompt(data.prompt || '');
+        }
+      }
+    } catch {
+      /* fallback to default portrait */
+    }
+    setGenerating(false);
+    setStep(5);
+  };
+
+  const finish = () => {
+    onComplete({ name: name || 'Commander', origin, personality, motivation, faction, portraitUrl, portraitPrompt });
+  };
+
+  const fallbackPortrait = `/assets/space/ui/commanders-bg/${{ scientist: 9, engineer: 1, soldier: 5, outcast: 13 }[origin]}.png`;
+
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        inset: 0,
+        zIndex: 200,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: 'rgba(0,0,0,0.92)',
+        fontFamily: "'Segoe UI', monospace",
+        color: '#cde',
+      }}
+    >
+      <Panel title="FORGE YOUR COMMANDER" onClose={onCancel} width={640} style={{ maxWidth: '94vw', maxHeight: '90vh' }}>
+        <div style={{ overflowY: 'auto', maxHeight: 'calc(90vh - 100px)', padding: '0 4px' }}>
+          {/* Step 0: Name */}
+          {step === 0 && (
+            <div style={{ textAlign: 'center', padding: '20px 0' }}>
+              <div style={{ fontSize: 12, color: 'rgba(160,200,255,0.5)', marginBottom: 16 }}>
+                Your homeworld burns. You escaped. Who are you?
+              </div>
+              <input
+                value={name}
+                onChange={(e) => setName(e.target.value.slice(0, 24))}
+                placeholder="Enter your commander name..."
+                style={{
+                  width: 300,
+                  padding: '12px 16px',
+                  fontSize: 16,
+                  fontWeight: 700,
+                  background: 'rgba(6,14,30,0.9)',
+                  border: '2px solid #4488ff44',
+                  borderRadius: 8,
+                  color: '#fff',
+                  outline: 'none',
+                  textAlign: 'center',
+                  letterSpacing: 1,
+                }}
+                onFocus={(e) => (e.target.style.borderColor = '#4488ff')}
+                onBlur={(e) => (e.target.style.borderColor = '#4488ff44')}
+                autoFocus
+              />
+              <div style={{ marginTop: 20 }}>
+                <Btn label="NEXT" wide active onClick={() => setStep(1)} disabled={!name.trim()} />
+              </div>
+            </div>
+          )}
+
+          {/* Step 1: Origin (determines faction) */}
+          {step === 1 && (
+            <div>
+              <div style={{ fontSize: 11, color: 'rgba(160,200,255,0.5)', textAlign: 'center', marginBottom: 14 }}>
+                Before the armageddon, you were a...
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
+                {ORIGINS.map((o) => {
+                  const sel = origin === o.key;
+                  const fc = FACTION_DATA[o.faction];
+                  return (
+                    <div
+                      key={o.key}
+                      onClick={() => setOrigin(o.key)}
+                      style={{
+                        padding: 14,
+                        borderRadius: 8,
+                        cursor: 'pointer',
+                        textAlign: 'center',
+                        border: sel ? `2px solid ${fc.color}` : '1px solid #1a305066',
+                        background: sel ? `${fc.color}15` : 'rgba(6,14,30,0.7)',
+                        transition: 'all 0.15s',
+                      }}
+                    >
+                      <div style={{ fontSize: 28, marginBottom: 4 }}>{o.icon}</div>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: sel ? fc.color : '#cde' }}>{o.label}</div>
+                      <div style={{ fontSize: 9, color: 'rgba(160,200,255,0.5)', marginTop: 4 }}>{o.desc}</div>
+                      <div style={{ fontSize: 8, color: fc.color, marginTop: 6, fontWeight: 700 }}>
+                        {fc.icon} {fc.label} FACTION
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'center', marginTop: 16 }}>
+                <Btn label="BACK" onClick={() => setStep(0)} />
+                <Btn label="NEXT" wide active onClick={() => setStep(2)} />
+              </div>
+            </div>
+          )}
+
+          {/* Step 2: Personality */}
+          {step === 2 && (
+            <div>
+              <div style={{ fontSize: 11, color: 'rgba(160,200,255,0.5)', textAlign: 'center', marginBottom: 14 }}>How do you lead?</div>
+              <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap' }}>
+                {PERSONALITIES.map((p) => (
+                  <div
+                    key={p.key}
+                    onClick={() => setPersonality(p.key)}
+                    style={{
+                      padding: '12px 20px',
+                      borderRadius: 8,
+                      cursor: 'pointer',
+                      textAlign: 'center',
+                      minWidth: 100,
+                      border: personality === p.key ? `2px solid ${fData.color}` : '1px solid #1a305066',
+                      background: personality === p.key ? `${fData.color}15` : 'rgba(6,14,30,0.7)',
+                    }}
+                  >
+                    <div style={{ fontSize: 22 }}>{p.icon}</div>
+                    <div style={{ fontSize: 11, fontWeight: 700, marginTop: 4 }}>{p.label}</div>
+                  </div>
+                ))}
+              </div>
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'center', marginTop: 16 }}>
+                <Btn label="BACK" onClick={() => setStep(1)} />
+                <Btn label="NEXT" wide active onClick={() => setStep(3)} />
+              </div>
+            </div>
+          )}
+
+          {/* Step 3: Motivation */}
+          {step === 3 && (
+            <div>
+              <div style={{ fontSize: 11, color: 'rgba(160,200,255,0.5)', textAlign: 'center', marginBottom: 14 }}>
+                What drives you among the stars?
+              </div>
+              <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap' }}>
+                {MOTIVATIONS.map((m) => (
+                  <div
+                    key={m.key}
+                    onClick={() => setMotivation(m.key)}
+                    style={{
+                      padding: '12px 20px',
+                      borderRadius: 8,
+                      cursor: 'pointer',
+                      textAlign: 'center',
+                      minWidth: 100,
+                      border: motivation === m.key ? `2px solid ${fData.color}` : '1px solid #1a305066',
+                      background: motivation === m.key ? `${fData.color}15` : 'rgba(6,14,30,0.7)',
+                    }}
+                  >
+                    <div style={{ fontSize: 22 }}>{m.icon}</div>
+                    <div style={{ fontSize: 11, fontWeight: 700, marginTop: 4 }}>{m.label}</div>
+                  </div>
+                ))}
+              </div>
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'center', marginTop: 16 }}>
+                <Btn label="BACK" onClick={() => setStep(2)} />
+                <Btn label="GENERATE COMMANDER" wide active onClick={generatePortrait} />
+              </div>
+            </div>
+          )}
+
+          {/* Step 4: Generating */}
+          {step === 4 && (
+            <div style={{ textAlign: 'center', padding: '40px 0' }}>
+              <div style={{ fontSize: 14, color: fData.color, fontWeight: 700, marginBottom: 12 }}>FORGING YOUR COMMANDER...</div>
+              <div style={{ fontSize: 11, color: 'rgba(160,200,255,0.4)' }}>AI is generating your portrait. This may take a moment.</div>
+              <div style={{ marginTop: 20, fontSize: 24, animation: 'spin 1s linear infinite' }}>{fData.icon}</div>
+              <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+            </div>
+          )}
+
+          {/* Step 5: Result */}
+          {step === 5 && (
+            <div style={{ textAlign: 'center', padding: '16px 0' }}>
+              <div
+                style={{
+                  width: 200,
+                  height: 200,
+                  margin: '0 auto 16px',
+                  borderRadius: 12,
+                  border: `3px solid ${fData.color}`,
+                  overflow: 'hidden',
+                  boxShadow: `0 0 30px ${fData.color}44`,
+                  background: 'rgba(6,14,30,0.9)',
+                }}
+              >
+                <img
+                  src={portraitUrl || fallbackPortrait}
+                  alt={name}
+                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).src = fallbackPortrait;
+                  }}
+                />
+              </div>
+              <div style={{ fontSize: 22, fontWeight: 900, color: '#fff', letterSpacing: 2, marginBottom: 4 }}>{name}</div>
+              <div style={{ fontSize: 11, color: fData.color, fontWeight: 700, marginBottom: 4 }}>
+                {fData.icon} {fData.label} · {ORIGINS.find((o) => o.key === origin)?.label}
+              </div>
+              <div style={{ fontSize: 9, color: 'rgba(160,200,255,0.4)', marginBottom: 16 }}>
+                {PERSONALITIES.find((p) => p.key === personality)?.label} · {MOTIVATIONS.find((m) => m.key === motivation)?.label}
+              </div>
+              {!portraitUrl && (
+                <div style={{ fontSize: 9, color: '#886644', marginBottom: 12 }}>
+                  Portrait generation unavailable — using default portrait
+                </div>
+              )}
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
+                <Btn label="REDO" onClick={() => setStep(0)} />
+                <Btn label="BEGIN CAMPAIGN" wide active onClick={finish} />
+              </div>
+            </div>
+          )}
+        </div>
+      </Panel>
     </div>
   );
 }
