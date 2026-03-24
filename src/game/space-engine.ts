@@ -47,6 +47,7 @@ import {
 } from './space-types';
 import { ALL_TECH_TREES, VOID_POWERS, PLANET_TYPE_TO_TECH, TURRET_DEFS, XP_THRESHOLDS, RANK_STAT_BONUS } from './space-techtree';
 import { createAIBrain, updateAIBrain, type AIBrain } from './space-ai';
+import { gameAudio } from './space-audio';
 
 // ── Helpers ──────────────────────────────────────────────────────
 function lerpAngle(a: number, b: number, t: number): number {
@@ -743,6 +744,16 @@ export class SpaceEngine {
       homingStrength: 3,
       trailColor: TEAM_COLORS[src.team] ?? 0x4488ff,
     });
+    // SFX: weapon fire (only for player team to avoid spam)
+    if (src.team === 1) {
+      const sfx =
+        src.attackType === 'railgun' || src.attackType === 'torpedo'
+          ? ('heavy_shot' as const)
+          : src.attackType === 'missile'
+            ? ('missile_shot' as const)
+            : ('laser' as const);
+      gameAudio.play(sfx, 0.4);
+    }
   }
 
   private updateProjectiles(dt: number) {
@@ -844,6 +855,9 @@ export class SpaceEngine {
       ship.hp = 0;
       ship.dead = true;
       ship.animState = 'death_spiral';
+      // Death SFX
+      const isBig = ship.shipClass === 'dreadnought' || ship.shipClass === 'battleship' || ship.shipClass === 'cruiser';
+      gameAudio.play(isBig ? 'death_large' : 'death_small', 0.6);
       const res = this.state.resources[ship.team];
       if (res) res.supply = Math.max(0, res.supply - ship.supplyCost);
       // Release or lose commander when ship dies
@@ -892,6 +906,11 @@ export class SpaceEngine {
             time: this.state.gameTime,
             message: `${shipDef?.displayName ?? item.shipType} complete`,
           });
+          // Build complete SFX (player only)
+          if (st.team === 1) {
+            const isHero = ship.shipClass === 'dreadnought';
+            gameAudio.play(isHero ? 'hero_built' : 'build_complete', 0.7);
+          }
         }
       }
 
@@ -963,6 +982,7 @@ export class SpaceEngine {
             time: this.state.gameTime,
             message: `${planet.name} captured!`,
           });
+          gameAudio.play('capture', 0.8);
         }
       } else {
         if (planet.captureProgress > 0) planet.captureProgress = Math.max(0, planet.captureProgress - 10 * dt);
@@ -1440,6 +1460,7 @@ export class SpaceEngine {
         time: this.state.gameTime,
         message: `Commander ${cmd.name} promoted to Level ${cmd.level}!`,
       });
+      gameAudio.play('commander', 0.8);
     }
   }
 

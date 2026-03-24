@@ -27,6 +27,7 @@ import {
 } from './game/space-types';
 import { UPGRADE_HUD_ICONS, SHIP_PREVIEW as SHARED_SHIP_PREVIEW } from './game/space-ui-shared';
 import { Panel, Btn, Slot, SmallPanel } from './game/ui-lib';
+import { gameAudio } from './game/space-audio';
 
 type Screen = 'intro' | 'menu' | 'codex' | 'howto' | 'editor' | 'playing';
 
@@ -304,6 +305,17 @@ export default function App() {
   const containerRef = useRef<HTMLDivElement>(null);
   const rendererRef = useRef<SpaceRenderer | null>(null);
   const [screen, setScreen] = useState<Screen>('intro');
+
+  // Music: switch tracks based on screen
+  useEffect(() => {
+    if (screen === 'menu' || screen === 'codex' || screen === 'howto' || screen === 'editor') {
+      gameAudio.playMusic('menu');
+    } else if (screen === 'playing') {
+      gameAudio.playMusic('battle');
+    } else if (screen === 'intro') {
+      gameAudio.playMusic('main');
+    }
+  }, [screen]);
   const [loading, setLoading] = useState(false);
   const [renderer, setRenderer] = useState<SpaceRenderer | null>(null);
   const [gameMode, setGameMode] = useState<GameMode>('1v1');
@@ -1642,6 +1654,8 @@ function IntroScreen({ onFinish }: { onFinish: () => void }) {
 
   const handleSkip = useCallback(() => {
     if (!canSkip) return;
+    // First user gesture — init & resume audio (browser autoplay policy)
+    gameAudio.resume();
     setFadeOut(true);
     setTimeout(onFinish, 600);
   }, [canSkip, onFinish]);
