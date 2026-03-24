@@ -33,6 +33,12 @@ export {
   SHIP_ROLES,
   SHIP_ROLE_LABELS,
   SHIP_ROLE_COLORS,
+  POI_COLORS,
+  POI_LABELS,
+  VISION_RADIUS,
+  type FogGrid,
+  type PointOfInterest,
+  type POIType,
 } from './space-types';
 export { ALL_TECH_TREES, VOID_POWERS, PLANET_TYPE_TO_TECH, TURRET_DEFS } from './space-techtree';
 export { Panel, SmallPanel, Btn, Slot, Bar, Frame, ResBox } from './ui-lib';

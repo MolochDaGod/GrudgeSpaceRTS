@@ -29,6 +29,7 @@ import {
   SPRITE_TO_VOXEL_SHIPS,
 } from './space-voxel-builder';
 import { loadHeroShip, glbBlobToUrl } from './ship-storage';
+import { getBoosterVisualOffsets, getRigAudit, getRigWorldAnchors } from './space-rig';
 
 interface ShipMesh3D {
   group: THREE.Group;
@@ -188,6 +189,10 @@ export class SpaceRenderer {
   private readonly introDuration = 4.2; // seconds
   private readonly introZoomStart = 2400; // deep-space — full sector visible
   private readonly introZoomEnd = 160; // close orbit — home world prominent
+  // ── Rig debug overlay (F9) ─────────────────────────────
+  private rigDebugEnabled = false;
+  private rigDebugRoot = new THREE.Group();
+  private rigDebugPrinted = new Set<string>();
 
   constructor(container: HTMLElement, mode: GameMode = '1v1') {
     this.container = container;
@@ -217,6 +222,9 @@ export class SpaceRenderer {
     this.setupStarfield();
     this.setupBackground();
     this.setupSelectionBox();
+    this.rigDebugRoot.name = 'rigDebugRoot';
+    this.rigDebugRoot.visible = false;
+    this.scene.add(this.rigDebugRoot);
 
     this.engine = new SpaceEngine();
     this.engine.hasCustomHero = this.hasCustomHero;
@@ -263,6 +271,7 @@ export class SpaceRenderer {
     }
 
     window.addEventListener('resize', this.onResize);
+    window.addEventListener('keydown', this.onRigDebugKeyDown);
     this.animate();
   }
 
@@ -1064,7 +1073,7 @@ export class SpaceRenderer {
     }
   }
 
-  private createPlaceholder(team: Team, shipClass: string): THREE.Group {
+  private createPlaceholder(team: Team, shipClass: string, shipType: string): THREE.Group {
     const group = new THREE.Group();
 
     // Sizes chosen so ships are visible from orbital zoom (~160 units).
@@ -1093,47 +1102,56 @@ export class SpaceRenderer {
     mesh.renderOrder = 2;
     group.add(mesh);
 
-    // Thruster: layered glow sprites at rear — inner hot core + outer team-colored wash
+    // Thruster: layered glow sprites at inferred tail/booster anchors.
+    // Names follow thruster[_n], thrusterCore[_n], thrusterTrail[_n]
+    // so sync logic can pulse all boosters per ship.
     const thrusterCol = TEAM_COLORS[team] ?? 0x4488ff;
-    // Outer glow (team color, larger, softer)
-    const outerMat = new THREE.SpriteMaterial({
-      color: thrusterCol,
-      transparent: true,
-      opacity: 0,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
+    const boosterOffsets = getBoosterVisualOffsets(shipType, shipClass as import('./space-types').ShipClass);
+    const anchors = boosterOffsets.length ? boosterOffsets : [{ x: 0, y: 0, z: -size * 0.55 }];
+    anchors.forEach((p, i) => {
+      const suffix = i === 0 ? '' : `_${i}`;
+      // Outer glow (team color, larger, softer)
+      const outerMat = new THREE.SpriteMaterial({
+        color: thrusterCol,
+        transparent: true,
+        opacity: 0,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      });
+      const outer = new THREE.Sprite(outerMat);
+      outer.scale.set(size * 0.5, size * 0.5, 1);
+      outer.position.set(p.x, p.y, p.z);
+      outer.name = `thruster${suffix}`;
+      group.add(outer);
+
+      // Inner core (white-hot, smaller, brighter)
+      const coreMat = new THREE.SpriteMaterial({
+        color: 0xffffff,
+        transparent: true,
+        opacity: 0,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      });
+      const core = new THREE.Sprite(coreMat);
+      core.scale.set(size * 0.2, size * 0.2, 1);
+      core.position.set(p.x, p.y, p.z + size * 0.05);
+      core.name = `thrusterCore${suffix}`;
+      group.add(core);
+
+      // Trail flicker (elongated, fades out behind)
+      const trailMat = new THREE.SpriteMaterial({
+        color: thrusterCol,
+        transparent: true,
+        opacity: 0,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      });
+      const trail = new THREE.Sprite(trailMat);
+      trail.scale.set(size * 0.25, size * 0.7, 1);
+      trail.position.set(p.x, p.y, p.z - size * 0.35);
+      trail.name = `thrusterTrail${suffix}`;
+      group.add(trail);
     });
-    const outer = new THREE.Sprite(outerMat);
-    outer.scale.set(size * 0.5, size * 0.5, 1);
-    outer.position.z = -size * 0.55;
-    outer.name = 'thruster'; // primary — used by existing sync code
-    group.add(outer);
-    // Inner core (white-hot, smaller, brighter)
-    const coreMat = new THREE.SpriteMaterial({
-      color: 0xffffff,
-      transparent: true,
-      opacity: 0,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-    });
-    const core = new THREE.Sprite(coreMat);
-    core.scale.set(size * 0.2, size * 0.2, 1);
-    core.position.z = -size * 0.5;
-    core.name = 'thrusterCore';
-    group.add(core);
-    // Trail flicker (elongated, fades out behind)
-    const trailMat = new THREE.SpriteMaterial({
-      color: thrusterCol,
-      transparent: true,
-      opacity: 0,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-    });
-    const trail = new THREE.Sprite(trailMat);
-    trail.scale.set(size * 0.25, size * 0.7, 1);
-    trail.position.z = -size * 0.9;
-    trail.name = 'thrusterTrail';
-    group.add(trail);
 
     return group;
   }
@@ -1155,7 +1173,7 @@ export class SpaceRenderer {
 
       if (!meshData) {
         // Create placeholder immediately, load real model async
-        const group = this.createPlaceholder(ship.team, ship.shipClass);
+        const group = this.createPlaceholder(ship.team, ship.shipClass, ship.shipType);
         this.scene.add(group);
         meshData = { group };
         this.shipMeshes.set(id, meshData);
@@ -1313,23 +1331,25 @@ export class SpaceRenderer {
       const baseSz = SpaceRenderer.shipClassSize(ship.shipClass);
       const tPhase = this.twinkleTime * 6 + ship.id * 0.7;
 
-      const thruster = meshData.group.getObjectByName('thruster') as THREE.Sprite | undefined;
-      if (thruster) {
+      const sprites = meshData.group.children.filter((c) => (c as THREE.Sprite).isSprite) as THREE.Sprite[];
+      const thrusters = sprites.filter((s) => s.name === 'thruster' || s.name.startsWith('thruster_'));
+      const cores = sprites.filter((s) => s.name === 'thrusterCore' || s.name.startsWith('thrusterCore_'));
+      const trails = sprites.filter((s) => s.name === 'thrusterTrail' || s.name.startsWith('thrusterTrail_'));
+
+      for (const thruster of thrusters) {
         const mat = thruster.material as THREE.SpriteMaterial;
         const targetOp = isMoving ? 0.4 + 0.3 * Math.abs(Math.sin(tPhase)) : 0;
         mat.opacity += (targetOp - mat.opacity) * 0.2;
         const sz = baseSz * 0.5 * boost;
         thruster.scale.set(sz, sz, 1);
       }
-      const core = meshData.group.getObjectByName('thrusterCore') as THREE.Sprite | undefined;
-      if (core) {
+      for (const core of cores) {
         const mat = core.material as THREE.SpriteMaterial;
         mat.opacity += ((isMoving ? 0.7 + 0.3 * Math.abs(Math.sin(tPhase * 1.3)) : 0) - mat.opacity) * 0.25;
         const sz = baseSz * 0.2 * boost;
         core.scale.set(sz, sz, 1);
       }
-      const trail = meshData.group.getObjectByName('thrusterTrail') as THREE.Sprite | undefined;
-      if (trail) {
+      for (const trail of trails) {
         const mat = trail.material as THREE.SpriteMaterial;
         mat.opacity += ((isMoving ? 0.3 + 0.25 * Math.abs(Math.sin(tPhase * 0.8 + 1.5)) : 0) - mat.opacity) * 0.15;
         const szW = baseSz * 0.25 * boost;
@@ -1549,6 +1569,8 @@ export class SpaceRenderer {
 
     // Sync rally point flags
     this.syncRallyFlags(this.engine.state);
+    // Optional rig debug overlay for selected ships (F9)
+    this.updateRigDebugOverlay(this.engine.state);
 
     this.renderer.render(this.scene, this.camera);
   };
@@ -1850,6 +1872,110 @@ export class SpaceRenderer {
     }
   }
 
+  private onRigDebugKeyDown = (e: KeyboardEvent) => {
+    if (e.key !== 'F9') return;
+    e.preventDefault();
+    this.rigDebugEnabled = !this.rigDebugEnabled;
+    this.rigDebugRoot.visible = this.rigDebugEnabled;
+    this.rigDebugPrinted.clear();
+    if (!this.rigDebugEnabled) this.clearRigDebugOverlay();
+    if (this.engine?.state) {
+      this.engine.state.alerts.push({
+        id: this.engine.state.nextId++,
+        x: this.controls.cameraState.x,
+        y: this.controls.cameraState.y,
+        z: 0,
+        type: 'build_complete',
+        time: this.engine.state.gameTime,
+        message: `Rig Debug ${this.rigDebugEnabled ? 'ON' : 'OFF'} (F9)`,
+      });
+    }
+  };
+
+  private rigWorldToThree(p: { x: number; y: number; z: number }): THREE.Vector3 {
+    return new THREE.Vector3(p.x * WORLD_SCALE, SpaceRenderer.SHIP_Y + p.z * WORLD_SCALE + 0.05, p.y * WORLD_SCALE);
+  }
+
+  private clearRigDebugOverlay() {
+    while (this.rigDebugRoot.children.length > 0) {
+      const c = this.rigDebugRoot.children.pop()!;
+      this.rigDebugRoot.remove(c);
+      const mesh = c as THREE.Mesh;
+      if ((mesh as any).geometry?.dispose) (mesh as any).geometry.dispose();
+      const m = (mesh as any).material;
+      if (Array.isArray(m)) {
+        for (const mat of m) if (mat?.dispose) mat.dispose();
+      } else if (m?.dispose) {
+        m.dispose();
+      }
+    }
+  }
+
+  private addRigPoint(pos: THREE.Vector3, color: number, size = 0.16) {
+    const m = new THREE.Mesh(
+      new THREE.SphereGeometry(size, 10, 10),
+      new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.95, depthTest: false, depthWrite: false }),
+    );
+    m.position.copy(pos);
+    m.renderOrder = 2000;
+    this.rigDebugRoot.add(m);
+  }
+
+  private addRigLine(a: THREE.Vector3, b: THREE.Vector3, color: number) {
+    const g = new THREE.BufferGeometry().setFromPoints([a, b]);
+    const l = new THREE.Line(
+      g,
+      new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.9, depthTest: false, depthWrite: false }),
+    );
+    l.renderOrder = 1999;
+    this.rigDebugRoot.add(l);
+  }
+
+  private updateRigDebugOverlay(state: SpaceGameState) {
+    if (!this.rigDebugEnabled) return;
+    this.clearRigDebugOverlay();
+
+    const selectedShips: SpaceShip[] = [];
+    for (const id of state.selectedIds) {
+      const s = state.ships.get(id);
+      if (s && !s.dead) selectedShips.push(s);
+    }
+    if (selectedShips.length === 0) return;
+
+    for (const ship of selectedShips) {
+      const anchors = getRigWorldAnchors(ship);
+      const nose = this.rigWorldToThree(anchors.nose);
+      const tail = this.rigWorldToThree(anchors.tail);
+      const left = this.rigWorldToThree(anchors.left);
+      const right = this.rigWorldToThree(anchors.right);
+
+      // Primary rig axis visualization
+      this.addRigLine(tail, nose, 0x22ffaa); // forward axis
+      this.addRigLine(left, right, 0xff44ff); // side axis
+      this.addRigPoint(nose, 0x22ff88, 0.18);
+      this.addRigPoint(tail, 0xff4444, 0.18);
+      this.addRigPoint(left, 0xffaa44, 0.13);
+      this.addRigPoint(right, 0x44aaff, 0.13);
+
+      for (const m of anchors.muzzles) {
+        const mp = this.rigWorldToThree(m);
+        this.addRigPoint(mp, 0xffee44, 0.11);
+        this.addRigLine(nose, mp, 0xaa9922);
+      }
+      for (const b of anchors.boosters) {
+        const bp = this.rigWorldToThree(b);
+        this.addRigPoint(bp, 0x44ddff, 0.11);
+        this.addRigLine(tail, bp, 0x2288aa);
+      }
+
+      // Emit one audit line per ship type per debug session
+      if (!this.rigDebugPrinted.has(ship.shipType)) {
+        this.rigDebugPrinted.add(ship.shipType);
+        console.info(`[RigAudit] ${getRigAudit(ship.shipType)}`);
+      }
+    }
+  }
+
   private onResize = () => {
     const w = this.container.clientWidth;
     const h = this.container.clientHeight;
@@ -1956,6 +2082,8 @@ export class SpaceRenderer {
     this.disposed = true;
     cancelAnimationFrame(this.animFrame);
     window.removeEventListener('resize', this.onResize);
+    window.removeEventListener('keydown', this.onRigDebugKeyDown);
+    this.clearRigDebugOverlay();
     this.controls.dispose();
     this.renderer.dispose();
     if (this.customHeroUrl) {

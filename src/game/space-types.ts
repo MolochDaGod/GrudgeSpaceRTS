@@ -10,7 +10,7 @@ export interface Vec3 {
 }
 
 // ── Game Mode ───────────────────────────────────────────────────
-export type GameMode = '1v1' | '2v2' | 'ffa4';
+export type GameMode = '1v1' | '2v2' | 'ffa4' | 'campaign';
 
 // ── Teams & Factions ────────────────────────────────────────────
 export type Team = 0 | 1 | 2 | 3 | 4; // 0=neutral, 1-4=players
@@ -92,6 +92,7 @@ export interface ShipAbility {
 // ── Game Entity Base ────────────────────────────────────────────
 export interface GameEntity {
   id: number;
+  grudgeUuid?: string; // v4 UUID — required in campaign, optional in skirmish
   x: number;
   y: number;
   z: number;
@@ -235,6 +236,7 @@ export interface BuildQueueItem {
 // ── Planet ───────────────────────────────────────────────────────
 export interface Planet {
   id: number;
+  grudgeUuid?: string; // v4 UUID — required in campaign, optional in skirmish
   x: number;
   y: number;
   z: number;
@@ -253,6 +255,10 @@ export interface Planet {
   captureSpeed: number; // per second per unit present
   neutralDefenders: number; // ships guarding neutral planet
   isStartingPlanet: boolean; // for player/AI starting zones
+  // Campaign: planet level (1-5), increases with investment/time
+  planetLevel?: PlanetLevel;
+  planetXp?: number; // XP toward next level
+  surface?: PlanetSurface; // campaign planet surface state
 }
 
 // ── Orbital Tower ───────────────────────────────────────────────
@@ -382,19 +388,234 @@ export interface Alert {
   x: number;
   y: number;
   z: number;
-  type: 'under_attack' | 'unit_lost' | 'build_complete' | 'conquest';
+  type: 'under_attack' | 'unit_lost' | 'build_complete' | 'conquest' | 'dark_rift';
   time: number;
   message: string;
 }
 
-// ── AI Strategy ─────────────────────────────────────────────────
+// ── Dark Rifts (PvE map events) ───────────────────────────
+export interface DarkRift {
+  id: number;
+  x: number;
+  y: number;
+  spawnDelay: number; // seconds before ships appear (5s)
+  lifetime: number; // seconds since rift opened
+  maxLifetime: number; // closes after this (30s)
+  shipsSpawned: boolean;
+  shipIds: number[]; // ids of spawned rift ships
+  done: boolean;
+  bountyCredits: number; // awarded to killer per ship
+  bountyMinerals: number;
+}
+
+// ── Fog of War ──────────────────────────────────────
+export interface FogGrid {
+  cols: number;
+  rows: number;
+  cellSize: number;
+  originX: number; // world-x of grid cell (0,0)
+  originY: number;
+  data: Uint8Array; // 0=unexplored, 1=explored, 2=visible
+}
+
+// ── Vision radii per ship class (game units) ────────
+export const VISION_RADIUS: Record<string, number> = {
+  scout: 1200,
+  interceptor: 1000,
+  fighter: 800,
+  heavy_fighter: 800,
+  corvette: 800,
+  frigate: 700,
+  light_cruiser: 700,
+  assault_frigate: 700,
+  bomber: 600,
+  transport: 600,
+  stealth: 600,
+  destroyer: 700,
+  cruiser: 700,
+  battleship: 800,
+  carrier: 800,
+  dreadnought: 900,
+  worker: 600,
+};
+
+// ── Points of Interest (discoverable map objects) ────
+export type POIType = 'derelict' | 'anomaly' | 'data_cache' | 'resource_vein' | 'ancient_gate' | 'pirate_stash';
+
+export interface PointOfInterest {
+  id: number;
+  x: number;
+  y: number;
+  type: POIType;
+  name: string;
+  discovered: boolean;
+  claimedByTeam: Team | null;
+  reward: {
+    credits?: number;
+    energy?: number;
+    minerals?: number;
+    xp?: number;
+    techUnlock?: string;
+    shipUnlock?: string;
+  };
+  radius: number; // discovery trigger radius
+  guarded: boolean;
+  guardShipIds: number[]; // spawned guard ship ids
+  guardsSpawned: boolean;
+  guardShipTypes: string[];
+  pairedPOIId?: number; // for ancient_gate: linked gate
+}
+
+export const POI_COLORS: Record<POIType, string> = {
+  derelict: '#88aacc',
+  anomaly: '#cc44ff',
+  data_cache: '#44ffaa',
+  resource_vein: '#ffcc22',
+  ancient_gate: '#44ddff',
+  pirate_stash: '#ff6622',
+};
+
+export const POI_LABELS: Record<POIType, string> = {
+  derelict: 'Derelict',
+  anomaly: 'Anomaly',
+  data_cache: 'Data Cache',
+  resource_vein: 'Resource Vein',
+  ancient_gate: 'Warp Gate',
+  pirate_stash: 'Pirate Stash',
+};
+
+// ── AI Strategy ─────────────────────────────────────
 export type AIStrategy = 'rush' | 'turtle' | 'expand' | 'tech' | 'balanced';
 export type AIThreatLevel = 'low' | 'medium' | 'high' | 'critical';
 
 // ── Win Condition ───────────────────────────────────────────────
-export type WinCondition = 'domination' | 'elimination';
+export type WinCondition = 'domination' | 'elimination' | 'campaign_conquest';
 // domination = control all non-neutral planets for 60s
 // elimination = destroy all enemy ships and stations
+// campaign_conquest = conquer every planet in the sector
+
+// ── Space Factions (Campaign Evolution) ─────────────────────────
+export type SpaceFaction = 'wisdom' | 'construct' | 'void' | 'legion';
+
+export interface FactionProgress {
+  faction: SpaceFaction;
+  xp: number; // faction XP earned through campaign actions
+  level: number; // 1-10 faction evolution level
+  unlockedPerks: string[]; // faction perk IDs unlocked at level milestones
+}
+
+// ── Planet Levels (Campaign) ─────────────────────────────────
+export type PlanetLevel = 1 | 2 | 3 | 4 | 5;
+
+// ── Faction Resources (T5 endgame material) ───────────────────
+export type FactionResource = 'aetheric_ore' | 'forge_alloy' | 'void_crystal' | 'legion_core';
+
+// ── Planet Buildings (Campaign surface) ────────────────────────
+export type PlanetBuildingType = 'station' | 'refinery' | 'barracks' | 'turret_platform' | 'research_lab' | 'faction_forge'; // L3+ only — produces faction resource
+
+export interface PlanetBuilding {
+  type: PlanetBuildingType;
+  level: number; // 1-3 (upgrades with planet level)
+  slotIndex: number; // which building slot on the surface (0-5)
+  buildProgress: number; // 0-1 (1 = complete)
+  producing: boolean;
+}
+
+// ── Planet Surface State (campaign only) ───────────────────────
+export interface PlanetSurface {
+  buildings: PlanetBuilding[];
+  factionResource: FactionResource | null; // set when faction_forge is built
+  factionResourceStockpile: number; // current stockpile
+  factionResourceRate: number; // per game-minute production
+}
+
+// ── Campaign Mode ───────────────────────────────────────────────
+export interface CampaignProgress {
+  sectorSeed: string; // derived from grudgeId
+  conqueredPlanetIds: number[];
+  totalPlanets: number;
+  homeworldId: number;
+  campaignStartTime: number; // epoch ms
+  elapsedGameTime: number; // in-game seconds (already 10x scaled)
+  titlesEarned: string[]; // e.g. ['conqueror_of_galaxy'] — milestones, not terminal
+  storyBeatsCompleted: string[];
+  pvpUnlocked: boolean; // true after full sector conquest
+  postConquestWaves: number; // how many Neural threat waves survived
+  factionProgress: FactionProgress; // player's chosen faction evolution
+}
+
+export interface CampaignSaveData {
+  grudgeId: string;
+  progress: CampaignProgress;
+  commanderName: string;
+  commanderPortrait: string;
+  commanderSpec: CommanderSpec;
+  resources: Record<number, PlayerResources>;
+  upgrades: Record<number, TeamUpgrades>;
+  techResearched: Record<number, string[]>;
+  logEntries: LogEntry[];
+  activeEvents: CampaignEvent[];
+  completedEventIds: string[];
+  savedAt: number; // epoch ms
+}
+
+// ── Captain's Log ───────────────────────────────────────────────
+export type LogCategory = 'discovery' | 'battle' | 'conquest' | 'diplomacy' | 'ai_event' | 'story_beat' | 'commander';
+
+export interface LogEntry {
+  uuid: string; // v4 UUID
+  timestamp: number; // in-game time (seconds)
+  realTimestamp: number; // epoch ms
+  category: LogCategory;
+  title: string;
+  body: string; // narrative text (may be AI-generated)
+  planetUuid?: string;
+  shipUuid?: string;
+  metadata?: Record<string, unknown>;
+}
+
+// ── Campaign Events (AI-generated procedural events) ────────────
+export type CampaignEventType =
+  | 'distress_signal'
+  | 'pirate_raid'
+  | 'trade_offer'
+  | 'anomaly_scan'
+  | 'defector'
+  | 'plague'
+  | 'rebellion'
+  | 'ancient_discovery'
+  | 'neural_surge';
+
+export interface CampaignEventChoice {
+  label: string;
+  outcomeHint: string; // shown to player before choosing
+  outcome: CampaignEventOutcome;
+}
+
+export interface CampaignEventOutcome {
+  credits?: number;
+  energy?: number;
+  minerals?: number;
+  xp?: number;
+  shipReward?: string; // ship type key to spawn
+  techUnlock?: string; // tech node id
+  fleetDamagePercent?: number; // negative event: % damage to nearby ships
+  reputation?: number; // faction reputation delta
+  logBody?: string; // narrative text for Captain's Log
+}
+
+export interface CampaignEvent {
+  uuid: string; // v4 UUID
+  type: CampaignEventType;
+  title: string;
+  description: string; // narrative (AI-generated or template)
+  choices: CampaignEventChoice[];
+  choiceTaken: number | null; // index into choices[], null if pending
+  triggerGameTime: number; // when this event fired
+  expiresAt: number; // game time — auto-resolve if player ignores
+  planetUuid?: string; // planet this event is associated with
+  resolved: boolean;
+}
 
 // ── Complete Game State ─────────────────────────────────────────
 // ── Floating Damage Text ────────────────────────────────────────
@@ -419,6 +640,8 @@ export interface SpaceGameState {
   techState: Map<number, TeamTechState>;
   voidCooldowns: Map<number, Map<string, number>>;
   activeVoidEffects: VoidEffect[];
+  darkRifts: DarkRift[];
+  darkRiftTimer: number; // countdown to next rift spawn
   aiDifficulty: number;
   commanders: Map<number, Commander>;
   fleets: Map<string, Fleet>;
@@ -441,6 +664,14 @@ export interface SpaceGameState {
   dominationTimer: number; // seconds holding all planets
   dominationTeam: Team | null;
   activePlayers: Team[]; // teams in this match
+  // Fog of War
+  fog: Map<number, FogGrid>;
+  // Points of Interest
+  pois: PointOfInterest[];
+  // Campaign
+  campaignProgress: CampaignProgress | null;
+  captainsLog: LogEntry[];
+  campaignEvents: CampaignEvent[];
 }
 
 // ── Selection ───────────────────────────────────────────────────

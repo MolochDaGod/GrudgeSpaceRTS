@@ -8,8 +8,16 @@ export interface SpacePrefab {
   scale: number;
   offset: THREE.Vector3;
   rotation?: THREE.Euler;
-  enginePoints?: THREE.Vector3[]; // where engine glow sprites go
-  weaponPoints?: THREE.Vector3[]; // where projectiles spawn
+  // Rigging convention (best-practice):
+  // - +Z = nose/front
+  // - -Z = tail/rear boosters
+  // - +X = starboard/right wing
+  // - -X = port/left wing
+  // - +Y = up
+  // Keep pivot near the ship's center-of-mass for stable turns/rolls.
+  // Engine and weapon points follow this local model space.
+  enginePoints?: THREE.Vector3[]; // rear booster / exhaust anchors
+  weaponPoints?: THREE.Vector3[]; // nose / side hardpoint muzzle anchors
   hasParts?: boolean; // capital ships with destructible parts
   partPaths?: string[];
 }
