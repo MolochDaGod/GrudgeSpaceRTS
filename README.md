@@ -73,8 +73,9 @@ src/
 │   ├── space-ai.ts           — 5-level AI brain (build/tactics/tech/micro)
 │   ├── space-techtree.ts     — Tech trees, void powers, turret defs
 │   ├── space-prefabs.ts      — 3D model paths, prefab configs
-│   ├── space-voxel-builder.ts — Procedural voxel ship geometry
-│   ├── space-effects.ts      — Sprite explosions, hit FX, shooting FX
+│   ├── space-voxel-builder.ts — Procedural voxel ships + sprite-to-voxel converter
+│   ├── space-audio.ts        — Web Audio manager (SFX pool, looping music, volume)
+│   ├── space-effects.ts      — Sprite explosions, hit FX, shooting FX, bomb effects
 │   ├── space-animations.ts   — Ship animation state machine
 │   ├── space-starmap.tsx      — Tactical star map overlay
 │   ├── flagship-interior.tsx  — 2D pixel-art flagship interior
@@ -86,21 +87,23 @@ src/
 └── App.tsx                   — Main menu, codex, loading, game screen
 ```
 
-## Assets (1925 files)
+## Assets (~2000 files)
 
 | Category | Count | Format |
 |----------|-------|--------|
-| UI Icons (skill, space, item, mining, resource) | 210 | PNG |
-| Avatars & Portraits | 102 | PNG |
-| HUD Elements | 151 | PNG |
-| Bomb Sprites & Effects | 68 | PNG |
+| UI Icons (skill, space, item, mining, resource) | 250 | PNG |
+| Avatars & Portraits (commanders, cyber) | 102 | PNG |
+| HUD Elements (scifi-gui, buttons, bars) | 151 | PNG |
+| Bomb Sprites & Effects (4 tiers × 3 variants) | 68 | PNG |
 | Ship Sprites (pirate + boss) | 440+ | PNG |
 | Explosion/Hit/Shooting Sheets | 135 | PNG |
 | Backgrounds | 12 | PNG |
-| Ship Models (OBJ/FBX) | 100+ | OBJ/FBX |
+| Ship Models (OBJ/FBX/voxel) | 100+ | OBJ/FBX |
+| Low-Poly Models (carriers, fighters, astronauts) | 30 | FBX |
 | Effect Models | 24 | GLB |
 | Spaceliner Tileset (flagship interior) | 30+ | PNG |
-| Audio | 2 | MP3/OGG |
+| Music (battle, menu, main theme) | 3 | MP3 |
+| SFX (weapons, death, alerts, UI) | 14 | WAV/MP3 |
 
 ## Deployment
 
@@ -131,12 +134,19 @@ Access at `/admin.html` (password: `nexus2025`)
 
 ## Recent Changes
 
+- **Audio system** — 3 looping music tracks (battle/menu/main), 13 SFX (weapons, death, alerts, build, UI), Web Audio API with pooled channels
+- **Energy shield shader** — hex grid + fresnel rim + team color + hit flash on all shielded ships
+- **Sprite-to-voxel converter** — pirates and bosses auto-converted to 3D voxel models from their 2D sprites
+- **Engine thruster upgrade** — 3-layer glow (outer team wash, white-hot core, elongated trail)
+- **Bomb effects** — 12 sprite strips wired into torpedo/missile hits, ability VFX, death explosions
+- **Resource icons** — 40 pixel-art icons mapped to game resources with fallback chain in HUD
+- **Commander portraits** — 20 real character portraits replacing broken placeholder frames
+- **Codex UX overhaul** — responsive grid, role filter, real upgrade skill icons, tab counts, hover states
+- **Low-poly space assets** — carriers, fighters, astronauts, planets ready for carrier deployment mechanic
 - Pirate ships (6 types) roam between planets as neutral threats
 - Boss captains (3 types) guard neutral planets with abilities
 - Floating damage numbers, capture progress %, income rates, worker alerts, rally flags
 - Attack-move sticky toggle, patrol loops, worker abort on enemy capture
-- Ram/speed_boost use game-time timers (no setTimeout), void powers skip friendlies
-- AI standardized as equal player — no cheats, build poll = 2s for all difficulties
 - Pre-game commander selection modal with 5 specs
 - Flagship interior with 4 rooms linking to all game systems
 - Ship Forge voxel editor with GLB export + account storage

@@ -1645,11 +1645,17 @@ function IntroScreen({ onFinish }: { onFinish: () => void }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [fadeOut, setFadeOut] = useState(false);
   const [canSkip, setCanSkip] = useState(false);
+  const [showLogo, setShowLogo] = useState(false);
 
   useEffect(() => {
     // Allow skip after a short delay so users see at least a moment
     const skipTimer = setTimeout(() => setCanSkip(true), 1500);
-    return () => clearTimeout(skipTimer);
+    // Delay logo by 5 seconds so the video plays clean first
+    const logoTimer = setTimeout(() => setShowLogo(true), 5000);
+    return () => {
+      clearTimeout(skipTimer);
+      clearTimeout(logoTimer);
+    };
   }, []);
 
   const handleSkip = useCallback(() => {
@@ -1715,36 +1721,38 @@ function IntroScreen({ onFinish }: { onFinish: () => void }) {
         }}
       />
 
-      {/* Centered logo — same position as main menu */}
-      <div
-        style={{
-          position: 'absolute',
-          inset: 0,
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          pointerEvents: 'none',
-        }}
-      >
-        <img
-          src="/assets/space/ui/logo.webp"
-          alt="GRUDA ARMADA"
+      {/* Centered logo — delayed 5s so video plays clean first */}
+      {showLogo && (
+        <div
           style={{
-            width: 420,
-            maxWidth: '88vw',
-            display: 'block',
-            mixBlendMode: 'screen' as any,
-            filter: 'drop-shadow(0 0 50px rgba(68,136,255,0.6)) drop-shadow(0 0 24px rgba(200,30,30,0.35))',
-            animation: 'logoFadeIn 2s ease-out forwards',
+            position: 'absolute',
+            inset: 0,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            pointerEvents: 'none',
           }}
-          onError={(e) => {
-            const t = e.target as HTMLImageElement;
-            if (!t.src.endsWith('.svg')) t.src = '/assets/space/ui/logo.svg';
-            else t.style.display = 'none';
-          }}
-        />
-      </div>
+        >
+          <img
+            src="/assets/space/ui/logo.webp"
+            alt="GRUDA ARMADA"
+            style={{
+              width: 420,
+              maxWidth: '88vw',
+              display: 'block',
+              mixBlendMode: 'screen' as any,
+              filter: 'drop-shadow(0 0 50px rgba(68,136,255,0.6)) drop-shadow(0 0 24px rgba(200,30,30,0.35))',
+              animation: 'logoFadeIn 2s ease-out forwards',
+            }}
+            onError={(e) => {
+              const t = e.target as HTMLImageElement;
+              if (!t.src.endsWith('.svg')) t.src = '/assets/space/ui/logo.svg';
+              else t.style.display = 'none';
+            }}
+          />
+        </div>
+      )}
 
       {/* Skip hint */}
       <div
