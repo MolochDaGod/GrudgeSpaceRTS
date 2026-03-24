@@ -620,169 +620,143 @@ export function SpaceHUD({ renderer, onQuit }: SpaceHUDProps) {
             );
           })}
 
-      {/* ── Bottom Panel — SC2-style: [minimap] [portrait | stats] [command grid] ── */}
+      {/* ── Bottom Panel — SC2-style: [minimap] [portrait+stats] [command grid] ── */}
       <div
         style={{
           position: 'absolute',
           bottom: 0,
           left: 0,
           right: 0,
-          height: 240,
-          background: '#060c18',
-          borderTop: '2px solid rgba(40,180,160,0.45)',
+          height: 'clamp(200px, 28vh, 260px)',
           display: 'flex',
           pointerEvents: 'auto',
           zIndex: 10,
         }}
       >
-        {/* Opaque dark base — then overlay art */}
+        {/* Single background layer — no stacking */}
         <img
           src="/assets/space/ui/hud/DarkBackground.png"
           alt=""
-          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'fill', opacity: 0.85, pointerEvents: 'none' }}
+          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'fill', pointerEvents: 'none' }}
           onError={(e) => {
             (e.target as HTMLImageElement).style.display = 'none';
           }}
         />
-        {/* ── Minimap (far left) ──────────────────────── */}
+        {/* Top edge glow line */}
         <div
           style={{
-            width: 220,
-            height: '100%',
-            borderRight: '1px solid #1a3050',
-            position: 'relative',
-            overflow: 'hidden',
-            background: '#080c14',
-            zIndex: 1,
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            height: 2,
+            background:
+              'linear-gradient(90deg, transparent, rgba(40,180,160,0.6), rgba(68,136,255,0.5), rgba(40,180,160,0.6), transparent)',
+            pointerEvents: 'none',
           }}
-        >
-          <Minimap state={state} renderer={renderer} />
-          <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, display: 'flex', gap: 2, padding: '4px' }}>
-            <Btn label="TECH" onClick={() => setTechOpen((t) => !t)} active={techOpen} style={{ flex: 1, height: 28, minWidth: 0 }} />
-            <Btn label="CMDR" onClick={() => setCmdOpen((t) => !t)} active={cmdOpen} style={{ flex: 1, height: 28, minWidth: 0 }} />
-          </div>
-        </div>
+        />
 
-        {/* ── Ship Portrait (large image) ─────────────── */}
+        {/* ── Region 1: Minimap ───────────────────────── */}
         <div
           style={{
             width: 200,
-            height: '100%',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            borderRight: '1px solid rgba(40,180,160,0.2)',
-            background: '#060c18',
+            flexShrink: 0,
             position: 'relative',
             zIndex: 1,
-          }}
-        >
-          <img
-            src="/assets/space/ui/hud/BgSettingSmallBox.png"
-            alt=""
-            style={{
-              position: 'absolute',
-              inset: 0,
-              width: '100%',
-              height: '100%',
-              objectFit: 'fill',
-              opacity: 0.5,
-              pointerEvents: 'none',
-            }}
-            onError={(e) => {
-              (e.target as HTMLImageElement).style.display = 'none';
-            }}
-          />
-          {primary && def ? (
-            <div
-              style={{
-                position: 'relative',
-                zIndex: 1,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                width: '100%',
-                height: '100%',
-              }}
-            >
-              <img
-                src={SHIP_PREVIEW[primary.shipType] ?? ''}
-                alt={def.displayName}
-                style={{
-                  maxWidth: 180,
-                  maxHeight: 180,
-                  objectFit: 'contain',
-                  imageRendering: 'auto',
-                  filter: 'drop-shadow(0 0 12px rgba(68,136,255,0.4))',
-                }}
-                onError={(e) => {
-                  (e.target as HTMLImageElement).style.display = 'none';
-                }}
-              />
-              {/* Ship name overlay at bottom */}
-              <div
-                style={{
-                  position: 'absolute',
-                  bottom: 8,
-                  left: 0,
-                  right: 0,
-                  textAlign: 'center',
-                  fontSize: 12,
-                  fontWeight: 800,
-                  color: '#fff',
-                  textShadow: '0 2px 8px rgba(0,0,0,0.9)',
-                  letterSpacing: 1,
-                }}
-              >
-                {def.displayName}
-              </div>
-            </div>
-          ) : (
-            <div
-              style={{ position: 'relative', zIndex: 1, opacity: 0.15, fontSize: 10, color: '#8ab', textAlign: 'center', lineHeight: 1.8 }}
-            >
-              No unit selected
-            </div>
-          )}
-        </div>
-
-        {/* ── Unit Stats (center) ─────────────────────── */}
-        <div
-          style={{
-            width: 300,
-            height: '100%',
-            padding: '10px 14px',
-            borderRight: '1px solid rgba(40,180,160,0.2)',
-            background: '#060c18',
-            position: 'relative',
             display: 'flex',
             flexDirection: 'column',
-            overflowY: 'auto',
-            zIndex: 1,
+            borderRight: '1px solid rgba(40,180,160,0.2)',
           }}
         >
-          <img
-            src="/assets/space/ui/hud/BgSettingSmallBox.png"
-            alt=""
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 4 }}>
+            <Minimap state={state} renderer={renderer} />
+          </div>
+          {/* Action buttons below minimap */}
+          <div style={{ display: 'flex', gap: 3, padding: '0 4px 4px' }}>
+            <Btn label="TECH" onClick={() => setTechOpen((t) => !t)} active={techOpen} style={{ flex: 1, height: 26, minWidth: 0 }} />
+            <Btn label="CMDR" onClick={() => setCmdOpen((t) => !t)} active={cmdOpen} style={{ flex: 1, height: 26, minWidth: 0 }} />
+          </div>
+        </div>
+
+        {/* ── Region 2: Portrait + Unit Stats ─────────── */}
+        <div
+          style={{
+            width: 'clamp(340px, 30vw, 480px)',
+            flexShrink: 0,
+            position: 'relative',
+            zIndex: 1,
+            display: 'flex',
+            borderRight: '1px solid rgba(40,180,160,0.2)',
+          }}
+        >
+          {/* Portrait (left half) */}
+          <div
             style={{
-              position: 'absolute',
-              inset: 0,
-              width: '100%',
-              height: '100%',
-              objectFit: 'fill',
-              opacity: 0.6,
-              pointerEvents: 'none',
+              width: 160,
+              flexShrink: 0,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              position: 'relative',
+              borderRight: '1px solid rgba(40,180,160,0.1)',
             }}
-            onError={(e) => {
-              (e.target as HTMLImageElement).style.display = 'none';
+          >
+            {primary && def ? (
+              <>
+                <img
+                  src={SHIP_PREVIEW[primary.shipType] ?? ''}
+                  alt={def.displayName}
+                  style={{
+                    maxWidth: 140,
+                    maxHeight: '90%',
+                    objectFit: 'contain',
+                    imageRendering: 'auto',
+                    filter: 'drop-shadow(0 0 12px rgba(68,136,255,0.35))',
+                  }}
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).style.display = 'none';
+                  }}
+                />
+                <div
+                  style={{
+                    position: 'absolute',
+                    bottom: 6,
+                    left: 0,
+                    right: 0,
+                    textAlign: 'center',
+                    fontSize: 11,
+                    fontWeight: 800,
+                    color: '#fff',
+                    letterSpacing: 1,
+                    textShadow: '0 2px 8px rgba(0,0,0,0.95)',
+                  }}
+                >
+                  {def.displayName}
+                </div>
+              </>
+            ) : (
+              <div style={{ opacity: 0.12, fontSize: 10, color: '#8ab', textAlign: 'center', lineHeight: 1.8 }}>
+                No unit
+                <br />
+                selected
+              </div>
+            )}
+          </div>
+          {/* Stats (right half) */}
+          <div
+            style={{
+              flex: 1,
+              padding: '8px 10px',
+              overflowY: 'auto',
+              display: 'flex',
+              flexDirection: 'column',
             }}
-          />
-          <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', flex: 1 }}>
+          >
             {selectedShips.length === 0 ? (
-              <div style={{ opacity: 0.25, fontSize: 11, marginTop: 60, textAlign: 'center', lineHeight: 1.8, color: '#8ab' }}>
+              <div style={{ opacity: 0.2, fontSize: 10, marginTop: 40, textAlign: 'center', lineHeight: 1.8, color: '#8ab' }}>
                 No units selected
                 <br />
-                <span style={{ fontSize: 9 }}>Left-drag to box-select · Double-click to select type</span>
+                <span style={{ fontSize: 9 }}>Left-drag to box-select</span>
               </div>
             ) : selectedShips.length === 1 && primary && def ? (
               <SingleUnitInfo ship={primary} def={def} />
@@ -806,45 +780,32 @@ export function SpaceHUD({ renderer, onQuit }: SpaceHUDProps) {
           </div>
         </div>
 
-        {/* ── Command Card / Build Panel (right — SC2 grid) ──── */}
+        {/* ── Region 3: Command Card / Build Panel / Planet Info ── */}
         <div
           style={{
             flex: 1,
-            height: '100%',
-            padding: '10px 16px',
-            overflowY: 'auto',
-            background: '#060c18',
+            minWidth: 200,
             position: 'relative',
             zIndex: 1,
+            padding: '8px 12px',
+            overflowY: 'auto',
+            display: 'flex',
+            flexDirection: 'column',
           }}
         >
-          <img
-            src="/assets/space/ui/hud/BgSettingSmallBox.png"
-            alt=""
-            style={{
-              position: 'absolute',
-              inset: 0,
-              width: '100%',
-              height: '100%',
-              objectFit: 'fill',
-              opacity: 0.6,
-              pointerEvents: 'none',
-            }}
-            onError={(e) => {
-              (e.target as HTMLImageElement).style.display = 'none';
-            }}
-          />
-          <div style={{ position: 'relative', zIndex: 1, flex: 1 }}>
-            {selectedStation ? (
-              <BuildPanel station={selectedStation} renderer={renderer} res={res} />
-            ) : primary ? (
-              <CommandCard ship={primary} renderer={renderer} allSelected={selectedShips} />
-            ) : selectedPlanet ? (
-              <PlanetInfoPanel planet={selectedPlanet} state={state} renderer={renderer} />
-            ) : upg ? (
-              <UpgradePanel upg={upg} res={res} renderer={renderer} />
-            ) : null}
-          </div>
+          {selectedStation ? (
+            <BuildPanel station={selectedStation} renderer={renderer} res={res} />
+          ) : primary ? (
+            <CommandCard ship={primary} renderer={renderer} allSelected={selectedShips} />
+          ) : selectedPlanet ? (
+            <PlanetInfoPanel planet={selectedPlanet} state={state} renderer={renderer} />
+          ) : upg ? (
+            <UpgradePanel upg={upg} res={res} renderer={renderer} />
+          ) : (
+            <div style={{ opacity: 0.12, fontSize: 10, color: '#8ab', textAlign: 'center', marginTop: 60 }}>
+              Select a unit, station, or planet
+            </div>
+          )}
         </div>
       </div>
     </div>
