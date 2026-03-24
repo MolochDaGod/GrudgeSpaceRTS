@@ -24,6 +24,16 @@ function dist2d(a: { x: number; y: number }, b: { x: number; y: number }) {
   return Math.sqrt((a.x - b.x) ** 2 + (a.y - b.y) ** 2);
 }
 
+/** Check if a world position is currently visible in a team's fog grid. */
+function aiFogVisible(team: number, x: number, y: number, state: SpaceGameState): boolean {
+  const grid = state.fog.get(team);
+  if (!grid) return true; // no fog = everything visible
+  const col = Math.floor((x - grid.originX) / grid.cellSize);
+  const row = Math.floor((y - grid.originY) / grid.cellSize);
+  if (col < 0 || col >= grid.cols || row < 0 || row >= grid.rows) return false;
+  return grid.data[row * grid.cols + col] === 2;
+}
+
 // ── Composition archetypes per difficulty ──────────────────────────
 const COMPOSITION: Record<number, string[][]> = {
   1: [['red_fighter'], ['micro_recon'], ['galactix_racer'], ['red_fighter', 'red_fighter']],
@@ -169,6 +179,9 @@ export interface AIBrain {
   threatPlanetId: number | null;
   currentCompositionIdx: number;
   fleetGroups: Map<string, number[]>; // groupName -> ship ids
+  scoutTimer: number;
+  /** D4+: last-known center of visible enemy ships (for probing when no enemy in sight). */
+  lastSeenCenter: { x: number; y: number } | null;
 }
 
 export function createAIBrain(team: Team, difficulty: number): AIBrain {
@@ -182,6 +195,8 @@ export function createAIBrain(team: Team, difficulty: number): AIBrain {
     threatPlanetId: null,
     currentCompositionIdx: 0,
     fleetGroups: new Map(),
+    scoutTimer: 0,
+    lastSeenCenter: null,
   };
 }
 
@@ -246,6 +261,12 @@ export function updateAIBrain(
   }
   if (brain.cfg.useVoidPowers) {
     aiVoidPowerStep(brain, state, castVoidFn);
+  }
+  // D3+: scout dispatch
+  brain.scoutTimer += dt;
+  if (brain.cfg.difficulty >= 3 && brain.scoutTimer >= brain.cfg.tacticsCycleTime * 2) {
+    brain.scoutTimer = 0;
+    aiScoutStep(brain, state);
   }
   // Per-frame strafing/evasion
   aiMicroStep(brain, state, dt);
@@ -343,6 +364,22 @@ function aiTacticsStep(brain: AIBrain, state: SpaceGameState) {
 
   if (idle.length === 0) return;
 
+  // D4+: track visible enemy positions for last-seen memory
+  if (cfg.difficulty >= 4) {
+    let sumX = 0,
+      sumY = 0,
+      visCount = 0;
+    for (const [, s] of state.ships) {
+      if (s.dead || s.team === team || s.team === 0) continue;
+      if (aiFogVisible(team, s.x, s.y, state)) {
+        sumX += s.x;
+        sumY += s.y;
+        visCount++;
+      }
+    }
+    if (visCount > 0) brain.lastSeenCenter = { x: sumX / visCount, y: sumY / visCount };
+  }
+
   // D5: anticipate player — attack their highest-value planet
   // D4+: multi-front — split fleet between expansion and assault
   // D3: flank — attack from angle not from straight line
@@ -421,6 +458,15 @@ function aiTacticsStep(brain: AIBrain, state: SpaceGameState) {
         s.moveTarget = target;
         s.isAttackMoving = true;
       }
+    }
+  }
+
+  // D4+: probe last-seen enemy position if idle ships remain
+  if (cfg.difficulty >= 4 && brain.lastSeenCenter) {
+    const stillIdle = idle.filter((s) => !s.moveTarget && !s.targetId);
+    for (const s of stillIdle.slice(0, 3)) {
+      s.moveTarget = jitter(brain.lastSeenCenter, 300);
+      s.isAttackMoving = true;
     }
   }
 }
@@ -562,6 +608,45 @@ function aiMicroStep(brain: AIBrain, state: SpaceGameState, dt: number) {
   }
 }
 
+// ── Scout dispatch (D3+ sends scouts, D5 hunts POIs) ────────────────
+function aiScoutStep(brain: AIBrain, state: SpaceGameState) {
+  const { team, cfg } = brain;
+  const grid = state.fog.get(team);
+  if (!grid) return;
+  // Collect idle scouts / interceptors
+  const scouts: SpaceShip[] = [];
+  for (const [, s] of state.ships) {
+    if (s.dead || s.team !== team) continue;
+    if (s.shipClass !== 'scout' && s.shipClass !== 'interceptor') continue;
+    if (!s.moveTarget && !s.targetId) scouts.push(s);
+  }
+  if (scouts.length === 0) return;
+  // D5: prioritize undiscovered POIs
+  if (cfg.difficulty >= 5) {
+    for (const poi of state.pois) {
+      if (poi.discovered || poi.claimedByTeam !== null || scouts.length === 0) continue;
+      const s = scouts.shift()!;
+      s.moveTarget = { x: poi.x, y: poi.y, z: 0 };
+    }
+  }
+  // Send remaining scouts to random unexplored areas
+  const { cols, rows, cellSize, originX, originY, data } = grid;
+  const unexplored: { x: number; y: number }[] = [];
+  for (let r = 0; r < rows; r += 3) {
+    for (let c = 0; c < cols; c += 3) {
+      if (data[r * cols + c] === 0) {
+        unexplored.push({ x: originX + (c + 0.5) * cellSize, y: originY + (r + 0.5) * cellSize });
+      }
+    }
+  }
+  if (unexplored.length === 0) return;
+  for (const scout of scouts) {
+    if (scout.moveTarget) continue;
+    const tgt = unexplored[Math.floor(Math.random() * unexplored.length)];
+    scout.moveTarget = { x: tgt.x, y: tgt.y, z: 0 };
+  }
+}
+
 // ── Utility ──────────────────────────────────────────────────────────
 function jitter(pos: { x: number; y: number; z?: number }, range: number): Vec3 {
   return {
@@ -591,7 +676,7 @@ function densestEnemyCluster(myTeam: Team, state: SpaceGameState, radius: number
   let bestCount = 0;
   const enemies: SpaceShip[] = [];
   for (const [, s] of state.ships) {
-    if (!s.dead && s.team !== myTeam && s.team !== 0) enemies.push(s);
+    if (!s.dead && s.team !== myTeam && s.team !== 0 && aiFogVisible(myTeam, s.x, s.y, state)) enemies.push(s);
   }
   for (const e of enemies) {
     let count = 0;
@@ -613,7 +698,7 @@ function mostEnemiesNearOwnedPlanet(myTeam: Team, state: SpaceGameState) {
     if (p.owner !== myTeam) continue;
     let count = 0;
     for (const [, s] of state.ships) {
-      if (!s.dead && s.team !== myTeam && dist2d(s, p) < p.captureRadius * 1.5) count++;
+      if (!s.dead && s.team !== myTeam && aiFogVisible(myTeam, s.x, s.y, state) && dist2d(s, p) < p.captureRadius * 1.5) count++;
     }
     if (count > bestCount) {
       bestCount = count;

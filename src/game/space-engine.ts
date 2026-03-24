@@ -20,6 +20,8 @@ import type {
   VoidEffect,
   Commander,
   CommanderSpec,
+  FogGrid,
+  POIType,
 } from './space-types';
 import {
   SHIP_DEFINITIONS,
@@ -42,6 +44,10 @@ import {
   COMMANDER_TRAIN_TIME,
   COMMANDER_TRAIN_COST,
   SHIP_ROLES,
+  VISION_RADIUS,
+  POI_COLORS,
+  STATION_VISION_RADIUS,
+  TURRET_VISION_RADIUS,
   type Fleet,
   type TacticalOrder,
 } from './space-types';
@@ -71,6 +77,47 @@ function angleDelta(a: number, b: number): number {
 }
 function dist2d(a: { x: number; y: number }, b: { x: number; y: number }): number {
   return Math.sqrt((a.x - b.x) ** 2 + (a.y - b.y) ** 2);
+}
+
+// ── Fog of War Helpers ─────────────────────────────────────────
+const FOG_CELL_SIZE = 400;
+
+function createFogGrid(mapW: number, mapH: number): FogGrid {
+  const originX = -mapW / 2;
+  const originY = -mapH / 2;
+  const cols = Math.ceil(mapW / FOG_CELL_SIZE);
+  const rows = Math.ceil(mapH / FOG_CELL_SIZE);
+  return { cols, rows, cellSize: FOG_CELL_SIZE, originX, originY, data: new Uint8Array(cols * rows) };
+}
+
+/** Stamp a circle of visible (2) cells around a world-space position. */
+function stampVision(grid: FogGrid, wx: number, wy: number, radius: number): void {
+  const { cols, rows, cellSize, originX, originY, data } = grid;
+  const cx = (wx - originX) / cellSize;
+  const cy = (wy - originY) / cellSize;
+  const cr = radius / cellSize;
+  const cr2 = cr * cr;
+  const minCol = Math.max(0, Math.floor(cx - cr));
+  const maxCol = Math.min(cols - 1, Math.ceil(cx + cr));
+  const minRow = Math.max(0, Math.floor(cy - cr));
+  const maxRow = Math.min(rows - 1, Math.ceil(cy + cr));
+  for (let r = minRow; r <= maxRow; r++) {
+    for (let c = minCol; c <= maxCol; c++) {
+      const dx = c + 0.5 - cx;
+      const dy = r + 0.5 - cy;
+      if (dx * dx + dy * dy <= cr2) {
+        data[r * cols + c] = 2;
+      }
+    }
+  }
+}
+
+/** Read a single cell's fog state from a grid. */
+function fogCellState(grid: FogGrid, wx: number, wy: number): 0 | 1 | 2 {
+  const col = Math.floor((wx - grid.originX) / grid.cellSize);
+  const row = Math.floor((wy - grid.originY) / grid.cellSize);
+  if (col < 0 || col >= grid.cols || row < 0 || row >= grid.rows) return 0;
+  return grid.data[row * grid.cols + col] as 0 | 1 | 2;
 }
 
 export class SpaceEngine {
@@ -243,6 +290,10 @@ export class SpaceEngine {
     }
     // Generate resource nodes after all planets and states are initialized
     this.generateResourceNodes();
+    // POIs for skirmish modes (campaign gets them from sector gen)
+    if (!isCampaign) this.generateSkirmishPOIs();
+    // Init fog of war grids for every team
+    this.initFog();
 
     // Spawn player's starting commander if a spec was chosen pre-game
     if (this.playerCommanderSpec) {
@@ -438,6 +489,176 @@ export class SpaceEngine {
     return planets;
   }
 
+  // ── Fog of War ─────────────────────────────────────────────────
+  private initFog(): void {
+    for (const team of this.state.activePlayers) {
+      this.state.fog.set(team, createFogGrid(this.mapW, this.mapH));
+    }
+  }
+
+  /** Query fog state for a world position: 0=unexplored, 1=explored (dark), 2=visible. */
+  fogState(team: number, wx: number, wy: number): 0 | 1 | 2 {
+    const grid = this.state.fog.get(team);
+    if (!grid) return 2; // no grid ⇒ treat as fully visible
+    return fogCellState(grid, wx, wy);
+  }
+  isVisible(team: number, x: number, y: number): boolean {
+    return this.fogState(team, x, y) === 2;
+  }
+  isExplored(team: number, x: number, y: number): boolean {
+    return this.fogState(team, x, y) >= 1;
+  }
+
+  /** Reset visible→explored, then stamp vision around every owned unit. */
+  private updateFog(_dt: number): void {
+    const s = this.state;
+    for (const team of s.activePlayers) {
+      let grid = s.fog.get(team);
+      if (!grid) {
+        grid = createFogGrid(this.mapW, this.mapH);
+        s.fog.set(team, grid);
+      }
+      // Phase: visible → explored
+      const d = grid.data;
+      for (let i = 0, len = d.length; i < len; i++) {
+        if (d[i] === 2) d[i] = 1;
+      }
+      // Ships
+      for (const [, ship] of s.ships) {
+        if (ship.dead || ship.team !== team) continue;
+        stampVision(grid, ship.x, ship.y, VISION_RADIUS[ship.shipClass] ?? 600);
+      }
+      // Stations
+      for (const [, station] of s.stations) {
+        if (station.dead || station.team !== team) continue;
+        stampVision(grid, station.x, station.y, STATION_VISION_RADIUS);
+      }
+      // Planet turrets
+      for (const [, turret] of s.planetTurrets) {
+        if (turret.dead || turret.team !== team) continue;
+        stampVision(grid, turret.x, turret.y, TURRET_VISION_RADIUS);
+      }
+    }
+  }
+
+  // ── Skirmish POI Generation ────────────────────────────────────
+  private generateSkirmishPOIs(): void {
+    const s = this.state;
+    const hw = this.mapW / 2;
+    const hh = this.mapH / 2;
+    const count = s.gameMode === '1v1' ? 8 : 12;
+    const types: POIType[] = ['derelict', 'anomaly', 'data_cache', 'resource_vein', 'ancient_gate', 'pirate_stash'];
+
+    for (let i = 0; i < count; i++) {
+      let x: number, y: number;
+      let attempts = 0;
+      do {
+        x = (Math.random() - 0.5) * hw * 1.4;
+        y = (Math.random() - 0.5) * hh * 1.4;
+        attempts++;
+      } while (attempts < 50 && (s.planets.some((p) => dist2d(p, { x, y }) < 2000) || s.pois.some((p) => dist2d(p, { x, y }) < 1500)));
+      const type = types[i % types.length];
+      const id = s.nextId++;
+      s.pois.push({
+        id,
+        x,
+        y,
+        type,
+        name: `${type.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())} ${id}`,
+        discovered: false,
+        claimedByTeam: null,
+        reward: {
+          credits: type === 'resource_vein' ? 400 : type === 'pirate_stash' ? 250 : 80,
+          energy: type === 'anomaly' ? 150 : 30,
+          minerals: type === 'resource_vein' ? 300 : 30,
+          xp: 30 + Math.floor(Math.random() * 80),
+        },
+        radius: 500,
+        guarded: type === 'pirate_stash' || type === 'derelict',
+        guardShipIds: [],
+        guardsSpawned: false,
+        guardShipTypes: type === 'pirate_stash' ? ['pirate_01', 'pirate_02', 'pirate_03'] : ['pirate_01', 'pirate_02'],
+      });
+    }
+    // Link ancient gate pairs
+    const gates = s.pois.filter((p) => p.type === 'ancient_gate');
+    for (let i = 0; i < gates.length - 1; i += 2) {
+      gates[i].pairedPOIId = gates[i + 1].id;
+      gates[i + 1].pairedPOIId = gates[i].id;
+    }
+  }
+
+  // ── POI Discovery & Reward ─────────────────────────────────────
+  private updatePOIs(_dt: number): void {
+    const s = this.state;
+    for (const poi of s.pois) {
+      if (poi.claimedByTeam !== null) continue;
+      for (const [, ship] of s.ships) {
+        if (ship.dead || ship.team === 0) continue;
+        if (dist2d(ship, poi) > poi.radius) continue;
+
+        // First contact → mark discovered
+        if (!poi.discovered) {
+          poi.discovered = true;
+          s.floatingTexts.push({
+            id: s.nextId++,
+            x: poi.x,
+            y: poi.y,
+            z: 100,
+            text: `Discovered: ${poi.name}`,
+            color: POI_COLORS[poi.type],
+            age: 0,
+            maxAge: 3,
+          });
+          s.alerts.push({ id: s.nextId++, x: poi.x, y: poi.y, z: 0, type: 'conquest', time: s.gameTime, message: `POI: ${poi.name}` });
+        }
+
+        // Spawn guards on first approach
+        if (poi.guarded && !poi.guardsSpawned) {
+          poi.guardsSpawned = true;
+          for (const gType of poi.guardShipTypes) {
+            const g = this.spawnShip(gType, 0 as Team, poi.x + (Math.random() - 0.5) * 200, poi.y + (Math.random() - 0.5) * 200);
+            g.holdPosition = true;
+            for (const ab of g.abilities) ab.autoCast = true;
+            poi.guardShipIds.push(g.id);
+          }
+          break; // wait until guards are dead
+        }
+
+        // Guards still alive? skip claim
+        if (
+          poi.guarded &&
+          poi.guardShipIds.some((gid) => {
+            const g = s.ships.get(gid);
+            return g && !g.dead;
+          })
+        )
+          continue;
+
+        // Claim rewards
+        poi.claimedByTeam = ship.team;
+        const r = s.resources[ship.team];
+        if (r) {
+          r.credits += poi.reward.credits ?? 0;
+          r.energy += poi.reward.energy ?? 0;
+          r.minerals += poi.reward.minerals ?? 0;
+        }
+        if (poi.reward.xp) ship.xp += poi.reward.xp;
+        s.floatingTexts.push({
+          id: s.nextId++,
+          x: poi.x,
+          y: poi.y,
+          z: 120,
+          text: `+${poi.reward.credits ?? 0}c +${poi.reward.energy ?? 0}e +${poi.reward.minerals ?? 0}m`,
+          color: '#ffcc22',
+          age: 0,
+          maxAge: 3,
+        });
+        break;
+      }
+    }
+  }
+
   // ── Station ────────────────────────────────────────────────────
   buildStation(planet: Planet, team: Team): SpaceStation {
     const id = this.state.nextId++;
@@ -618,6 +839,7 @@ export class SpaceEngine {
     }
     // Override dt for all subsystems
     const _dt = effectiveDt;
+    this.updateFog(_dt);
     this.updateResourceNodes(_dt);
     this.updateWorkers(_dt);
     this.updateCommanderTraining(_dt);
@@ -635,6 +857,7 @@ export class SpaceEngine {
     this.updateVoidEffects(_dt);
     this.updateVoidCooldowns(_dt);
     this.updateDarkRifts(_dt);
+    this.updatePOIs(_dt);
     this.updateAdvancedAI(_dt);
     this.updateWinCondition(_dt);
     // Campaign event ticker (every ~30 game-seconds)
@@ -2097,14 +2320,15 @@ export class SpaceEngine {
   private generateResourceNodes() {
     type NK = ResourceNode['kind'];
     const kindYield: Record<NK, { credits: number; energy: number; minerals: number }> = {
+      home_chunk: { credits: 15, energy: 10, minerals: 20 },
       moon: { credits: 3, energy: 2, minerals: 10 },
       asteroid: { credits: 0, energy: 0, minerals: 15 },
       ice_rock: { credits: 0, energy: 12, minerals: 2 },
       crystal_deposit: { credits: 12, energy: 2, minerals: 0 },
     };
-    const kindRadius: Record<NK, number> = { moon: 36, asteroid: 12, ice_rock: 17, crystal_deposit: 11 };
-    const kindOrbitSpd: Record<NK, number> = { moon: 0.12, asteroid: 0.42, ice_rock: 0.28, crystal_deposit: 0.52 };
-    const kindHarvestCD: Record<NK, number> = { moon: 8, asteroid: 5, ice_rock: 5, crystal_deposit: 6 };
+    const kindRadius: Record<NK, number> = { moon: 36, asteroid: 12, ice_rock: 17, crystal_deposit: 11, home_chunk: 18 };
+    const kindOrbitSpd: Record<NK, number> = { moon: 0.12, asteroid: 0.42, ice_rock: 0.28, crystal_deposit: 0.52, home_chunk: 0.2 };
+    const kindHarvestCD: Record<NK, number> = { moon: 8, asteroid: 5, ice_rock: 5, crystal_deposit: 6, home_chunk: 4 };
     const typeNodes: Record<PlanetType, NK[]> = {
       volcanic: ['asteroid', 'moon', 'asteroid'],
       oceanic: ['ice_rock', 'moon', 'ice_rock'],

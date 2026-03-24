@@ -4,6 +4,7 @@ import {
   TEAM_COLORS,
   CAPTURE_TIME,
   PLANET_TYPE_DATA,
+  POI_COLORS,
   type SpaceRenderer,
   type SpaceGameState,
   type Planet,
@@ -86,9 +87,10 @@ function Minimap({ state, renderer }: { state: SpaceGameState; renderer: SpaceRe
       ctx.globalAlpha = 1;
     }
 
-    // Ships
+    // Ships (hide enemies outside player fog)
     for (const [, ship] of state.ships) {
       if (ship.dead) continue;
+      if (ship.team !== 1 && renderer.engine.fogState(1, ship.x, ship.y) !== 2) continue;
       const sx = scale(ship.x, mapW, w);
       const sy = scale(ship.y, mapH, h);
       // Larger dots on minimap so ships are actually visible
@@ -117,9 +119,10 @@ function Minimap({ state, renderer }: { state: SpaceGameState; renderer: SpaceRe
       }
     }
 
-    // Stations
+    // Stations (hide enemies outside player fog)
     for (const [, st] of state.stations) {
       if (st.dead) continue;
+      if (st.team !== 1 && renderer.engine.fogState(1, st.x, st.y) !== 2) continue;
       const sx = scale(st.x, mapW, w),
         sy = scale(st.y, mapH, h);
       const stc = TEAM_COLORS[st.team];
@@ -140,6 +143,41 @@ function Minimap({ state, renderer }: { state: SpaceGameState; renderer: SpaceRe
       ctx.arc(px, py, Math.max(4, p.radius * 0.04), 0, Math.PI * 2);
       ctx.globalAlpha = 0.6;
       ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
+
+    // Fog of War overlay (team-1 perspective)
+    const fogGrid = state.fog.get(1);
+    if (fogGrid) {
+      const cellW = (fogGrid.cellSize / mapW) * w;
+      const cellH = (fogGrid.cellSize / mapH) * h;
+      for (let r = 0; r < fogGrid.rows; r++) {
+        for (let c = 0; c < fogGrid.cols; c++) {
+          const v = fogGrid.data[r * fogGrid.cols + c];
+          if (v === 2) continue; // visible — no overlay
+          ctx.fillStyle = v === 0 ? 'rgba(4,8,16,0.92)' : 'rgba(4,8,16,0.55)';
+          const fx = ((c * fogGrid.cellSize) / mapW) * w;
+          const fy = ((r * fogGrid.cellSize) / mapH) * h;
+          ctx.fillRect(fx, fy, Math.ceil(cellW), Math.ceil(cellH));
+        }
+      }
+    }
+
+    // POI icons (discovered only, drawn above fog)
+    for (const poi of state.pois) {
+      if (!poi.discovered) continue;
+      const px = scale(poi.x, mapW, w);
+      const py = scale(poi.y, mapH, h);
+      const sz = poi.claimedByTeam !== null ? 2.5 : 4;
+      ctx.fillStyle = POI_COLORS[poi.type];
+      ctx.globalAlpha = poi.claimedByTeam !== null ? 0.4 : 1;
+      ctx.beginPath();
+      ctx.moveTo(px, py - sz);
+      ctx.lineTo(px + sz * 0.7, py);
+      ctx.lineTo(px, py + sz);
+      ctx.lineTo(px - sz * 0.7, py);
+      ctx.closePath();
+      ctx.fill();
       ctx.globalAlpha = 1;
     }
 
