@@ -728,8 +728,8 @@ function BuildPanel({ station, renderer, res }: { station: SpaceStation; rendere
         </div>
       )}
 
-      {/* Stock ships — visual slot cards with ship previews */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, maxHeight: 140, overflowY: 'auto', marginBottom: 6 }}>
+      {/* Stock ships — horizontal card layout using space-shooter-gui container */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 160, overflowY: 'auto', marginBottom: 6 }}>
         {tiers.flatMap((tier) =>
           (BUILDABLE_SHIPS[tier] ?? []).map((key) => {
             const def = SHIP_DEFINITIONS[key];
@@ -739,89 +739,31 @@ function BuildPanel({ station, renderer, res }: { station: SpaceStation; rendere
             const preview = SHIP_PREVIEW[key];
             const tierCol = TIER_COLORS[s.tier] ?? '#4488ff';
             const abbr = CLASS_ABBR[def.class] ?? '';
+            const role = SHIP_ROLES[key];
+            const roleCol = role ? SHIP_ROLE_COLORS[role] : null;
             return (
-              <div
+              <ShipBuildCard
                 key={key}
-                onClick={() => (canAfford ? renderer.engine.queueBuild(station.id, key) : undefined)}
-                title={`${def.displayName} — ${s.creditCost}c / ${s.energyCost}e / ${s.mineralCost}m · ${s.buildTime}s`}
-                style={{
-                  width: 88,
-                  position: 'relative',
-                  borderRadius: 6,
-                  overflow: 'hidden',
-                  border: `1px solid ${tierCol}44`,
-                  borderLeft: `3px solid ${tierCol}`,
-                  background: 'rgba(6,14,32,0.9)',
-                  cursor: canAfford ? 'pointer' : 'default',
-                  opacity: canAfford ? 1 : 0.35,
-                  transition: 'transform 0.1s',
-                }}
-                onMouseEnter={(e) => {
-                  if (canAfford) (e.currentTarget as HTMLDivElement).style.transform = 'scale(1.04)';
-                }}
-                onMouseLeave={(e) => {
-                  (e.currentTarget as HTMLDivElement).style.transform = 'scale(1)';
-                }}
-              >
-                {/* Ship preview image */}
-                <div
-                  style={{ height: 52, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(2,6,18,0.8)' }}
-                >
-                  {preview ? (
-                    <img
-                      src={preview}
-                      alt={def.displayName}
-                      style={{ width: '100%', height: '100%', objectFit: 'contain', imageRendering: 'auto' }}
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).style.display = 'none';
-                      }}
-                    />
-                  ) : (
-                    <div style={{ fontSize: 20, opacity: 0.15 }}>🚀</div>
-                  )}
-                </div>
-                {/* Info bar */}
-                <div style={{ padding: '3px 4px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 }}>
-                    <span
-                      style={{
-                        fontSize: 8,
-                        fontWeight: 700,
-                        color: '#fff',
-                        whiteSpace: 'nowrap',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        maxWidth: 54,
-                      }}
-                    >
-                      {def.displayName}
-                    </span>
-                    <span style={{ fontSize: 7, fontWeight: 700, color: tierCol, letterSpacing: 0.3 }}>{abbr}</span>
-                  </div>
-                  <div style={{ display: 'flex', gap: 4, fontSize: 7 }}>
-                    <span style={{ color: '#fc4' }}>{s.creditCost}c</span>
-                    <span style={{ color: '#4df' }}>{s.energyCost}e</span>
-                    <span style={{ color: '#4f8' }}>{s.mineralCost}m</span>
-                  </div>
-                </div>
-                {/* Tier badge */}
-                <div
-                  style={{
-                    position: 'absolute',
-                    top: 2,
-                    right: 2,
-                    fontSize: 7,
-                    fontWeight: 700,
-                    padding: '1px 4px',
-                    borderRadius: 2,
-                    background: 'rgba(10,20,40,0.85)',
-                    color: tierCol,
-                    border: `1px solid ${tierCol}33`,
-                  }}
-                >
-                  T{s.tier}
-                </div>
-              </div>
+                shipKey={key}
+                displayName={def.displayName}
+                shipClass={def.class}
+                preview={preview}
+                tierCol={tierCol}
+                abbr={abbr}
+                roleLabel={role ? SHIP_ROLE_LABELS[role] : undefined}
+                roleColor={roleCol ?? undefined}
+                credits={s.creditCost}
+                energy={s.energyCost}
+                minerals={s.mineralCost}
+                buildTime={s.buildTime}
+                tier={s.tier}
+                canAfford={canAfford}
+                dmg={s.attackDamage}
+                hp={s.maxHp}
+                shield={s.maxShield}
+                speed={s.speed}
+                onClick={() => canAfford && renderer.engine.queueBuild(station.id, key)}
+              />
             );
           }),
         )}
@@ -1029,4 +971,231 @@ function UpgradePanel({ upg, res, renderer }: { upg: TeamUpgrades; res: PlayerRe
 
 // ── Void Power Castbar ─────────────────────────────────────────
 
-export { SingleUnitInfo, MultiUnitInfo, CommandCard, AbilityButton, BuildPanel, UpgradePanel };
+// ── Ship Build Card — uses space-shooter-gui container ─────────────
+const SHIP_CARD_BG = '/assets/space/ui/space-shooter-gui/PNG/Shop/shop_0013_cell.png';
+
+function ShipBuildCard({
+  shipKey,
+  displayName,
+  shipClass,
+  preview,
+  tierCol,
+  abbr,
+  roleLabel,
+  roleColor,
+  credits,
+  energy,
+  minerals,
+  buildTime,
+  tier,
+  canAfford,
+  dmg,
+  hp,
+  shield,
+  speed,
+  onClick,
+}: {
+  shipKey: string;
+  displayName: string;
+  shipClass: string;
+  preview?: string;
+  tierCol: string;
+  abbr: string;
+  roleLabel?: string;
+  roleColor?: string;
+  credits: number;
+  energy: number;
+  minerals: number;
+  buildTime: number;
+  tier: number;
+  canAfford: boolean;
+  dmg: number;
+  hp: number;
+  shield: number;
+  speed: number;
+  onClick: () => void;
+}) {
+  const [hovered, setHovered] = React.useState(false);
+
+  return (
+    <div
+      onClick={canAfford ? onClick : undefined}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        position: 'relative',
+        height: 56,
+        display: 'flex',
+        cursor: canAfford ? 'pointer' : 'default',
+        opacity: canAfford ? 1 : 0.4,
+        transition: 'transform 0.1s, opacity 0.15s',
+        transform: hovered && canAfford ? 'scale(1.02)' : 'scale(1)',
+      }}
+    >
+      {/* Container background image */}
+      <img
+        src={SHIP_CARD_BG}
+        alt=""
+        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'fill', pointerEvents: 'none' }}
+        onError={(e) => {
+          (e.target as HTMLImageElement).style.display = 'none';
+        }}
+      />
+
+      {/* Left: Ship portrait (square area) */}
+      <div
+        style={{
+          width: 56,
+          height: 56,
+          flexShrink: 0,
+          position: 'relative',
+          zIndex: 1,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          overflow: 'hidden',
+        }}
+      >
+        {preview ? (
+          <img
+            src={preview}
+            alt={displayName}
+            style={{
+              width: '90%',
+              height: '90%',
+              objectFit: 'contain',
+              imageRendering: 'auto',
+              filter: hovered ? 'brightness(1.2) drop-shadow(0 0 6px rgba(68,136,255,0.5))' : 'none',
+              transition: 'filter 0.15s',
+            }}
+            onError={(e) => {
+              (e.target as HTMLImageElement).style.display = 'none';
+            }}
+          />
+        ) : (
+          <div style={{ fontSize: 24, opacity: 0.15 }}>🚀</div>
+        )}
+        {/* Tier badge in corner */}
+        <div
+          style={{
+            position: 'absolute',
+            top: 2,
+            left: 2,
+            fontSize: 8,
+            fontWeight: 800,
+            padding: '1px 4px',
+            borderRadius: 3,
+            background: 'rgba(0,0,0,0.7)',
+            color: tierCol,
+          }}
+        >
+          T{tier}
+        </div>
+      </div>
+
+      {/* Right: Info panel */}
+      <div
+        style={{
+          flex: 1,
+          position: 'relative',
+          zIndex: 1,
+          padding: '4px 8px 4px 6px',
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'center',
+          minWidth: 0,
+        }}
+      >
+        {/* Name + class */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+          <span
+            style={{
+              fontSize: 12,
+              fontWeight: 800,
+              color: '#fff',
+              letterSpacing: 0.5,
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+            }}
+          >
+            {displayName}
+          </span>
+          <span style={{ fontSize: 8, fontWeight: 700, color: tierCol, letterSpacing: 0.3 }}>{abbr}</span>
+          {roleLabel && (
+            <span
+              style={{
+                fontSize: 7,
+                fontWeight: 700,
+                padding: '1px 4px',
+                borderRadius: 2,
+                background: `${roleColor}22`,
+                border: `1px solid ${roleColor}44`,
+                color: roleColor,
+              }}
+            >
+              {roleLabel}
+            </span>
+          )}
+        </div>
+
+        {/* Stats row */}
+        <div style={{ display: 'flex', gap: 8, fontSize: 9, marginBottom: 2 }}>
+          <span style={{ color: '#ff8844' }}>⚔️{dmg}</span>
+          <span style={{ color: '#44ee44' }}>♥{hp}</span>
+          {shield > 0 && <span style={{ color: '#44ccff' }}>🛡️{shield}</span>}
+          <span style={{ color: '#ffcc00' }}>⚡{Math.round(speed)}</span>
+        </div>
+
+        {/* Cost row */}
+        <div style={{ display: 'flex', gap: 8, fontSize: 9 }}>
+          <span style={{ color: '#fc4' }}>{credits}c</span>
+          <span style={{ color: '#4df' }}>{energy}e</span>
+          <span style={{ color: '#4f8' }}>{minerals}m</span>
+          <span style={{ color: 'rgba(160,200,255,0.4)', marginLeft: 'auto' }}>{buildTime}s</span>
+        </div>
+      </div>
+
+      {/* Hover tooltip */}
+      {hovered && (
+        <div
+          style={{
+            position: 'absolute',
+            bottom: '100%',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            marginBottom: 4,
+            padding: '6px 10px',
+            borderRadius: 6,
+            zIndex: 50,
+            background: 'rgba(4,10,22,0.97)',
+            border: '1px solid #4488ff44',
+            boxShadow: '0 4px 16px rgba(0,0,0,0.7)',
+            whiteSpace: 'nowrap',
+            fontSize: 10,
+            color: '#cde',
+            pointerEvents: 'none',
+          }}
+        >
+          <div style={{ fontWeight: 800, color: '#fff', marginBottom: 2 }}>{displayName}</div>
+          <div style={{ color: 'rgba(160,200,255,0.6)', fontSize: 9 }}>
+            {shipClass.replace(/_/g, ' ')} · Tier {tier}
+            {roleLabel && <span style={{ color: roleColor }}> · {roleLabel}</span>}
+          </div>
+          <div style={{ marginTop: 4, display: 'flex', gap: 10, fontSize: 9 }}>
+            <span style={{ color: '#ff8844' }}>DMG {dmg}</span>
+            <span style={{ color: '#44ee44' }}>HP {hp}</span>
+            <span style={{ color: '#44ccff' }}>SHD {shield}</span>
+            <span style={{ color: '#ffcc00' }}>SPD {Math.round(speed)}</span>
+          </div>
+          <div style={{ marginTop: 2, fontSize: 8, color: 'rgba(160,200,255,0.4)' }}>
+            Cost: {credits}c / {energy}e / {minerals}m · Build: {buildTime}s
+          </div>
+          {!canAfford && <div style={{ color: '#ff4444', fontSize: 9, marginTop: 2 }}>Not enough resources</div>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export { SingleUnitInfo, MultiUnitInfo, CommandCard, AbilityButton, BuildPanel, UpgradePanel, ShipBuildCard };
