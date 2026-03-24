@@ -14,9 +14,10 @@ import { authFetch } from './grudge-auth';
 
 const API_URL = import.meta.env.VITE_GRUDGE_API ?? '';
 
-// ── State ─────────────────────────────────────────────────────────
+// ── State ─────────────────────────────────────────────────
 let _pendingFlush: LogEntry[] = [];
 const FLUSH_INTERVAL_MS = 30_000; // flush to backend every 30s
+const MAX_PENDING = 500; // cap buffer to prevent unbounded memory growth
 let _flushTimer: ReturnType<typeof setInterval> | null = null;
 
 // ── UUID Generation ───────────────────────────────────────────────
@@ -60,6 +61,10 @@ export function addLogEntry(
   };
   state.captainsLog.push(entry);
   _pendingFlush.push(entry);
+  // Cap pending buffer — drop oldest if backend is unreachable for a long time
+  if (_pendingFlush.length > MAX_PENDING) {
+    _pendingFlush = _pendingFlush.slice(-MAX_PENDING);
+  }
   return entry;
 }
 
