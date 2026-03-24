@@ -5,6 +5,8 @@
 **/.DS_Store
 **/._*
 **/*.kenshape
+**/*.vox
+**/*.ply
 **/license.txt
 **/License.txt
 **/readme.txt
@@ -19,6 +21,12 @@ docs
 SKILL.md
 vitest.config.ts
 tsconfig.tsbuildinfo
+Dockerfile
+docker-compose.yml
+nginx.conf
+.dockerignore
+.editorconfig
+.prettierrc
 
 # Stray root files
 19d1266228439.webp

@@ -28,6 +28,8 @@ import {
 import { UPGRADE_HUD_ICONS, SHIP_PREVIEW as SHARED_SHIP_PREVIEW } from './game/space-ui-shared';
 import { Panel, Btn, Slot, SmallPanel } from './game/ui-lib';
 import { gameAudio } from './game/space-audio';
+import { initAuth, login, logout, getUser, onAuthChange, type GrudgeUser } from './game/grudge-auth';
+import { loadRemoteBalance } from './game/space-data-loader';
 
 type Screen = 'intro' | 'menu' | 'codex' | 'howto' | 'editor' | 'playing';
 
@@ -305,6 +307,13 @@ export default function App() {
   const containerRef = useRef<HTMLDivElement>(null);
   const rendererRef = useRef<SpaceRenderer | null>(null);
   const [screen, setScreen] = useState<Screen>('intro');
+  const [authUser, setAuthUser] = useState<GrudgeUser | null>(null);
+
+  // Initialise auth on mount (handles OAuth callback + session restore)
+  useEffect(() => {
+    initAuth().then((u) => setAuthUser(u));
+    return onAuthChange((u) => setAuthUser(u));
+  }, []);
 
   // Music: switch tracks based on screen
   useEffect(() => {
@@ -349,6 +358,8 @@ export default function App() {
     setShowCmdModal(false);
     setLoading(true);
     setScreen('playing');
+    // Load remote balance overrides before engine init (non-blocking on failure)
+    await loadRemoteBalance();
     const r = new SpaceRenderer(containerRef.current, mode);
     rendererRef.current = r;
     r.playerCommanderSpec = spec;
@@ -393,6 +404,9 @@ export default function App() {
           onEditor={() => setScreen('editor')}
           mode={gameMode}
           setMode={setGameMode}
+          user={authUser}
+          onLogin={login}
+          onLogout={logout}
         />
       )}
       {showCmdModal && (
@@ -680,6 +694,9 @@ function MainMenu({
   onEditor,
   mode,
   setMode,
+  user,
+  onLogin,
+  onLogout,
 }: {
   onStart: () => void;
   onCodex: () => void;
@@ -687,6 +704,9 @@ function MainMenu({
   onEditor: () => void;
   mode: GameMode;
   setMode: (m: GameMode) => void;
+  user: GrudgeUser | null;
+  onLogin: (provider?: 'discord' | 'google' | 'github') => void;
+  onLogout: () => void;
 }) {
   const modes: { key: GameMode; label: string; desc: string }[] = [
     { key: '1v1', label: 'INNER SYSTEM', desc: '2 commanders · 7 planets · Solar System Scrim' },
@@ -728,8 +748,94 @@ function MainMenu({
             else t.style.display = 'none';
           }}
         />
-        <div style={{ fontSize: 12, opacity: 0.4, marginBottom: 32, letterSpacing: 4, textTransform: 'uppercase' }}>
+        <div style={{ fontSize: 12, opacity: 0.4, marginBottom: 12, letterSpacing: 4, textTransform: 'uppercase' }}>
           Solar System Scrim · Tactical RTS
+        </div>
+        {/* ── Auth bar ─────────────────────────────── */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            marginBottom: 28,
+            padding: '6px 16px',
+            borderRadius: 6,
+            background: 'rgba(6,14,32,0.7)',
+            border: '1px solid rgba(68,136,255,0.15)',
+          }}
+        >
+          {user ? (
+            <>
+              {user.avatarUrl && <img src={user.avatarUrl} alt="" style={{ width: 24, height: 24, borderRadius: 4 }} />}
+              <span style={{ fontSize: 12, color: '#4df', fontWeight: 600 }}>{user.displayName}</span>
+              <span style={{ fontSize: 9, color: 'rgba(160,200,255,0.4)', letterSpacing: 1 }}>GRUDGE ID</span>
+              <button
+                onClick={onLogout}
+                style={{
+                  marginLeft: 8,
+                  padding: '3px 10px',
+                  fontSize: 10,
+                  background: 'transparent',
+                  border: '1px solid rgba(255,68,68,0.3)',
+                  borderRadius: 4,
+                  color: '#f44',
+                  cursor: 'pointer',
+                  fontWeight: 600,
+                }}
+              >
+                LOGOUT
+              </button>
+            </>
+          ) : (
+            <>
+              <span style={{ fontSize: 10, color: 'rgba(160,200,255,0.5)', letterSpacing: 1 }}>GUEST MODE</span>
+              <button
+                onClick={() => onLogin('discord')}
+                style={{
+                  padding: '4px 12px',
+                  fontSize: 10,
+                  background: 'rgba(88,101,242,0.2)',
+                  border: '1px solid rgba(88,101,242,0.4)',
+                  borderRadius: 4,
+                  color: '#7289da',
+                  cursor: 'pointer',
+                  fontWeight: 700,
+                }}
+              >
+                DISCORD
+              </button>
+              <button
+                onClick={() => onLogin('google')}
+                style={{
+                  padding: '4px 12px',
+                  fontSize: 10,
+                  background: 'rgba(255,255,255,0.05)',
+                  border: '1px solid rgba(255,255,255,0.15)',
+                  borderRadius: 4,
+                  color: '#cde',
+                  cursor: 'pointer',
+                  fontWeight: 700,
+                }}
+              >
+                GOOGLE
+              </button>
+              <button
+                onClick={() => onLogin('github')}
+                style={{
+                  padding: '4px 12px',
+                  fontSize: 10,
+                  background: 'rgba(255,255,255,0.05)',
+                  border: '1px solid rgba(255,255,255,0.15)',
+                  borderRadius: 4,
+                  color: '#cde',
+                  cursor: 'pointer',
+                  fontWeight: 700,
+                }}
+              >
+                GITHUB
+              </button>
+            </>
+          )}
         </div>
         <div style={{ display: 'flex', gap: 16, marginBottom: 32 }}>
           {modes.map((m) => (

@@ -474,7 +474,7 @@ export const STATION_PREFABS: Record<string, SpacePrefab> = {
 // ── Enemy Ships (FBX) ───────────────────────────────────────────
 export const ENEMY_PREFABS: Record<string, SpacePrefab> = {
   enemy_fighter: {
-    modelPath: '/assets/space/models/enemies/Fighter/Fighter.fbx',
+    modelPath: '/assets/space/models/enemies/Enemies/Fighter/Fighter.fbx',
     format: 'fbx',
     scale: 0.045,
     offset: S(0, 0, 0),
@@ -482,7 +482,7 @@ export const ENEMY_PREFABS: Record<string, SpacePrefab> = {
     weaponPoints: [S(0, 0, 0.6)],
   },
   enemy_cruiser: {
-    modelPath: '/assets/space/models/enemies/Enemy Cruiser.fbx',
+    modelPath: '/assets/space/models/enemies/Enemies/Enemy Cruiser.fbx',
     format: 'fbx',
     scale: 0.024,
     offset: S(0, 0, 0),
@@ -490,7 +490,7 @@ export const ENEMY_PREFABS: Record<string, SpacePrefab> = {
     weaponPoints: [S(0, 0.2, 1)],
   },
   enemy_destroyer: {
-    modelPath: '/assets/space/models/enemies/Enemy destroyer.fbx',
+    modelPath: '/assets/space/models/enemies/Enemies/Enemy destroyer.fbx',
     format: 'fbx',
     scale: 0.027,
     offset: S(0, 0, 0),
@@ -498,7 +498,7 @@ export const ENEMY_PREFABS: Record<string, SpacePrefab> = {
     weaponPoints: [S(0, 0.1, 0.8)],
   },
   enemy_huge: {
-    modelPath: '/assets/space/models/enemies/EnemyHuge.fbx',
+    modelPath: '/assets/space/models/enemies/Enemies/EnemyHuge.fbx',
     format: 'fbx',
     scale: 0.015,
     offset: S(0, 0, 0),
@@ -506,7 +506,7 @@ export const ENEMY_PREFABS: Record<string, SpacePrefab> = {
     weaponPoints: [S(-0.8, 0.3, 1.5), S(0.8, 0.3, 1.5)],
   },
   enemy_mega_boss: {
-    modelPath: '/assets/space/models/enemies/EnemyHuge2.fbx',
+    modelPath: '/assets/space/models/enemies/Enemies/EnemyHuge2.fbx',
     format: 'fbx',
     scale: 0.012,
     offset: S(0, 0, 0),
@@ -529,41 +529,35 @@ for (let i = 1; i <= 6; i++) {
   };
 }
 
-// ── Weapons (FBX) ───────────────────────────────────────────────
+// ── Weapons (GLB turrets) ────────────────────────────────────────
 export const WEAPON_PREFABS: Record<string, SpacePrefab> = {
   pistol_turret: {
-    modelPath: '/assets/space/models/weapons/Pistol.fbx',
-    format: 'fbx',
+    modelPath: '/assets/space/models/weapons/Turret Gun.glb',
+    format: 'glb',
     scale: 0.15,
     offset: S(0, 0, 0),
   },
   rifle_cannon: {
-    modelPath: '/assets/space/models/weapons/Rifle.fbx',
-    format: 'fbx',
+    modelPath: '/assets/space/models/weapons/Gun Cannon Turret.glb',
+    format: 'glb',
     scale: 0.12,
     offset: S(0, 0, 0),
   },
   sniper_railgun: {
-    modelPath: '/assets/space/models/weapons/Sniper.fbx',
-    format: 'fbx',
+    modelPath: '/assets/space/models/weapons/Rail Gun Turret.glb',
+    format: 'glb',
     scale: 0.12,
     offset: S(0, 0, 0),
   },
-  bow_launcher: {
-    modelPath: '/assets/space/models/weapons/Bow.fbx',
-    format: 'fbx',
+  gatling_turret: {
+    modelPath: '/assets/space/models/weapons/Gatelng Gun Turret.glb',
+    format: 'glb',
     scale: 0.12,
     offset: S(0, 0, 0),
   },
-  energy_blade: {
-    modelPath: '/assets/space/models/weapons/Sword.fbx',
-    format: 'fbx',
-    scale: 0.12,
-    offset: S(0, 0, 0),
-  },
-  heavy_blade: {
-    modelPath: '/assets/space/models/weapons/Sword2.fbx',
-    format: 'fbx',
+  light_turret: {
+    modelPath: '/assets/space/models/weapons/Turret.glb',
+    format: 'glb',
     scale: 0.12,
     offset: S(0, 0, 0),
   },
