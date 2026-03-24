@@ -516,171 +516,174 @@ function CommanderSelectModal({
         color: '#cde',
       }}
     >
-      <Panel title="CHOOSE YOUR COMMANDER" variant="green" width={700} style={{ maxWidth: '94vw' }}>
-        <div style={{ fontSize: 11, color: 'rgba(160,200,255,0.45)', marginBottom: 16, textAlign: 'center' }}>
-          Your starting commander determines your flagship's bonus spec.
-        </div>
-        {/* Commander spec cards */}
-        <div style={{ display: 'flex', gap: 10, marginBottom: 18, flexWrap: 'wrap' }}>
-          {SPECS.map((s, idx) => {
-            const sel = spec === s.key;
-            const portraitIdx = [1, 5, 9, 13, 17][idx];
-            return (
-              <div
-                key={s.key}
-                onClick={() => setSpec(s.key)}
-                style={{
-                  flex: '1 1 110px',
-                  minWidth: 110,
-                  padding: '10px 10px 14px',
-                  borderRadius: 10,
-                  cursor: 'pointer',
-                  border: `2px solid ${sel ? s.color : 'rgba(40,60,80,0.5)'}`,
-                  background: sel ? `${s.color}18` : 'rgba(6,14,30,0.8)',
-                  boxShadow: sel ? `0 0 16px ${s.color}44` : 'none',
-                  transition: 'all 0.2s',
-                  textAlign: 'center',
-                }}
-              >
-                <img
-                  src={`/assets/space/ui/commanders-bg/${portraitIdx}.png`}
-                  alt={s.label}
+      <Panel title="CHOOSE YOUR COMMANDER" variant="green" width={700} style={{ maxWidth: '94vw', maxHeight: '90vh' }}>
+        <div style={{ overflowY: 'auto', maxHeight: 'calc(90vh - 100px)', paddingRight: 4 }}>
+          <div style={{ fontSize: 11, color: 'rgba(160,200,255,0.45)', marginBottom: 16, textAlign: 'center' }}>
+            Your starting commander determines your flagship's bonus spec.
+          </div>
+          {/* Commander spec cards */}
+          <div style={{ display: 'flex', gap: 10, marginBottom: 18, flexWrap: 'wrap' }}>
+            {SPECS.map((s, idx) => {
+              const sel = spec === s.key;
+              const portraitIdx = [1, 5, 9, 13, 17][idx];
+              return (
+                <div
+                  key={s.key}
+                  onClick={() => setSpec(s.key)}
                   style={{
-                    width: 80,
-                    height: 80,
-                    borderRadius: 8,
-                    border: `2px solid ${sel ? s.color : '#1a3050'}`,
-                    objectFit: 'cover',
-                    marginBottom: 8,
-                    display: 'block',
-                    marginLeft: 'auto',
-                    marginRight: 'auto',
-                    filter: sel ? 'none' : 'brightness(0.7)',
-                    transition: 'filter 0.2s',
+                    flex: '1 1 110px',
+                    minWidth: 110,
+                    padding: '10px 10px 14px',
+                    borderRadius: 10,
+                    cursor: 'pointer',
+                    border: `2px solid ${sel ? s.color : 'rgba(40,60,80,0.5)'}`,
+                    background: sel ? `${s.color}18` : 'rgba(6,14,30,0.8)',
+                    boxShadow: sel ? `0 0 16px ${s.color}44` : 'none',
+                    transition: 'all 0.2s',
+                    textAlign: 'center',
                   }}
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).style.display = 'none';
-                  }}
-                />
-                <div style={{ fontSize: 13, fontWeight: 800, color: sel ? s.color : '#fff', marginBottom: 2 }}>{s.label}</div>
-                <div style={{ fontSize: 8, color: 'rgba(160,200,255,0.4)', letterSpacing: 0.5 }}>{s.planet}</div>
-                <div style={{ fontSize: 9, color: s.color, fontWeight: 700, marginTop: 4 }}>{s.bonus}</div>
-                {sel && <div style={{ fontSize: 9, color: 'rgba(160,200,255,0.6)', marginTop: 6, lineHeight: 1.4 }}>{s.desc}</div>}
-              </div>
-            );
-          })}
-        </div>
-
-        {/* ── Team Color Selection ─────────────────────────── */}
-        <div
-          style={{
-            padding: '12px 14px',
-            borderRadius: 8,
-            marginBottom: 14,
-            background: 'rgba(6,14,30,0.7)',
-            border: '1px solid rgba(40,60,80,0.4)',
-          }}
-        >
-          <div style={{ fontSize: 11, fontWeight: 700, color: '#8ac', marginBottom: 8, letterSpacing: 1 }}>YOUR TEAM COLOR</div>
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-            {TEAM_COLOR_PALETTE.map((c, i) => (
-              <div
-                key={i}
-                onClick={() => setPlayerColorIdx(i)}
-                title={c.label}
-                style={{
-                  width: 28,
-                  height: 28,
-                  borderRadius: 6,
-                  cursor: 'pointer',
-                  background: hexStr(c.hex),
-                  border: playerColorIdx === i ? '3px solid #fff' : '2px solid rgba(255,255,255,0.15)',
-                  boxShadow: playerColorIdx === i ? `0 0 10px ${hexStr(c.hex)}` : 'none',
-                  transition: 'all 0.15s',
-                }}
-              />
-            ))}
+                >
+                  <img
+                    src={`/assets/space/ui/commanders-bg/${portraitIdx}.png`}
+                    alt={s.label}
+                    style={{
+                      width: 80,
+                      height: 80,
+                      borderRadius: 8,
+                      border: `2px solid ${sel ? s.color : '#1a3050'}`,
+                      objectFit: 'cover',
+                      marginBottom: 8,
+                      display: 'block',
+                      marginLeft: 'auto',
+                      marginRight: 'auto',
+                      filter: sel ? 'none' : 'brightness(0.7)',
+                      transition: 'filter 0.2s',
+                    }}
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).style.display = 'none';
+                    }}
+                  />
+                  <div style={{ fontSize: 13, fontWeight: 800, color: sel ? s.color : '#fff', marginBottom: 2 }}>{s.label}</div>
+                  <div style={{ fontSize: 8, color: 'rgba(160,200,255,0.4)', letterSpacing: 0.5 }}>{s.planet}</div>
+                  <div style={{ fontSize: 9, color: s.color, fontWeight: 700, marginTop: 4 }}>{s.bonus}</div>
+                  {sel && <div style={{ fontSize: 9, color: 'rgba(160,200,255,0.6)', marginTop: 6, lineHeight: 1.4 }}>{s.desc}</div>}
+                </div>
+              );
+            })}
           </div>
-        </div>
 
-        {/* ── Enemy Color Mode ─────────────────────────────── */}
-        <div
-          style={{
-            padding: '12px 14px',
-            borderRadius: 8,
-            marginBottom: 18,
-            background: 'rgba(6,14,30,0.7)',
-            border: '1px solid rgba(40,60,80,0.4)',
-          }}
-        >
-          <div style={{ fontSize: 11, fontWeight: 700, color: '#8ac', marginBottom: 8, letterSpacing: 1 }}>ENEMY COLORS</div>
-          <div style={{ display: 'flex', gap: 10, marginBottom: 8 }}>
-            <div
-              onClick={() => setEnemyColorMode('unique')}
-              style={{
-                padding: '6px 14px',
-                borderRadius: 6,
-                cursor: 'pointer',
-                fontSize: 10,
-                fontWeight: 700,
-                background: enemyColorMode === 'unique' ? 'rgba(68,136,255,0.25)' : 'rgba(6,14,30,0.6)',
-                border: enemyColorMode === 'unique' ? '1px solid #4488ff' : '1px solid rgba(40,60,80,0.4)',
-                color: enemyColorMode === 'unique' ? '#6af' : '#68a',
-              }}
-            >
-              UNIQUE (EACH THEIR OWN)
-            </div>
-            <div
-              onClick={() => setEnemyColorMode('all_one')}
-              style={{
-                padding: '6px 14px',
-                borderRadius: 6,
-                cursor: 'pointer',
-                fontSize: 10,
-                fontWeight: 700,
-                background: enemyColorMode === 'all_one' ? 'rgba(255,68,68,0.25)' : 'rgba(6,14,30,0.6)',
-                border: enemyColorMode === 'all_one' ? '1px solid #ff4444' : '1px solid rgba(40,60,80,0.4)',
-                color: enemyColorMode === 'all_one' ? '#f66' : '#68a',
-              }}
-            >
-              ALL ENEMIES ONE COLOR
-            </div>
-          </div>
-          {enemyColorMode === 'all_one' && (
+          {/* ── Team Color Selection ─────────────────────────── */}
+          <div
+            style={{
+              padding: '12px 14px',
+              borderRadius: 8,
+              marginBottom: 14,
+              background: 'rgba(6,14,30,0.7)',
+              border: '1px solid rgba(40,60,80,0.4)',
+            }}
+          >
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#8ac', marginBottom: 8, letterSpacing: 1 }}>YOUR TEAM COLOR</div>
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
               {TEAM_COLOR_PALETTE.map((c, i) => (
                 <div
                   key={i}
-                  onClick={() => {
-                    if (i !== playerColorIdx) setEnemyColorIdx(i);
-                  }}
-                  title={i === playerColorIdx ? `${c.label} (your color)` : c.label}
+                  onClick={() => setPlayerColorIdx(i)}
+                  title={c.label}
                   style={{
-                    width: 24,
-                    height: 24,
-                    borderRadius: 5,
-                    cursor: i === playerColorIdx ? 'not-allowed' : 'pointer',
+                    width: 28,
+                    height: 28,
+                    borderRadius: 6,
+                    cursor: 'pointer',
                     background: hexStr(c.hex),
-                    border: enemyColorIdx === i ? '3px solid #fff' : '2px solid rgba(255,255,255,0.12)',
-                    boxShadow: enemyColorIdx === i ? `0 0 8px ${hexStr(c.hex)}` : 'none',
-                    opacity: i === playerColorIdx ? 0.25 : 1,
+                    border: playerColorIdx === i ? '3px solid #fff' : '2px solid rgba(255,255,255,0.15)',
+                    boxShadow: playerColorIdx === i ? `0 0 10px ${hexStr(c.hex)}` : 'none',
                     transition: 'all 0.15s',
                   }}
                 />
               ))}
             </div>
-          )}
-          {enemyColorMode === 'unique' && (
-            <div style={{ fontSize: 9, color: 'rgba(160,200,255,0.4)' }}>
-              Each enemy team will have a different color, just like Warcraft III.
-            </div>
-          )}
-        </div>
+          </div>
 
-        <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
-          <Btn label="BACK" onClick={onCancel} style={{ minWidth: 100, height: 36 }} />
-          <Btn label="DEPLOY" wide active onClick={onConfirm} />
+          {/* ── Enemy Color Mode ─────────────────────────────── */}
+          <div
+            style={{
+              padding: '12px 14px',
+              borderRadius: 8,
+              marginBottom: 18,
+              background: 'rgba(6,14,30,0.7)',
+              border: '1px solid rgba(40,60,80,0.4)',
+            }}
+          >
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#8ac', marginBottom: 8, letterSpacing: 1 }}>ENEMY COLORS</div>
+            <div style={{ display: 'flex', gap: 10, marginBottom: 8 }}>
+              <div
+                onClick={() => setEnemyColorMode('unique')}
+                style={{
+                  padding: '6px 14px',
+                  borderRadius: 6,
+                  cursor: 'pointer',
+                  fontSize: 10,
+                  fontWeight: 700,
+                  background: enemyColorMode === 'unique' ? 'rgba(68,136,255,0.25)' : 'rgba(6,14,30,0.6)',
+                  border: enemyColorMode === 'unique' ? '1px solid #4488ff' : '1px solid rgba(40,60,80,0.4)',
+                  color: enemyColorMode === 'unique' ? '#6af' : '#68a',
+                }}
+              >
+                UNIQUE (EACH THEIR OWN)
+              </div>
+              <div
+                onClick={() => setEnemyColorMode('all_one')}
+                style={{
+                  padding: '6px 14px',
+                  borderRadius: 6,
+                  cursor: 'pointer',
+                  fontSize: 10,
+                  fontWeight: 700,
+                  background: enemyColorMode === 'all_one' ? 'rgba(255,68,68,0.25)' : 'rgba(6,14,30,0.6)',
+                  border: enemyColorMode === 'all_one' ? '1px solid #ff4444' : '1px solid rgba(40,60,80,0.4)',
+                  color: enemyColorMode === 'all_one' ? '#f66' : '#68a',
+                }}
+              >
+                ALL ENEMIES ONE COLOR
+              </div>
+            </div>
+            {enemyColorMode === 'all_one' && (
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                {TEAM_COLOR_PALETTE.map((c, i) => (
+                  <div
+                    key={i}
+                    onClick={() => {
+                      if (i !== playerColorIdx) setEnemyColorIdx(i);
+                    }}
+                    title={i === playerColorIdx ? `${c.label} (your color)` : c.label}
+                    style={{
+                      width: 24,
+                      height: 24,
+                      borderRadius: 5,
+                      cursor: i === playerColorIdx ? 'not-allowed' : 'pointer',
+                      background: hexStr(c.hex),
+                      border: enemyColorIdx === i ? '3px solid #fff' : '2px solid rgba(255,255,255,0.12)',
+                      boxShadow: enemyColorIdx === i ? `0 0 8px ${hexStr(c.hex)}` : 'none',
+                      opacity: i === playerColorIdx ? 0.25 : 1,
+                      transition: 'all 0.15s',
+                    }}
+                  />
+                ))}
+              </div>
+            )}
+            {enemyColorMode === 'unique' && (
+              <div style={{ fontSize: 9, color: 'rgba(160,200,255,0.4)' }}>
+                Each enemy team will have a different color, just like Warcraft III.
+              </div>
+            )}
+          </div>
+
+          <div style={{ display: 'flex', gap: 12, justifyContent: 'center', paddingTop: 4 }}>
+            <Btn label="BACK" onClick={onCancel} style={{ minWidth: 100, height: 36 }} />
+            <Btn label="DEPLOY" wide active onClick={onConfirm} />
+          </div>
         </div>
+        {/* end scroll container */}
       </Panel>
     </div>
   );
