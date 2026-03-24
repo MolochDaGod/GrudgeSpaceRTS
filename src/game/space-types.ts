@@ -362,13 +362,49 @@ export interface GLBEffect {
   rotationSpeed: number;
 }
 
-// ── Resources ───────────────────────────────────────────────────
+// ── Resources ───────────────────────────────────────────────
 export interface PlayerResources {
   credits: number;
   energy: number;
   minerals: number;
   supply: number;
   maxSupply: number;
+  spark: number; // Spark — spent to unlock ships in faction tree
+  sparkTotal: number; // lifetime Spark earned (never decreases)
+}
+
+// ── Spark Ship Tree System ─────────────────────────────────
+export interface SparkShipNode {
+  id: string; // unique node ID (e.g. 'wisdom_corvette_01')
+  shipType: string; // key into SHIP_DEFINITIONS
+  sparkCost: number; // Spark required to unlock
+  requires: string[]; // node IDs that must be unlocked first
+  x: number; // position in tree UI (0-100 normalized)
+  y: number; // position in tree UI (0-100 normalized)
+  factionResourceCost?: number; // for capstone ships
+}
+
+export interface FactionShipTree {
+  faction: SpaceFaction;
+  nodes: SparkShipNode[];
+  capstoneNodeId: string; // the hero ship node
+}
+
+export interface FactionCommander {
+  id: string; // unique key (e.g. 'wisdom_lyra')
+  name: string;
+  faction: SpaceFaction;
+  portraitIndex: number; // index into commanders-bg PNG pack (1-20)
+  bonus: { stat: string; value: number; label: string };
+  startingUnlock: string; // ship tree node ID unlocked for free at start
+  lore: string;
+}
+
+// ── Spark State (per team, tracked in game state) ─────────────
+export interface SparkState {
+  unlockedNodes: Set<string>; // node IDs unlocked in the ship tree
+  faction: SpaceFaction;
+  commanderId: string; // which faction commander was chosen
 }
 
 // ── Global Upgrades ─────────────────────────────────────────────
@@ -695,6 +731,8 @@ export interface SpaceGameState {
   campaignProgress: CampaignProgress | null;
   captainsLog: LogEntry[];
   campaignEvents: CampaignEvent[];
+  // Spark ship tree
+  sparkState: Map<number, SparkState>; // per team
 }
 
 // ── Selection ───────────────────────────────────────────────────
