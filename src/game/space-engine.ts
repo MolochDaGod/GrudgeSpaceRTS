@@ -2445,6 +2445,10 @@ export class SpaceEngine {
       crystalline: ['crystal_deposit', 'moon', 'crystal_deposit'],
       gas_giant: ['ice_rock', 'moon', 'ice_rock'],
       frozen: ['ice_rock', 'crystal_deposit', 'moon'],
+      plasma: ['crystal_deposit', 'asteroid', 'crystal_deposit'],
+      fungal: ['moon', 'ice_rock', 'moon'],
+      metallic: ['asteroid', 'asteroid', 'moon'],
+      dark_matter: ['crystal_deposit', 'ice_rock', 'crystal_deposit'],
     };
     for (const planet of this.state.planets) {
       const preferred = typeNodes[planet.planetType];
