@@ -41,7 +41,7 @@ export {
   type POIType,
 } from './space-types';
 export { ALL_TECH_TREES, VOID_POWERS, PLANET_TYPE_TO_TECH, TURRET_DEFS } from './space-techtree';
-export { Panel, SmallPanel, Btn, Slot, Bar, Frame, ResBox } from './ui-lib';
+export { Panel, SmallPanel, Btn, Slot, Bar, Frame, ResBox, Tooltip } from './ui-lib';
 
 // ── Ship preview images (GIF for voxel ships, PNG for capitals/heroes) ─
 export const SHIP_PREVIEW: Record<string, string> = {

@@ -390,10 +390,10 @@ export class SpaceEngine {
     }
   }
 
-  // ── Planets ────────────────────────────────────────────────────
+  // ── Planets (zone-based procedural generation) ─────────────────
   private generatePlanets(mode: GameMode, players: Team[]): Planet[] {
     const planets: Planet[] = [];
-    const names = [
+    const NAMES = [
       'Terra Nova',
       'Helios Prime',
       'Voidreach',
@@ -408,16 +408,78 @@ export class SpaceEngine {
       'Cinder Reach',
       'Glasspoint',
       'Echo Basin',
+      'Forge Hollow',
+      'Dusk Veil',
+      'Nova Reach',
+      'Storm Bastion',
+      'Shard Gate',
+      'Riftpoint',
     ];
-    const hw = this.mapW / 2,
-      hh = this.mapH / 2;
+    let nameIdx = 0;
+    const nextName = () => NAMES[nameIdx++ % NAMES.length];
+    const hw = this.mapW / 2;
+    const hh = this.mapH / 2;
     let pid = 0;
 
-    // Starting planet types rotate through rich varieties
-    const startTypes: PlanetType[] = ['volcanic', 'oceanic', 'crystalline', 'gas_giant'];
-    // Neutral types cycle through all
-    const neutralTypes: PlanetType[] = ['barren', 'frozen', 'volcanic', 'crystalline', 'oceanic', 'gas_giant'];
+    const ALL_TYPES: PlanetType[] = ['volcanic', 'oceanic', 'barren', 'crystalline', 'gas_giant', 'frozen'];
+    const usedTypes = new Set<PlanetType>();
+    const pickType = (preferred?: PlanetType[]): PlanetType => {
+      const unused = ALL_TYPES.filter((t) => !usedTypes.has(t));
+      if (unused.length > 0 && Math.random() < 0.4) {
+        const t = unused[Math.floor(Math.random() * unused.length)];
+        usedTypes.add(t);
+        return t;
+      }
+      const pool = preferred && preferred.length ? preferred : ALL_TYPES;
+      const t = pool[Math.floor(Math.random() * pool.length)];
+      usedTypes.add(t);
+      return t;
+    };
 
+    const placed: { x: number; y: number }[] = [];
+    const MIN_DIST = 2500;
+    const tooClose = (x: number, y: number) => placed.some((p) => Math.hypot(p.x - x, p.y - y) < MIN_DIST);
+
+    const makePlanet = (
+      x: number,
+      y: number,
+      owner: Team,
+      pType: PlanetType,
+      name: string,
+      isStart: boolean,
+      defenders: number,
+      richMult: number,
+    ): Planet => {
+      const td = PLANET_TYPE_DATA[pType];
+      const radius = isStart ? 280 : 100 + Math.random() * 80;
+      return {
+        id: pid++,
+        x,
+        y,
+        z: 0,
+        radius,
+        name,
+        owner,
+        stationId: null,
+        resourceYield: {
+          credits: Math.round(8 * richMult * td.resourceMult.credits),
+          energy: Math.round(5 * richMult * td.resourceMult.energy),
+          minerals: Math.round(6 * richMult * td.resourceMult.minerals),
+        },
+        color: td.baseColor,
+        hasAsteroidField: Math.random() < 0.3,
+        planetType: pType,
+        captureRadius: radius * 2.5,
+        captureTeam: 0 as Team,
+        captureProgress: 0,
+        captureSpeed: CAPTURE_RATE_PER_UNIT,
+        neutralDefenders: defenders,
+        isStartingPlanet: isStart,
+      };
+    };
+
+    // ── Zone 1: Home planets (corners) ──────────────────────
+    const startTypes: PlanetType[] = ['volcanic', 'oceanic', 'crystalline', 'gas_giant'];
     const corners: Vec3[] =
       mode === '1v1'
         ? [
@@ -430,62 +492,104 @@ export class SpaceEngine {
             { x: -hw * 0.7, y: hh * 0.7, z: 0 },
             { x: hw * 0.7, y: -hh * 0.7, z: 0 },
           ];
-
     for (let i = 0; i < players.length; i++) {
-      const pType = startTypes[i % startTypes.length];
-      const td = PLANET_TYPE_DATA[pType];
-      const radius = 280;
-      planets.push({
-        id: pid++,
-        x: corners[i].x,
-        y: corners[i].y,
-        z: 0,
-        radius,
-        name: names[i % names.length],
-        owner: players[i],
-        stationId: null,
-        resourceYield: { credits: 15, energy: 10, minerals: 12 },
-        color: td.baseColor,
-        hasAsteroidField: false,
-        planetType: pType,
-        captureRadius: radius * 2.5,
-        captureTeam: 0 as Team,
-        captureProgress: 0,
-        captureSpeed: CAPTURE_RATE_PER_UNIT,
-        neutralDefenders: 0,
-        isStartingPlanet: true,
+      const pt = startTypes[i % startTypes.length];
+      usedTypes.add(pt);
+      const p = makePlanet(corners[i].x, corners[i].y, players[i], pt, nextName(), true, 0, 2.0);
+      p.resourceYield = { credits: 15, energy: 10, minerals: 12 }; // fixed start yields
+      p.hasAsteroidField = false;
+      planets.push(p);
+      placed.push({ x: p.x, y: p.y });
+    }
+
+    // ── Zone 2: Expansion planets (safe natural near each start) ──
+    for (let i = 0; i < players.length; i++) {
+      const angle = Math.atan2(-corners[i].y, -corners[i].x) + (Math.random() - 0.5) * 0.5;
+      const dist = 3000 + Math.random() * 1000;
+      const ex = corners[i].x + Math.cos(angle) * dist;
+      const ey = corners[i].y + Math.sin(angle) * dist;
+      if (!tooClose(ex, ey)) {
+        const p = makePlanet(ex, ey, 0 as Team, pickType(), nextName(), false, 2, 1.5);
+        planets.push(p);
+        placed.push({ x: p.x, y: p.y });
+      }
+    }
+
+    // ── Zone 3: Contested center (rich, strong defenders) ─────
+    const centerCount = mode === '1v1' ? 2 : 3;
+    for (let c = 0; c < centerCount; c++) {
+      let x: number,
+        y: number,
+        attempts = 0;
+      do {
+        x = (Math.random() - 0.5) * hw * 0.6;
+        y = (Math.random() - 0.5) * hh * 0.6;
+        attempts++;
+      } while (tooClose(x, y) && attempts < 50);
+      if (!tooClose(x, y)) {
+        const p = makePlanet(x, y, 0 as Team, pickType(['crystalline', 'gas_giant']), nextName(), false, NEUTRAL_DEFENDERS + 2, 2.5);
+        planets.push(p);
+        placed.push({ x: p.x, y: p.y });
+      }
+    }
+
+    // ── Zone 4: Lane / flank planets (between player starts) ──
+    const laneSources: { x: number; y: number }[] = [];
+    for (let i = 0; i < players.length; i++) {
+      const j = (i + 1) % players.length;
+      laneSources.push({
+        x: (corners[i].x + corners[j].x) / 2 + (Math.random() - 0.5) * 800,
+        y: (corners[i].y + corners[j].y) / 2 + (Math.random() - 0.5) * 800,
+      });
+    }
+    // Add flank offsets
+    for (const lp of [...laneSources]) {
+      laneSources.push({
+        x: lp.x + (Math.random() - 0.5) * 3000,
+        y: lp.y + (Math.random() - 0.5) * 3000,
       });
     }
 
-    const neutralCount = mode === '1v1' ? 5 : 10;
-    for (let i = 0; i < neutralCount; i++) {
-      const angle = (i / neutralCount) * Math.PI * 2;
-      const rf = 0.2 + Math.random() * 0.5;
-      const rich = 1 + (i % 3);
-      const pType = neutralTypes[i % neutralTypes.length];
-      const td = PLANET_TYPE_DATA[pType];
-      const radius = 100 + Math.random() * 80;
-      planets.push({
-        id: pid++,
-        x: Math.cos(angle) * hw * rf + (Math.random() - 0.5) * 600,
-        y: Math.sin(angle) * hh * rf + (Math.random() - 0.5) * 600,
-        z: 0,
-        radius,
-        name: names[(players.length + i) % names.length],
-        owner: 0 as Team,
-        stationId: null,
-        resourceYield: { credits: 8 * rich, energy: 5 * rich, minerals: 6 * rich },
-        color: td.baseColor,
-        hasAsteroidField: i % 3 === 0,
-        planetType: pType,
-        captureRadius: radius * 2.5,
-        captureTeam: 0 as Team,
-        captureProgress: 0,
-        captureSpeed: CAPTURE_RATE_PER_UNIT,
-        neutralDefenders: NEUTRAL_DEFENDERS,
-        isStartingPlanet: false,
-      });
+    const totalBudget = mode === '1v1' ? 9 : 16;
+    const remaining = Math.max(0, totalBudget - planets.length);
+    for (let i = 0; i < remaining; i++) {
+      let x: number,
+        y: number,
+        attempts = 0;
+      if (i < laneSources.length) {
+        x = laneSources[i].x;
+        y = laneSources[i].y;
+        while (tooClose(x, y) && attempts < 30) {
+          x = laneSources[i].x + (Math.random() - 0.5) * 2000;
+          y = laneSources[i].y + (Math.random() - 0.5) * 2000;
+          attempts++;
+        }
+      } else {
+        do {
+          x = (Math.random() - 0.5) * hw * 1.2;
+          y = (Math.random() - 0.5) * hh * 1.2;
+          attempts++;
+        } while (tooClose(x, y) && attempts < 50);
+      }
+      if (tooClose(x, y)) continue;
+      const rich = 1.0 + Math.random() * 0.8;
+      const defs = Math.random() < 0.4 ? NEUTRAL_DEFENDERS + 1 : NEUTRAL_DEFENDERS;
+      const p = makePlanet(x, y, 0 as Team, pickType(), nextName(), false, defs, rich);
+      planets.push(p);
+      placed.push({ x: p.x, y: p.y });
     }
+
+    // ── Variety guarantee: every planet type appears at least once ──
+    const missing = ALL_TYPES.filter((t) => !usedTypes.has(t));
+    for (const t of missing) {
+      const cands = planets.filter((p) => !p.isStartingPlanet);
+      if (cands.length > 0) {
+        const v = cands[Math.floor(Math.random() * cands.length)];
+        v.planetType = t;
+        v.color = PLANET_TYPE_DATA[t].baseColor;
+      }
+    }
+
     return planets;
   }
 
