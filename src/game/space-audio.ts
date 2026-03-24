@@ -16,6 +16,32 @@ type MusicKey = keyof typeof AUDIO_ASSETS.music;
 
 const SFX_POOL_SIZE = 4; // max simultaneous instances per SFX
 const SFX_COOLDOWN = 0.06; // min seconds between same SFX plays
+const STORAGE_KEY = 'gruda_audio_settings';
+
+interface AudioSettings {
+  masterVol: number;
+  sfxVol: number;
+  musicVol: number;
+  muted: boolean;
+}
+
+function loadSettings(): AudioSettings {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch {
+    /* ignore */
+  }
+  return { masterVol: 0.6, sfxVol: 0.8, musicVol: 0.35, muted: false };
+}
+
+function saveSettings(s: AudioSettings): void {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(s));
+  } catch {
+    /* ignore */
+  }
+}
 
 class SpaceAudio {
   private ctx: AudioContext | null = null;
@@ -31,16 +57,25 @@ class SpaceAudio {
   private musicBuffers = new Map<string, AudioBuffer>();
 
   private resumed = false;
-  private masterVol = 0.6;
-  private sfxVol = 0.8;
-  private musicVol = 0.35;
+  private masterVol: number;
+  private sfxVol: number;
+  private musicVol: number;
+  private _muted: boolean;
+
+  constructor() {
+    const s = loadSettings();
+    this.masterVol = s.masterVol;
+    this.sfxVol = s.sfxVol;
+    this.musicVol = s.musicVol;
+    this._muted = s.muted;
+  }
 
   /** Initialize AudioContext (call after first user gesture) */
   init() {
     if (this.ctx) return;
     this.ctx = new AudioContext();
     this.masterGain = this.ctx.createGain();
-    this.masterGain.gain.value = this.masterVol;
+    this.masterGain.gain.value = this._muted ? 0 : this.masterVol;
     this.masterGain.connect(this.ctx.destination);
 
     this.sfxGain = this.ctx.createGain();
@@ -141,22 +176,59 @@ class SpaceAudio {
     }
   }
 
-  /** Set master volume (0-1) */
+  /** Set master volume (0-1). Persisted to localStorage. */
   setMasterVolume(v: number) {
     this.masterVol = Math.max(0, Math.min(1, v));
-    if (this.masterGain) this.masterGain.gain.value = this.masterVol;
+    if (this.masterGain) this.masterGain.gain.value = this._muted ? 0 : this.masterVol;
+    this.persistSettings();
   }
 
-  /** Set SFX volume (0-1) */
+  /** Set SFX volume (0-1). Persisted to localStorage. */
   setSfxVolume(v: number) {
     this.sfxVol = Math.max(0, Math.min(1, v));
     if (this.sfxGain) this.sfxGain.gain.value = this.sfxVol;
+    this.persistSettings();
   }
 
-  /** Set music volume (0-1) */
+  /** Set music volume (0-1). Persisted to localStorage. */
   setMusicVolume(v: number) {
     this.musicVol = Math.max(0, Math.min(1, v));
     if (this.musicGain) this.musicGain.gain.value = this.musicVol;
+    this.persistSettings();
+  }
+
+  /** Toggle mute on/off. Persisted. */
+  toggleMute(): boolean {
+    this._muted = !this._muted;
+    if (this.masterGain) this.masterGain.gain.value = this._muted ? 0 : this.masterVol;
+    this.persistSettings();
+    return this._muted;
+  }
+
+  /** Set mute state directly. */
+  setMuted(m: boolean) {
+    this._muted = m;
+    if (this.masterGain) this.masterGain.gain.value = this._muted ? 0 : this.masterVol;
+    this.persistSettings();
+  }
+
+  /** Get current settings (for UI display). */
+  getMasterVolume(): number {
+    return this.masterVol;
+  }
+  getSfxVolume(): number {
+    return this.sfxVol;
+  }
+  getMusicVolume(): number {
+    return this.musicVol;
+  }
+  isMuted(): boolean {
+    return this._muted;
+  }
+
+  /** Persist settings to localStorage. */
+  private persistSettings(): void {
+    saveSettings({ masterVol: this.masterVol, sfxVol: this.sfxVol, musicVol: this.musicVol, muted: this._muted });
   }
 
   // ── Internal ──────────────────────────────────────────────

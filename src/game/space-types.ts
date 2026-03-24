@@ -105,7 +105,7 @@ export interface GameEntity {
 // ── Space Ship ──────────────────────────────────────────────────
 // ── Planet Types ────────────────────────────────────────────────
 export type PlanetType = 'volcanic' | 'oceanic' | 'barren' | 'crystalline' | 'gas_giant' | 'frozen';
-export type ResourceNodeKind = 'moon' | 'asteroid' | 'ice_rock' | 'crystal_deposit';
+export type ResourceNodeKind = 'moon' | 'asteroid' | 'ice_rock' | 'crystal_deposit' | 'home_chunk';
 
 export interface PlanetTypeData {
   label: string;
@@ -130,6 +130,11 @@ export interface ResourceNode {
   yield: { credits: number; energy: number; minerals: number };
   harvestCooldown: number; // current cooldown
   maxHarvestCooldown: number; // seconds between harvests
+  // Home chunk fields (campaign homeworld only)
+  isHomeChunk?: boolean; // true = spawned by homeworld chunk system
+  factionYield?: FactionResource | null; // if set, also yields faction resource when mined
+  chunkAge?: number; // game-seconds since this chunk spawned
+  infinite?: boolean; // home chunks respawn after depletion
 }
 
 export interface SpaceShip extends GameEntity {
@@ -438,6 +443,9 @@ export const VISION_RADIUS: Record<string, number> = {
   dreadnought: 900,
   worker: 600,
 };
+
+export const STATION_VISION_RADIUS = 1000;
+export const TURRET_VISION_RADIUS = 600;
 
 // ── Points of Interest (discoverable map objects) ────
 export type POIType = 'derelict' | 'anomaly' | 'data_cache' | 'resource_vein' | 'ancient_gate' | 'pirate_stash';

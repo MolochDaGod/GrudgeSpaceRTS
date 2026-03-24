@@ -15,6 +15,7 @@ import {
   MAP_HEIGHT,
   SHIP_DEFINITIONS,
   CAPTURE_TIME,
+  POI_COLORS,
   type GameMode,
 } from './space-types';
 import { SpaceControls } from './space-controls';
@@ -110,6 +111,7 @@ export class SpaceRenderer {
   private towerMeshes = new Map<number, THREE.Group>();
   private planetMeshes: THREE.Mesh[] = [];
   private projectileMeshes = new Map<number, THREE.Mesh>();
+  private poiMeshes = new Map<number, THREE.Sprite>();
 
   private modelCache = new Map<string, THREE.Group>();
   private loadingModels = new Map<string, Promise<THREE.Group>>();
@@ -1169,6 +1171,13 @@ export class SpaceRenderer {
     // Add/update ships
     for (const [id, ship] of state.ships) {
       if (ship.dead) continue;
+      // Fog: hide non-player ships outside team-1 vision
+      if (ship.team !== 1) {
+        const vis = this.engine.isVisible(1, ship.x, ship.y);
+        const ex = this.shipMeshes.get(id);
+        if (ex) ex.group.visible = vis;
+        if (!vis) continue;
+      }
       let meshData = this.shipMeshes.get(id);
 
       if (!meshData) {
@@ -1561,6 +1570,9 @@ export class SpaceRenderer {
     this.syncPlanetTurrets(this.engine.state);
     this.syncPlanetBuildings(this.engine.state);
 
+    // Sync POI 3D markers
+    this.syncPOIs(this.engine.state);
+
     // Sync capture rings
     this.syncCaptureRings(this.engine.state);
 
@@ -1587,6 +1599,13 @@ export class SpaceRenderer {
     // Add/update
     for (const [id, station] of state.stations) {
       if (station.dead) continue;
+      // Fog: hide enemy stations outside team-1 vision
+      if (station.team !== 1) {
+        const vis = this.engine.isVisible(1, station.x, station.y);
+        const ex = this.stationMeshes.get(id);
+        if (ex) ex.visible = vis;
+        if (!vis) continue;
+      }
       let mesh = this.stationMeshes.get(id);
       if (!mesh) {
         mesh = new THREE.Group();
@@ -1621,6 +1640,55 @@ export class SpaceRenderer {
     }
   }
 
+  // ── Points of Interest (3D glowing markers) ────────────────
+  private syncPOIs(state: SpaceGameState) {
+    const pois = state.pois;
+    const t = state.gameTime;
+    // Cleanup stale
+    for (const [id, spr] of this.poiMeshes) {
+      if (!pois.find((p) => p.id === id)) {
+        this.scene.remove(spr);
+        this.poiMeshes.delete(id);
+      }
+    }
+    for (const poi of pois) {
+      const fogVis = this.engine.fogState(1, poi.x, poi.y);
+      const show = poi.discovered || fogVis === 2;
+      let spr = this.poiMeshes.get(poi.id);
+      if (!show) {
+        if (spr) spr.visible = false;
+        continue;
+      }
+      if (!spr) {
+        const mat = new THREE.SpriteMaterial({
+          color: new THREE.Color(POI_COLORS[poi.type]),
+          transparent: true,
+          opacity: 0.8,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false,
+        });
+        spr = new THREE.Sprite(mat);
+        spr.renderOrder = 5;
+        this.scene.add(spr);
+        this.poiMeshes.set(poi.id, spr);
+      }
+      spr.visible = true;
+      spr.position.set(poi.x * WORLD_SCALE, 6, poi.y * WORLD_SCALE);
+      const mat = spr.material as THREE.SpriteMaterial;
+      if (poi.claimedByTeam !== null) {
+        mat.opacity = 0.3;
+        spr.scale.set(2, 2, 1);
+      } else if (poi.discovered) {
+        const pulse = 0.8 + 0.2 * Math.sin(t * 2 + poi.id);
+        mat.opacity = pulse;
+        spr.scale.set(2.5 * pulse, 2.5 * pulse, 1);
+      } else {
+        mat.opacity = 0.15;
+        spr.scale.set(1.5, 1.5, 1);
+      }
+    }
+  }
+
   // ── Planet Turrets (visible orbiting defense) ───────────────
   private syncPlanetTurrets(state: SpaceGameState) {
     // Remove dead turrets
@@ -1632,6 +1700,13 @@ export class SpaceRenderer {
     }
     for (const [id, turret] of state.planetTurrets) {
       if (turret.dead) continue;
+      // Fog: hide enemy turrets outside team-1 vision
+      if (turret.team !== 1) {
+        const vis = this.engine.isVisible(1, turret.x, turret.y);
+        const ex = this.turretMeshes.get(id);
+        if (ex) ex.visible = vis;
+        if (!vis) continue;
+      }
       let mesh = this.turretMeshes.get(id);
       if (!mesh) {
         mesh = new THREE.Group();

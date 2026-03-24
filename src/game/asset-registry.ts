@@ -494,3 +494,154 @@ export function getAssetsByTag(tag: string): AssetEntry[] {
 export function getAllAssets(): readonly AssetEntry[] {
   return REGISTRY;
 }
+
+// ── Audio Asset Registry ─────────────────────────────────────
+export interface AudioAssetEntry {
+  uuid: string;
+  key: string;
+  type: 'music' | 'sfx';
+  localPath: string;
+  format: 'wav' | 'mp3' | 'ogg';
+  description: string;
+  tags: string[];
+}
+
+export const AUDIO_REGISTRY: AudioAssetEntry[] = [
+  // Music — Space Music Pack (premium WAV)
+  {
+    uuid: 'b0010001-musi-wav-battle-premium00',
+    key: 'music_battle_premium',
+    type: 'music',
+    localPath: '/assets/space/audio/music/battle-premium.wav',
+    format: 'wav',
+    description: 'Intense combat music',
+    tags: ['battle', 'premium'],
+  },
+  {
+    uuid: 'b0010002-musi-wav-menu-premium0000',
+    key: 'music_menu_premium',
+    type: 'music',
+    localPath: '/assets/space/audio/music/menu-premium.wav',
+    format: 'wav',
+    description: 'Menu/lobby ambient',
+    tags: ['menu', 'premium'],
+  },
+  {
+    uuid: 'b0010003-musi-wav-slow-travel00000',
+    key: 'music_exploration',
+    type: 'music',
+    localPath: '/assets/space/audio/music/slow-travel.wav',
+    format: 'wav',
+    description: 'Campaign exploration',
+    tags: ['campaign', 'exploration'],
+  },
+  {
+    uuid: 'b0010004-musi-wav-meet-princess000',
+    key: 'music_story',
+    type: 'music',
+    localPath: '/assets/space/audio/music/meet-the-princess.wav',
+    format: 'wav',
+    description: 'Story dramatic moments',
+    tags: ['campaign', 'story'],
+  },
+  {
+    uuid: 'b0010005-musi-wav-in-wreckage00000',
+    key: 'music_aftermath',
+    type: 'music',
+    localPath: '/assets/space/audio/music/in-the-wreckage.wav',
+    format: 'wav',
+    description: 'Post-battle wreckage',
+    tags: ['campaign', 'aftermath'],
+  },
+  {
+    uuid: 'b0010006-musi-wav-loading000000000',
+    key: 'music_loading',
+    type: 'music',
+    localPath: '/assets/space/audio/music/loading.wav',
+    format: 'wav',
+    description: 'Loading screen',
+    tags: ['loading'],
+  },
+  // Music — Original (lightweight MP3)
+  {
+    uuid: 'b0010007-musi-mp3-battle-original0',
+    key: 'music_battle',
+    type: 'music',
+    localPath: '/assets/space/audio/music/battle.mp3',
+    format: 'mp3',
+    description: 'Combat music (original)',
+    tags: ['battle'],
+  },
+  {
+    uuid: 'b0010008-musi-mp3-menu-original000',
+    key: 'music_menu',
+    type: 'music',
+    localPath: '/assets/space/audio/music/menu.mp3',
+    format: 'mp3',
+    description: 'Menu music (original)',
+    tags: ['menu'],
+  },
+  {
+    uuid: 'b0010009-musi-mp3-main-theme000000',
+    key: 'music_main',
+    type: 'music',
+    localPath: '/assets/space/audio/music/main.mp3',
+    format: 'mp3',
+    description: 'Main title theme',
+    tags: ['intro', 'main'],
+  },
+  // SFX — Space Music Pack (premium WAV)
+  {
+    uuid: 'b0020001-sfx-wav-alien-talk-100000',
+    key: 'sfx_alien_talk_1',
+    type: 'sfx',
+    localPath: '/assets/space/audio/sfx/alien-talk-1.wav',
+    format: 'wav',
+    description: 'Alien dialogue SFX 1',
+    tags: ['alien', 'dialogue'],
+  },
+  {
+    uuid: 'b0020002-sfx-wav-alien-talk-200000',
+    key: 'sfx_alien_talk_2',
+    type: 'sfx',
+    localPath: '/assets/space/audio/sfx/alien-talk-2.wav',
+    format: 'wav',
+    description: 'Alien dialogue SFX 2',
+    tags: ['alien', 'dialogue'],
+  },
+  {
+    uuid: 'b0020003-sfx-wav-alien-talk-300000',
+    key: 'sfx_alien_talk_3',
+    type: 'sfx',
+    localPath: '/assets/space/audio/sfx/alien-talk-3.wav',
+    format: 'wav',
+    description: 'Alien dialogue SFX 3',
+    tags: ['alien', 'dialogue'],
+  },
+  {
+    uuid: 'b0020004-sfx-wav-scream0000000000',
+    key: 'sfx_scream',
+    type: 'sfx',
+    localPath: '/assets/space/audio/sfx/scream.wav',
+    format: 'wav',
+    description: 'Death/destruction scream',
+    tags: ['death', 'dramatic'],
+  },
+  {
+    uuid: 'b0020005-sfx-wav-start-level00000',
+    key: 'sfx_start_level',
+    type: 'sfx',
+    localPath: '/assets/space/audio/sfx/start-level.wav',
+    format: 'wav',
+    description: 'Campaign start fanfare',
+    tags: ['start', 'fanfare'],
+  },
+];
+
+/** Resolve audio URL with CDN fallback. */
+export function resolveAudioUrl(key: string): string {
+  const entry = AUDIO_REGISTRY.find((a) => a.key === key);
+  if (!entry) return '';
+  if (CDN_BASE) return `${CDN_BASE}/audio/${entry.uuid}`;
+  return entry.localPath;
+}

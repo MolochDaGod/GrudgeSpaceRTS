@@ -171,60 +171,244 @@ export const CAMPAIGN_START_RESOURCES = { credits: 1000, energy: 400, minerals: 
 export const CAMPAIGN_NEUTRAL_DEFENDERS = 5;
 
 export const CAMPAIGN_LORE_INTRO = [
-  'In the age before the networks, before the factions...',
-  'there was one.',
+  'They said the sky was burning.',
+  'They were right.',
   '',
-  'A commander who looked beyond the edge of their world',
-  'and saw the infinite.',
+  'The armageddon tore your world apart —',
+  'not destroyed, but shattered.',
+  'The surface cracked. Continents fractured.',
+  'Chunks of your homeworld broke free,',
+  'drifting into orbit like wounded moons.',
   '',
-  'You built the first drive.',
-  'You crossed the void.',
-  'You are the first.',
+  'But you survived.',
+  'You had been building something in the deep vaults —',
+  'a drive unlike anything your world had ever seen.',
   '',
-  'Now an entire sector lies before you —',
-  'uncharted stars, silent worlds, and enemies',
-  'who will not welcome your arrival.',
+  'You activated it.',
+  'You launched into orbit.',
+  'You built the first off-world base',
+  'on the broken back of your own dying planet.',
   '',
-  'Conquer every world.',
-  'Earn the title: CONQUEROR OF GALAXY.',
-  'Then... the real war begins.',
+  'Now those drifting chunks are your lifeline —',
+  'minable debris, forever breaking free,',
+  'feeding your forges with the bones of home.',
+  '',
+  'What you build on the surface determines',
+  'what those chunks yield.',
+  '',
+  'Build your base. Forge your fleet.',
+  'Choose your faction. Take this galaxy.',
+  'Then face the universe.',
 ];
 
 /** Story beats triggered at conquest milestones. */
 export const CAMPAIGN_STORY_BEATS: { atPercent: number; id: string; title: string; text: string }[] = [
   {
     atPercent: 0,
-    id: 'awakening',
-    title: 'The Awakening',
-    text: 'Your drive activates. The stars stretch around you. A new galaxy awaits.',
+    id: 'escape',
+    title: 'The Escape',
+    text: "The drive fires. You rise above the cracking surface. Below, your world fractures — but it's still there. Still home.",
+  },
+  {
+    atPercent: 5,
+    id: 'first_base',
+    title: 'First Base',
+    text: 'The lander touches down on orbital debris. Your first structure rises from the broken rock of your own world. Chunks drift by — minable.',
   },
   {
     atPercent: 15,
     id: 'first_contact',
     title: 'First Contact',
-    text: 'Sensors detect organized fleet movements. You are not alone in this sector.',
+    text: 'Signals in the void. Organized fleets, unknown origin. You are not the only survivor in this galaxy.',
   },
   {
-    atPercent: 30,
+    atPercent: 25,
+    id: 'faction_choice',
+    title: 'Choose Your Path',
+    text: 'Your people look to you. The faction you align with will define the future of your civilization.',
+  },
+  {
+    atPercent: 35,
     id: 'rival_emerges',
     title: 'A Rival Emerges',
-    text: 'An enemy commander broadcasts a challenge. They have been watching you.',
+    text: 'An enemy commander broadcasts on all frequencies. "This sector belongs to us. Leave or burn."',
   },
   {
     atPercent: 50,
     id: 'midpoint',
     title: 'The Tipping Point',
-    text: 'Half the sector bends to your will. The remaining factions fortify.',
+    text: 'Half the sector bends to your will. The remaining factions fortify their borders. War is inevitable.',
   },
-  { atPercent: 70, id: 'desperation', title: 'Acts of Desperation', text: 'Your enemies form uneasy alliances. Their fleets grow bolder.' },
-  { atPercent: 90, id: 'final_push', title: 'The Final Push', text: 'Only a handful of worlds remain. Victory is within grasp.' },
+  {
+    atPercent: 65,
+    id: 'ancient_signal',
+    title: 'The Ancient Signal',
+    text: 'Deep-space arrays detect a signal older than any known civilization. Something is watching from beyond the sector.',
+  },
+  {
+    atPercent: 75,
+    id: 'desperation',
+    title: 'Acts of Desperation',
+    text: 'Your enemies form uneasy alliances. Their combined fleets grow bolder, more desperate.',
+  },
+  {
+    atPercent: 90,
+    id: 'final_push',
+    title: 'The Final Push',
+    text: 'Only a handful of worlds remain. Your fleet is the strongest force this galaxy has ever seen.',
+  },
   {
     atPercent: 100,
     id: 'conqueror',
     title: 'Conqueror of Galaxy',
-    text: 'Every star in this sector answers to your command. The galaxy is yours.',
+    text: 'Every star in this sector answers to your command. But beyond the edge... the universe stirs. The wars are just beginning.',
   },
 ];
+
+/** Tutorial tooltip hints — shown progressively based on game state. */
+export const CAMPAIGN_TOOLTIPS: { id: string; condition: string; text: string; position: 'top' | 'bottom' | 'left' | 'right' }[] = [
+  {
+    id: 'tt_welcome',
+    condition: 'gameTime < 5',
+    text: 'Welcome, Commander. Your homeworld is shattered but not dead. Build your base on the debris — chunks break off forever, feeding your forges.',
+    position: 'bottom',
+  },
+  {
+    id: 'tt_select_ship',
+    condition: 'firstShipSelect',
+    text: 'Ship selected. Right-click to move or attack. Q/W/E for abilities.',
+    position: 'bottom',
+  },
+  {
+    id: 'tt_build_ship',
+    condition: 'firstStationSelect',
+    text: 'Click a ship in the build panel to queue production. Workers mine resources automatically.',
+    position: 'right',
+  },
+  {
+    id: 'tt_capture',
+    condition: 'firstNeutralNearby',
+    text: 'Send ships near a neutral planet to capture it. Defeat the defenders first.',
+    position: 'top',
+  },
+  {
+    id: 'tt_tech',
+    condition: 'firstPlanetCaptured',
+    text: 'Open the TECH panel to research upgrades. Each planet type unlocks different tech trees.',
+    position: 'left',
+  },
+  {
+    id: 'tt_faction_forge',
+    condition: 'planetLevel3',
+    text: "Your planet reached Level 3! Build a Faction Forge to produce your faction's endgame resource.",
+    position: 'bottom',
+  },
+  {
+    id: 'tt_hero_ship',
+    condition: 'factionResourceReady',
+    text: "You have enough faction resource to build your faction's Hero Ship. Open the build panel.",
+    position: 'right',
+  },
+  {
+    id: 'tt_log',
+    condition: 'firstEvent',
+    text: "An event has occurred! Press L to open the Captain's Log and review your journey.",
+    position: 'left',
+  },
+  {
+    id: 'tt_universe_wars',
+    condition: 'conquestComplete',
+    text: "You've conquered the galaxy. The Universe Wars await — PvP is now unlocked.",
+    position: 'top',
+  },
+];
+
+/** Base building model paths — KayKit Space Base + playerbase assets. */
+const SB = '/assets/space/models/space-base/KayKit_Space_Base_Bits_1.0_FREE/Assets/gltf';
+const PB = '/assets/space/models/playerbase/playerbase';
+export const BASE_BUILDING_MODELS: Record<string, { path: string; format: 'gltf' | 'fbx'; label: string }> = {
+  // KayKit modules (GLTF)
+  basemodule_a: { path: `${SB}/basemodule_A.gltf`, format: 'gltf', label: 'Base Module A' },
+  basemodule_b: { path: `${SB}/basemodule_B.gltf`, format: 'gltf', label: 'Base Module B' },
+  basemodule_c: { path: `${SB}/basemodule_C.gltf`, format: 'gltf', label: 'Base Module C' },
+  basemodule_d: { path: `${SB}/basemodule_D.gltf`, format: 'gltf', label: 'Base Module D' },
+  basemodule_e: { path: `${SB}/basemodule_E.gltf`, format: 'gltf', label: 'Base Module E' },
+  basemodule_garage: { path: `${SB}/basemodule_garage.gltf`, format: 'gltf', label: 'Garage Module' },
+  landingpad_large: { path: `${SB}/landingpad_large.gltf`, format: 'gltf', label: 'Landing Pad (Large)' },
+  landingpad_small: { path: `${SB}/landingpad_small.gltf`, format: 'gltf', label: 'Landing Pad (Small)' },
+  solarpanel: { path: `${SB}/solarpanel.gltf`, format: 'gltf', label: 'Solar Panel' },
+  roof_solarpanels: { path: `${SB}/roofmodule_solarpanels.gltf`, format: 'gltf', label: 'Solar Roof' },
+  roof_cargo_a: { path: `${SB}/roofmodule_cargo_A.gltf`, format: 'gltf', label: 'Cargo Roof A' },
+  roof_cargo_b: { path: `${SB}/roofmodule_cargo_B.gltf`, format: 'gltf', label: 'Cargo Roof B' },
+  drill_structure: { path: `${SB}/drill_structure.gltf`, format: 'gltf', label: 'Mining Drill' },
+  cargodepot_a: { path: `${SB}/cargodepot_A.gltf`, format: 'gltf', label: 'Cargo Depot A' },
+  cargodepot_b: { path: `${SB}/cargodepot_B.gltf`, format: 'gltf', label: 'Cargo Depot B' },
+  structure_tall: { path: `${SB}/structure_tall.gltf`, format: 'gltf', label: 'Tall Structure' },
+  structure_low: { path: `${SB}/structure_low.gltf`, format: 'gltf', label: 'Low Structure' },
+  windturbine_tall: { path: `${SB}/windturbine_tall.gltf`, format: 'gltf', label: 'Wind Turbine (Tall)' },
+  windturbine_low: { path: `${SB}/windturbine_low.gltf`, format: 'gltf', label: 'Wind Turbine (Low)' },
+  lander_a: { path: `${SB}/lander_A.gltf`, format: 'gltf', label: 'Lander A' },
+  lander_b: { path: `${SB}/lander_B.gltf`, format: 'gltf', label: 'Lander B' },
+  spacetruck: { path: `${SB}/spacetruck.gltf`, format: 'gltf', label: 'Space Truck' },
+  spacetruck_large: { path: `${SB}/spacetruck_large.gltf`, format: 'gltf', label: 'Heavy Hauler' },
+  tunnel_straight_a: { path: `${SB}/tunnel_straight_A.gltf`, format: 'gltf', label: 'Tunnel Straight' },
+  tunnel_diagonal_a: { path: `${SB}/tunnel_diagonal_long_A.gltf`, format: 'gltf', label: 'Tunnel Diagonal' },
+  terrain_mining: { path: `${SB}/terrain_mining.gltf`, format: 'gltf', label: 'Mining Terrain' },
+  // Playerbase (FBX)
+  pb_lander: { path: `${PB}/Lander.fbx`, format: 'fbx', label: 'Colony Lander' },
+  pb_satellite_dish: { path: `${PB}/SatelliteDish_1.fbx`, format: 'fbx', label: 'Satellite Dish' },
+  pb_solar_panel: { path: `${PB}/SolarPanel_4.fbx`, format: 'fbx', label: 'Colony Solar Panel' },
+  pb_building_block: { path: `${PB}/BuildingBlock_2.fbx`, format: 'fbx', label: 'Building Block' },
+};
+
+// ── Homeworld Chunk System ───────────────────────────────────
+// Homeworld forever spawns minable chunks into orbit.
+// What you build on the surface influences what those chunks yield.
+
+/** Seconds between homeworld chunk spawns (game-time, already 10x scaled). */
+export const CHUNK_SPAWN_INTERVAL = 45;
+/** Max chunks orbiting homeworld at once. */
+export const CHUNK_MAX_ORBITING = 12;
+/** Base yield of a homeworld chunk before building influence. */
+export const CHUNK_BASE_YIELD = { credits: 15, energy: 10, minerals: 20 };
+/** Seconds before a depleted chunk respawns (infinite cycle). */
+export const CHUNK_RESPAWN_COOLDOWN = 30;
+/** Orbit radius range for chunks (game units from planet center). */
+export const CHUNK_ORBIT_RANGE = { min: 400, max: 800 };
+
+/**
+ * How each building type on the homeworld surface influences chunk yields.
+ * Multiplier applied to the base yield category. Stacks with building level.
+ * refinery  → more minerals/credits
+ * barracks  → no resource bonus (supply)
+ * research_lab → more energy, chance of faction resource
+ * faction_forge → chunks also yield faction resource
+ */
+export const BUILDING_CHUNK_INFLUENCE: Partial<
+  Record<
+    PlanetBuildingType,
+    {
+      creditsMult: number;
+      energyMult: number;
+      mineralsMult: number;
+      factionResourceChance: number; // 0-1, chance a chunk also yields faction resource
+    }
+  >
+> = {
+  refinery: { creditsMult: 1.5, energyMult: 1.0, mineralsMult: 1.8, factionResourceChance: 0 },
+  research_lab: { creditsMult: 1.0, energyMult: 1.6, mineralsMult: 1.0, factionResourceChance: 0.15 },
+  faction_forge: { creditsMult: 1.0, energyMult: 1.0, mineralsMult: 1.0, factionResourceChance: 0.6 },
+};
+
+/** Maps each PlanetBuildingType to the 3D model used at each level (1-3). */
+export const BUILDING_TO_MODEL: Record<string, { level1: string; level2: string; level3: string }> = {
+  station: { level1: 'basemodule_a', level2: 'basemodule_c', level3: 'basemodule_e' },
+  refinery: { level1: 'drill_structure', level2: 'terrain_mining', level3: 'cargodepot_a' },
+  barracks: { level1: 'basemodule_b', level2: 'basemodule_d', level3: 'basemodule_garage' },
+  turret_platform: { level1: 'structure_low', level2: 'structure_tall', level3: 'structure_tall' },
+  research_lab: { level1: 'pb_satellite_dish', level2: 'windturbine_tall', level3: 'roof_solarpanels' },
+  faction_forge: { level1: 'pb_building_block', level2: 'cargodepot_b', level3: 'spacetruck_large' },
+};
 
 // ── Space Factions ────────────────────────────────────────────
 export interface FactionData {

@@ -709,29 +709,63 @@ export const UI_ASSETS = {
 
 // ── Audio ────────────────────────────────────────────────────────
 const A = '/assets/space/audio';
+const CDN_AUDIO = import.meta.env.VITE_ASSET_CDN ? `${import.meta.env.VITE_ASSET_CDN}/audio` : '';
+/** Resolve audio URL: CDN first, local fallback. */
+function audioUrl(localPath: string): string {
+  if (CDN_AUDIO) {
+    // CDN mirrors the /assets/space/audio/ structure
+    const relative = localPath.replace('/assets/space/audio/', '');
+    return `${CDN_AUDIO}/${relative}`;
+  }
+  return localPath;
+}
+
 export const AUDIO_ASSETS = {
-  // Music (MP3, loopable)
+  /**
+   * Music tracks — mapped by game context.
+   * Premium WAV tracks from Space Music Pack used for key moments;
+   * MP3 originals remain as lightweight fallbacks.
+   */
   music: {
-    battle: `${A}/music/battle.mp3`,
-    menu: `${A}/music/menu.mp3`,
-    main: `${A}/music/main.mp3`,
+    // Menu / lobby
+    menu: audioUrl(`${A}/music/menu-premium.wav`),
+    menu_fallback: audioUrl(`${A}/music/menu.mp3`),
+    // Main theme (intro / title)
+    main: audioUrl(`${A}/music/main.mp3`),
+    // Combat
+    battle: audioUrl(`${A}/music/battle-premium.wav`),
+    battle_fallback: audioUrl(`${A}/music/battle.mp3`),
+    // Campaign: slow exploration between battles
+    exploration: audioUrl(`${A}/music/slow-travel.wav`),
+    // Campaign: story beats / dramatic moments
+    story: audioUrl(`${A}/music/meet-the-princess.wav`),
+    // Campaign: post-battle / wreckage scenes
+    aftermath: audioUrl(`${A}/music/in-the-wreckage.wav`),
+    // Loading screen
+    loading: audioUrl(`${A}/music/loading.wav`),
   },
   // SFX (WAV, short clips)
   sfx: {
-    laser: `${A}/sfx/laser.wav`,
-    heavy_shot: `${A}/sfx/heavy_shot.wav`,
-    missile_shot: `${A}/sfx/missile_shot.wav`,
-    death_small: `${A}/sfx/death_small.wav`,
-    death_large: `${A}/sfx/death_large.wav`,
-    capture: `${A}/sfx/capture.wav`,
-    harvest: `${A}/sfx/harvest.wav`,
-    build_complete: `${A}/sfx/build_complete.wav`,
-    hero_built: `${A}/sfx/hero_built.wav`,
-    commander: `${A}/sfx/commander.wav`,
-    ui_click: `${A}/sfx/ui_click.wav`,
-    upgrade: `${A}/sfx/upgrade.wav`,
-    alert: `${A}/sfx/alert.wav`,
-    weapon_fire: `${A}/warped-shooting-fx.mp3`,
+    laser: audioUrl(`${A}/sfx/laser.wav`),
+    heavy_shot: audioUrl(`${A}/sfx/heavy_shot.wav`),
+    missile_shot: audioUrl(`${A}/sfx/missile_shot.wav`),
+    death_small: audioUrl(`${A}/sfx/death_small.wav`),
+    death_large: audioUrl(`${A}/sfx/death_large.wav`),
+    capture: audioUrl(`${A}/sfx/capture.wav`),
+    harvest: audioUrl(`${A}/sfx/harvest.wav`),
+    build_complete: audioUrl(`${A}/sfx/build_complete.wav`),
+    hero_built: audioUrl(`${A}/sfx/hero_built.wav`),
+    commander: audioUrl(`${A}/sfx/commander.wav`),
+    ui_click: audioUrl(`${A}/sfx/ui_click.wav`),
+    upgrade: audioUrl(`${A}/sfx/upgrade.wav`),
+    alert: audioUrl(`${A}/sfx/alert.wav`),
+    weapon_fire: audioUrl(`${A}/warped-shooting-fx.mp3`),
+    // Space Music Pack — premium SFX
+    alien_talk_1: audioUrl(`${A}/sfx/alien-talk-1.wav`),
+    alien_talk_2: audioUrl(`${A}/sfx/alien-talk-2.wav`),
+    alien_talk_3: audioUrl(`${A}/sfx/alien-talk-3.wav`),
+    scream: audioUrl(`${A}/sfx/scream.wav`),
+    start_level: audioUrl(`${A}/sfx/start-level.wav`),
   },
 };
 
