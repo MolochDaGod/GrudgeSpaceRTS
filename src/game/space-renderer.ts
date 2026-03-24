@@ -4,12 +4,30 @@ import { MTLLoader } from 'three/examples/jsm/loaders/MTLLoader.js';
 import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { getShipPrefab, BACKGROUND_LAYERS, STATION_PREFABS, EFFECT_PREFABS, type SpacePrefab } from './space-prefabs';
-import { type SpaceGameState, type SpaceShip, type SpaceStation, type Planet, type Team, TEAM_COLORS, MAP_WIDTH, MAP_HEIGHT, SHIP_DEFINITIONS, CAPTURE_TIME, type GameMode } from './space-types';
+import {
+  type SpaceGameState,
+  type SpaceShip,
+  type SpaceStation,
+  type Planet,
+  type Team,
+  TEAM_COLORS,
+  MAP_WIDTH,
+  MAP_HEIGHT,
+  SHIP_DEFINITIONS,
+  CAPTURE_TIME,
+  type GameMode,
+} from './space-types';
 import { SpaceControls } from './space-controls';
 import { SpaceEngine } from './space-engine';
 import { applyShipAnimation } from './space-animations';
 import { SpaceEffectsRenderer } from './space-effects';
-import { hasVoxelShip, buildVoxelShip, buildCapitalVoxelFallback } from './space-voxel-builder';
+import {
+  hasVoxelShip,
+  buildVoxelShip,
+  buildCapitalVoxelFallback,
+  buildVoxelFromSprite,
+  SPRITE_TO_VOXEL_SHIPS,
+} from './space-voxel-builder';
 import { loadHeroShip, glbBlobToUrl } from './ship-storage';
 
 interface ShipMesh3D {
@@ -18,7 +36,64 @@ interface ShipMesh3D {
   healthBg?: THREE.Mesh;
   shieldBar?: THREE.Mesh;
   selectionRing?: THREE.Mesh;
+  shieldBubble?: THREE.Mesh;
 }
+
+// ── Energy Shield Shader (hex grid + hit ripple + team color) ─────
+const SHIELD_VERTEX = `
+  varying vec3 vNormal;
+  varying vec3 vWorldPos;
+  void main() {
+    vNormal = normalize(normalMatrix * normal);
+    vWorldPos = (modelMatrix * vec4(position, 1.0)).xyz;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  }
+`;
+const SHIELD_FRAGMENT = `
+  uniform float time;
+  uniform float shieldPct;
+  uniform float hitFlash;
+  uniform vec3 teamColor;
+  varying vec3 vNormal;
+  varying vec3 vWorldPos;
+
+  // Simple hex grid pattern
+  float hexGrid(vec2 p) {
+    vec2 q = vec2(p.x * 2.0 / 1.732, p.y - p.x / 1.732);
+    vec2 pi = floor(q);
+    vec2 pf = fract(q);
+    float v = mod(pi.x + pi.y, 3.0);
+    float ca = step(1.0, v);
+    float cb = step(2.0, v);
+    vec2 ma = step(pf.xy, pf.yx);
+    float e = dot(ma, vec2(1.0 - cb, 1.0) * (1.0 - 2.0 * ca));
+    float d = min(min(pf.x, pf.y), min(1.0 - pf.x, 1.0 - pf.y));
+    return smoothstep(0.0, 0.06, d);
+  }
+
+  void main() {
+    // Fresnel rim: stronger at edges
+    float fresnel = 1.0 - abs(dot(vNormal, vec3(0.0, 0.0, 1.0)));
+    fresnel = pow(fresnel, 2.5);
+
+    // Hex pattern using world position
+    float hex = 1.0 - hexGrid(vWorldPos.xz * 3.0 + time * 0.3);
+    hex = max(hex, 1.0 - hexGrid(vWorldPos.xy * 2.5 - time * 0.2));
+
+    // Animated pulse
+    float pulse = 0.7 + 0.3 * sin(time * 2.5);
+
+    // Combine: base rim + hex pattern + hit flash
+    float alpha = (fresnel * 0.6 + hex * 0.15) * shieldPct * pulse;
+    alpha += hitFlash * 0.5;
+    alpha = clamp(alpha, 0.0, 0.7);
+
+    // Color: team color with white hot-spots on hex lines
+    vec3 col = mix(teamColor, vec3(1.0), hex * 0.4 + hitFlash * 0.6);
+
+    gl_FragColor = vec4(col, alpha);
+  }
+`;
 
 const WORLD_SCALE = 0.05;
 
@@ -51,7 +126,7 @@ export class SpaceRenderer {
   private effectsRenderer!: SpaceEffectsRenderer;
 
   // ── Planet interaction ───────────────────────────────
-  public hoveredPlanetId:  number | null = null;
+  public hoveredPlanetId: number | null = null;
   public selectedPlanetId: number | null = null;
   /** Called from SpaceControls when the player LMB-clicks a planet. */
   public onPlanetClick?: (planetId: number) => void;
@@ -109,10 +184,10 @@ export class SpaceRenderer {
   // On game start: fully zoomed out showing whole sector, then eases in
   // to a comfortable orbital view over the player’s home world.
   private introActive = false;
-  private introTimer  = 0;
-  private readonly introDuration  = 4.2;   // seconds
-  private readonly introZoomStart = 2400;   // deep-space — full sector visible
-  private readonly introZoomEnd   = 160;    // close orbit — home world prominent
+  private introTimer = 0;
+  private readonly introDuration = 4.2; // seconds
+  private readonly introZoomStart = 2400; // deep-space — full sector visible
+  private readonly introZoomEnd = 160; // close orbit — home world prominent
 
   constructor(container: HTMLElement, mode: GameMode = '1v1') {
     this.container = container;
@@ -174,12 +249,10 @@ export class SpaceRenderer {
     this.buildResourceNodes();
 
     // ─ Cinematic intro: center on player's home world, start deep-out ───
-    const homePlanet = this.engine.state.planets.find(
-      p => p.isStartingPlanet && p.owner === 1,
-    );
+    const homePlanet = this.engine.state.planets.find((p) => p.isStartingPlanet && p.owner === 1);
     if (homePlanet) {
-      this.controls.cameraState.x    = homePlanet.x;
-      this.controls.cameraState.y    = homePlanet.y;
+      this.controls.cameraState.x = homePlanet.x;
+      this.controls.cameraState.y = homePlanet.y;
       this.controls.cameraState.zoom = this.introZoomStart;
       this.introActive = true;
       // Let the player skip by scrolling
@@ -229,14 +302,14 @@ export class SpaceRenderer {
       const r = 400 + Math.random() * 1200;
       const theta = Math.random() * Math.PI * 2;
       const phi = Math.acos(2 * Math.random() - 1);
-      positions[i3]     = r * Math.sin(phi) * Math.cos(theta);
+      positions[i3] = r * Math.sin(phi) * Math.cos(theta);
       positions[i3 + 1] = r * Math.sin(phi) * Math.sin(theta);
       positions[i3 + 2] = r * Math.cos(phi);
 
       const brightness = 0.4 + Math.random() * 0.6;
       const tint = Math.random();
       // Slight blue-white hue variety
-      colors[i3]     = brightness * (tint > 0.85 ? 1.0 : 0.75);
+      colors[i3] = brightness * (tint > 0.85 ? 1.0 : 0.75);
       colors[i3 + 1] = brightness * (tint < 0.12 ? 0.65 : 0.87);
       colors[i3 + 2] = brightness;
       sizes[i] = 0.6 + Math.random() * 2.2;
@@ -249,8 +322,11 @@ export class SpaceRenderer {
 
     const mat = new THREE.PointsMaterial({
       // Slightly larger so stars remain visible at mid-zoom distances.
-      size: 2.0, vertexColors: true, sizeAttenuation: true,
-      transparent: true, opacity: 0.9,
+      size: 2.0,
+      vertexColors: true,
+      sizeAttenuation: true,
+      transparent: true,
+      opacity: 0.9,
     });
     this.starField = new THREE.Points(geo, mat);
     this.scene.add(this.starField);
@@ -265,7 +341,7 @@ export class SpaceRenderer {
       const r = 600 + Math.random() * 600;
       const theta = Math.random() * Math.PI * 2;
       const phi = Math.acos(2 * Math.random() - 1);
-      pos2[i3]     = r * Math.sin(phi) * Math.cos(theta);
+      pos2[i3] = r * Math.sin(phi) * Math.cos(theta);
       pos2[i3 + 1] = r * Math.sin(phi) * Math.sin(theta);
       pos2[i3 + 2] = r * Math.cos(phi);
       twinkleOffsets[i] = Math.random() * Math.PI * 2;
@@ -305,20 +381,27 @@ export class SpaceRenderer {
   private setupBackground() {
     // Layered parallax planes with slow independent drift — no tiling artifacts
     const configs: Array<{
-      path: string; opacity: number; scale: number;
-      vx: number; vz: number; y: number;
+      path: string;
+      opacity: number;
+      scale: number;
+      vx: number;
+      vz: number;
+      y: number;
     }> = [
-      { path: BACKGROUND_LAYERS.classic.background, opacity: 0.10, scale: 3600, vx:  0.010, vz:  0.006, y: -90 },
-      { path: BACKGROUND_LAYERS.classic.stars,      opacity: 0.08, scale: 3000, vx: -0.007, vz:  0.009, y: -80 },
-      { path: BACKGROUND_LAYERS.classic.farPlanets, opacity: 0.05, scale: 2600, vx:  0.005, vz: -0.008, y: -70 },
+      { path: BACKGROUND_LAYERS.classic.background, opacity: 0.1, scale: 3600, vx: 0.01, vz: 0.006, y: -90 },
+      { path: BACKGROUND_LAYERS.classic.stars, opacity: 0.08, scale: 3000, vx: -0.007, vz: 0.009, y: -80 },
+      { path: BACKGROUND_LAYERS.classic.farPlanets, opacity: 0.05, scale: 2600, vx: 0.005, vz: -0.008, y: -70 },
     ];
 
     for (const cfg of configs) {
       const tex = this.textureLoader.load(cfg.path);
       const geo = new THREE.PlaneGeometry(cfg.scale, cfg.scale);
       const mat = new THREE.MeshBasicMaterial({
-        map: tex, transparent: true, opacity: cfg.opacity,
-        depthWrite: false, blending: THREE.AdditiveBlending,
+        map: tex,
+        transparent: true,
+        opacity: cfg.opacity,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
       });
       const mesh = new THREE.Mesh(geo, mat);
       mesh.rotation.x = -Math.PI / 2;
@@ -331,20 +414,24 @@ export class SpaceRenderer {
   private setupSelectionBox() {
     this.selectionBoxDiv = document.createElement('div');
     Object.assign(this.selectionBoxDiv.style, {
-      position: 'absolute', border: '1px solid #4488ff', backgroundColor: 'rgba(68, 136, 255, 0.15)',
-      pointerEvents: 'none', display: 'none', zIndex: '50',
+      position: 'absolute',
+      border: '1px solid #4488ff',
+      backgroundColor: 'rgba(68, 136, 255, 0.15)',
+      pointerEvents: 'none',
+      display: 'none',
+      zIndex: '50',
     });
     this.container.appendChild(this.selectionBoxDiv);
   }
 
   // ─ Planet type → GLB model mapping ────────────────────────────
   private readonly PLANET_GLBS: Record<string, string> = {
-    volcanic:    '/assets/space/models/planets/planet_1.glb',
-    oceanic:     '/assets/space/models/planets/planet_2.glb',
+    volcanic: '/assets/space/models/planets/planet_1.glb',
+    oceanic: '/assets/space/models/planets/planet_2.glb',
     crystalline: '/assets/space/models/planets/planet_3.glb',
-    gas_giant:   '/assets/space/models/planets/planet_4.glb',
-    frozen:      '/assets/space/models/planets/planet_5.glb',
-    barren:      '/assets/space/models/planets/planet_main.glb',
+    gas_giant: '/assets/space/models/planets/planet_4.glb',
+    frozen: '/assets/space/models/planets/planet_5.glb',
+    barren: '/assets/space/models/planets/planet_main.glb',
   };
 
   /** Load FBX scene props (rings/asteroids) with cache + cloning. */
@@ -352,7 +439,7 @@ export class SpaceRenderer {
     if (this.scenePropCache.has(path)) return this.scenePropCache.get(path)!.clone();
     if (this.scenePropLoads.has(path)) return (await this.scenePropLoads.get(path)!).clone();
     const promise = (async () => {
-      const raw = await this.fbxLoader.loadAsync(path) as unknown as THREE.Group;
+      const raw = (await this.fbxLoader.loadAsync(path)) as unknown as THREE.Group;
       const model = this.sanitizeScenePropModel(raw, path);
       this.scenePropCache.set(path, model);
       this.scenePropLoads.delete(path);
@@ -364,7 +451,9 @@ export class SpaceRenderer {
 
   private hasRenderableMeshes(root: THREE.Object3D): boolean {
     let count = 0;
-    root.traverse(c => { if ((c as THREE.Mesh).isMesh) count++; });
+    root.traverse((c) => {
+      if ((c as THREE.Mesh).isMesh) count++;
+    });
     return count > 0;
   }
 
@@ -376,23 +465,31 @@ export class SpaceRenderer {
     const toRemove: THREE.Object3D[] = [];
     const isOrbitalStructure = path.toLowerCase().includes('_orbital_structure_');
 
-    model.traverse(c => {
+    model.traverse((c) => {
       if (!(c as THREE.Mesh).isMesh) return;
       const mesh = c as THREE.Mesh;
       const name = (mesh.name ?? '').toLowerCase();
 
       const geo = mesh.geometry as THREE.BufferGeometry | undefined;
-      if (!geo || !geo.attributes?.position) { toRemove.push(mesh); return; }
+      if (!geo || !geo.attributes?.position) {
+        toRemove.push(mesh);
+        return;
+      }
       geo.computeBoundingBox();
       const bb = geo.boundingBox;
-      if (!bb) { toRemove.push(mesh); return; }
+      if (!bb) {
+        toRemove.push(mesh);
+        return;
+      }
 
       const size = bb.getSize(new THREE.Vector3());
       const dims = [Math.abs(size.x), Math.abs(size.y), Math.abs(size.z)].sort((a, b) => a - b);
-      const thin = dims[0], mid = dims[1], thick = dims[2];
+      const thin = dims[0],
+        mid = dims[1],
+        thick = dims[2];
       const hugeMesh = thick > 5000 || mid > 5000;
       const namedBackdrop = name.includes('background') || name.includes('backdrop') || name === 'plane' || name.startsWith('plane');
-      const flatBackdropLike = thick > 0 && (thin / thick) < 0.006 && (mid / thick) > 0.70;
+      const flatBackdropLike = thick > 0 && thin / thick < 0.006 && mid / thick > 0.7;
 
       if (hugeMesh || namedBackdrop || (isOrbitalStructure && flatBackdropLike)) {
         toRemove.push(mesh);
@@ -401,7 +498,7 @@ export class SpaceRenderer {
 
       // Normalize material behavior for decoration props
       const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
-      const cleaned = mats.map(m => {
+      const cleaned = mats.map((m) => {
         if (!(m as THREE.Material).isMaterial) return m;
         const out = (m as THREE.Material).clone();
         if ((out as THREE.MeshStandardMaterial).isMeshStandardMaterial) {
@@ -429,7 +526,11 @@ export class SpaceRenderer {
   }
 
   /** Deterministic per-node palette variation so nodes aren't all same color. */
-  private getNodeVisual(node: { id: number; parentPlanetId: number; kind: string }): { color: number; emissive: number; emissiveIntensity: number } {
+  private getNodeVisual(node: { id: number; parentPlanetId: number; kind: string }): {
+    color: number;
+    emissive: number;
+    emissiveIntensity: number;
+  } {
     const pick = (arr: number[]) => arr[(node.id + node.parentPlanetId * 3) % arr.length];
     switch (node.kind) {
       case 'moon':
@@ -453,96 +554,106 @@ export class SpaceRenderer {
     this.planetDecorMeshes.set(planet.id, deco);
 
     const planetR = planet.radius * WORLD_SCALE;
-    const hasRingStructure = planet.isStartingPlanet || planet.hasAsteroidField || planet.radius >= 180 || planet.planetType === 'gas_giant';
+    const hasRingStructure =
+      planet.isStartingPlanet || planet.hasAsteroidField || planet.radius >= 180 || planet.planetType === 'gas_giant';
     if (hasRingStructure) {
       const ringPath = this.ORBITAL_RING_MODELS[planet.id % this.ORBITAL_RING_MODELS.length];
-      this.loadScenePropFbx(ringPath).then(ringModel => {
-        if (this.disposed) return;
-        const target = this.planetDecorMeshes.get(planet.id);
-        if (!target) return;
-        if (!this.hasRenderableMeshes(ringModel)) throw new Error('No renderable meshes in orbital ring prop');
-        const box = new THREE.Box3().setFromObject(ringModel);
-        const size = box.getSize(new THREE.Vector3());
-        const sourceDiameter = Math.max(size.x, size.z);
-        const targetDiameter = planetR * 2.7;
-        if (sourceDiameter > 0) ringModel.scale.setScalar(targetDiameter / sourceDiameter);
-        // Keep structure orbiting on world plane around planet
-        // Keep model's authored orientation; only apply small random spin for variety.
-        ringModel.rotation.z = (planet.id % 8) * (Math.PI / 8);
-        ringModel.position.y = 0.35;
-        ringModel.traverse(c => {
-          if ((c as THREE.Mesh).isMesh) {
-            const mesh = c as THREE.Mesh;
-            const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
-            for (const m of mats) {
-              if ((m as THREE.MeshStandardMaterial).isMeshStandardMaterial) {
-                const sm = (m as THREE.MeshStandardMaterial).clone();
-                sm.metalness = 0.85;
-                sm.roughness = 0.25;
-                sm.emissive.setHex(0x1b3040);
-                sm.emissiveIntensity = 0.22;
-                mesh.material = sm;
+      this.loadScenePropFbx(ringPath)
+        .then((ringModel) => {
+          if (this.disposed) return;
+          const target = this.planetDecorMeshes.get(planet.id);
+          if (!target) return;
+          if (!this.hasRenderableMeshes(ringModel)) throw new Error('No renderable meshes in orbital ring prop');
+          const box = new THREE.Box3().setFromObject(ringModel);
+          const size = box.getSize(new THREE.Vector3());
+          const sourceDiameter = Math.max(size.x, size.z);
+          const targetDiameter = planetR * 2.7;
+          if (sourceDiameter > 0) ringModel.scale.setScalar(targetDiameter / sourceDiameter);
+          // Keep structure orbiting on world plane around planet
+          // Keep model's authored orientation; only apply small random spin for variety.
+          ringModel.rotation.z = (planet.id % 8) * (Math.PI / 8);
+          ringModel.position.y = 0.35;
+          ringModel.traverse((c) => {
+            if ((c as THREE.Mesh).isMesh) {
+              const mesh = c as THREE.Mesh;
+              const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+              for (const m of mats) {
+                if ((m as THREE.MeshStandardMaterial).isMeshStandardMaterial) {
+                  const sm = (m as THREE.MeshStandardMaterial).clone();
+                  sm.metalness = 0.85;
+                  sm.roughness = 0.25;
+                  sm.emissive.setHex(0x1b3040);
+                  sm.emissiveIntensity = 0.22;
+                  mesh.material = sm;
+                }
               }
             }
-          }
+          });
+          target.add(ringModel);
+        })
+        .catch(() => {
+          // Safe procedural fallback ring (prevents scene break if FBX prop is malformed)
+          const target = this.planetDecorMeshes.get(planet.id);
+          if (!target) return;
+          const torus = new THREE.Mesh(
+            new THREE.TorusGeometry(planetR * 1.35, Math.max(0.18, planetR * 0.08), 10, 34),
+            new THREE.MeshStandardMaterial({
+              color: 0x3e4f63,
+              metalness: 0.85,
+              roughness: 0.28,
+              emissive: 0x1b3040,
+              emissiveIntensity: 0.2,
+            }),
+          );
+          torus.rotation.x = Math.PI / 2;
+          torus.position.y = 0.35;
+          target.add(torus);
         });
-        target.add(ringModel);
-      }).catch(() => {
-        // Safe procedural fallback ring (prevents scene break if FBX prop is malformed)
-        const target = this.planetDecorMeshes.get(planet.id);
-        if (!target) return;
-        const torus = new THREE.Mesh(
-          new THREE.TorusGeometry(planetR * 1.35, Math.max(0.18, planetR * 0.08), 10, 34),
-          new THREE.MeshStandardMaterial({
-            color: 0x3e4f63, metalness: 0.85, roughness: 0.28,
-            emissive: 0x1b3040, emissiveIntensity: 0.2,
-          }),
-        );
-        torus.rotation.x = Math.PI / 2;
-        torus.position.y = 0.35;
-        target.add(torus);
-      });
     }
 
-    const asteroidCount = planet.hasAsteroidField ? 14 : (planet.isStartingPlanet ? 4 : 0);
+    const asteroidCount = planet.hasAsteroidField ? 14 : planet.isStartingPlanet ? 4 : 0;
     if (asteroidCount <= 0) return;
     const beltMin = planetR * 1.85;
     const beltMax = planetR * 2.35;
     for (let i = 0; i < asteroidCount; i++) {
       const path = this.ASTEROID_RING_MODELS[(planet.id * 11 + i * 7) % this.ASTEROID_RING_MODELS.length];
-      this.loadScenePropFbx(path).then(ast => {
-        if (this.disposed) return;
-        const target = this.planetDecorMeshes.get(planet.id);
-        if (!target) return;
-        if (!this.hasRenderableMeshes(ast)) return;
-        const phase = ((i / asteroidCount) * Math.PI * 2) + (planet.id * 0.37);
-        const beltR = beltMin + (beltMax - beltMin) * (((i * 13) % 7) / 6);
-        ast.position.set(Math.cos(phase) * beltR, -0.2 + ((i % 5) - 2) * 0.08, Math.sin(phase) * beltR);
-        ast.rotation.set((i * 0.5) % (Math.PI * 2), (i * 0.9) % (Math.PI * 2), (i * 0.33) % (Math.PI * 2));
-        const box = new THREE.Box3().setFromObject(ast);
-        const diam = box.getSize(new THREE.Vector3()).length();
-        const targetDiam = planetR * (0.10 + ((i % 6) * 0.02));
-        if (diam > 0) ast.scale.setScalar(targetDiam / diam);
-        ast.traverse(c => {
-          if ((c as THREE.Mesh).isMesh) {
-            const mesh = c as THREE.Mesh;
-            const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
-            for (const m of mats) {
-              if ((m as THREE.MeshStandardMaterial).isMeshStandardMaterial) {
-                const sm = (m as THREE.MeshStandardMaterial).clone();
-                const tint = [0x7a6658, 0x8a7260, 0x6a5a50][(planet.id + i) % 3];
-                sm.color.multiply(new THREE.Color(tint));
-                sm.emissive.setHex(0x110d09);
-                sm.emissiveIntensity = 0.08;
-                sm.roughness = 0.8;
-                sm.metalness = 0.15;
-                mesh.material = sm;
+      this.loadScenePropFbx(path)
+        .then((ast) => {
+          if (this.disposed) return;
+          const target = this.planetDecorMeshes.get(planet.id);
+          if (!target) return;
+          if (!this.hasRenderableMeshes(ast)) return;
+          const phase = (i / asteroidCount) * Math.PI * 2 + planet.id * 0.37;
+          const beltR = beltMin + (beltMax - beltMin) * (((i * 13) % 7) / 6);
+          ast.position.set(Math.cos(phase) * beltR, -0.2 + ((i % 5) - 2) * 0.08, Math.sin(phase) * beltR);
+          ast.rotation.set((i * 0.5) % (Math.PI * 2), (i * 0.9) % (Math.PI * 2), (i * 0.33) % (Math.PI * 2));
+          const box = new THREE.Box3().setFromObject(ast);
+          const diam = box.getSize(new THREE.Vector3()).length();
+          const targetDiam = planetR * (0.1 + (i % 6) * 0.02);
+          if (diam > 0) ast.scale.setScalar(targetDiam / diam);
+          ast.traverse((c) => {
+            if ((c as THREE.Mesh).isMesh) {
+              const mesh = c as THREE.Mesh;
+              const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+              for (const m of mats) {
+                if ((m as THREE.MeshStandardMaterial).isMeshStandardMaterial) {
+                  const sm = (m as THREE.MeshStandardMaterial).clone();
+                  const tint = [0x7a6658, 0x8a7260, 0x6a5a50][(planet.id + i) % 3];
+                  sm.color.multiply(new THREE.Color(tint));
+                  sm.emissive.setHex(0x110d09);
+                  sm.emissiveIntensity = 0.08;
+                  sm.roughness = 0.8;
+                  sm.metalness = 0.15;
+                  mesh.material = sm;
+                }
               }
             }
-          }
+          });
+          target.add(ast);
+        })
+        .catch(() => {
+          /* optional decoration */
         });
-        target.add(ast);
-      }).catch(() => { /* optional decoration */ });
     }
   }
 
@@ -560,42 +671,54 @@ export class SpaceRenderer {
       // Load GLB planet model and size it to match the planet radius
       const glbPath = this.PLANET_GLBS[planet.planetType];
       if (glbPath) {
-        this.gltfLoader.loadAsync(glbPath).then(gltf => {
-          if (this.disposed) return;
-          const model = gltf.scene;
-          // Scale GLB to match planet sphere radius
-          const box = new THREE.Box3().setFromObject(model);
-          const modelDiam = box.getSize(new THREE.Vector3()).length();
-          const targetDiam = planet.radius * WORLD_SCALE * 2.0;
-          if (modelDiam > 0) model.scale.setScalar(targetDiam / modelDiam);
-          model.position.copy(mesh.position);
-          // Add glow atmosphere as emissive ring around GLB
-          const atmGeo = new THREE.SphereGeometry(planet.radius * WORLD_SCALE * 1.06, 32, 32);
-          const atmMat = new THREE.MeshBasicMaterial({
-            color: planet.color, transparent: true, opacity: 0.08,
-            side: THREE.BackSide, depthWrite: false,
+        this.gltfLoader
+          .loadAsync(glbPath)
+          .then((gltf) => {
+            if (this.disposed) return;
+            const model = gltf.scene;
+            // Scale GLB to match planet sphere radius
+            const box = new THREE.Box3().setFromObject(model);
+            const modelDiam = box.getSize(new THREE.Vector3()).length();
+            const targetDiam = planet.radius * WORLD_SCALE * 2.0;
+            if (modelDiam > 0) model.scale.setScalar(targetDiam / modelDiam);
+            model.position.copy(mesh.position);
+            // Add glow atmosphere as emissive ring around GLB
+            const atmGeo = new THREE.SphereGeometry(planet.radius * WORLD_SCALE * 1.06, 32, 32);
+            const atmMat = new THREE.MeshBasicMaterial({
+              color: planet.color,
+              transparent: true,
+              opacity: 0.08,
+              side: THREE.BackSide,
+              depthWrite: false,
+            });
+            const atm = new THREE.Mesh(atmGeo, atmMat);
+            atm.position.copy(mesh.position);
+            this.scene.add(atm);
+            this.scene.add(model);
+            // Store ref on mesh.userData so syncPlanetOwnership can animate it
+            mesh.userData.glbModel = model;
+            mesh.userData.atmMesh = atm;
+          })
+          .catch(() => {
+            // GLB failed — fall back to coloured sphere
+            (mesh.material as THREE.Material).dispose();
+            (mesh as THREE.Mesh).material = new THREE.MeshStandardMaterial({
+              color: planet.color,
+              roughness: 0.65,
+              metalness: 0.25,
+              emissive: planet.color,
+              emissiveIntensity: 0.12,
+            }) as unknown as THREE.MeshBasicMaterial;
+            mesh.visible = true;
           });
-          const atm = new THREE.Mesh(atmGeo, atmMat);
-          atm.position.copy(mesh.position);
-          this.scene.add(atm);
-          this.scene.add(model);
-          // Store ref on mesh.userData so syncPlanetOwnership can animate it
-          mesh.userData.glbModel = model;
-          mesh.userData.atmMesh  = atm;
-        }).catch(() => {
-          // GLB failed — fall back to coloured sphere
-          (mesh.material as THREE.Material).dispose();
-          (mesh as THREE.Mesh).material = new THREE.MeshStandardMaterial({
-            color: planet.color, roughness: 0.65, metalness: 0.25,
-            emissive: planet.color, emissiveIntensity: 0.12,
-          }) as unknown as THREE.MeshBasicMaterial;
-          mesh.visible = true;
-        });
       } else {
         // No GLB for this type — use coloured sphere
         (mesh as THREE.Mesh).material = new THREE.MeshStandardMaterial({
-          color: planet.color, roughness: 0.65, metalness: 0.25,
-          emissive: planet.color, emissiveIntensity: 0.12,
+          color: planet.color,
+          roughness: 0.65,
+          metalness: 0.25,
+          emissive: planet.color,
+          emissiveIntensity: 0.12,
         }) as unknown as THREE.MeshBasicMaterial;
         mesh.visible = true;
       }
@@ -611,7 +734,13 @@ export class SpaceRenderer {
 
       // Thin atmosphere glow ring
       const atmGeo = new THREE.RingGeometry(planet.radius * WORLD_SCALE * 1.02, planet.radius * WORLD_SCALE * 1.08, 64);
-      const atmMat = new THREE.MeshBasicMaterial({ color: planet.color, transparent: true, opacity: 0.18, side: THREE.DoubleSide, depthWrite: false });
+      const atmMat = new THREE.MeshBasicMaterial({
+        color: planet.color,
+        transparent: true,
+        opacity: 0.18,
+        side: THREE.DoubleSide,
+        depthWrite: false,
+      });
       const atm = new THREE.Mesh(atmGeo, atmMat);
       atm.rotation.x = -Math.PI / 2;
       atm.position.copy(mesh.position);
@@ -644,8 +773,8 @@ export class SpaceRenderer {
       let geo: THREE.BufferGeometry;
       const visual = this.getNodeVisual(node);
       let color: number = visual.color;
-      let emissive = visual.emissive;
-      let emissiveIntensity = visual.emissiveIntensity;
+      const emissive = visual.emissive;
+      const emissiveIntensity = visual.emissiveIntensity;
       const r = node.radius * WORLD_SCALE * NS;
       switch (node.kind) {
         case 'moon':
@@ -665,8 +794,11 @@ export class SpaceRenderer {
           color = 0x888888;
       }
       const mat = new THREE.MeshStandardMaterial({
-        color, roughness: 0.7, metalness: 0.2,
-        emissive, emissiveIntensity,
+        color,
+        roughness: 0.7,
+        metalness: 0.2,
+        emissive,
+        emissiveIntensity,
       });
       const mesh = new THREE.Mesh(geo, mat);
       mesh.position.set(node.x * WORLD_SCALE, SpaceRenderer.NODE_Y, node.y * WORLD_SCALE);
@@ -690,13 +822,17 @@ export class SpaceRenderer {
 
     for (const [id, mesh] of this.nodeMeshes) {
       const node = this.engine.state.resourceNodes.get(id);
-      if (!node) { this.scene.remove(mesh); this.nodeMeshes.delete(id); continue; }
+      if (!node) {
+        this.scene.remove(mesh);
+        this.nodeMeshes.delete(id);
+        continue;
+      }
       mesh.position.set(node.x * WORLD_SCALE, SpaceRenderer.NODE_Y, node.y * WORLD_SCALE);
       mesh.rotation.y += 0.006;
 
       // Shrink while being harvested, restore otherwise
       const isBeingHarvested = harvestedNodeIds.has(id);
-      const targetScale = isBeingHarvested ? 0.4 : (node.harvestCooldown > 0 ? 0.2 : 1.0);
+      const targetScale = isBeingHarvested ? 0.4 : node.harvestCooldown > 0 ? 0.2 : 1.0;
       const cur = mesh.userData.baseScale ?? 1.0;
       const next = cur + (targetScale - cur) * 0.08;
       mesh.userData.baseScale = next;
@@ -710,12 +846,13 @@ export class SpaceRenderer {
       // Dim when on cooldown (depleted)
       const mat = mesh.material as THREE.MeshStandardMaterial;
       if (node.harvestCooldown > 0) {
-        mat.transparent = true; mat.opacity = 0.4;
+        mat.transparent = true;
+        mat.opacity = 0.4;
         mat.color.setHex(node.kind === 'crystal_deposit' ? 0x226644 : 0x332211);
       } else {
-        mat.transparent = false; mat.opacity = 1.0;
-        const baseColor = (mesh.userData.baseColor as number | undefined)
-          ?? this.getNodeVisual(node).color;
+        mat.transparent = false;
+        mat.opacity = 1.0;
+        const baseColor = (mesh.userData.baseColor as number | undefined) ?? this.getNodeVisual(node).color;
         mat.color.setHex(baseColor);
       }
     }
@@ -739,12 +876,14 @@ export class SpaceRenderer {
         // ─ Mining laser beam ───────────────────────
         let laser = this.miningLasers.get(ship.id);
         if (!laser) {
-          const laserColor = ship.workerCargoType === 'energy' ? 0x44ccff
-            : ship.workerCargoType === 'credits' ? 0xffcc44 : 0x44ff88;
+          const laserColor = ship.workerCargoType === 'energy' ? 0x44ccff : ship.workerCargoType === 'credits' ? 0xffcc44 : 0x44ff88;
           const geo = new THREE.BufferGeometry().setFromPoints([shipPos, nodePos]);
           const mat = new THREE.LineBasicMaterial({
-            color: laserColor, transparent: true, opacity: 0.7,
-            linewidth: 2, depthWrite: false,
+            color: laserColor,
+            transparent: true,
+            opacity: 0.7,
+            linewidth: 2,
+            depthWrite: false,
           });
           laser = new THREE.Line(geo, mat);
           laser.renderOrder = 3;
@@ -787,8 +926,7 @@ export class SpaceRenderer {
         cb.bar.lookAt(this.camera.position);
         cb.bar.visible = true;
         // Color based on resource type
-        const barCol = ship.workerCargoType === 'energy' ? 0x44ccff
-          : ship.workerCargoType === 'credits' ? 0xffcc44 : 0x44ff88;
+        const barCol = ship.workerCargoType === 'energy' ? 0x44ccff : ship.workerCargoType === 'credits' ? 0xffcc44 : 0x44ff88;
         (cb.bar.material as THREE.MeshBasicMaterial).color.setHex(barCol);
       }
     }
@@ -796,13 +934,15 @@ export class SpaceRenderer {
     // Clean up lasers/bars for ships no longer mining
     for (const [id, laser] of this.miningLasers) {
       if (!activeMiners.has(id)) {
-        this.scene.remove(laser); laser.geometry.dispose();
+        this.scene.remove(laser);
+        laser.geometry.dispose();
         this.miningLasers.delete(id);
       }
     }
     for (const [id, cb] of this.cargoBars) {
       if (!activeMiners.has(id)) {
-        cb.bar.visible = false; cb.bg.visible = false;
+        cb.bar.visible = false;
+        cb.bg.visible = false;
       }
     }
   }
@@ -822,10 +962,14 @@ export class SpaceRenderer {
         const gltf = await this.gltfLoader.loadAsync(prefab.modelPath);
         group = gltf.scene;
       } else if (prefab.format === 'fbx') {
-        group = await this.fbxLoader.loadAsync(prefab.modelPath) as unknown as THREE.Group;
+        group = (await this.fbxLoader.loadAsync(prefab.modelPath)) as unknown as THREE.Group;
         if (prefab.texturePath) {
           const tex = this.textureLoader.load(prefab.texturePath);
-          group.traverse(c => { if ((c as THREE.Mesh).isMesh) { (c as THREE.Mesh).material = new THREE.MeshStandardMaterial({ map: tex }); } });
+          group.traverse((c) => {
+            if ((c as THREE.Mesh).isMesh) {
+              (c as THREE.Mesh).material = new THREE.MeshStandardMaterial({ map: tex });
+            }
+          });
         }
       } else {
         if (prefab.mtlPath) {
@@ -839,7 +983,11 @@ export class SpaceRenderer {
         }
         if (prefab.texturePath) {
           const tex = this.textureLoader.load(prefab.texturePath);
-          group.traverse(c => { if ((c as THREE.Mesh).isMesh) { (c as THREE.Mesh).material = new THREE.MeshStandardMaterial({ map: tex }); } });
+          group.traverse((c) => {
+            if ((c as THREE.Mesh).isMesh) {
+              (c as THREE.Mesh).material = new THREE.MeshStandardMaterial({ map: tex });
+            }
+          });
         }
       }
       // NOTE: Do NOT apply prefab.scale here — autoFit() in syncShips
@@ -866,7 +1014,7 @@ export class SpaceRenderer {
     const hex = TEAM_COLORS[team] ?? 0x4488ff;
     const tintColor = new THREE.Color(hex);
 
-    model.traverse(child => {
+    model.traverse((child) => {
       if (!(child as THREE.Mesh).isMesh) return;
       const mesh = child as THREE.Mesh;
       const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
@@ -891,17 +1039,28 @@ export class SpaceRenderer {
    *  A dreadnought is ≈ 25% of a planet — big but not absurd. */
   private static shipClassSize(cls: string): number {
     switch (cls) {
-      case 'dreadnought':    return 7.0;
-      case 'battleship':     return 6.2;
-      case 'carrier':        return 5.5;
-      case 'cruiser':        return 5.0;
-      case 'light_cruiser':  return 4.5;
-      case 'destroyer':      return 4.0;
-      case 'frigate':        return 3.6;
-      case 'corvette':       return 3.2;
-      case 'assault_frigate': return 3.6;
-      case 'worker':         return 2.4;
-      default:               return 2.8; // fighters, scouts, etc.
+      case 'dreadnought':
+        return 7.0;
+      case 'battleship':
+        return 6.2;
+      case 'carrier':
+        return 5.5;
+      case 'cruiser':
+        return 5.0;
+      case 'light_cruiser':
+        return 4.5;
+      case 'destroyer':
+        return 4.0;
+      case 'frigate':
+        return 3.6;
+      case 'corvette':
+        return 3.2;
+      case 'assault_frigate':
+        return 3.6;
+      case 'worker':
+        return 2.4;
+      default:
+        return 2.8; // fighters, scouts, etc.
     }
   }
 
@@ -924,8 +1083,9 @@ export class SpaceRenderer {
     const mat = new THREE.MeshStandardMaterial({
       color: col,
       emissive: col,
-      emissiveIntensity: 0.8,  // bright glow so ships are always visible
-      metalness: 0.3, roughness: 0.5,
+      emissiveIntensity: 0.8, // bright glow so ships are always visible
+      metalness: 0.3,
+      roughness: 0.5,
       depthTest: true,
     });
     const mesh = new THREE.Mesh(geo, mat);
@@ -933,17 +1093,47 @@ export class SpaceRenderer {
     mesh.renderOrder = 2;
     group.add(mesh);
 
-    // Thruster: tiny sprite at rear, only visible when moving
+    // Thruster: layered glow sprites at rear — inner hot core + outer team-colored wash
     const thrusterCol = TEAM_COLORS[team] ?? 0x4488ff;
-    const spriteMat = new THREE.SpriteMaterial({
-      color: thrusterCol, transparent: true, opacity: 0,
-      blending: THREE.AdditiveBlending, depthWrite: false,
+    // Outer glow (team color, larger, softer)
+    const outerMat = new THREE.SpriteMaterial({
+      color: thrusterCol,
+      transparent: true,
+      opacity: 0,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
     });
-    const sprite = new THREE.Sprite(spriteMat);
-    sprite.scale.set(size * 0.3, size * 0.3, 1);
-    sprite.position.z = -size * 0.55;
-    sprite.name = 'thruster';
-    group.add(sprite);
+    const outer = new THREE.Sprite(outerMat);
+    outer.scale.set(size * 0.5, size * 0.5, 1);
+    outer.position.z = -size * 0.55;
+    outer.name = 'thruster'; // primary — used by existing sync code
+    group.add(outer);
+    // Inner core (white-hot, smaller, brighter)
+    const coreMat = new THREE.SpriteMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+    const core = new THREE.Sprite(coreMat);
+    core.scale.set(size * 0.2, size * 0.2, 1);
+    core.position.z = -size * 0.5;
+    core.name = 'thrusterCore';
+    group.add(core);
+    // Trail flicker (elongated, fades out behind)
+    const trailMat = new THREE.SpriteMaterial({
+      color: thrusterCol,
+      transparent: true,
+      opacity: 0,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+    const trail = new THREE.Sprite(trailMat);
+    trail.scale.set(size * 0.25, size * 0.7, 1);
+    trail.position.z = -size * 0.9;
+    trail.name = 'thrusterTrail';
+    group.add(trail);
 
     return group;
   }
@@ -975,8 +1165,11 @@ export class SpaceRenderer {
         const ringR = SpaceRenderer.shipClassSize(ship.shipClass) * 0.45;
         const ringGeo = new THREE.RingGeometry(ringR, ringR + 0.3, 32);
         const ringMat = new THREE.MeshBasicMaterial({
-          color: 0x44ff44, transparent: true, opacity: 0,
-          side: THREE.DoubleSide, depthTest: false,
+          color: 0x44ff44,
+          transparent: true,
+          opacity: 0,
+          side: THREE.DoubleSide,
+          depthTest: false,
         });
         const ring = new THREE.Mesh(ringGeo, ringMat);
         ring.rotation.x = -Math.PI / 2;
@@ -987,13 +1180,19 @@ export class SpaceRenderer {
 
         // Add health bar — positioned above ship, always faces camera
         const barW = Math.max(1.5, (shipDef?.stats.tier ?? 1) * 0.8);
-        const hbBg = new THREE.Mesh(new THREE.PlaneGeometry(barW, 0.18), new THREE.MeshBasicMaterial({ color: 0x222233, depthTest: false }));
+        const hbBg = new THREE.Mesh(
+          new THREE.PlaneGeometry(barW, 0.18),
+          new THREE.MeshBasicMaterial({ color: 0x222233, depthTest: false }),
+        );
         hbBg.position.y = 2.2; // above the elevated ship
         hbBg.renderOrder = 999;
         group.add(hbBg);
         meshData.healthBg = hbBg;
 
-        const hb = new THREE.Mesh(new THREE.PlaneGeometry(barW, 0.18), new THREE.MeshBasicMaterial({ color: TEAM_COLORS[ship.team], depthTest: false }));
+        const hb = new THREE.Mesh(
+          new THREE.PlaneGeometry(barW, 0.18),
+          new THREE.MeshBasicMaterial({ color: TEAM_COLORS[ship.team], depthTest: false }),
+        );
         hb.position.y = 2.2;
         hb.renderOrder = 1000;
         group.add(hb);
@@ -1006,7 +1205,7 @@ export class SpaceRenderer {
         // 3. If no voxel either → keep the cone placeholder
         const prefab = getShipPrefab(ship.shipType);
         const removeCone = (g: THREE.Group) => {
-          const c = g.children.find(ch => (ch as THREE.Mesh).geometry?.type === 'ConeGeometry');
+          const c = g.children.find((ch) => (ch as THREE.Mesh).geometry?.type === 'ConeGeometry');
           if (c) g.remove(c);
         };
 
@@ -1036,54 +1235,62 @@ export class SpaceRenderer {
 
         // Custom hero ship: load GLB from player's saved data
         if (spritePath) {
-          // Render 2D ship as a flat textured plane on the XZ plane.
-          // Unlike THREE.Sprite (which always faces camera), this rotates
-          // with ship.facing via group.rotation.y, so it turns when moving.
-          const tex = this.textureLoader.load(spritePath);
-          tex.colorSpace = THREE.SRGBColorSpace;
-          // Tint sprite ships with team colour for visual differentiation
-          const spriteTeamCol = TEAM_COLORS[ship.team] ?? 0xffffff;
-          const planeMat = new THREE.MeshBasicMaterial({
-            map: tex, transparent: true, alphaTest: 0.1,
-            side: THREE.DoubleSide, depthWrite: false,
-            color: spriteTeamCol,
-          });
-          const sz = targetSize * 1.6; // slightly larger since top-down flat
-          const planeGeo = new THREE.PlaneGeometry(sz, sz);
-          const planeMesh = new THREE.Mesh(planeGeo, planeMat);
-          // Lay flat on XZ plane (face up toward camera)
-          planeMesh.rotation.x = -Math.PI / 2;
-          // Rotate 90° so the ship nose points in the +Z direction (matching facing=0)
-          planeMesh.rotation.z = Math.PI / 2;
-          planeMesh.renderOrder = 2;
-          planeMesh.name = 'spriteShip';
-          removeCone(meshData.group);
-          meshData.group.add(planeMesh);
+          // Convert 2D sprite to 3D voxel model async
+          const shipId = id;
+          const shipTeamForVox = ship.team;
+          // Boss captains get higher res (24) and more extrusion (5)
+          const isBoss = ship.shipType.startsWith('boss_captain');
+          buildVoxelFromSprite(spritePath, shipTeamForVox, isBoss ? 24 : 18, isBoss ? 5 : 3)
+            .then((voxModel) => {
+              if (this.disposed) return;
+              const ex = this.shipMeshes.get(shipId);
+              if (!ex) return;
+              autoFit(voxModel);
+              removeCone(ex.group);
+              // Remove any leftover flat sprite children
+              const oldSprite = ex.group.getObjectByName('spriteShip');
+              if (oldSprite) ex.group.remove(oldSprite);
+              voxModel.name = 'voxelShip';
+              ex.group.add(voxModel);
+            })
+            .catch(() => {
+              // Voxel conversion failed — keep the cone placeholder
+            });
         } else if (ship.shipType === 'custom_hero') {
           this.loadCustomHeroModel(id, meshData);
         } else if (prefab) {
           const shipTeam = ship.team; // capture for async closure
-          this.loadModel(prefab).then(model => {
-            if (this.disposed) return;
-            const ex = this.shipMeshes.get(id);
-            if (!ex) return;
-            autoFit(model);
-            SpaceRenderer.tintModelToTeam(model, shipTeam);
-            removeCone(ex.group);
-            ex.group.add(model);
-          }).catch(() => {
-            // Real model failed — fall back to procedural voxel
-            const ex = this.shipMeshes.get(id);
-            if (!ex || this.disposed) return;
-            const vox = hasVoxelShip(ship.shipType)
-              ? buildVoxelShip(ship.shipType, ship.team)
-              : buildCapitalVoxelFallback(ship.shipType, ship.team);
-            if (vox) { autoFit(vox); removeCone(ex.group); ex.group.add(vox); }
-          });
+          this.loadModel(prefab)
+            .then((model) => {
+              if (this.disposed) return;
+              const ex = this.shipMeshes.get(id);
+              if (!ex) return;
+              autoFit(model);
+              SpaceRenderer.tintModelToTeam(model, shipTeam);
+              removeCone(ex.group);
+              ex.group.add(model);
+            })
+            .catch(() => {
+              // Real model failed — fall back to procedural voxel
+              const ex = this.shipMeshes.get(id);
+              if (!ex || this.disposed) return;
+              const vox = hasVoxelShip(ship.shipType)
+                ? buildVoxelShip(ship.shipType, ship.team)
+                : buildCapitalVoxelFallback(ship.shipType, ship.team);
+              if (vox) {
+                autoFit(vox);
+                removeCone(ex.group);
+                ex.group.add(vox);
+              }
+            });
         } else if (hasVoxelShip(ship.shipType)) {
           // No prefab — build voxel immediately (no async load wait)
           const vox = buildVoxelShip(ship.shipType, ship.team);
-          if (vox) { autoFit(vox); removeCone(meshData.group); meshData.group.add(vox); }
+          if (vox) {
+            autoFit(vox);
+            removeCone(meshData.group);
+            meshData.group.add(vox);
+          }
         }
       }
 
@@ -1092,7 +1299,7 @@ export class SpaceRenderer {
       // and the 55° camera never depth-buffers them behind terrain.
       meshData.group.position.set(
         ship.x * WORLD_SCALE,
-        SpaceRenderer.SHIP_Y + ship.z * WORLD_SCALE,  // elevated above ground
+        SpaceRenderer.SHIP_Y + ship.z * WORLD_SCALE, // elevated above ground
         ship.y * WORLD_SCALE,
       );
       meshData.group.rotation.y = -ship.facing;
@@ -1100,16 +1307,68 @@ export class SpaceRenderer {
       // Apply procedural animation
       applyShipAnimation(meshData.group, ship, dt);
 
-      // Thruster sprite: visible and pulsing when ship is moving
+      // Thruster glow: layered sprites pulse when moving
+      const isMoving = ship.animState === 'moving' || ship.animState === 'speed_boost';
+      const boost = ship.animState === 'speed_boost' ? 1.6 : 1.0;
+      const baseSz = SpaceRenderer.shipClassSize(ship.shipClass);
+      const tPhase = this.twinkleTime * 6 + ship.id * 0.7;
+
       const thruster = meshData.group.getObjectByName('thruster') as THREE.Sprite | undefined;
       if (thruster) {
-        const isMoving = ship.animState === 'moving' || ship.animState === 'speed_boost';
         const mat = thruster.material as THREE.SpriteMaterial;
-        const targetOp = isMoving ? 0.5 + 0.4 * Math.abs(Math.sin(this.twinkleTime * 6 + ship.id * 0.7)) : 0;
+        const targetOp = isMoving ? 0.4 + 0.3 * Math.abs(Math.sin(tPhase)) : 0;
         mat.opacity += (targetOp - mat.opacity) * 0.2;
-        const boost = ship.animState === 'speed_boost' ? 1.6 : 1.0;
-        const sz = SpaceRenderer.shipClassSize(ship.shipClass) * 0.3 * boost;
+        const sz = baseSz * 0.5 * boost;
         thruster.scale.set(sz, sz, 1);
+      }
+      const core = meshData.group.getObjectByName('thrusterCore') as THREE.Sprite | undefined;
+      if (core) {
+        const mat = core.material as THREE.SpriteMaterial;
+        mat.opacity += ((isMoving ? 0.7 + 0.3 * Math.abs(Math.sin(tPhase * 1.3)) : 0) - mat.opacity) * 0.25;
+        const sz = baseSz * 0.2 * boost;
+        core.scale.set(sz, sz, 1);
+      }
+      const trail = meshData.group.getObjectByName('thrusterTrail') as THREE.Sprite | undefined;
+      if (trail) {
+        const mat = trail.material as THREE.SpriteMaterial;
+        mat.opacity += ((isMoving ? 0.3 + 0.25 * Math.abs(Math.sin(tPhase * 0.8 + 1.5)) : 0) - mat.opacity) * 0.15;
+        const szW = baseSz * 0.25 * boost;
+        const szH = baseSz * (0.7 + 0.3 * Math.abs(Math.sin(tPhase * 0.6))) * boost;
+        trail.scale.set(szW, szH, 1);
+      }
+
+      // ── Energy Shield Bubble ──
+      if (ship.maxShield > 0) {
+        if (!meshData.shieldBubble) {
+          const shieldRadius = SpaceRenderer.shipClassSize(ship.shipClass) * 0.65;
+          const shieldGeo = new THREE.SphereGeometry(shieldRadius, 24, 16);
+          const teamHex = TEAM_COLORS[ship.team] ?? 0x4488ff;
+          const shieldMat = new THREE.ShaderMaterial({
+            uniforms: {
+              time: { value: 0 },
+              shieldPct: { value: 1.0 },
+              hitFlash: { value: 0.0 },
+              teamColor: { value: new THREE.Color(teamHex) },
+            },
+            vertexShader: SHIELD_VERTEX,
+            fragmentShader: SHIELD_FRAGMENT,
+            transparent: true,
+            depthWrite: false,
+            blending: THREE.AdditiveBlending,
+            side: THREE.DoubleSide,
+          });
+          const bubble = new THREE.Mesh(shieldGeo, shieldMat);
+          bubble.renderOrder = 5;
+          meshData.group.add(bubble);
+          meshData.shieldBubble = bubble;
+        }
+        const mat = meshData.shieldBubble.material as THREE.ShaderMaterial;
+        mat.uniforms.time.value = this.twinkleTime;
+        mat.uniforms.shieldPct.value = ship.shield / ship.maxShield;
+        // Flash on recent damage (shield < 90% and dropping)
+        const flash = ship.shield < ship.maxShield * 0.9 ? 0.3 : 0.0;
+        mat.uniforms.hitFlash.value += (flash - mat.uniforms.hitFlash.value) * 0.15;
+        meshData.shieldBubble.visible = ship.shield > 0;
       }
 
       // Update health bar — hide at extreme zoom (ships are sub-pixel)
@@ -1117,13 +1376,12 @@ export class SpaceRenderer {
         const zoom = this.controls.cameraState.zoom;
         const showBar = zoom < 600;
         meshData.healthBar.visible = showBar;
-        meshData.healthBg!.visible  = showBar;
+        meshData.healthBg!.visible = showBar;
         if (showBar) {
           const pct = ship.hp / ship.maxHp;
           meshData.healthBar.scale.x = Math.max(0.01, pct);
           meshData.healthBar.position.x = -(1 - pct) * 0.75;
-          (meshData.healthBar.material as THREE.MeshBasicMaterial).color.setHex(
-            pct > 0.5 ? 0x44ff44 : pct > 0.25 ? 0xffaa00 : 0xff4444);
+          (meshData.healthBar.material as THREE.MeshBasicMaterial).color.setHex(pct > 0.5 ? 0x44ff44 : pct > 0.25 ? 0xffaa00 : 0xff4444);
           meshData.healthBar.lookAt(this.camera.position);
           meshData.healthBg!.lookAt(this.camera.position);
         }
@@ -1153,11 +1411,11 @@ export class SpaceRenderer {
 
     // Bomb sprite mapping: projectile type → bomb PNG
     const BOMB_SPRITES: Record<string, string> = {
-      missile:  '/assets/space/ui/bombs/1 Bombs/3.png',
-      torpedo:  '/assets/space/ui/bombs/1 Bombs/7.png',
-      railgun:  '/assets/space/ui/bombs/1 Bombs/1.png',
-      laser:    '/assets/space/ui/bombs/1 Bombs/10.png',
-      pulse:    '/assets/space/ui/bombs/1 Bombs/5.png',
+      missile: '/assets/space/ui/bombs/1 Bombs/3.png',
+      torpedo: '/assets/space/ui/bombs/1 Bombs/7.png',
+      railgun: '/assets/space/ui/bombs/1 Bombs/1.png',
+      laser: '/assets/space/ui/bombs/1 Bombs/10.png',
+      pulse: '/assets/space/ui/bombs/1 Bombs/5.png',
     };
 
     for (const [id, proj] of state.projectiles) {
@@ -1167,8 +1425,10 @@ export class SpaceRenderer {
         const bombPath = BOMB_SPRITES[proj.type] ?? BOMB_SPRITES.laser;
         const tex = this.textureLoader.load(bombPath);
         const spriteMat = new THREE.SpriteMaterial({
-          map: tex, color: proj.trailColor,
-          transparent: true, depthWrite: false,
+          map: tex,
+          color: proj.trailColor,
+          transparent: true,
+          depthWrite: false,
           blending: THREE.AdditiveBlending,
         });
         const sprite = new THREE.Sprite(spriteMat);
@@ -1193,7 +1453,11 @@ export class SpaceRenderer {
       const w = Math.abs(sel.endX - sel.startX);
       const h = Math.abs(sel.endY - sel.startY);
       Object.assign(this.selectionBoxDiv.style, {
-        display: 'block', left: `${left}px`, top: `${top}px`, width: `${w}px`, height: `${h}px`,
+        display: 'block',
+        left: `${left}px`,
+        top: `${top}px`,
+        width: `${w}px`,
+        height: `${h}px`,
       });
     } else {
       this.selectionBoxDiv.style.display = 'none';
@@ -1203,9 +1467,9 @@ export class SpaceRenderer {
   // ── Camera ─────────────────────────────────────────────────────
   private updateCamera() {
     const cam = this.controls.cameraState;
-    const dist  = cam.zoom;
-    const pitch = cam.angle    * (Math.PI / 180); // tilt (55°)
-    const yaw   = cam.rotation * (Math.PI / 180); // horizontal orbit (Q/E)
+    const dist = cam.zoom;
+    const pitch = cam.angle * (Math.PI / 180); // tilt (55°)
+    const yaw = cam.rotation * (Math.PI / 180); // horizontal orbit (Q/E)
 
     // Look-at point (centre of the world the camera orbits around)
     const lookX = cam.x * WORLD_SCALE;
@@ -1247,10 +1511,9 @@ export class SpaceRenderer {
     // ─ Cinematic intro: ease zoom from deep-space to home-world orbit ───
     if (this.introActive) {
       this.introTimer += dt;
-      const t    = Math.min(1, this.introTimer / this.introDuration);
+      const t = Math.min(1, this.introTimer / this.introDuration);
       const ease = 1 - Math.pow(1 - t, 3); // easeOutCubic — fast start, gentle land
-      this.controls.cameraState.zoom =
-        this.introZoomStart + (this.introZoomEnd - this.introZoomStart) * ease;
+      this.controls.cameraState.zoom = this.introZoomStart + (this.introZoomEnd - this.introZoomStart) * ease;
       if (t >= 1) this.introActive = false;
     }
 
@@ -1294,7 +1557,10 @@ export class SpaceRenderer {
   private syncStations(state: SpaceGameState) {
     // Remove deleted
     for (const [id, mesh] of this.stationMeshes) {
-      if (!state.stations.has(id)) { this.scene.remove(mesh); this.stationMeshes.delete(id); }
+      if (!state.stations.has(id)) {
+        this.scene.remove(mesh);
+        this.stationMeshes.delete(id);
+      }
     }
     // Add/update
     for (const [id, station] of state.stations) {
@@ -1307,14 +1573,21 @@ export class SpaceRenderer {
           new THREE.MeshStandardMaterial({
             color: TEAM_COLORS[station.team] ?? 0x4488ff,
             emissive: TEAM_COLORS[station.team] ?? 0x4488ff,
-            emissiveIntensity: 0.4, metalness: 0.6, roughness: 0.3,
+            emissiveIntensity: 0.4,
+            metalness: 0.6,
+            roughness: 0.3,
           }),
         );
         mesh.add(body);
         // Ring around station
         const ring = new THREE.Mesh(
           new THREE.RingGeometry(2.5, 2.7, 32),
-          new THREE.MeshBasicMaterial({ color: TEAM_COLORS[station.team] ?? 0x4488ff, transparent: true, opacity: 0.4, side: THREE.DoubleSide }),
+          new THREE.MeshBasicMaterial({
+            color: TEAM_COLORS[station.team] ?? 0x4488ff,
+            transparent: true,
+            opacity: 0.4,
+            side: THREE.DoubleSide,
+          }),
         );
         ring.rotation.x = -Math.PI / 2;
         mesh.add(ring);
@@ -1330,7 +1603,10 @@ export class SpaceRenderer {
   private syncPlanetTurrets(state: SpaceGameState) {
     // Remove dead turrets
     for (const [id, mesh] of this.turretMeshes) {
-      if (!state.planetTurrets.has(id)) { this.scene.remove(mesh); this.turretMeshes.delete(id); }
+      if (!state.planetTurrets.has(id)) {
+        this.scene.remove(mesh);
+        this.turretMeshes.delete(id);
+      }
     }
     for (const [id, turret] of state.planetTurrets) {
       if (turret.dead) continue;
@@ -1371,7 +1647,10 @@ export class SpaceRenderer {
       if (planet.owner === 0 || !planet.stationId) {
         // Remove buildings for unowned planets
         const existing = this.planetBuildingMeshes.get(planet.id);
-        if (existing) { this.scene.remove(existing); this.planetBuildingMeshes.delete(planet.id); }
+        if (existing) {
+          this.scene.remove(existing);
+          this.planetBuildingMeshes.delete(planet.id);
+        }
         continue;
       }
       if (this.planetBuildingMeshes.has(planet.id)) continue; // already built
@@ -1388,11 +1667,7 @@ export class SpaceRenderer {
           new THREE.BoxGeometry(0.3 + Math.random() * 0.3, 0.2 + Math.random() * 0.4, 0.3 + Math.random() * 0.3),
           new THREE.MeshStandardMaterial({ color: col, emissive: col, emissiveIntensity: 0.3, metalness: 0.5, roughness: 0.4 }),
         );
-        bldg.position.set(
-          Math.cos(angle) * dist,
-          0.3,
-          Math.sin(angle) * dist,
-        );
+        bldg.position.set(Math.cos(angle) * dist, 0.3, Math.sin(angle) * dist);
         bldg.rotation.y = Math.random() * Math.PI;
         group.add(bldg);
       }
@@ -1429,19 +1704,28 @@ export class SpaceRenderer {
   private syncRallyFlags(state: SpaceGameState) {
     // Clean up flags for dead/missing stations
     for (const [id, sprite] of this.rallyMeshes) {
-      if (!state.stations.has(id)) { this.scene.remove(sprite); this.rallyMeshes.delete(id); }
+      if (!state.stations.has(id)) {
+        this.scene.remove(sprite);
+        this.rallyMeshes.delete(id);
+      }
     }
     for (const [id, st] of state.stations) {
       if (st.dead || st.team !== 1 || !st.rallyPoint) {
         const old = this.rallyMeshes.get(id);
-        if (old) { this.scene.remove(old); this.rallyMeshes.delete(id); }
+        if (old) {
+          this.scene.remove(old);
+          this.rallyMeshes.delete(id);
+        }
         continue;
       }
       let flag = this.rallyMeshes.get(id);
       if (!flag) {
         const mat = new THREE.SpriteMaterial({
-          color: 0x44ff44, transparent: true, opacity: 0.6,
-          depthWrite: false, blending: THREE.AdditiveBlending,
+          color: 0x44ff44,
+          transparent: true,
+          opacity: 0.6,
+          depthWrite: false,
+          blending: THREE.AdditiveBlending,
         });
         flag = new THREE.Sprite(mat);
         flag.scale.set(1.5, 2.5, 1);
@@ -1451,7 +1735,7 @@ export class SpaceRenderer {
       }
       flag.position.set(
         st.rallyPoint.x * WORLD_SCALE,
-        4 + Math.sin(this.twinkleTime * 2 + id) * 0.3,  // gentle bob
+        4 + Math.sin(this.twinkleTime * 2 + id) * 0.3, // gentle bob
         st.rallyPoint.y * WORLD_SCALE,
       );
     }
@@ -1460,20 +1744,18 @@ export class SpaceRenderer {
   private syncPlanetOwnership(state: SpaceGameState) {
     for (let i = 0; i < state.planets.length && i < this.planetMeshes.length; i++) {
       const planet = state.planets[i];
-      const mesh   = this.planetMeshes[i];
+      const mesh = this.planetMeshes[i];
       const ownerCol = TEAM_COLORS[planet.owner] ?? planet.color;
 
       // Update atmosphere glow colour (for GLB planets)
       const atm = mesh.userData.atmMesh as THREE.Mesh | undefined;
       if (atm) {
-        (atm.material as THREE.MeshBasicMaterial).color.setHex(
-          planet.owner !== 0 ? ownerCol : planet.color);
-        (atm.material as THREE.MeshBasicMaterial).opacity =
-          planet.owner !== 0 ? 0.14 : 0.08;
+        (atm.material as THREE.MeshBasicMaterial).color.setHex(planet.owner !== 0 ? ownerCol : planet.color);
+        (atm.material as THREE.MeshBasicMaterial).opacity = planet.owner !== 0 ? 0.14 : 0.08;
       }
 
       // If using fallback sphere, also animate its material
-      if (mesh.visible || !(mesh.userData.glbModel)) {
+      if (mesh.visible || !mesh.userData.glbModel) {
         const mat = mesh.material as THREE.MeshStandardMaterial;
         if (mat && 'emissive' in mat) {
           if (planet.owner !== 0) {
@@ -1501,31 +1783,45 @@ export class SpaceRenderer {
     const ndc = this.controls.mouseNdc;
     this.raycasterPlanet.setFromCamera(ndc, this.camera);
     const hits = this.raycasterPlanet.intersectObjects(this.planetMeshes);
-    const hitPlanet = hits.length > 0 ? hits[0].object as THREE.Mesh : null;
+    const hitPlanet = hits.length > 0 ? (hits[0].object as THREE.Mesh) : null;
 
     // Update hover/select glow — works through atmosphere mesh (GLB planets)
     // or directly on the fallback sphere material
     this.planetMeshes.forEach((mesh, idx) => {
       const planet = this.engine.state.planets[idx];
       if (!planet) return;
-      const isHovered  = hitPlanet === mesh;
+      const isHovered = hitPlanet === mesh;
       const isSelected = planet.id === this.selectedPlanetId;
 
       // Atmosphere mesh (present when GLB loaded)
       const atm = mesh.userData.atmMesh as THREE.Mesh | undefined;
       if (atm) {
         const aMat = atm.material as THREE.MeshBasicMaterial;
-        if (isSelected)      { aMat.color.setHex(0xffffff); aMat.opacity = 0.30; }
-        else if (isHovered)  { aMat.color.setHex(planet.color); aMat.opacity = 0.22; }
-        else                 { aMat.color.setHex(planet.owner !== 0 ? (TEAM_COLORS[planet.owner]??planet.color) : planet.color); aMat.opacity = planet.owner !== 0 ? 0.14 : 0.08; }
+        if (isSelected) {
+          aMat.color.setHex(0xffffff);
+          aMat.opacity = 0.3;
+        } else if (isHovered) {
+          aMat.color.setHex(planet.color);
+          aMat.opacity = 0.22;
+        } else {
+          aMat.color.setHex(planet.owner !== 0 ? (TEAM_COLORS[planet.owner] ?? planet.color) : planet.color);
+          aMat.opacity = planet.owner !== 0 ? 0.14 : 0.08;
+        }
       }
       // Fallback sphere material
       if (mesh.visible) {
         const mat = mesh.material as THREE.MeshStandardMaterial;
         if (mat && 'emissive' in mat) {
-          if (isSelected)      { mat.emissiveIntensity = 0.55; mat.emissive.setHex(0xffffff); }
-          else if (isHovered)  { mat.emissiveIntensity = 0.35; mat.emissive.setHex(planet.color); }
-          else                 { mat.emissiveIntensity = 0.12; mat.emissive.setHex(planet.color); }
+          if (isSelected) {
+            mat.emissiveIntensity = 0.55;
+            mat.emissive.setHex(0xffffff);
+          } else if (isHovered) {
+            mat.emissiveIntensity = 0.35;
+            mat.emissive.setHex(planet.color);
+          } else {
+            mat.emissiveIntensity = 0.12;
+            mat.emissive.setHex(planet.color);
+          }
         }
       }
 
@@ -1568,7 +1864,7 @@ export class SpaceRenderer {
     for (const id of state.selectedIds) {
       const ship = state.ships.get(id);
       if (!ship || ship.dead) continue;
-      const idx = ship.abilities.findIndex(ab => ab.ability.key === keyLetter);
+      const idx = ship.abilities.findIndex((ab) => ab.ability.key === keyLetter);
       if (idx >= 0) this.activateAbility(idx);
     }
   }
@@ -1595,7 +1891,8 @@ export class SpaceRenderer {
   toggleAutoCast(abilityIndex: number) {
     const state = this.engine.state;
     // Determine majority state to flip
-    let onCount = 0, total = 0;
+    let onCount = 0,
+      total = 0;
     for (const id of state.selectedIds) {
       const ship = state.ships.get(id);
       if (!ship || ship.dead) continue;
@@ -1616,7 +1913,7 @@ export class SpaceRenderer {
   // ── Custom hero ship GLB loading ─────────────────────────────
   private async loadCustomHeroModel(shipId: number, meshData: ShipMesh3D) {
     const removeCone = (g: THREE.Group) => {
-      const c = g.children.find(ch => (ch as THREE.Mesh).geometry?.type === 'ConeGeometry');
+      const c = g.children.find((ch) => (ch as THREE.Mesh).geometry?.type === 'ConeGeometry');
       if (c) g.remove(c);
     };
 
@@ -1628,7 +1925,9 @@ export class SpaceRenderer {
         if (record) {
           this.customHeroUrl = glbBlobToUrl(record.glb);
         }
-      } catch { /* no hero ship saved */ }
+      } catch {
+        /* no hero ship saved */
+      }
       this.customHeroLoading = false;
     }
 
@@ -1659,7 +1958,10 @@ export class SpaceRenderer {
     window.removeEventListener('resize', this.onResize);
     this.controls.dispose();
     this.renderer.dispose();
-    if (this.customHeroUrl) { URL.revokeObjectURL(this.customHeroUrl); this.customHeroUrl = null; }
+    if (this.customHeroUrl) {
+      URL.revokeObjectURL(this.customHeroUrl);
+      this.customHeroUrl = null;
+    }
     if (this.renderer.domElement.parentNode) {
       this.renderer.domElement.parentNode.removeChild(this.renderer.domElement);
     }

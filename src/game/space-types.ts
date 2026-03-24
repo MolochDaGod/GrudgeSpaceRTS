@@ -307,13 +307,26 @@ export type ExplosionScale = 'tiny' | 'small' | 'medium' | 'large' | 'huge' | 'e
 
 export type ShootingFxType = 'bolt' | 'charged' | 'crossed' | 'pulse' | 'spark' | 'waveform';
 export type HitFxType = 'hits-1' | 'hits-2' | 'hits-3' | 'hits-4' | 'hits-5' | 'hits-6';
+export type BombFxType =
+  | 'bomb-tiny'
+  | 'bomb-tiny-2'
+  | 'bomb-tiny-3'
+  | 'bomb-low'
+  | 'bomb-low-2'
+  | 'bomb-low-3'
+  | 'bomb-mid'
+  | 'bomb-mid-2'
+  | 'bomb-mid-3'
+  | 'bomb-high'
+  | 'bomb-high-2'
+  | 'bomb-high-3';
 
 export interface SpriteEffect {
   id: number;
   x: number;
   y: number;
   z: number;
-  type: ExplosionType | ShootingFxType | HitFxType;
+  type: ExplosionType | ShootingFxType | HitFxType | BombFxType;
   scale: number;
   frame: number;
   totalFrames: number;

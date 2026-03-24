@@ -263,47 +263,81 @@ export const ATTACK_ICONS: Record<string, React.ReactNode> = {
   torpedo: <img src={ATTACK_IMG.torpedo} alt="torpedo" style={{ width: 16, height: 16, imageRendering: 'auto' }} />,
 };
 // ── Resource Icons (PNG from resource-icons pack) ─────────────
+const RI = '/assets/space/ui/resource-icons';
 
-export const ResIcon = ({ src, fallback }: { src: string; fallback: React.ReactNode }) => (
-  <img
-    src={src}
-    alt=""
-    style={{ width: 18, height: 18, imageRendering: 'pixelated', verticalAlign: 'middle' }}
-    onError={(e) => {
-      (e.target as HTMLImageElement).style.display = 'none';
-    }}
-  />
-);
+/** 40 pixel-art resource item icons (32×32 each) */
+export const RESOURCE_ITEM_ICONS = {
+  credits: `${RI}/Icon39_36.png`, // star trophy — gold credits
+  energy: `${RI}/Icon39_16.png`, // circuit chip — energy
+  minerals: `${RI}/Icon39_09.png`, // green crystal — minerals
+  supply: `${RI}/Icon39_22.png`, // data board — supply cap
+  attack: `${RI}/Icon39_10.png`, // red sword — attack
+  armor: `${RI}/Icon39_05.png`, // silver ingot — armor
+  speed: `${RI}/Icon39_15.png`, // energy rod — speed
+  health: `${RI}/Icon39_13.png`, // green gem — health
+  shield: `${RI}/Icon39_02.png`, // blue datapad — shield
+  build: `${RI}/Icon39_11.png`, // pickaxe — build time
+  tech: `${RI}/Icon39_35.png`, // grid panel — tech
+  bomb: `${RI}/Icon39_38.png`, // furnace — bomb/explosion
+};
 
-// Use cyberpunk mining icons for resources (high quality painted art)
+export const ResIcon = ({ src, fallback }: { src: string; fallback: React.ReactNode }) => {
+  const [err, setErr] = React.useState(false);
+  if (err && fallback) return <>{fallback}</>;
+  return (
+    <img
+      src={src}
+      alt=""
+      style={{ width: 18, height: 18, imageRendering: 'pixelated', verticalAlign: 'middle' }}
+      onError={() => setErr(true)}
+    />
+  );
+};
+
+// Use resource-icon PNGs with mining-icon fallbacks
 export const RES_ICONS = {
   credits: (
     <ResIcon
-      src="/assets/space/ui/mining-icons/PNG/without background/15.png"
+      src={RESOURCE_ITEM_ICONS.credits}
       fallback={
-        <Svg size={14} color="#fc4">
-          <circle cx="12" cy="12" r="9" stroke="#fc4" strokeWidth="1.5" fill="none" />
-        </Svg>
+        <ResIcon
+          src="/assets/space/ui/mining-icons/PNG/without background/15.png"
+          fallback={
+            <Svg size={14} color="#fc4">
+              <circle cx="12" cy="12" r="9" stroke="#fc4" strokeWidth="1.5" fill="none" />
+            </Svg>
+          }
+        />
       }
     />
   ),
   energy: (
     <ResIcon
-      src="/assets/space/ui/mining-icons/PNG/without background/10.png"
+      src={RESOURCE_ITEM_ICONS.energy}
       fallback={
-        <Svg size={14} color="#4df">
-          <path d="M13 2L6 14H12L11 22L18 10H12Z" stroke="#4df" strokeWidth="1.5" fill="#4df" fillOpacity=".2" />
-        </Svg>
+        <ResIcon
+          src="/assets/space/ui/mining-icons/PNG/without background/10.png"
+          fallback={
+            <Svg size={14} color="#4df">
+              <path d="M13 2L6 14H12L11 22L18 10H12Z" stroke="#4df" strokeWidth="1.5" fill="#4df" fillOpacity=".2" />
+            </Svg>
+          }
+        />
       }
     />
   ),
   minerals: (
     <ResIcon
-      src="/assets/space/ui/mining-icons/PNG/without background/20.png"
+      src={RESOURCE_ITEM_ICONS.minerals}
       fallback={
-        <Svg size={14} color="#4f8">
-          <path d="M12 3L20 9L16 21H8L4 9Z" stroke="#4f8" strokeWidth="1.5" fill="#4f8" fillOpacity=".15" />
-        </Svg>
+        <ResIcon
+          src="/assets/space/ui/mining-icons/PNG/without background/20.png"
+          fallback={
+            <Svg size={14} color="#4f8">
+              <path d="M12 3L20 9L16 21H8L4 9Z" stroke="#4f8" strokeWidth="1.5" fill="#4f8" fillOpacity=".15" />
+            </Svg>
+          }
+        />
       }
     />
   ),
