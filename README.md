@@ -33,7 +33,9 @@ npm run validate   # tsc --noEmit + vite build
 | H | Hold position |
 | P | Patrol (click destination) |
 | M | Star Map overlay |
+| L | Captain's Log overlay |
 | W / R | Ship abilities |
+| F9 | Rig Debug overlay (selected ships) |
 | Ctrl+1-9 | Assign control group |
 | 1-9 | Recall control group |
 | Double-click | Select all of same type |
@@ -77,7 +79,9 @@ src/
 │   ├── space-audio.ts        — Web Audio manager (SFX pool, looping music, volume)
 │   ├── space-effects.ts      — Sprite explosions, hit FX, shooting FX, bomb effects
 │   ├── space-animations.ts   — Ship animation state machine
+│   ├── space-rig.ts          — Rig profile inference (nose/sides/tail, muzzle + booster anchors)
 │   ├── space-starmap.tsx      — Tactical star map overlay
+│   ├── captains-log-ui.tsx    — Campaign Captain's Log overlay
 │   ├── flagship-interior.tsx  — 2D pixel-art flagship interior
 │   ├── ship-editor.tsx        — Ship Forge voxel editor
 │   └── ship-storage.ts       — Hero ship save/load (backend + IndexedDB)
@@ -134,6 +138,11 @@ Access at `/admin.html` (password: `nexus2025`)
 
 ## Recent Changes
 
+- **Rig profile system** — per-ship nose/side/tail/booster inference from prefab anchor points
+- **Hardpoint-correct firing** — projectiles and muzzle FX now spawn from inferred muzzle anchors instead of ship center
+- **Rig Debug overlay (F9)** — live gizmos for nose/tail/sides/muzzles/boosters on selected ships + console rig audits
+- **HUD panel layering fix** — opaque HUD panel rendering with proper asset layering (no scene bleed-through)
+- **Captain's Log UI** — campaign event log/journal overlay with category filters and progression summary
 - **Audio system** — 3 looping music tracks (battle/menu/main), 13 SFX (weapons, death, alerts, build, UI), Web Audio API with pooled channels
 - **Energy shield shader** — hex grid + fresnel rim + team color + hit flash on all shielded ships
 - **Sprite-to-voxel converter** — pirates and bosses auto-converted to 3D voxel models from their 2D sprites
