@@ -326,6 +326,11 @@ export class SpaceEngine {
           defenseBonus: 0.05,
           speedBonus: 0.05,
           specialBonus: 0.075,
+          fleetShipIds: [],
+          maxFleetSize: 12,
+          isDead: false,
+          respawnTimer: 0,
+          respawnCost: { credits: 500, energy: 200, minerals: 300 },
         };
         this.state.commanders.set(id, cmd);
         // Auto-equip to the player flagship
@@ -2037,6 +2042,11 @@ export class SpaceEngine {
       defenseBonus: 0,
       speedBonus: 0,
       specialBonus: 0,
+      fleetShipIds: [],
+      maxFleetSize: 12,
+      isDead: false,
+      respawnTimer: 0,
+      respawnCost: { credits: 500, energy: 200, minerals: 300 },
     };
     this.state.commanders.set(id, cmd);
     return true;
