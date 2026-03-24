@@ -901,6 +901,17 @@ export function canPlanetBuildTier(planetLevel: number | undefined, shipTier: nu
   return shipTier <= maxTier;
 }
 
+/**
+ * Commanders per homeworld level.
+ * You earn 1 commander slot per planet level of your homeworld.
+ * L1 = 1 commander, L2 = 2, L3 = 3, L4 = 4, L5 = 5.
+ * If a commander dies, they can be re-recruited at the homeworld after a respawn timer.
+ */
+export const COMMANDERS_PER_HOMEWORLD_LEVEL: Record<number, number> = { 1: 1, 2: 2, 3: 3, 4: 4, 5: 5 };
+export const COMMANDER_FLEET_SIZE = 12; // max ships per commander fleet
+export const COMMANDER_RESPAWN_TIME = 60; // game-seconds to respawn at homeworld
+export const COMMANDER_RESPAWN_COST = { credits: 500, energy: 200, minerals: 300 };
+
 /** All hero ship keys (T5, require L5 planet). */
 export const ALL_HERO_SHIP_KEYS: string[] = [
   'custom_hero',

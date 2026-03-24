@@ -816,11 +816,18 @@ export interface Commander {
   trainingTimeRemaining: number; // seconds until training completes
   trainingTotalTime: number;
   equippedShipId: number | null;
-  // Combat bonuses applied to equipped Hero ship (as % multipliers)
-  attackBonus: number; // e.g. 0.10 = +10%
+  // Combat bonuses applied to ALL ships in commander's fleet (as % multipliers)
+  attackBonus: number; // e.g. 0.05 = +5%
   defenseBonus: number;
   speedBonus: number;
   specialBonus: number; // spec-specific stat
+  // Fleet management — commander leads up to 12 ships
+  fleetShipIds: number[]; // ship IDs in this commander's fleet (max 12)
+  maxFleetSize: number; // always 12
+  // Respawn tracking
+  isDead: boolean; // true if commander was killed (ship destroyed)
+  respawnTimer: number; // seconds until respawn at homeworld (0 = ready)
+  respawnCost: { credits: number; energy: number; minerals: number };
 }
 
 // ── Planet Defense Turret ───────────────────────────────────────
