@@ -164,10 +164,14 @@ export class SpaceEngine {
             minerals: CAMPAIGN_START_RESOURCES.minerals,
             supply: 0,
             maxSupply: 50,
+            spark: 0,
+            sparkTotal: 0,
           }
-        : { credits: 500, energy: 200, minerals: 300, supply: 0, maxSupply: 50 };
+        : { credits: 500, energy: 200, minerals: 300, supply: 0, maxSupply: 50, spark: 0, sparkTotal: 0 };
     const makeUpg = (): TeamUpgrades => ({ attack: 0, armor: 0, speed: 0, health: 0, shield: 0 });
-    const resources: Record<number, PlayerResources> = { 0: { credits: 0, energy: 0, minerals: 0, supply: 0, maxSupply: 0 } };
+    const resources: Record<number, PlayerResources> = {
+      0: { credits: 0, energy: 0, minerals: 0, supply: 0, maxSupply: 0, spark: 0, sparkTotal: 0 },
+    };
     const upgrades: Record<number, TeamUpgrades> = { 0: makeUpg() };
     for (const t of activePlayers) {
       resources[t] = makeRes();
@@ -228,6 +232,7 @@ export class SpaceEngine {
       campaignProgress: null,
       captainsLog: [],
       campaignEvents: [],
+      sparkState: new Map(),
     };
 
     // ── Campaign sector generation ─────────────────────────────
