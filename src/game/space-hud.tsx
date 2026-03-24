@@ -27,6 +27,10 @@ import { ProductionSidebar } from './production-sidebar';
 import { FlagshipInterior } from './flagship-interior';
 import { VOID_POWERS } from './space-techtree';
 import type { CommanderSpec } from './space-types';
+import { CaptainsLogOverlay } from './captains-log-ui';
+import { PlanetCard } from './planet-card';
+import { PlanetSurfaceView } from './planet-surface';
+import { ShipDetailPanel } from './ship-detail-panel';
 
 interface SpaceHUDProps {
   renderer: SpaceRenderer | null;
@@ -39,8 +43,12 @@ export function SpaceHUD({ renderer, onQuit }: SpaceHUDProps) {
   const [techOpen, setTechOpen] = useState(false);
   const [cmdOpen, setCmdOpen] = useState(false);
   const [interiorOpen, setInteriorOpen] = useState(false);
+  const [logOpen, setLogOpen] = useState(false);
+  const [planetCardOpen, setPlanetCardOpen] = useState(false);
+  const [surfaceOpen, setSurfaceOpen] = useState(false);
   const [selectedPlanetId, setSelectedPlanetId] = useState<number | null>(null);
   const [selectedCmdId, setSelectedCmdId] = useState<number | null>(null);
+  const [planetCardIdx, setPlanetCardIdx] = useState(0);
 
   // Re-render HUD at 15fps for smoother counters
   useEffect(() => {
@@ -57,18 +65,43 @@ export function SpaceHUD({ renderer, onQuit }: SpaceHUDProps) {
     };
   }, []);
 
-  // Planet selection wiring: world click -> HUD selected planet
+  // Planet selection wiring: world click -> open planet card
   useEffect(() => {
     if (!renderer) return;
     const prev = renderer.onPlanetClick;
     const handler = (planetId: number) => {
       setSelectedPlanetId(planetId > 0 ? planetId : null);
+      if (planetId > 0 && renderer?.engine?.state) {
+        const idx = renderer.engine.state.planets.findIndex((p) => p.id === planetId);
+        if (idx >= 0) {
+          setPlanetCardIdx(idx);
+          setPlanetCardOpen(true);
+        }
+      }
     };
     renderer.onPlanetClick = handler;
     return () => {
       if (renderer.onPlanetClick === handler) renderer.onPlanetClick = prev;
     };
   }, [renderer]);
+
+  // L key: Captain's Log | F1: Planet list | Escape: close overlays
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key.toLowerCase() === 'l') setLogOpen((o) => !o);
+      if (e.key === 'F1') {
+        e.preventDefault();
+        setPlanetCardOpen((o) => !o);
+      }
+      if (e.key === 'Escape') {
+        setLogOpen(false);
+        setPlanetCardOpen(false);
+        setSurfaceOpen(false);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   if (!renderer?.engine?.state) return null;
   const state = renderer.engine.state;
@@ -477,6 +510,58 @@ export function SpaceHUD({ renderer, onQuit }: SpaceHUDProps) {
         />
       )}
 
+      {/* ── Captain's Log Overlay (L key) ──────────── */}
+      {logOpen && renderer && <CaptainsLogOverlay renderer={renderer} onClose={() => setLogOpen(false)} />}
+
+      {/* ── Planet Card (planet click / F1) ────────── */}
+      {planetCardOpen &&
+        state.planets.length > 0 &&
+        (() => {
+          const idx = Math.max(0, Math.min(planetCardIdx, state.planets.length - 1));
+          const planet = state.planets[idx];
+          return planet ? (
+            <div
+              style={{
+                position: 'absolute',
+                top: '50%',
+                left: '50%',
+                transform: 'translate(-50%, -50%)',
+                zIndex: 170,
+                pointerEvents: 'auto',
+              }}
+            >
+              <PlanetCard
+                planet={planet}
+                state={state}
+                onClose={() => setPlanetCardOpen(false)}
+                onNext={() => setPlanetCardIdx((i) => (i + 1) % state.planets.length)}
+                onPrev={() => setPlanetCardIdx((i) => (i - 1 + state.planets.length) % state.planets.length)}
+                onAction={(pid) => {
+                  const p = state.planets.find((pl) => pl.id === pid);
+                  if (p && p.owner === 1) {
+                    setPlanetCardOpen(false);
+                    setSelectedPlanetId(pid);
+                    setSurfaceOpen(true);
+                  }
+                }}
+              />
+            </div>
+          ) : null;
+        })()}
+
+      {/* ── Planet Surface View (BUILD from planet card) ── */}
+      {surfaceOpen && selectedPlanet && selectedPlanet.owner === 1 && (
+        <PlanetSurfaceView
+          planet={selectedPlanet}
+          state={state}
+          onClose={() => setSurfaceOpen(false)}
+          onBuild={(planetId, buildingType) => {
+            // TODO: wire to engine.buildOnPlanet(planetId, buildingType)
+            console.log('[surface] Build', buildingType, 'on planet', planetId);
+          }}
+        />
+      )}
+
       {/* ── ENTER SHIP popup (flagship selected) ───── */}
       {!interiorOpen && primary && (primary.shipType === 'pyramid_ship' || primary.shipType === 'custom_hero') && (
         <div
@@ -675,6 +760,7 @@ export function SpaceHUD({ renderer, onQuit }: SpaceHUDProps) {
           <div style={{ display: 'flex', gap: 3, padding: '0 4px 4px' }}>
             <Btn label="TECH" onClick={() => setTechOpen((t) => !t)} active={techOpen} style={{ flex: 1, height: 26, minWidth: 0 }} />
             <Btn label="CMDR" onClick={() => setCmdOpen((t) => !t)} active={cmdOpen} style={{ flex: 1, height: 26, minWidth: 0 }} />
+            <Btn label="LOG" onClick={() => setLogOpen((t) => !t)} active={logOpen} style={{ flex: 1, height: 26, minWidth: 0 }} />
           </div>
         </div>
 
