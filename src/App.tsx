@@ -30,6 +30,7 @@ import { Panel, Btn, Slot, SmallPanel } from './game/ui-lib';
 import { gameAudio } from './game/space-audio';
 import { initAuth, login, logout, getUser, onAuthChange, type GrudgeUser } from './game/grudge-auth';
 import { loadRemoteBalance } from './game/space-data-loader';
+import { DevOverlay } from './game/dev-overlay';
 
 type Screen = 'intro' | 'menu' | 'codex' | 'howto' | 'editor' | 'playing';
 
@@ -429,6 +430,8 @@ export default function App() {
       {loading && <LoadingScreen />}
       {screen === 'playing' && !loading && renderer && <SpaceHUD renderer={renderer} onQuit={backToMenu} />}
       {screen === 'playing' && starMapOpen && renderer && <StarMapOverlay renderer={renderer} onClose={() => setStarMapOpen(false)} />}
+      {/* Admin UI overlay — toggle with backtick key */}
+      <DevOverlay />
     </div>
   );
 }
@@ -516,7 +519,17 @@ function CommanderSelectModal({
         color: '#cde',
       }}
     >
-      <Panel title="CHOOSE YOUR COMMANDER" variant="green" width={700} style={{ maxWidth: '94vw', maxHeight: '90vh' }}>
+      <Panel
+        title="CHOOSE YOUR COMMANDER"
+        width={700}
+        style={{
+          maxWidth: '94vw',
+          maxHeight: '90vh',
+          background: 'rgba(4,10,22,0.97)',
+          border: '2px solid rgba(40,180,160,0.4)',
+          borderRadius: 12,
+        }}
+      >
         <div style={{ overflowY: 'auto', maxHeight: 'calc(90vh - 100px)', paddingRight: 4 }}>
           <div style={{ fontSize: 11, color: 'rgba(160,200,255,0.45)', marginBottom: 16, textAlign: 'center' }}>
             Your starting commander determines your flagship's bonus spec.

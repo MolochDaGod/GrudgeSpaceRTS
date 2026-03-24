@@ -187,7 +187,12 @@ function TechTreePanel({
 
   return (
     <div style={{ position: 'absolute', left: drag.pos.x, top: drag.pos.y, zIndex: 50, pointerEvents: 'auto' }}>
-      <Panel title="TECH TREES" variant="green" onClose={onClose} width={500} style={{ maxHeight: '80vh', overflow: 'auto' }}>
+      <Panel
+        title="TECH TREES"
+        onClose={onClose}
+        width={500}
+        style={{ maxHeight: '80vh', overflow: 'auto', background: 'rgba(4,10,22,0.97)', border: '1px solid #1a3050', borderRadius: 10 }}
+      >
         <div
           onMouseDown={drag.onDragStart}
           style={{
@@ -367,7 +372,12 @@ function CommanderPanel({
 
   return (
     <div style={{ position: 'absolute', left: drag.pos.x, top: drag.pos.y, zIndex: 50, pointerEvents: 'auto' }}>
-      <Panel title="COMMANDER CORPS" variant="green" onClose={onClose} width={440} style={{ maxHeight: '85vh', overflow: 'auto' }}>
+      <Panel
+        title="COMMANDER CORPS"
+        onClose={onClose}
+        width={440}
+        style={{ maxHeight: '85vh', overflow: 'auto', background: 'rgba(4,12,8,0.97)', border: '1px solid #1a3a22', borderRadius: 10 }}
+      >
         <div
           onMouseDown={drag.onDragStart}
           style={{
