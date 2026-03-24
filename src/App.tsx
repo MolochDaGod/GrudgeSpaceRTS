@@ -739,11 +739,10 @@ function MainMenu({
   onLogin: (provider?: 'discord' | 'google' | 'github') => void;
   onLogout: () => void;
 }) {
-  const modes: { key: GameMode; label: string; desc: string }[] = [
-    { key: '1v1', label: 'INNER SYSTEM', desc: '2 commanders · 7 planets · Solar System Scrim' },
-    { key: '2v2', label: 'OUTER SYSTEM', desc: '4 commanders · 14 planets · Solar System Scrim' },
-    { key: 'ffa4', label: 'FULL SECTOR', desc: '4 commanders · 14 planets · Free-for-All Scrim' },
-    { key: 'campaign', label: "CAPTAIN'S CAMPAIGN", desc: 'Endless conquest · Your shattered homeworld · AI story' },
+  const quickModes: { key: GameMode; label: string; desc: string }[] = [
+    { key: '1v1', label: 'INNER SYSTEM', desc: '2 commanders · 7 planets' },
+    { key: '2v2', label: 'OUTER SYSTEM', desc: '4 commanders · 14 planets' },
+    { key: 'ffa4', label: 'FULL SECTOR', desc: '4-way free-for-all' },
   ];
   return (
     <div
@@ -761,16 +760,16 @@ function MainMenu({
     >
       <StarfieldCanvas />
       <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-        {/* Logo — mix-blend-mode:screen knocks out the dark baked-in background */}
+        {/* Logo */}
         <img
           src="/assets/space/ui/logo.webp"
           alt="GRUDA ARMADA"
           style={{
-            width: 400,
+            width: 380,
             maxWidth: '88vw',
             display: 'block',
             imageRendering: 'auto',
-            marginBottom: 24,
+            marginBottom: 16,
             mixBlendMode: 'screen' as any,
             filter: 'drop-shadow(0 0 40px rgba(68,136,255,0.45)) drop-shadow(0 0 18px rgba(200,30,30,0.3))',
           }}
@@ -780,8 +779,8 @@ function MainMenu({
             else t.style.display = 'none';
           }}
         />
-        <div style={{ fontSize: 12, opacity: 0.4, marginBottom: 12, letterSpacing: 4, textTransform: 'uppercase' }}>
-          Solar System Scrim · Tactical RTS
+        <div style={{ fontSize: 11, opacity: 0.35, marginBottom: 18, letterSpacing: 4, textTransform: 'uppercase' }}>
+          Tactical Space RTS · by Racalvin The Pirate King
         </div>
         {/* ── Auth bar ─────────────────────────────── */}
         <div
@@ -869,29 +868,103 @@ function MainMenu({
             </>
           )}
         </div>
-        <div style={{ display: 'flex', gap: 16, marginBottom: 32 }}>
-          {modes.map((m) => (
+        {/* ── Two-column mode selection ── */}
+        <div style={{ display: 'flex', gap: 20, marginBottom: 24, flexWrap: 'wrap', justifyContent: 'center' }}>
+          {/* Quick Game column */}
+          <div
+            style={{
+              padding: '16px 20px',
+              borderRadius: 10,
+              minWidth: 280,
+              background: 'rgba(6,14,30,0.85)',
+              border: '1px solid #1a3050',
+            }}
+          >
+            <div style={{ fontSize: 10, fontWeight: 700, color: '#4488ff', letterSpacing: 3, marginBottom: 12, textAlign: 'center' }}>
+              ⚡ QUICK GAME
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {quickModes.map((m) => {
+                const sel = mode === m.key;
+                return (
+                  <div
+                    key={m.key}
+                    onClick={() => setMode(m.key)}
+                    style={{
+                      padding: '10px 16px',
+                      borderRadius: 6,
+                      cursor: 'pointer',
+                      border: sel ? '2px solid #4488ff' : '1px solid #1a305066',
+                      background: sel ? 'rgba(68,136,255,0.15)' : 'transparent',
+                      transition: 'all 0.15s',
+                    }}
+                  >
+                    <div style={{ fontSize: 14, fontWeight: 700 }}>{m.label}</div>
+                    <div style={{ fontSize: 10, opacity: 0.5 }}>{m.desc}</div>
+                  </div>
+                );
+              })}
+            </div>
+            <Btn
+              label="LAUNCH QUICK GAME"
+              wide
+              active={mode !== 'campaign'}
+              onClick={onStart}
+              style={{ marginTop: 12, width: '100%', height: 40 }}
+            />
+          </div>
+
+          {/* Campaign column */}
+          <div
+            style={{
+              padding: '16px 20px',
+              borderRadius: 10,
+              minWidth: 280,
+              background: mode === 'campaign' ? 'rgba(255,140,0,0.08)' : 'rgba(6,14,30,0.85)',
+              border: mode === 'campaign' ? '2px solid #ff882266' : '1px solid #1a3050',
+              transition: 'all 0.2s',
+            }}
+          >
+            <div style={{ fontSize: 10, fontWeight: 700, color: '#ff8822', letterSpacing: 3, marginBottom: 12, textAlign: 'center' }}>
+              🌌 CAPTAIN'S CAMPAIGN
+            </div>
             <div
-              key={m.key}
-              onClick={() => setMode(m.key)}
+              onClick={() => setMode('campaign')}
               style={{
-                padding: '16px 24px',
-                border: mode === m.key ? '2px solid #4488ff' : '1px solid #1a3050',
-                borderRadius: 8,
+                padding: '12px 16px',
+                borderRadius: 6,
                 cursor: 'pointer',
-                background: mode === m.key ? 'rgba(68,136,255,0.15)' : 'rgba(6,12,28,0.85)',
-                minWidth: 160,
-                textAlign: 'center',
-                transition: 'all 0.2s',
-                boxShadow: mode === m.key ? '0 0 18px #4488ff33' : 'none',
+                border: mode === 'campaign' ? '2px solid #ff8822' : '1px solid #44220066',
+                background: mode === 'campaign' ? 'rgba(255,136,34,0.12)' : 'transparent',
+                transition: 'all 0.15s',
+                marginBottom: 10,
               }}
             >
-              <div style={{ fontSize: 18, fontWeight: 700 }}>{m.label}</div>
-              <div style={{ fontSize: 11, opacity: 0.5, marginTop: 4 }}>{m.desc}</div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: '#ff8822' }}>ENDLESS CONQUEST</div>
+              <div style={{ fontSize: 10, color: 'rgba(200,160,100,0.7)', marginTop: 4, lineHeight: 1.5 }}>
+                Your shattered homeworld · Off-world base building
+                <br />
+                AI story events · 4 factions · Universe Wars
+              </div>
             </div>
-          ))}
+            <div style={{ fontSize: 9, color: 'rgba(160,200,255,0.35)', textAlign: 'center', marginBottom: 8, lineHeight: 1.5 }}>
+              10x slower gameplay · Homeworld chunks forever mine
+              <br />
+              Build your base · Conquer the galaxy
+            </div>
+            <Btn
+              label="START CAMPAIGN"
+              wide
+              active={mode === 'campaign'}
+              onClick={() => {
+                setMode('campaign');
+                onStart();
+              }}
+              style={{ width: '100%', height: 40 }}
+            />
+          </div>
         </div>
-        <Btn label="LAUNCH GAME" wide active onClick={onStart} style={{ minWidth: 240, height: 48, marginBottom: 24 }} />
+
         <div style={{ display: 'flex', gap: 12 }}>
           <Btn label="SHIP FORGE" onClick={onEditor} style={{ minWidth: 100 }} />
           <Btn label="CODEX" onClick={onCodex} style={{ minWidth: 80 }} />
