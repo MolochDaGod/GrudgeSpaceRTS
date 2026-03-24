@@ -14,19 +14,56 @@ import { Btn } from './ui-lib';
 
 // ── Asset paths ───────────────────────────────────────────────
 const SL = '/assets/space/ui/spaceliner';
-const BG      = `${SL}/3 Backgrounds/Background.png`;
-const MONITOR = `${SL}/4 Objects/2 Monitors/1.png`;
-const CHAIR   = `${SL}/4 Objects/1 Furniture/1.png`;
-const BED     = `${SL}/4 Objects/1 Furniture/5.png`;
-const DESK    = `${SL}/4 Objects/1 Furniture/3.png`;
-const BOX1    = `${SL}/4 Objects/3 Boxes/1.png`;
-const BOX2    = `${SL}/4 Objects/3 Boxes/2.png`;
-const PLANT   = `${SL}/4 Objects/4 Decor/1.png`;
-const PIPE    = `${SL}/4 Objects/4 Decor/5.png`;
-const DOOR    = `${SL}/5 Animated Objects/Door.png`;
-const TILE_WALL  = `${SL}/1 Tileset/Tile_01.png`;
+const BG = `${SL}/3 Backgrounds/Background.png`;
+const BG2 = `${SL}/3 Backgrounds/2.png`;
+const BG3 = `${SL}/3 Backgrounds/3.png`;
+// Furniture
+const CHAIR = `${SL}/4 Objects/1 Furniture/1.png`;
+const TABLE = `${SL}/4 Objects/1 Furniture/2.png`;
+const DESK = `${SL}/4 Objects/1 Furniture/3.png`;
+const CABINET = `${SL}/4 Objects/1 Furniture/4.png`;
+const BED = `${SL}/4 Objects/1 Furniture/5.png`;
+const SHELF = `${SL}/4 Objects/1 Furniture/6.png`;
+const LOCKER = `${SL}/4 Objects/1 Furniture/7.png`;
+const CONSOLE = `${SL}/4 Objects/1 Furniture/8.png`;
+const SEAT = `${SL}/4 Objects/1 Furniture/9.png`;
+const BENCH = `${SL}/4 Objects/1 Furniture/10.png`;
+const RACK = `${SL}/4 Objects/1 Furniture/11.png`;
+const WEAPONS_RACK = `${SL}/4 Objects/1 Furniture/12.png`;
+const ENGINE1 = `${SL}/4 Objects/1 Furniture/13.png`;
+const ENGINE2 = `${SL}/4 Objects/1 Furniture/14.png`;
+const TANK = `${SL}/4 Objects/1 Furniture/15.png`;
+// Monitors
+const MONITOR1 = `${SL}/4 Objects/2 Monitors/1.png`;
+const MONITOR2 = `${SL}/4 Objects/2 Monitors/2.png`;
+const MONITOR3 = `${SL}/4 Objects/2 Monitors/3.png`;
+const MONITOR4 = `${SL}/4 Objects/2 Monitors/4.png`;
+const MONITOR5 = `${SL}/4 Objects/2 Monitors/5.png`;
+const MONITOR6 = `${SL}/4 Objects/2 Monitors/6.png`;
+// Boxes & Decor
+const BOX1 = `${SL}/4 Objects/3 Boxes/1.png`;
+const BOX2 = `${SL}/4 Objects/3 Boxes/2.png`;
+const BOX3 = `${SL}/4 Objects/3 Boxes/3.png`;
+const BOX4 = `${SL}/4 Objects/3 Boxes/4.png`;
+const PLANT = `${SL}/4 Objects/4 Decor/1.png`;
+const LAMP = `${SL}/4 Objects/4 Decor/2.png`;
+const PIPE1 = `${SL}/4 Objects/4 Decor/5.png`;
+const PIPE2 = `${SL}/4 Objects/4 Decor/6.png`;
+const VENT = `${SL}/4 Objects/4 Decor/7.png`;
+const ANTENNA = `${SL}/4 Objects/4 Decor/8.png`;
+const PANEL1 = `${SL}/4 Objects/4 Decor/9.png`;
+const PANEL2 = `${SL}/4 Objects/4 Decor/10.png`;
+const WIRE1 = `${SL}/4 Objects/4 Decor/11.png`;
+const WIRE2 = `${SL}/4 Objects/4 Decor/12.png`;
+// Animated
+const DOOR = `${SL}/5 Animated Objects/Door.png`;
+const ANIM_MON = `${SL}/5 Animated Objects/Monitor.png`;
+// Tiles
 const TILE_FLOOR = `${SL}/1 Tileset/Tile_05.png`;
 const BACK_PANEL = `${SL}/2 BackTiles/BackTile_01.png`;
+const BACK_PANEL2 = `${SL}/2 BackTiles/BackTile_05.png`;
+const BACK_PANEL3 = `${SL}/2 BackTiles/BackTile_10.png`;
+const BACK_PANEL4 = `${SL}/2 BackTiles/BackTile_15.png`;
 
 type Room = 'bridge' | 'armory' | 'hangar' | 'engine';
 
@@ -43,203 +80,411 @@ interface FlagshipInteriorProps {
 }
 
 export function FlagshipInterior({
-  onClose, onOpenTech, onOpenCommander, onOpenBuild, onOpenUpgrades, onOpenStarMap,
-  commanderPortrait, commanderName, shipName,
+  onClose,
+  onOpenTech,
+  onOpenCommander,
+  onOpenBuild,
+  onOpenUpgrades,
+  onOpenStarMap,
+  commanderPortrait,
+  commanderName,
+  shipName,
 }: FlagshipInteriorProps) {
   const [hoveredRoom, setHoveredRoom] = useState<Room | null>(null);
 
-  const handleRoomClick = useCallback((room: Room) => {
-    switch (room) {
-      case 'bridge':   onOpenCommander(); break;
-      case 'armory':   onOpenTech(); break;
-      case 'hangar':   onOpenBuild(); break;
-      case 'engine':   onOpenUpgrades(); break;
-    }
-  }, [onOpenCommander, onOpenTech, onOpenBuild, onOpenUpgrades]);
+  const handleRoomClick = useCallback(
+    (room: Room) => {
+      switch (room) {
+        case 'bridge':
+          onOpenCommander();
+          break;
+        case 'armory':
+          onOpenTech();
+          break;
+        case 'hangar':
+          onOpenBuild();
+          break;
+        case 'engine':
+          onOpenUpgrades();
+          break;
+      }
+    },
+    [onOpenCommander, onOpenTech, onOpenBuild, onOpenUpgrades],
+  );
 
   return (
-    <div style={{
-      position: 'absolute', inset: 0, zIndex: 150, pointerEvents: 'auto',
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      background: 'rgba(0,0,0,0.85)',
-      fontFamily: "'Segoe UI', monospace",
-    }}>
-      {/* Ship exterior shell */}
-      <div style={{
-        position: 'relative', width: 900, height: 500,
-        backgroundImage: `url(${BG})`, backgroundSize: 'cover',
-        borderRadius: 16, overflow: 'hidden',
-        border: '3px solid rgba(40,180,160,0.5)',
-        boxShadow: '0 0 60px rgba(40,180,160,0.3), inset 0 0 40px rgba(0,0,0,0.5)',
-      }}>
+    <div
+      style={{
+        position: 'absolute',
+        inset: 0,
+        zIndex: 150,
+        pointerEvents: 'auto',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: 'rgba(0,0,0,0.92)',
+        fontFamily: "'Segoe UI', monospace",
+      }}
+    >
+      {/* Ship exterior shell — nearly full screen */}
+      <div
+        style={{
+          position: 'relative',
+          width: 'calc(100vw - 48px)',
+          maxWidth: 1400,
+          height: 'calc(100vh - 48px)',
+          maxHeight: 800,
+          backgroundImage: `url(${BG})`,
+          backgroundSize: 'cover',
+          borderRadius: 12,
+          overflow: 'hidden',
+          border: '3px solid rgba(40,180,160,0.5)',
+          boxShadow: '0 0 80px rgba(40,180,160,0.3), inset 0 0 60px rgba(0,0,0,0.6)',
+        }}
+      >
         {/* Ship name header */}
-        <div style={{
-          position: 'absolute', top: 0, left: 0, right: 0, height: 36,
-          background: 'rgba(4,12,20,0.9)', borderBottom: '2px solid rgba(40,180,160,0.4)',
-          display: 'flex', alignItems: 'center', padding: '0 16px', gap: 12,
-        }}>
-          <span style={{ fontSize: 14, fontWeight: 800, color: '#28b4a0', letterSpacing: 3 }}>
+        <div
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            height: 48,
+            background: 'rgba(4,12,20,0.95)',
+            borderBottom: '2px solid rgba(40,180,160,0.4)',
+            display: 'flex',
+            alignItems: 'center',
+            padding: '0 20px',
+            gap: 16,
+            zIndex: 5,
+          }}
+        >
+          <span style={{ fontSize: 20, fontWeight: 900, color: '#28b4a0', letterSpacing: 4, textShadow: '0 0 12px rgba(40,180,160,0.5)' }}>
             {shipName.toUpperCase()}
           </span>
-          <span style={{ fontSize: 10, color: 'rgba(160,200,255,0.4)' }}>FLAGSHIP INTERIOR</span>
-          {commanderName && (
-            <span style={{ fontSize: 10, color: '#fc4', marginLeft: 'auto' }}>
-              Commander: {commanderName}
-            </span>
+          <span style={{ fontSize: 12, color: 'rgba(160,200,255,0.5)', letterSpacing: 2 }}>FLAGSHIP INTERIOR</span>
+          {commanderPortrait && (
+            <img
+              src={commanderPortrait}
+              alt=""
+              style={{ width: 32, height: 32, borderRadius: 6, border: '2px solid #fc4', objectFit: 'cover', marginLeft: 'auto' }}
+              onError={(e) => {
+                (e.target as HTMLImageElement).style.display = 'none';
+              }}
+            />
           )}
-          <img src='/assets/space/ui/hud/CloseBtn.png' alt='Close' onClick={onClose}
-            style={{ width: 24, height: 24, cursor: 'pointer', imageRendering: 'pixelated',
-              filter: 'brightness(0.8)', marginLeft: commanderName ? 0 : 'auto' }}
-            onMouseEnter={e => (e.currentTarget.style.filter = 'brightness(1.3)')}
-            onMouseLeave={e => (e.currentTarget.style.filter = 'brightness(0.8)')}
+          {commanderName && <span style={{ fontSize: 12, color: '#fc4', fontWeight: 700 }}>Cmdr. {commanderName}</span>}
+          <img
+            src="/assets/space/ui/hud/CloseBtn.png"
+            alt="Close"
+            onClick={onClose}
+            style={{
+              width: 28,
+              height: 28,
+              cursor: 'pointer',
+              imageRendering: 'pixelated',
+              filter: 'brightness(0.8)',
+              marginLeft: commanderName ? 12 : 'auto',
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.filter = 'brightness(1.3)')}
+            onMouseLeave={(e) => (e.currentTarget.style.filter = 'brightness(0.8)')}
           />
         </div>
 
-        {/* ── Room Grid ─────────────────────────────────── */}
-        <div style={{
-          position: 'absolute', top: 36, left: 0, right: 0, bottom: 0,
-          display: 'grid', gridTemplateColumns: '1fr 1fr',
-          gridTemplateRows: '1fr 1fr', gap: 2,
-        }}>
+        {/* ── Room Grid ── 2x2, fills the panel below header, above action bar ── */}
+        <div
+          style={{
+            position: 'absolute',
+            top: 48,
+            left: 0,
+            right: 0,
+            bottom: 52,
+            display: 'grid',
+            gridTemplateColumns: '1fr 1fr',
+            gridTemplateRows: '1fr 1fr',
+            gap: 3,
+            padding: 3,
+          }}
+        >
           {/* Bridge (top-left) */}
           <RoomPanel
-            room="bridge" label="BRIDGE" sublabel="Commander · Star Map · Overview"
+            room="bridge"
+            label="BRIDGE"
+            sublabel="Commander · Star Map · Fleet Overview"
             hovered={hoveredRoom === 'bridge'}
             onHover={() => setHoveredRoom('bridge')}
             onLeave={() => setHoveredRoom(null)}
             onClick={() => handleRoomClick('bridge')}
             color="#28b4a0"
+            bg={BACK_PANEL}
           >
-            {commanderPortrait && (
-              <img src={commanderPortrait} alt="Commander"
-                style={{ width: 48, height: 48, borderRadius: 6, border: '2px solid #28b4a0', objectFit: 'cover' }}
-                onError={e => { (e.target as HTMLImageElement).style.display='none'; }}
+            <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap', justifyContent: 'center' }}>
+              {commanderPortrait && (
+                <img
+                  src={commanderPortrait}
+                  alt="Commander"
+                  style={{ width: 64, height: 64, borderRadius: 8, border: '2px solid #28b4a0', objectFit: 'cover' }}
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).style.display = 'none';
+                  }}
+                />
+              )}
+              <img src={MONITOR1} alt="" style={obj48} />
+              <img src={MONITOR3} alt="" style={obj48} />
+              <img src={CHAIR} alt="" style={obj48} />
+              <img src={SEAT} alt="" style={obj36} />
+              <img src={LAMP} alt="" style={obj36} />
+            </div>
+            <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
+              <RoomBtn
+                label="Commander"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onOpenCommander();
+                }}
               />
-            )}
-            <img src={MONITOR} alt="" style={objStyle} />
-            <img src={CHAIR} alt="" style={{ ...objStyle, width: 40 }} />
-            <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-              <RoomBtn label="Commander" icon="👤" onClick={e => { e.stopPropagation(); onOpenCommander(); }} />
-              <RoomBtn label="Star Map" icon="🗺️" onClick={e => { e.stopPropagation(); onOpenStarMap(); }} />
+              <RoomBtn
+                label="Star Map"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onOpenStarMap();
+                }}
+              />
             </div>
           </RoomPanel>
 
           {/* Hangar (top-right) */}
           <RoomPanel
-            room="hangar" label="HANGAR BAY" sublabel="Ship Production · Build Queue"
+            room="hangar"
+            label="HANGAR BAY"
+            sublabel="Ship Production · Build Queue · Fleet"
             hovered={hoveredRoom === 'hangar'}
             onHover={() => setHoveredRoom('hangar')}
             onLeave={() => setHoveredRoom(null)}
             onClick={() => handleRoomClick('hangar')}
             color="#4488ff"
+            bg={BACK_PANEL2}
           >
-            <img src={BOX1} alt="" style={objStyle} />
-            <img src={BOX2} alt="" style={{ ...objStyle, width: 36 }} />
-            <img src={DOOR} alt="" style={{ ...objStyle, width: 28, imageRendering: 'pixelated' }} />
-            <RoomBtn label="Build Ships" icon="🔧" onClick={e => { e.stopPropagation(); onOpenBuild(); }} />
+            <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap', justifyContent: 'center' }}>
+              <img src={BOX1} alt="" style={obj48} />
+              <img src={BOX2} alt="" style={obj48} />
+              <img src={BOX3} alt="" style={obj36} />
+              <img src={BOX4} alt="" style={obj36} />
+              <img src={DOOR} alt="" style={{ ...obj48, imageRendering: 'pixelated' }} />
+              <img src={RACK} alt="" style={obj48} />
+              <img src={LOCKER} alt="" style={obj48} />
+            </div>
+            <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
+              <RoomBtn
+                label="Build Ships"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onOpenBuild();
+                }}
+              />
+            </div>
           </RoomPanel>
 
           {/* Armory (bottom-left) */}
           <RoomPanel
-            room="armory" label="ARMORY" sublabel="Tech Tree · Research · Upgrades"
+            room="armory"
+            label="ARMORY"
+            sublabel="Tech Tree · Research · Weapons Lab"
             hovered={hoveredRoom === 'armory'}
             onHover={() => setHoveredRoom('armory')}
             onLeave={() => setHoveredRoom(null)}
             onClick={() => handleRoomClick('armory')}
             color="#ff8844"
+            bg={BACK_PANEL3}
           >
-            <img src={PIPE} alt="" style={objStyle} />
-            <img src={DESK} alt="" style={{ ...objStyle, width: 48 }} />
-            <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-              <RoomBtn label="Tech Tree" icon="🔬" onClick={e => { e.stopPropagation(); onOpenTech(); }} />
-              <RoomBtn label="Upgrades" icon="⚡" onClick={e => { e.stopPropagation(); onOpenUpgrades(); }} />
+            <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap', justifyContent: 'center' }}>
+              <img src={WEAPONS_RACK} alt="" style={obj48} />
+              <img src={DESK} alt="" style={obj48} />
+              <img src={MONITOR2} alt="" style={obj48} />
+              <img src={MONITOR5} alt="" style={obj36} />
+              <img src={PIPE1} alt="" style={obj36} />
+              <img src={PIPE2} alt="" style={obj36} />
+              <img src={PANEL1} alt="" style={obj36} />
+            </div>
+            <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
+              <RoomBtn
+                label="Tech Tree"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onOpenTech();
+                }}
+              />
+              <RoomBtn
+                label="Upgrades"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onOpenUpgrades();
+                }}
+              />
             </div>
           </RoomPanel>
 
           {/* Engine Room (bottom-right) */}
           <RoomPanel
-            room="engine" label="ENGINE ROOM" sublabel="Resources · Workers · Power"
+            room="engine"
+            label="ENGINE ROOM"
+            sublabel="Power Core · Resources · Workers"
             hovered={hoveredRoom === 'engine'}
             onHover={() => setHoveredRoom('engine')}
             onLeave={() => setHoveredRoom(null)}
             onClick={() => handleRoomClick('engine')}
             color="#44ee88"
+            bg={BACK_PANEL4}
           >
-            <img src={PLANT} alt="" style={{ ...objStyle, width: 28 }} />
-            <img src={BED} alt="" style={{ ...objStyle, width: 48 }} />
-            <RoomBtn label="Upgrades" icon="⚙️" onClick={e => { e.stopPropagation(); onOpenUpgrades(); }} />
+            <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap', justifyContent: 'center' }}>
+              <img src={ENGINE1} alt="" style={obj48} />
+              <img src={ENGINE2} alt="" style={obj48} />
+              <img src={TANK} alt="" style={obj48} />
+              <img src={VENT} alt="" style={obj36} />
+              <img src={WIRE1} alt="" style={obj36} />
+              <img src={WIRE2} alt="" style={obj36} />
+              <img src={PLANT} alt="" style={obj36} />
+              <img src={MONITOR4} alt="" style={obj48} />
+            </div>
+            <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
+              <RoomBtn
+                label="Upgrades"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onOpenUpgrades();
+                }}
+              />
+            </div>
           </RoomPanel>
         </div>
 
         {/* Quick-action bar at bottom */}
-        <div style={{
-          position: 'absolute', bottom: 0, left: 0, right: 0, height: 44,
-          backgroundImage: 'url(/assets/space/ui/hud/DarkBackground.png)', backgroundSize: '100% 100%',
-          borderTop: '2px solid rgba(40,180,160,0.4)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '0 12px',
-        }}>
-          <Btn label="STAR MAP" onClick={onOpenStarMap} style={{ height: 30, minWidth: 80 }} />
-          <Btn label="TECH" onClick={onOpenTech} style={{ height: 30, minWidth: 60 }} />
-          <Btn label="CMDR" onClick={onOpenCommander} style={{ height: 30, minWidth: 60 }} />
-          <Btn label="BUILD" onClick={onOpenBuild} style={{ height: 30, minWidth: 60 }} />
-          <Btn label="UPGRADE" onClick={onOpenUpgrades} style={{ height: 30, minWidth: 70 }} />
+        <div
+          style={{
+            position: 'absolute',
+            bottom: 0,
+            left: 0,
+            right: 0,
+            height: 52,
+            backgroundImage: 'url(/assets/space/ui/hud/DarkBackground.png)',
+            backgroundSize: '100% 100%',
+            borderTop: '2px solid rgba(40,180,160,0.4)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 10,
+            padding: '0 20px',
+            zIndex: 5,
+          }}
+        >
+          <Btn label="STAR MAP" onClick={onOpenStarMap} style={{ height: 36, minWidth: 100 }} />
+          <Btn label="TECH TREE" onClick={onOpenTech} style={{ height: 36, minWidth: 90 }} />
+          <Btn label="COMMANDER" onClick={onOpenCommander} style={{ height: 36, minWidth: 100 }} />
+          <Btn label="BUILD SHIPS" onClick={onOpenBuild} style={{ height: 36, minWidth: 100 }} />
+          <Btn label="UPGRADES" onClick={onOpenUpgrades} style={{ height: 36, minWidth: 90 }} />
           <div style={{ flex: 1 }} />
-          <Btn label="EXIT SHIP" onClick={onClose} active style={{ height: 30, minWidth: 80 }} />
+          <Btn label="EXIT SHIP (ESC)" onClick={onClose} active wide style={{ height: 36, minWidth: 130 }} />
         </div>
       </div>
     </div>
   );
 }
 
-// ── Room Panel ────────────────────────────────────────────────
-function RoomPanel({ room, label, sublabel, hovered, onHover, onLeave, onClick, color, children }: {
-  room: Room; label: string; sublabel: string;
-  hovered: boolean; onHover: () => void; onLeave: () => void; onClick: () => void;
-  color: string; children: React.ReactNode;
+// ── Room Panel ────────────────────────────────────────
+function RoomPanel({
+  room,
+  label,
+  sublabel,
+  hovered,
+  onHover,
+  onLeave,
+  onClick,
+  color,
+  bg,
+  children,
+}: {
+  room: Room;
+  label: string;
+  sublabel: string;
+  hovered: boolean;
+  onHover: () => void;
+  onLeave: () => void;
+  onClick: () => void;
+  color: string;
+  bg?: string;
+  children: React.ReactNode;
 }) {
   return (
     <div
-      onMouseEnter={onHover} onMouseLeave={onLeave} onClick={onClick}
+      onMouseEnter={onHover}
+      onMouseLeave={onLeave}
+      onClick={onClick}
       style={{
-        position: 'relative', cursor: 'pointer', overflow: 'hidden',
-        backgroundImage: `url(${BACK_PANEL})`, backgroundSize: '64px 64px',
-        border: `2px solid ${hovered ? color : 'rgba(40,60,80,0.5)'}`,
+        position: 'relative',
+        cursor: 'pointer',
+        overflow: 'hidden',
+        backgroundImage: `url(${bg ?? BACK_PANEL})`,
+        backgroundSize: '64px 64px',
+        border: `2px solid ${hovered ? color : 'rgba(40,60,80,0.4)'}`,
+        borderRadius: 6,
         transition: 'border-color 0.2s, box-shadow 0.2s',
-        boxShadow: hovered ? `inset 0 0 30px ${color}33, 0 0 12px ${color}44` : 'none',
-        display: 'flex', flexDirection: 'column', alignItems: 'center',
-        justifyContent: 'center', gap: 6, padding: 16,
+        boxShadow: hovered ? `inset 0 0 40px ${color}33, 0 0 16px ${color}44` : 'none',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
+        padding: 20,
       }}
     >
-      {/* Room label */}
-      <div style={{ fontSize: 13, fontWeight: 800, color, letterSpacing: 2 }}>{label}</div>
-      <div style={{ fontSize: 9, color: 'rgba(160,200,255,0.4)', letterSpacing: 1, marginBottom: 6 }}>{sublabel}</div>
-      {/* Room objects */}
-      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
-        {children}
-      </div>
+      <div style={{ fontSize: 18, fontWeight: 900, color, letterSpacing: 3, textShadow: `0 0 12px ${color}66` }}>{label}</div>
+      <div style={{ fontSize: 11, color: 'rgba(160,200,255,0.5)', letterSpacing: 1, marginBottom: 8 }}>{sublabel}</div>
+      {children}
       {/* Floor tile strip */}
-      <div style={{
-        position: 'absolute', bottom: 0, left: 0, right: 0, height: 16,
-        backgroundImage: `url(${TILE_FLOOR})`, backgroundSize: '32px 32px',
-        backgroundRepeat: 'repeat-x', opacity: 0.5,
-      }} />
+      <div
+        style={{
+          position: 'absolute',
+          bottom: 0,
+          left: 0,
+          right: 0,
+          height: 24,
+          backgroundImage: `url(${TILE_FLOOR})`,
+          backgroundSize: '48px 48px',
+          backgroundRepeat: 'repeat-x',
+          opacity: 0.4,
+        }}
+      />
     </div>
   );
 }
 
-// ── Room Button ───────────────────────────────────────────────
-function RoomBtn({ label, icon, onClick }: { label: string; icon: string; onClick: (e: React.MouseEvent) => void }) {
+// ── Room Button (no emoji — text only, larger) ────────────────
+function RoomBtn({ label, onClick }: { label: string; onClick: (e: React.MouseEvent) => void }) {
   return (
-    <div onClick={onClick} style={{
-      padding: '4px 10px', borderRadius: 4, cursor: 'pointer',
-      background: 'rgba(8,18,36,0.85)', border: '1px solid rgba(40,180,160,0.4)',
-      fontSize: 9, fontWeight: 700, color: '#cde', display: 'flex', alignItems: 'center', gap: 4,
-      transition: 'background 0.15s, border-color 0.15s',
-    }}
-      onMouseEnter={e => { e.currentTarget.style.background = 'rgba(40,180,160,0.2)'; e.currentTarget.style.borderColor = '#28b4a0'; }}
-      onMouseLeave={e => { e.currentTarget.style.background = 'rgba(8,18,36,0.85)'; e.currentTarget.style.borderColor = 'rgba(40,180,160,0.4)'; }}
+    <div
+      onClick={onClick}
+      style={{
+        padding: '6px 16px',
+        borderRadius: 5,
+        cursor: 'pointer',
+        background: 'rgba(8,18,36,0.9)',
+        border: '1px solid rgba(40,180,160,0.4)',
+        fontSize: 11,
+        fontWeight: 700,
+        color: '#cde',
+        letterSpacing: 0.5,
+        transition: 'background 0.15s, border-color 0.15s',
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.background = 'rgba(40,180,160,0.25)';
+        e.currentTarget.style.borderColor = '#28b4a0';
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.background = 'rgba(8,18,36,0.9)';
+        e.currentTarget.style.borderColor = 'rgba(40,180,160,0.4)';
+      }}
     >
-      <span>{icon}</span> {label}
+      {label}
     </div>
   );
 }
@@ -247,19 +492,43 @@ function RoomBtn({ label, icon, onClick }: { label: string; icon: string; onClic
 // ── Quick Action Button ───────────────────────────────────────
 function QuickBtn({ label, onClick, color }: { label: string; onClick: () => void; color?: string }) {
   return (
-    <div onClick={onClick} style={{
-      position: 'relative', cursor: 'pointer', display: 'inline-block',
-    }}>
-      <img src='/assets/space/ui/hud/Normal_Btn.png' alt=''
-        style={{ width: 100, height: 28, display: 'block' }} />
-      <span style={{
-        position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
-        fontSize: 9, fontWeight: 700, color: color ?? '#cde', letterSpacing: 0.5,
-      }}>{label}</span>
+    <div
+      onClick={onClick}
+      style={{
+        position: 'relative',
+        cursor: 'pointer',
+        display: 'inline-block',
+      }}
+    >
+      <img src="/assets/space/ui/hud/Normal_Btn.png" alt="" style={{ width: 100, height: 28, display: 'block' }} />
+      <span
+        style={{
+          position: 'absolute',
+          inset: 0,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontSize: 9,
+          fontWeight: 700,
+          color: color ?? '#cde',
+          letterSpacing: 0.5,
+        }}
+      >
+        {label}
+      </span>
     </div>
   );
 }
 
-const objStyle: React.CSSProperties = {
-  width: 32, height: 32, imageRendering: 'pixelated' as any, objectFit: 'contain',
+const obj48: React.CSSProperties = {
+  width: 48,
+  height: 48,
+  imageRendering: 'pixelated' as any,
+  objectFit: 'contain',
+};
+const obj36: React.CSSProperties = {
+  width: 36,
+  height: 36,
+  imageRendering: 'pixelated' as any,
+  objectFit: 'contain',
 };

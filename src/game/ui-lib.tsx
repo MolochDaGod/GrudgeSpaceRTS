@@ -171,7 +171,7 @@ export function SmallPanel({ title, children, style }: { title?: string; childre
   );
 }
 
-// ── Btn: image-based button with normal/hover/disabled states ──────
+// ── Btn: sprite-canvas button — background-image for proper text centering ──
 export function Btn({
   label,
   onClick,
@@ -205,42 +205,29 @@ export function Btn({
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
-        position: 'relative',
         cursor: disabled ? 'default' : 'pointer',
         display: 'inline-flex',
         alignItems: 'center',
         justifyContent: 'center',
+        gap: 4,
         minWidth: wide ? 140 : 64,
-        height: wide ? 36 : 40,
+        height: wide ? 38 : 36,
+        padding: '0 12px',
+        backgroundImage: `url(${src})`,
+        backgroundSize: '100% 100%',
+        backgroundRepeat: 'no-repeat',
         transition: 'transform 0.1s',
         transform: hovered && !disabled ? 'scale(1.05)' : 'scale(1)',
         opacity: disabled ? 0.5 : 1,
+        userSelect: 'none',
         ...style,
       }}
     >
-      <img
-        src={src}
-        alt=""
-        style={{
-          position: 'absolute',
-          inset: 0,
-          width: '100%',
-          height: '100%',
-          objectFit: 'fill',
-        }}
-      />
       {icon && (
         <img
           src={icon}
           alt=""
-          style={{
-            width: 18,
-            height: 18,
-            position: 'relative',
-            zIndex: 1,
-            marginRight: label ? 4 : 0,
-            imageRendering: 'auto',
-          }}
+          style={{ width: 16, height: 16, imageRendering: 'auto', flexShrink: 0 }}
           onError={(e) => {
             (e.target as HTMLImageElement).style.display = 'none';
           }}
@@ -249,24 +236,23 @@ export function Btn({
       {label && (
         <span
           style={{
-            position: 'relative',
-            zIndex: 1,
-            fontSize: wide ? 11 : 9,
+            fontSize: wide ? 11 : 10,
             fontWeight: 700,
             color: active ? '#fff' : disabled ? '#556' : '#c8e8dc',
             letterSpacing: 1,
-            textShadow: '0 1px 3px rgba(0,0,0,0.7)',
+            textShadow: '0 1px 3px rgba(0,0,0,0.8)',
+            whiteSpace: 'nowrap',
           }}
         >
           {label}
         </span>
       )}
-      {children && <div style={{ position: 'relative', zIndex: 1 }}>{children}</div>}
+      {children}
     </div>
   );
 }
 
-// ── Slot: hexagonal item/ability frame ──────────────────────────────
+// ── Slot: hexagonal item/ability frame — sprite as background ─────────
 export function Slot({
   children,
   size,
@@ -285,29 +271,19 @@ export function Slot({
     <div
       onClick={onClick}
       style={{
-        position: 'relative',
         width: sz,
         height: sz,
         cursor: onClick ? 'pointer' : 'default',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
+        backgroundImage: `url(${H}/InventorySlot.png)`,
+        backgroundSize: '100% 100%',
+        filter: active ? 'brightness(1.4) hue-rotate(60deg)' : 'brightness(0.9)',
         ...style,
       }}
     >
-      <img
-        src={`${H}/InventorySlot.png`}
-        alt=""
-        style={{
-          position: 'absolute',
-          inset: 0,
-          width: '100%',
-          height: '100%',
-          objectFit: 'fill',
-          filter: active ? 'brightness(1.4) hue-rotate(60deg)' : 'brightness(0.9)',
-        }}
-      />
-      <div style={{ position: 'relative', zIndex: 1 }}>{children}</div>
+      {children}
     </div>
   );
 }
