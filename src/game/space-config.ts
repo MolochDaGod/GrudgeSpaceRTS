@@ -887,11 +887,45 @@ export function getPlanetUnlockedShips(ownedPlanetTypes: PlanetType[]): Set<stri
   return ships;
 }
 
+/**
+ * Planet level → max ship tier that planet can build.
+ * L1 = T1 only, L2 = T1-T2, L3 = T1-T3, L4 = T1-T4, L5 = T1-T5 (hero ships).
+ * Hero-class ships (T5 dreadnoughts, faction heroes) require a Level 5 planet.
+ * Each planet level-up is a meaningful milestone that unlocks the next tier.
+ */
+export const PLANET_LEVEL_MAX_TIER: Record<number, number> = { 1: 1, 2: 2, 3: 3, 4: 4, 5: 5 };
+
+/** Check if a specific planet can build a specific ship based on its level. */
+export function canPlanetBuildTier(planetLevel: number | undefined, shipTier: number): boolean {
+  const maxTier = PLANET_LEVEL_MAX_TIER[planetLevel ?? 1] ?? 1;
+  return shipTier <= maxTier;
+}
+
+/** All hero ship keys (T5, require L5 planet). */
+export const ALL_HERO_SHIP_KEYS: string[] = [
+  'custom_hero',
+  'vanguard_prime',
+  'shadow_reaper',
+  'iron_bastion',
+  'storm_herald',
+  'plague_mother',
+  'hero_wisdom_oracle',
+  'hero_construct_titan',
+  'hero_void_wraith',
+  'hero_legion_warlord',
+  'boss_ship_01',
+  'boss_ship_02',
+];
+
 /** Check if a ship type is buildable for a team. Sources checked in order:
- * 1. Faction starter ships (always)
+ * 1. Faction starter ships (always, regardless of planet level)
  * 2. Planet-granted unlocks (own a planet of the right type)
  * 3. Spark tree unlocks (any faction tree)
  * 4. Shared ships (total Spark threshold)
+ *
+ * IMPORTANT: Even if unlocked, the ship can only be BUILT from a planet
+ * whose level is >= the ship's tier. This is enforced in queueBuild(),
+ * not here. This function checks unlock status only.
  */
 export function isShipBuildable(
   shipType: string,
@@ -2303,7 +2337,7 @@ export const BUILDABLE_SHIPS: Record<number, string[]> = {
 export const HERO_SHIPS: string[] = ['custom_hero', 'vanguard_prime', 'shadow_reaper', 'iron_bastion', 'storm_herald', 'plague_mother'];
 
 export function getShipDef(key: string): { class: ShipClass; stats: ShipStats; displayName: string } | null {
-  return SHIP_DEFINITIONS[key] ?? HERO_DEFINITIONS[key] ?? null;
+  return SHIP_DEFINITIONS[key] ?? HERO_DEFINITIONS[key] ?? FACTION_HERO_DEFINITIONS[key] ?? null;
 }
 
 // ── Commander Constants ───────────────────────────────────────────
