@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type { SpaceGameState, SpriteEffect } from './space-types';
-import { EXPLOSION_SPRITES, SHOOTING_SPRITES, HIT_SPRITES } from './space-prefabs';
+import { EXPLOSION_SPRITES, SHOOTING_SPRITES, HIT_SPRITES, BOMB_SPRITES } from './space-prefabs';
 
 const WORLD_SCALE = 0.05;
 
@@ -21,8 +21,8 @@ export class SpaceEffectsRenderer {
 
   update(state: SpaceGameState, dt: number, camera: THREE.Camera) {
     // Remove finished effects
-    this.effectMeshes = this.effectMeshes.filter(em => {
-      const effect = state.spriteEffects.find(e => e.id === em.id);
+    this.effectMeshes = this.effectMeshes.filter((em) => {
+      const effect = state.spriteEffects.find((e) => e.id === em.id);
       if (!effect || effect.done) {
         this.scene.remove(em.mesh);
         return false;
@@ -34,7 +34,7 @@ export class SpaceEffectsRenderer {
     for (const effect of state.spriteEffects) {
       if (effect.done) continue;
 
-      let em = this.effectMeshes.find(e => e.id === effect.id);
+      let em = this.effectMeshes.find((e) => e.id === effect.id);
       if (!em) {
         const mesh = this.createEffectMesh(effect);
         if (!mesh) continue;
@@ -80,7 +80,7 @@ export class SpaceEffectsRenderer {
     const fw = 1 / cols;
     const fh = 1 / rows;
     // Frame 0 UVs
-    uvs.setXY(0, 0, 1 - fh);      // bottom-left -> top-left of first frame
+    uvs.setXY(0, 0, 1 - fh); // bottom-left -> top-left of first frame
     uvs.setXY(1, fw, 1 - fh);
     uvs.setXY(2, 0, 1);
     uvs.setXY(3, fw, 1);
@@ -115,7 +115,7 @@ export class SpaceEffectsRenderer {
   }
 
   private getSpriteDef(type: string) {
-    return EXPLOSION_SPRITES[type] ?? SHOOTING_SPRITES[type] ?? HIT_SPRITES[type] ?? null;
+    return EXPLOSION_SPRITES[type] ?? SHOOTING_SPRITES[type] ?? HIT_SPRITES[type] ?? BOMB_SPRITES[type] ?? null;
   }
 
   private getTexture(path: string): THREE.Texture | null {

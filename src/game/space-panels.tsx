@@ -389,7 +389,7 @@ function CommanderPanel({
 
         <div style={{ display: 'flex', gap: 0 }}>
           {/* Left: commander list + planet train */}
-          <div style={{ width: 160, borderRight: `1px solid ${C.border}`, padding: '8px' }}>
+          <div style={{ width: 184, borderRight: `1px solid ${C.border}`, padding: '8px' }}>
             <div style={{ fontSize: 9, color: C.muted, marginBottom: 6, letterSpacing: 1 }}>COMMANDERS ({commanders.length})</div>
             {commanders.map((cmd) => (
               <div
@@ -410,7 +410,15 @@ function CommanderPanel({
                 <img
                   src={cmd.portrait}
                   alt={cmd.name}
-                  style={{ width: 28, height: 28, borderRadius: 4, objectFit: 'cover', border: `1px solid ${C.border}` }}
+                  style={{
+                    width: 42,
+                    height: 42,
+                    borderRadius: 6,
+                    objectFit: 'contain',
+                    background: 'rgba(6,18,10,0.8)',
+                    border: `1px solid ${C.border}`,
+                    padding: 2,
+                  }}
                   onError={(e) => {
                     (e.target as HTMLImageElement).style.display = 'none';
                   }}
@@ -495,7 +503,15 @@ function CommanderPanel({
                   <img
                     src={selected.portrait}
                     alt={selected.name}
-                    style={{ width: 64, height: 64, objectFit: 'cover', borderRadius: 6, border: `2px solid ${C.accent}` }}
+                    style={{
+                      width: 104,
+                      height: 104,
+                      objectFit: 'contain',
+                      borderRadius: 10,
+                      border: `2px solid ${C.accent}`,
+                      background: 'rgba(6,18,10,0.8)',
+                      padding: 4,
+                    }}
                     onError={(e) => {
                       (e.target as HTMLImageElement).src = '';
                     }}

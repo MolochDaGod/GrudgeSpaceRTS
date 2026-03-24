@@ -1,26 +1,52 @@
 import type {
-  SpaceGameState, SpaceShip, SpaceStation, Planet,
-  Projectile, SpriteEffect, PlayerResources, Team, Vec3,
-  ExplosionType, HitFxType, ShipAbilityState, GameMode, TeamUpgrades,
-  ResourceNode, PlanetType, PlanetTurret, TeamTechState, VoidEffect,
-  Commander, CommanderSpec,
+  SpaceGameState,
+  SpaceShip,
+  SpaceStation,
+  Planet,
+  Projectile,
+  SpriteEffect,
+  PlayerResources,
+  Team,
+  Vec3,
+  ExplosionType,
+  HitFxType,
+  ShipAbilityState,
+  GameMode,
+  TeamUpgrades,
+  ResourceNode,
+  PlanetType,
+  PlanetTurret,
+  TeamTechState,
+  VoidEffect,
+  Commander,
+  CommanderSpec,
 } from './space-types';
 import {
-  SHIP_DEFINITIONS, TEAM_COLORS,
-  CAPTURE_TIME, CAPTURE_RATE_PER_UNIT, NEUTRAL_DEFENDERS, DOMINATION_TIME,
-  BUILDABLE_SHIPS, UPGRADE_COSTS, UPGRADE_BONUSES, getMapSize,
-  HERO_DEFINITIONS, HERO_SHIPS, getShipDef, PLANET_TYPE_DATA,
+  SHIP_DEFINITIONS,
+  TEAM_COLORS,
+  CAPTURE_TIME,
+  CAPTURE_RATE_PER_UNIT,
+  NEUTRAL_DEFENDERS,
+  DOMINATION_TIME,
+  BUILDABLE_SHIPS,
+  UPGRADE_COSTS,
+  UPGRADE_BONUSES,
+  getMapSize,
+  HERO_DEFINITIONS,
+  HERO_SHIPS,
+  getShipDef,
+  PLANET_TYPE_DATA,
   defaultTechBonuses,
-  COMMANDER_NAMES, COMMANDER_XP_LEVELS, COMMANDER_TRAIN_TIME, COMMANDER_TRAIN_COST,
-  SHIP_ROLES, type Fleet, type TacticalOrder,
+  COMMANDER_NAMES,
+  COMMANDER_XP_LEVELS,
+  COMMANDER_TRAIN_TIME,
+  COMMANDER_TRAIN_COST,
+  SHIP_ROLES,
+  type Fleet,
+  type TacticalOrder,
 } from './space-types';
-import {
-  ALL_TECH_TREES, VOID_POWERS, PLANET_TYPE_TO_TECH, TURRET_DEFS,
-  XP_THRESHOLDS, RANK_STAT_BONUS,
-} from './space-techtree';
-import {
-  createAIBrain, updateAIBrain, type AIBrain,
-} from './space-ai';
+import { ALL_TECH_TREES, VOID_POWERS, PLANET_TYPE_TO_TECH, TURRET_DEFS, XP_THRESHOLDS, RANK_STAT_BONUS } from './space-techtree';
+import { createAIBrain, updateAIBrain, type AIBrain } from './space-ai';
 
 // ── Helpers ──────────────────────────────────────────────────────
 function lerpAngle(a: number, b: number, t: number): number {
@@ -58,41 +84,63 @@ export class SpaceEngine {
     this.mapW = map.width;
     this.mapH = map.height;
 
-    const activePlayers: Team[] = mode === '1v1'
-      ? [1 as Team, 2 as Team]
-      : [1 as Team, 2 as Team, 3 as Team, 4 as Team];
+    const activePlayers: Team[] = mode === '1v1' ? [1 as Team, 2 as Team] : [1 as Team, 2 as Team, 3 as Team, 4 as Team];
 
     const makeRes = (): PlayerResources => ({ credits: 500, energy: 200, minerals: 300, supply: 0, maxSupply: 50 });
     const makeUpg = (): TeamUpgrades => ({ attack: 0, armor: 0, speed: 0, health: 0, shield: 0 });
     const resources: Record<number, PlayerResources> = { 0: { credits: 0, energy: 0, minerals: 0, supply: 0, maxSupply: 0 } };
     const upgrades: Record<number, TeamUpgrades> = { 0: makeUpg() };
-    for (const t of activePlayers) { resources[t] = makeRes(); upgrades[t] = makeUpg(); }
+    for (const t of activePlayers) {
+      resources[t] = makeRes();
+      upgrades[t] = makeUpg();
+    }
 
     // Init tech state per team
     const techState = new Map<number, TeamTechState>();
-    const voidCds   = new Map<number, Map<string, number>>();
+    const voidCds = new Map<number, Map<string, number>>();
     for (const t of activePlayers) {
-      techState.set(t, { researchedNodes: new Set(), inResearch: null, researchTimeRemaining: 0, unlockedShips: new Set(), unlockedTurrets: new Set(['laser_turret', 'missile_turret']), bonuses: defaultTechBonuses() });
+      techState.set(t, {
+        researchedNodes: new Set(),
+        inResearch: null,
+        researchTimeRemaining: 0,
+        unlockedShips: new Set(),
+        unlockedTurrets: new Set(['laser_turret', 'missile_turret']),
+        bonuses: defaultTechBonuses(),
+      });
       voidCds.set(t, new Map());
     }
 
     this.state = {
-      gameMode: mode, ships: new Map(), stations: new Map(),
+      gameMode: mode,
+      ships: new Map(),
+      stations: new Map(),
       planets: this.generatePlanets(mode, activePlayers),
       resourceNodes: new Map(),
       planetTurrets: new Map(),
-      techState, voidCooldowns: voidCds, activeVoidEffects: [],
+      techState,
+      voidCooldowns: voidCds,
+      activeVoidEffects: [],
       aiDifficulty: this.aiDifficulty,
       commanders: new Map(),
       fleets: new Map(),
       tacticalOrders: [],
-      towers: new Map(), projectiles: new Map(),
-      spriteEffects: [], glbEffects: [], floatingTexts: [], alerts: [],
-      resources, upgrades,
-      gameTime: 0, nextId: 1000,
-      selectedIds: new Set(), controlGroups: new Map(),
-      gameOver: false, winner: null,
-      winCondition: null, dominationTimer: 0, dominationTeam: null,
+      towers: new Map(),
+      projectiles: new Map(),
+      spriteEffects: [],
+      glbEffects: [],
+      floatingTexts: [],
+      alerts: [],
+      resources,
+      upgrades,
+      gameTime: 0,
+      nextId: 1000,
+      selectedIds: new Set(),
+      controlGroups: new Map(),
+      gameOver: false,
+      winner: null,
+      winCondition: null,
+      dominationTimer: 0,
+      dominationTeam: null,
       activePlayers,
     };
 
@@ -100,7 +148,7 @@ export class SpaceEngine {
       if (team !== 1) {
         this.aiBrains.set(team, createAIBrain(team, this.aiDifficulty));
       }
-      const start = this.state.planets.find(p => p.isStartingPlanet && p.owner === team);
+      const start = this.state.planets.find((p) => p.isStartingPlanet && p.owner === team);
       if (!start) continue;
       const station = this.buildStation(start, team);
       const sign = team % 2 === 1 ? -1 : 1;
@@ -127,19 +175,30 @@ export class SpaceEngine {
 
     // Spawn player's starting commander if a spec was chosen pre-game
     if (this.playerCommanderSpec) {
-      const homeWorld = this.state.planets.find(p => p.isStartingPlanet && p.owner === 1);
+      const homeWorld = this.state.planets.find((p) => p.isStartingPlanet && p.owner === 1);
       if (homeWorld) {
         const portraitIdx = Math.floor(Math.random() * 20) + 1;
         const portrait = `/assets/space/ui/commanders/${portraitIdx}.png`;
         const name = COMMANDER_NAMES[Math.floor(Math.random() * COMMANDER_NAMES.length)];
         const id = this.state.nextId++;
         const cmd: Commander = {
-          id, name, portrait, spec: this.playerCommanderSpec,
-          level: 1, xp: 0, xpToNextLevel: COMMANDER_XP_LEVELS[2] ?? 250,
-          team: 1 as Team, state: 'idle',
-          trainingPlanetId: null, trainingTimeRemaining: 0, trainingTotalTime: 0,
+          id,
+          name,
+          portrait,
+          spec: this.playerCommanderSpec,
+          level: 1,
+          xp: 0,
+          xpToNextLevel: COMMANDER_XP_LEVELS[2] ?? 250,
+          team: 1 as Team,
+          state: 'idle',
+          trainingPlanetId: null,
+          trainingTimeRemaining: 0,
+          trainingTotalTime: 0,
           equippedShipId: null,
-          attackBonus: 0.05, defenseBonus: 0.05, speedBonus: 0.05, specialBonus: 0.075,
+          attackBonus: 0.05,
+          defenseBonus: 0.05,
+          speedBonus: 0.05,
+          specialBonus: 0.075,
         };
         this.state.commanders.set(id, cmd);
         // Auto-equip to the player flagship
@@ -165,8 +224,7 @@ export class SpaceEngine {
         const defOrbit = planet.captureRadius * 0.6;
         // Boss captain orbits the planet as its leader
         const bossType = bossTypes[planet.id % bossTypes.length];
-        const boss = this.spawnShip(bossType, 0 as Team,
-          planet.x + Math.cos(0) * defOrbit, planet.y + Math.sin(0) * defOrbit);
+        const boss = this.spawnShip(bossType, 0 as Team, planet.x + Math.cos(0) * defOrbit, planet.y + Math.sin(0) * defOrbit);
         boss.orbitTarget = planet.id;
         boss.orbitRadius = defOrbit;
         boss.orbitAngle = 0;
@@ -176,8 +234,7 @@ export class SpaceEngine {
         for (let i = 1; i < planet.neutralDefenders; i++) {
           const pirateType = pirateTypes[(planet.id + i) % pirateTypes.length];
           const angle = (i / planet.neutralDefenders) * Math.PI * 2;
-          const ship = this.spawnShip(pirateType, 0 as Team,
-            planet.x + Math.cos(angle) * defOrbit, planet.y + Math.sin(angle) * defOrbit);
+          const ship = this.spawnShip(pirateType, 0 as Team, planet.x + Math.cos(angle) * defOrbit, planet.y + Math.sin(angle) * defOrbit);
           ship.orbitTarget = planet.id;
           ship.orbitRadius = defOrbit;
           ship.orbitAngle = angle;
@@ -188,7 +245,7 @@ export class SpaceEngine {
     }
 
     // Roaming pirate fleets: patrol between random planet pairs
-    const neutralPlanets = this.state.planets.filter(p => p.owner === 0);
+    const neutralPlanets = this.state.planets.filter((p) => p.owner === 0);
     const roamCount = mode === '1v1' ? 2 : 3;
     for (let f = 0; f < Math.min(roamCount, neutralPlanets.length); f++) {
       const pA = neutralPlanets[f];
@@ -197,8 +254,7 @@ export class SpaceEngine {
       for (let i = 0; i < fleetSize; i++) {
         const pirateType = pirateTypes[(f * 3 + i) % pirateTypes.length];
         const spread = (i - fleetSize / 2) * 80;
-        const ship = this.spawnShip(pirateType, 0 as Team,
-          pA.x + spread, pA.y + 100);
+        const ship = this.spawnShip(pirateType, 0 as Team, pA.x + spread, pA.y + 100);
         // Patrol between the two planets
         ship.patrolPoints = [
           { x: pA.x, y: pA.y, z: 0 },
@@ -215,10 +271,24 @@ export class SpaceEngine {
   // ── Planets ────────────────────────────────────────────────────
   private generatePlanets(mode: GameMode, players: Team[]): Planet[] {
     const planets: Planet[] = [];
-    const names = ['Terra Nova', 'Helios Prime', 'Voidreach', 'Crux Station', 'Nebula Gate',
-      'Iron Forge', 'Starfall', 'Ashenmire', 'Crystal Veil', "Oberon's Drift",
-      'Pyxis Minor', 'Cinder Reach', 'Glasspoint', 'Echo Basin'];
-    const hw = this.mapW / 2, hh = this.mapH / 2;
+    const names = [
+      'Terra Nova',
+      'Helios Prime',
+      'Voidreach',
+      'Crux Station',
+      'Nebula Gate',
+      'Iron Forge',
+      'Starfall',
+      'Ashenmire',
+      'Crystal Veil',
+      "Oberon's Drift",
+      'Pyxis Minor',
+      'Cinder Reach',
+      'Glasspoint',
+      'Echo Basin',
+    ];
+    const hw = this.mapW / 2,
+      hh = this.mapH / 2;
     let pid = 0;
 
     // Starting planet types rotate through rich varieties
@@ -226,23 +296,42 @@ export class SpaceEngine {
     // Neutral types cycle through all
     const neutralTypes: PlanetType[] = ['barren', 'frozen', 'volcanic', 'crystalline', 'oceanic', 'gas_giant'];
 
-    const corners: Vec3[] = mode === '1v1'
-      ? [{ x: -hw * 0.7, y: -hh * 0.7, z: 0 }, { x: hw * 0.7, y: hh * 0.7, z: 0 }]
-      : [{ x: -hw * 0.7, y: -hh * 0.7, z: 0 }, { x: hw * 0.7, y: hh * 0.7, z: 0 },
-         { x: -hw * 0.7, y: hh * 0.7, z: 0 }, { x: hw * 0.7, y: -hh * 0.7, z: 0 }];
+    const corners: Vec3[] =
+      mode === '1v1'
+        ? [
+            { x: -hw * 0.7, y: -hh * 0.7, z: 0 },
+            { x: hw * 0.7, y: hh * 0.7, z: 0 },
+          ]
+        : [
+            { x: -hw * 0.7, y: -hh * 0.7, z: 0 },
+            { x: hw * 0.7, y: hh * 0.7, z: 0 },
+            { x: -hw * 0.7, y: hh * 0.7, z: 0 },
+            { x: hw * 0.7, y: -hh * 0.7, z: 0 },
+          ];
 
     for (let i = 0; i < players.length; i++) {
       const pType = startTypes[i % startTypes.length];
       const td = PLANET_TYPE_DATA[pType];
       const radius = 280;
       planets.push({
-        id: pid++, x: corners[i].x, y: corners[i].y, z: 0,
-        radius, name: names[i % names.length], owner: players[i],
-        stationId: null, resourceYield: { credits: 15, energy: 10, minerals: 12 },
-        color: td.baseColor, hasAsteroidField: false,
-        planetType: pType, captureRadius: radius * 2.5,
-        captureTeam: 0 as Team, captureProgress: 0, captureSpeed: CAPTURE_RATE_PER_UNIT,
-        neutralDefenders: 0, isStartingPlanet: true,
+        id: pid++,
+        x: corners[i].x,
+        y: corners[i].y,
+        z: 0,
+        radius,
+        name: names[i % names.length],
+        owner: players[i],
+        stationId: null,
+        resourceYield: { credits: 15, energy: 10, minerals: 12 },
+        color: td.baseColor,
+        hasAsteroidField: false,
+        planetType: pType,
+        captureRadius: radius * 2.5,
+        captureTeam: 0 as Team,
+        captureProgress: 0,
+        captureSpeed: CAPTURE_RATE_PER_UNIT,
+        neutralDefenders: 0,
+        isStartingPlanet: true,
       });
     }
 
@@ -255,15 +344,24 @@ export class SpaceEngine {
       const td = PLANET_TYPE_DATA[pType];
       const radius = 100 + Math.random() * 80;
       planets.push({
-        id: pid++, x: Math.cos(angle) * hw * rf + (Math.random() - 0.5) * 600,
-        y: Math.sin(angle) * hh * rf + (Math.random() - 0.5) * 600, z: 0,
+        id: pid++,
+        x: Math.cos(angle) * hw * rf + (Math.random() - 0.5) * 600,
+        y: Math.sin(angle) * hh * rf + (Math.random() - 0.5) * 600,
+        z: 0,
         radius,
-        name: names[(players.length + i) % names.length], owner: 0 as Team,
-        stationId: null, resourceYield: { credits: 8 * rich, energy: 5 * rich, minerals: 6 * rich },
-        color: td.baseColor, hasAsteroidField: i % 3 === 0,
-        planetType: pType, captureRadius: radius * 2.5,
-        captureTeam: 0 as Team, captureProgress: 0, captureSpeed: CAPTURE_RATE_PER_UNIT,
-        neutralDefenders: NEUTRAL_DEFENDERS, isStartingPlanet: false,
+        name: names[(players.length + i) % names.length],
+        owner: 0 as Team,
+        stationId: null,
+        resourceYield: { credits: 8 * rich, energy: 5 * rich, minerals: 6 * rich },
+        color: td.baseColor,
+        hasAsteroidField: i % 3 === 0,
+        planetType: pType,
+        captureRadius: radius * 2.5,
+        captureTeam: 0 as Team,
+        captureProgress: 0,
+        captureSpeed: CAPTURE_RATE_PER_UNIT,
+        neutralDefenders: NEUTRAL_DEFENDERS,
+        isStartingPlanet: false,
       });
     }
     return planets;
@@ -273,12 +371,24 @@ export class SpaceEngine {
   buildStation(planet: Planet, team: Team): SpaceStation {
     const id = this.state.nextId++;
     const station: SpaceStation = {
-      id, x: planet.x, y: planet.y + planet.radius * 1.5, z: 50,
-      team, hp: 500, maxHp: 500, dead: false, planetId: planet.id,
-      buildQueue: [], maxBuildSlots: 5, towerSlots: 6, towersBuilt: 0,
+      id,
+      x: planet.x,
+      y: planet.y + planet.radius * 1.5,
+      z: 50,
+      team,
+      hp: 500,
+      maxHp: 500,
+      dead: false,
+      planetId: planet.id,
+      buildQueue: [],
+      maxBuildSlots: 5,
+      towerSlots: 6,
+      towersBuilt: 0,
       rallyPoint: { x: planet.x + 300, y: planet.y, z: 0 },
-      supplyProvided: 20, selected: false,
-      autoProduceType: null, autoProduceTimer: 0,
+      supplyProvided: 20,
+      selected: false,
+      autoProduceType: null,
+      autoProduceTimer: 0,
       canBuildHeroes: planet.isStartingPlanet,
     };
     this.state.stations.set(id, station);
@@ -306,8 +416,7 @@ export class SpaceEngine {
     if (isHero && !station.canBuildHeroes) return false;
     // Dreadnought/Hero ships require an idle commander
     if (isDreadnought) {
-      const hasCommander = [...this.state.commanders.values()]
-        .some(c => c.team === station.team && c.state === 'idle');
+      const hasCommander = [...this.state.commanders.values()].some((c) => c.team === station.team && c.state === 'idle');
       if (!hasCommander) return false;
     }
     const def = getShipDef(shipType);
@@ -331,13 +440,15 @@ export class SpaceEngine {
     const res = this.state.resources[team];
     if (!res) return false;
     // 20% discount if starting planet type matches this upgrade's tech focus
-    const startPlanet = this.state.planets.find(p => p.isStartingPlanet && p.owner === team);
-    const discount = (startPlanet && PLANET_TYPE_DATA[startPlanet.planetType].upgradeDiscount === type) ? 0.80 : 1.0;
+    const startPlanet = this.state.planets.find((p) => p.isStartingPlanet && p.owner === team);
+    const discount = startPlanet && PLANET_TYPE_DATA[startPlanet.planetType].upgradeDiscount === type ? 0.8 : 1.0;
     const cc = Math.ceil(cost.credits * discount);
     const mc = Math.ceil(cost.minerals * discount);
     const ec = Math.ceil(cost.energy * discount);
     if (res.credits < cc || res.minerals < mc || res.energy < ec) return false;
-    res.credits -= cc; res.minerals -= mc; res.energy -= ec;
+    res.credits -= cc;
+    res.minerals -= mc;
+    res.energy -= ec;
     upg[type] = cur + 1;
     return true;
   }
@@ -356,27 +467,59 @@ export class SpaceEngine {
     const arB = upg ? UPGRADE_BONUSES.armor[upg.armor] : 0;
 
     const ship: SpaceShip = {
-      id, x, y, z: 0, team,
-      hp: Math.round(s.maxHp * hpM), maxHp: Math.round(s.maxHp * hpM), dead: false,
-      shipType: type, shipClass: def.class,
-      shield: Math.round(s.maxShield * shM), maxShield: Math.round(s.maxShield * shM), shieldRegen: s.shieldRegen,
-      armor: s.armor + arB, speed: s.speed * spM, turnRate: s.turnRate,
-      vx: 0, vy: 0, vz: 0, facing: team === 1 ? 0 : Math.PI, pitch: 0, roll: 0,
-      targetId: null, moveTarget: null, attackMoveTarget: null,
-      isAttackMoving: false, holdPosition: false, patrolPoints: [], patrolIndex: 0,
-      attackDamage: Math.round(s.attackDamage * dmM), attackRange: s.attackRange,
-      attackCooldown: s.attackCooldown, attackTimer: 0, attackType: s.attackType,
+      id,
+      x,
+      y,
+      z: 0,
+      team,
+      hp: Math.round(s.maxHp * hpM),
+      maxHp: Math.round(s.maxHp * hpM),
+      dead: false,
+      shipType: type,
+      shipClass: def.class,
+      shield: Math.round(s.maxShield * shM),
+      maxShield: Math.round(s.maxShield * shM),
+      shieldRegen: s.shieldRegen,
+      armor: s.armor + arB,
+      speed: s.speed * spM,
+      turnRate: s.turnRate,
+      vx: 0,
+      vy: 0,
+      vz: 0,
+      facing: team === 1 ? 0 : Math.PI,
+      pitch: 0,
+      roll: 0,
+      targetId: null,
+      moveTarget: null,
+      attackMoveTarget: null,
+      isAttackMoving: false,
+      holdPosition: false,
+      patrolPoints: [],
+      patrolIndex: 0,
+      attackDamage: Math.round(s.attackDamage * dmM),
+      attackRange: s.attackRange,
+      attackCooldown: s.attackCooldown,
+      attackTimer: 0,
+      attackType: s.attackType,
       supplyCost: s.supplyCost,
-      abilities: (s.abilities || []).map(a => ({ ability: a, cooldownRemaining: 0, active: false, activeTimer: 0, autoCast: false })),
-      animState: 'idle', animTimer: Math.random() * 10,
-      selected: false, controlGroup: 0, stationId: stationId ?? null,
-      orbitTarget: null, orbitRadius: 0, orbitAngle: 0, isDocked: false, damageLevel: 0,
+      abilities: (s.abilities || []).map((a) => ({ ability: a, cooldownRemaining: 0, active: false, activeTimer: 0, autoCast: false })),
+      animState: 'idle',
+      animTimer: Math.random() * 10,
+      selected: false,
+      controlGroup: 0,
+      stationId: stationId ?? null,
+      orbitTarget: null,
+      orbitRadius: 0,
+      orbitAngle: 0,
+      isDocked: false,
+      damageLevel: 0,
       workerState: def.class === 'worker' ? 'idle' : undefined,
       workerNodeId: def.class === 'worker' ? null : undefined,
       workerCargo: def.class === 'worker' ? 0 : undefined,
       workerCargoType: def.class === 'worker' ? 'minerals' : undefined,
       workerHarvestTimer: def.class === 'worker' ? 0 : undefined,
-      xp: 0, rank: 0,
+      xp: 0,
+      rank: 0,
       roleTimer: 0,
       baseSpeed: s.speed * spM,
     };
@@ -429,7 +572,7 @@ export class SpaceEngine {
 
       // Orbital patrol
       if (ship.orbitTarget !== null) {
-        const planet = this.state.planets.find(p => p.id === ship.orbitTarget);
+        const planet = this.state.planets.find((p) => p.id === ship.orbitTarget);
         if (planet) {
           ship.orbitAngle += dt * 0.3;
           ship.x = planet.x + Math.cos(ship.orbitAngle) * ship.orbitRadius;
@@ -440,7 +583,8 @@ export class SpaceEngine {
 
       // Movement
       if (ship.moveTarget && !ship.holdPosition && ship.orbitTarget === null) {
-        const dx = ship.moveTarget.x - ship.x, dy = ship.moveTarget.y - ship.y;
+        const dx = ship.moveTarget.x - ship.x,
+          dy = ship.moveTarget.y - ship.y;
         const d = Math.sqrt(dx * dx + dy * dy);
         if (d > 15) {
           const ta = Math.atan2(dy, dx);
@@ -448,7 +592,8 @@ export class SpaceEngine {
           const spd = ship.speed * dt;
           ship.vx = Math.cos(ship.facing) * spd;
           ship.vy = Math.sin(ship.facing) * spd;
-          ship.x += ship.vx; ship.y += ship.vy;
+          ship.x += ship.vx;
+          ship.y += ship.vy;
           ship.animState = 'moving';
           ship.roll = angleDelta(ship.facing, ta) * 2;
         } else {
@@ -460,7 +605,9 @@ export class SpaceEngine {
           } else {
             ship.moveTarget = null;
           }
-          ship.vx = 0; ship.vy = 0; ship.animState = 'idle';
+          ship.vx = 0;
+          ship.vy = 0;
+          ship.animState = 'idle';
         }
       } else if (!ship.targetId && ship.orbitTarget === null) {
         // If patrolling and idle (e.g. finished a combat detour), resume patrol
@@ -497,8 +644,7 @@ export class SpaceEngine {
             ship.attackMoveTarget = null;
             // Stay in attack-move mode so we engage the next enemy too
           }
-        }
-        else {
+        } else {
           const d = dist2d(ship, t);
           if (d > ship.attackRange) {
             if (!ship.holdPosition && ship.orbitTarget === null) {
@@ -507,13 +653,15 @@ export class SpaceEngine {
               const spd = ship.speed * dt;
               ship.vx = Math.cos(ship.facing) * spd;
               ship.vy = Math.sin(ship.facing) * spd;
-              ship.x += ship.vx; ship.y += ship.vy;
+              ship.x += ship.vx;
+              ship.y += ship.vy;
               ship.animState = 'moving';
             }
           } else if (ship.attackTimer <= 0) {
             this.fireProjectile(ship, t);
             ship.attackTimer = ship.attackCooldown;
-            ship.animState = 'attacking'; ship.animTimer = 0;
+            ship.animState = 'attacking';
+            ship.animTimer = 0;
           }
         }
       }
@@ -540,21 +688,26 @@ export class SpaceEngine {
   }
 
   private activateAbility(ship: SpaceShip, ab: ShipAbilityState, res: PlayerResources) {
-    ab.active = true; ab.activeTimer = ab.ability.duration; ab.cooldownRemaining = ab.ability.cooldown;
+    ab.active = true;
+    ab.activeTimer = ab.ability.duration;
+    ab.cooldownRemaining = ab.ability.cooldown;
     res.energy -= ab.ability.energyCost;
     if (ab.ability.type === 'barrel_roll') ship.animState = 'barrel_roll';
     else if (ab.ability.type === 'speed_boost') {
       ship.animState = 'speed_boost';
-      ship.baseSpeed = ship.speed;            // snapshot current speed
-      ship.speed *= 1.5;                      // +50% speed for duration
-    }
-    else if (ab.ability.type === 'cloak') ship.animState = 'cloaked';
+      ship.baseSpeed = ship.speed; // snapshot current speed
+      ship.speed *= 1.5; // +50% speed for duration
+    } else if (ab.ability.type === 'cloak') ship.animState = 'cloaked';
     else if (ab.ability.type === 'warp') ship.animState = 'warping';
-    else if (ab.ability.type === 'iron_dome') this.spawnSpriteEffect(ship.x, ship.y, 0, 'waveform', 3.0);
-    else if (ab.ability.type === 'emp') this.spawnSpriteEffect(ship.x, ship.y, 0, 'spark', 2.5);
-    else if (ab.ability.type === 'ram') {
-      ship.baseSpeed = ship.speed;            // snapshot current speed
-      ship.speed *= 2.5;                      // ram charge
+    else if (ab.ability.type === 'iron_dome') {
+      this.spawnSpriteEffect(ship.x, ship.y, 0, 'waveform', 3.0);
+      this.spawnSpriteEffect(ship.x, ship.y, 0, 'bomb-low', 2.0);
+    } else if (ab.ability.type === 'emp') {
+      this.spawnSpriteEffect(ship.x, ship.y, 0, 'spark', 2.5);
+      this.spawnSpriteEffect(ship.x, ship.y, 0, 'bomb-tiny', 1.5);
+    } else if (ab.ability.type === 'ram') {
+      ship.baseSpeed = ship.speed; // snapshot current speed
+      ship.speed *= 2.5; // ram charge
     }
     ship.animTimer = 0;
   }
@@ -567,16 +720,27 @@ export class SpaceEngine {
     // Star Splitter ambush: +80% damage on first hit against a new target
     let dmgMult = 1;
     if (SHIP_ROLES[src.shipType] === 'star_splitter' && src.lastTargetId !== tgt.id) {
-      dmgMult = 1.80;
+      dmgMult = 1.8;
       src.lastTargetId = tgt.id;
     }
     this.state.projectiles.set(id, {
-      id, x: src.x, y: src.y, z: src.z,
-      vx: Math.cos(a) * spd, vy: Math.sin(a) * spd, vz: 0,
-      team: src.team, damage: Math.round(src.attackDamage * dmgMult), type: src.attackType as Projectile['type'],
-      sourceId: src.id, targetId: tgt.id, speed: spd,
-      lifetime: 0, maxLifetime: 3,
-      homing: src.attackType === 'missile', homingStrength: 3,
+      id,
+      x: src.x,
+      y: src.y,
+      z: src.z,
+      vx: Math.cos(a) * spd,
+      vy: Math.sin(a) * spd,
+      vz: 0,
+      team: src.team,
+      damage: Math.round(src.attackDamage * dmgMult),
+      type: src.attackType as Projectile['type'],
+      sourceId: src.id,
+      targetId: tgt.id,
+      speed: spd,
+      lifetime: 0,
+      maxLifetime: 3,
+      homing: src.attackType === 'missile',
+      homingStrength: 3,
       trailColor: TEAM_COLORS[src.team] ?? 0x4488ff,
     });
   }
@@ -584,31 +748,47 @@ export class SpaceEngine {
   private updateProjectiles(dt: number) {
     for (const [id, p] of this.state.projectiles) {
       p.lifetime += dt;
-      if (p.lifetime > p.maxLifetime) { this.state.projectiles.delete(id); continue; }
+      if (p.lifetime > p.maxLifetime) {
+        this.state.projectiles.delete(id);
+        continue;
+      }
       if (p.homing) {
         const t = this.state.ships.get(p.targetId);
         if (t && !t.dead) {
           const a = Math.atan2(t.y - p.y, t.x - p.x);
           const c = Math.atan2(p.vy, p.vx);
           const n = lerpAngle(c, a, p.homingStrength * dt);
-          p.vx = Math.cos(n) * p.speed; p.vy = Math.sin(n) * p.speed;
+          p.vx = Math.cos(n) * p.speed;
+          p.vy = Math.sin(n) * p.speed;
         }
       }
-      p.x += p.vx * dt; p.y += p.vy * dt; p.z += p.vz * dt;
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+      p.z += p.vz * dt;
       const t = this.state.ships.get(p.targetId);
       if (t && !t.dead && Math.sqrt((p.x - t.x) ** 2 + (p.y - t.y) ** 2) < 20) {
         this.applyDamage(t, p.damage);
         this.state.projectiles.delete(id);
-        const ht: HitFxType[] = ['hits-1', 'hits-2', 'hits-3', 'hits-4', 'hits-5', 'hits-6'];
-        this.spawnSpriteEffect(t.x, t.y, 0, ht[Math.floor(Math.random() * 6)], 0.6);
+        // Hit flash — use bomb effect for torpedo/missile, standard hits for others
+        if (p.type === 'torpedo' || p.type === 'missile') {
+          const bombTier = p.type === 'torpedo' ? 'bomb-high' : 'bomb-mid';
+          this.spawnSpriteEffect(t.x, t.y, 0, bombTier, p.type === 'torpedo' ? 2.0 : 1.4);
+        } else {
+          const ht: HitFxType[] = ['hits-1', 'hits-2', 'hits-3', 'hits-4', 'hits-5', 'hits-6'];
+          this.spawnSpriteEffect(t.x, t.y, 0, ht[Math.floor(Math.random() * 6)], 0.6);
+        }
         if (t.dead) {
           // ─ Layered death explosions scaled by ship class ─
           const isMega = t.shipClass === 'dreadnought' || t.shipClass === 'battleship';
-          const isMed  = t.shipClass === 'cruiser' || t.shipClass === 'destroyer' || t.shipClass === 'light_cruiser';
+          const isMed = t.shipClass === 'cruiser' || t.shipClass === 'destroyer' || t.shipClass === 'light_cruiser';
           const sc = isMega ? 6 : isMed ? 3 : 1.2;
           const et: ExplosionType = isMega ? 'explosion-1-e' : isMed ? 'explosion-1-d' : 'explosion-1-b';
           // Primary blast
           this.spawnSpriteEffect(t.x, t.y, 0, et, sc);
+          // Bomb cloud overlay for bigger ships
+          if (isMed || isMega) {
+            this.spawnSpriteEffect(t.x, t.y, 0, 'bomb-high-3', sc * 0.7);
+          }
           // Secondary debris cloud (offset)
           if (isMed || isMega) {
             this.spawnSpriteEffect(t.x + 30, t.y - 20, 0, 'explosion-1-c', sc * 0.6);
@@ -622,8 +802,12 @@ export class SpaceEngine {
           // Grant XP to killing ship
           const killer = this.state.ships.get(p.sourceId);
           if (killer && !killer.dead) {
-            const xpGain = t.shipClass === 'battleship' || t.shipClass === 'dreadnought' ? 60
-              : t.shipClass === 'destroyer' || t.shipClass === 'cruiser' ? 30 : 15;
+            const xpGain =
+              t.shipClass === 'battleship' || t.shipClass === 'dreadnought'
+                ? 60
+                : t.shipClass === 'destroyer' || t.shipClass === 'cruiser'
+                  ? 30
+                  : 15;
             this.grantXP(killer, xpGain);
           }
         }
@@ -634,21 +818,32 @@ export class SpaceEngine {
   private applyDamage(ship: SpaceShip, damage: number) {
     let r = damage;
     // Juggernaut role: 30% incoming damage reduction
-    if (SHIP_ROLES[ship.shipType] === 'juggernaut') r *= 0.70;
-    if (ship.shield > 0) { const ab = Math.min(ship.shield, r); ship.shield -= ab; r -= ab; }
+    if (SHIP_ROLES[ship.shipType] === 'juggernaut') r *= 0.7;
+    if (ship.shield > 0) {
+      const ab = Math.min(ship.shield, r);
+      ship.shield -= ab;
+      r -= ab;
+    }
     r = Math.max(0, r - ship.armor);
     ship.hp -= r;
     // Floating damage number (limit to ~20 on screen to avoid spam)
     if (r > 0 && this.state.floatingTexts.length < 20) {
       const isShield = ship.shield > 0 && damage > r;
       this.state.floatingTexts.push({
-        id: this.state.nextId++, x: ship.x + (Math.random() - 0.5) * 30, y: ship.y + (Math.random() - 0.5) * 30, z: 30,
-        text: `-${Math.round(r)}`, color: isShield ? '#44ccff' : r >= 40 ? '#ff4444' : '#ffcc44',
-        age: 0, maxAge: 1.2,
+        id: this.state.nextId++,
+        x: ship.x + (Math.random() - 0.5) * 30,
+        y: ship.y + (Math.random() - 0.5) * 30,
+        z: 30,
+        text: `-${Math.round(r)}`,
+        color: isShield ? '#44ccff' : r >= 40 ? '#ff4444' : '#ffcc44',
+        age: 0,
+        maxAge: 1.2,
       });
     }
     if (ship.hp <= 0) {
-      ship.hp = 0; ship.dead = true; ship.animState = 'death_spiral';
+      ship.hp = 0;
+      ship.dead = true;
+      ship.animState = 'death_spiral';
       const res = this.state.resources[ship.team];
       if (res) res.supply = Math.max(0, res.supply - ship.supplyCost);
       // Release or lose commander when ship dies
@@ -658,7 +853,8 @@ export class SpaceEngine {
             // Commander dies with the Dreadnought (permadeath)
             this.state.commanders.delete(cmd.id);
           } else {
-            cmd.state = 'idle'; cmd.equippedShipId = null;
+            cmd.state = 'idle';
+            cmd.equippedShipId = null;
           }
           break;
         }
@@ -688,8 +884,12 @@ export class SpaceEngine {
           }
           const shipDef = getShipDef(item.shipType);
           this.state.alerts.push({
-            id: this.state.nextId++, x: st.x, y: st.y, z: 0,
-            type: 'build_complete', time: this.state.gameTime,
+            id: this.state.nextId++,
+            x: st.x,
+            y: st.y,
+            z: 0,
+            type: 'build_complete',
+            time: this.state.gameTime,
             message: `${shipDef?.displayName ?? item.shipType} complete`,
           });
         }
@@ -713,35 +913,54 @@ export class SpaceEngine {
       const teamCounts = new Map<number, number>();
       for (const [, s] of this.state.ships) {
         if (s.dead || s.team === 0) continue;
-      if (dist2d(s, planet) < planet.captureRadius)
-          teamCounts.set(s.team, (teamCounts.get(s.team) ?? 0) + 1);
+        if (dist2d(s, planet) < planet.captureRadius) teamCounts.set(s.team, (teamCounts.get(s.team) ?? 0) + 1);
       }
 
       let neutralAlive = 0;
       for (const [, s] of this.state.ships) {
         if (!s.dead && s.team === 0 && s.orbitTarget === planet.id) neutralAlive++;
       }
-      if (neutralAlive > 0) { planet.captureProgress = 0; planet.captureTeam = 0 as Team; continue; }
+      if (neutralAlive > 0) {
+        planet.captureProgress = 0;
+        planet.captureTeam = 0 as Team;
+        continue;
+      }
 
       let sole: Team | null = null;
       for (const [team] of teamCounts) {
-        if (sole === null) sole = team as Team; else { sole = null; break; }
+        if (sole === null) sole = team as Team;
+        else {
+          sole = null;
+          break;
+        }
       }
 
       if (sole !== null && sole !== planet.owner) {
-        if (planet.captureTeam !== sole) { planet.captureTeam = sole; planet.captureProgress = 0; }
+        if (planet.captureTeam !== sole) {
+          planet.captureTeam = sole;
+          planet.captureProgress = 0;
+        }
         planet.captureProgress += planet.captureSpeed * (teamCounts.get(sole) ?? 1) * dt;
         if (planet.captureProgress >= CAPTURE_TIME) {
-          planet.owner = sole; planet.captureProgress = 0; planet.captureTeam = 0 as Team;
+          planet.owner = sole;
+          planet.captureProgress = 0;
+          planet.captureTeam = 0 as Team;
           if (planet.stationId !== null) {
             const old = this.state.stations.get(planet.stationId);
-            if (old) { this.state.resources[old.team].maxSupply -= old.supplyProvided; this.state.stations.delete(planet.stationId); }
+            if (old) {
+              this.state.resources[old.team].maxSupply -= old.supplyProvided;
+              this.state.stations.delete(planet.stationId);
+            }
             planet.stationId = null;
           }
           this.buildStation(planet, sole);
           this.state.alerts.push({
-            id: this.state.nextId++, x: planet.x, y: planet.y, z: 0,
-            type: 'conquest', time: this.state.gameTime,
+            id: this.state.nextId++,
+            x: planet.x,
+            y: planet.y,
+            z: 0,
+            type: 'conquest',
+            time: this.state.gameTime,
             message: `${planet.name} captured!`,
           });
         }
@@ -762,8 +981,8 @@ export class SpaceEngine {
           const res = this.state.resources[p.owner];
           if (res) {
             const m = PLANET_TYPE_DATA[p.planetType].resourceMult;
-            res.credits  += p.resourceYield.credits  * m.credits;
-            res.energy   += p.resourceYield.energy   * m.energy;
+            res.credits += p.resourceYield.credits * m.credits;
+            res.energy += p.resourceYield.energy * m.energy;
             res.minerals += p.resourceYield.minerals * m.minerals;
           }
         }
@@ -776,26 +995,71 @@ export class SpaceEngine {
     for (const e of this.state.spriteEffects) {
       if (e.done) continue;
       e.frameTimer += dt;
-      if (e.frameTimer >= e.frameDuration) { e.frameTimer = 0; e.frame++; if (e.frame >= e.totalFrames) e.done = true; }
+      if (e.frameTimer >= e.frameDuration) {
+        e.frameTimer = 0;
+        e.frame++;
+        if (e.frame >= e.totalFrames) e.done = true;
+      }
     }
-    this.state.spriteEffects = this.state.spriteEffects.filter(e => !e.done);
+    this.state.spriteEffects = this.state.spriteEffects.filter((e) => !e.done);
     // Age floating damage texts
-    for (const ft of this.state.floatingTexts) { ft.age += dt; ft.y -= 30 * dt; ft.z += 20 * dt; }
-    this.state.floatingTexts = this.state.floatingTexts.filter(ft => ft.age < ft.maxAge);
-    this.state.alerts = this.state.alerts.filter(a => this.state.gameTime - a.time < 15);
+    for (const ft of this.state.floatingTexts) {
+      ft.age += dt;
+      ft.y -= 30 * dt;
+      ft.z += 20 * dt;
+    }
+    this.state.floatingTexts = this.state.floatingTexts.filter((ft) => ft.age < ft.maxAge);
+    this.state.alerts = this.state.alerts.filter((a) => this.state.gameTime - a.time < 15);
   }
 
   private spawnSpriteEffect(x: number, y: number, z: number, type: string, scale: number) {
     const counts: Record<string, number> = {
-      'explosion-1-a': 8, 'explosion-1-b': 8, 'explosion-1-c': 10, 'explosion-1-d': 12,
-      'explosion-1-e': 22, 'explosion-1-f': 8, 'explosion-1-g': 7, 'explosion-b': 12,
-      'bolt': 4, 'charged': 6, 'crossed': 6, 'pulse': 4, 'spark': 5, 'waveform': 4,
-      'hits-1': 5, 'hits-2': 7, 'hits-3': 5, 'hits-4': 7, 'hits-5': 7, 'hits-6': 7,
+      'explosion-1-a': 8,
+      'explosion-1-b': 8,
+      'explosion-1-c': 10,
+      'explosion-1-d': 12,
+      'explosion-1-e': 22,
+      'explosion-1-f': 8,
+      'explosion-1-g': 7,
+      'explosion-b': 12,
+      bolt: 4,
+      charged: 6,
+      crossed: 6,
+      pulse: 4,
+      spark: 5,
+      waveform: 4,
+      'hits-1': 5,
+      'hits-2': 7,
+      'hits-3': 5,
+      'hits-4': 7,
+      'hits-5': 7,
+      'hits-6': 7,
+      'bomb-tiny': 8,
+      'bomb-tiny-2': 8,
+      'bomb-tiny-3': 10,
+      'bomb-low': 8,
+      'bomb-low-2': 8,
+      'bomb-low-3': 10,
+      'bomb-mid': 8,
+      'bomb-mid-2': 8,
+      'bomb-mid-3': 10,
+      'bomb-high': 8,
+      'bomb-high-2': 8,
+      'bomb-high-3': 10,
     };
     this.state.spriteEffects.push({
-      id: this.state.nextId++, x, y, z, type: type as SpriteEffect['type'],
-      scale, frame: 0, totalFrames: counts[type] ?? 8,
-      frameTimer: 0, frameDuration: 0.06, done: false, rotation: Math.random() * Math.PI * 2,
+      id: this.state.nextId++,
+      x,
+      y,
+      z,
+      type: type as SpriteEffect['type'],
+      scale,
+      frame: 0,
+      totalFrames: counts[type] ?? 8,
+      frameTimer: 0,
+      frameDuration: 0.06,
+      done: false,
+      rotation: Math.random() * Math.PI * 2,
     });
   }
 
@@ -805,14 +1069,16 @@ export class SpaceEngine {
     if (!st || st.inResearch) return false;
     // Check all trees for this node
     for (const tree of Object.values(ALL_TECH_TREES)) {
-      const node = tree.nodes.find(n => n.id === nodeId);
+      const node = tree.nodes.find((n) => n.id === nodeId);
       if (!node) continue;
       // Check prerequisites
-      if (!node.requires.every(r => st.researchedNodes.has(r))) return false;
+      if (!node.requires.every((r) => st.researchedNodes.has(r))) return false;
       const res = this.state.resources[team];
       if (!res) return false;
       if (res.credits < node.cost.credits || res.energy < node.cost.energy || res.minerals < node.cost.minerals) return false;
-      res.credits -= node.cost.credits; res.energy -= node.cost.energy; res.minerals -= node.cost.minerals;
+      res.credits -= node.cost.credits;
+      res.energy -= node.cost.energy;
+      res.minerals -= node.cost.minerals;
       st.inResearch = nodeId;
       st.researchTimeRemaining = node.researchTime;
       return true;
@@ -831,19 +1097,21 @@ export class SpaceEngine {
       st.researchTimeRemaining = 0;
       st.researchedNodes.add(nodeId);
       for (const tree of Object.values(ALL_TECH_TREES)) {
-        const node = tree.nodes.find(n => n.id === nodeId);
+        const node = tree.nodes.find((n) => n.id === nodeId);
         if (!node) continue;
         for (const eff of node.effects) {
           if (eff.kind === 'stat_bonus' && eff.stat && eff.value != null) {
             const b = st.bonuses;
-            if (eff.stat === 'attack') b.attackMult  = Math.max(b.attackMult,  1 + eff.value);
-            if (eff.stat === 'armor')  b.armorBonus  += eff.value;
-            if (eff.stat === 'shield') b.shieldMult  = Math.max(b.shieldMult,  1 + eff.value);
-            if (eff.stat === 'speed')  b.speedMult   = Math.max(b.speedMult,   1 + eff.value);
-            if (eff.stat === 'health') b.healthMult  = Math.max(b.healthMult,  1 + eff.value);
+            if (eff.stat === 'attack') b.attackMult = Math.max(b.attackMult, 1 + eff.value);
+            if (eff.stat === 'armor') b.armorBonus += eff.value;
+            if (eff.stat === 'shield') b.shieldMult = Math.max(b.shieldMult, 1 + eff.value);
+            if (eff.stat === 'speed') b.speedMult = Math.max(b.speedMult, 1 + eff.value);
+            if (eff.stat === 'health') b.healthMult = Math.max(b.healthMult, 1 + eff.value);
             if (eff.stat === 'all') {
-              b.attackMult *= (1 + eff.value); b.shieldMult *= (1 + eff.value);
-              b.speedMult  *= (1 + eff.value); b.healthMult *= (1 + eff.value);
+              b.attackMult *= 1 + eff.value;
+              b.shieldMult *= 1 + eff.value;
+              b.speedMult *= 1 + eff.value;
+              b.healthMult *= 1 + eff.value;
             }
           } else if (eff.kind === 'resource_bonus' && eff.value != null) {
             st.bonuses.resourceMult += eff.value;
@@ -858,7 +1126,11 @@ export class SpaceEngine {
           }
         }
         this.state.alerts.push({
-          id: this.state.nextId++, x: 0, y: 0, z: 0, type: 'build_complete',
+          id: this.state.nextId++,
+          x: 0,
+          y: 0,
+          z: 0,
+          type: 'build_complete',
           time: this.state.gameTime,
           message: `Team ${team}: ${node.name} researched!`,
         });
@@ -877,7 +1149,9 @@ export class SpaceEngine {
     if ((cds.get(powerId) ?? 0) > 0) return false;
     const res = this.state.resources[team];
     if (!res || res.credits < pwr.cost.credits || res.energy < pwr.cost.energy || res.minerals < pwr.cost.minerals) return false;
-    res.credits -= pwr.cost.credits; res.energy -= pwr.cost.energy; res.minerals -= pwr.cost.minerals;
+    res.credits -= pwr.cost.credits;
+    res.energy -= pwr.cost.energy;
+    res.minerals -= pwr.cost.minerals;
     cds.set(powerId, pwr.cooldown);
     this.state.voidCooldowns.set(team, cds);
 
@@ -885,22 +1159,25 @@ export class SpaceEngine {
       // Immediate AoE damage
       for (const [, s] of this.state.ships) {
         if (s.dead || s.team === team) continue;
-        const d = Math.sqrt((s.x - targetX)**2 + (s.y - targetY)**2);
+        const d = Math.sqrt((s.x - targetX) ** 2 + (s.y - targetY) ** 2);
         if (d < pwr.radius) this.applyDamage(s, (pwr.damage ?? 300) * (1 - d / pwr.radius));
       }
       this.spawnSpriteEffect(targetX, targetY, 0, 'explosion-1-e', 8);
+      this.spawnSpriteEffect(targetX, targetY, 0, 'bomb-high-3', 5);
     } else if (pwr.effect === 'push') {
       // Push enemies away from planet
-      const planet = this.state.planets.find(p => p.owner === team);// nearest owned planet
-      const px = planet?.x ?? targetX, py = planet?.y ?? targetY;
+      const planet = this.state.planets.find((p) => p.owner === team); // nearest owned planet
+      const px = planet?.x ?? targetX,
+        py = planet?.y ?? targetY;
       for (const [, s] of this.state.ships) {
         if (s.dead || s.team === team) continue;
-        const d = Math.sqrt((s.x - px)**2 + (s.y - py)**2);
+        const d = Math.sqrt((s.x - px) ** 2 + (s.y - py) ** 2);
         if (d < pwr.radius) {
           const a = Math.atan2(s.y - py, s.x - px);
           const force = pwr.pushForce ?? 800;
-          s.x += Math.cos(a) * force * 0.1; s.y += Math.sin(a) * force * 0.1;
-          s.moveTarget = { x: s.x + Math.cos(a)*force, y: s.y + Math.sin(a)*force, z:0 };
+          s.x += Math.cos(a) * force * 0.1;
+          s.y += Math.sin(a) * force * 0.1;
+          s.moveTarget = { x: s.x + Math.cos(a) * force, y: s.y + Math.sin(a) * force, z: 0 };
         }
       }
     } else if (pwr.effect === 'teleport_fleet') {
@@ -909,30 +1186,37 @@ export class SpaceEngine {
         if (!s || s.dead || s.team !== team) continue;
         const spread = this.state.selectedIds.size;
         const idx = [...this.state.selectedIds].indexOf(id);
-        s.x = targetX + (idx % 5 - 2) * 80;
+        s.x = targetX + ((idx % 5) - 2) * 80;
         s.y = targetY + Math.floor(idx / 5) * 80;
         s.moveTarget = null;
       }
     } else if (pwr.effect === 'pull_damage') {
       // Create a lingering void rift effect
       this.state.activeVoidEffects.push({
-        id: this.state.nextId++, powerId, x: targetX, y: targetY,
-        radius: pwr.radius, damage: pwr.damage ?? 80,
-        lifetime: 0, maxLifetime: pwr.duration ?? 8,
-        team, done: false,
+        id: this.state.nextId++,
+        powerId,
+        x: targetX,
+        y: targetY,
+        radius: pwr.radius,
+        damage: pwr.damage ?? 80,
+        lifetime: 0,
+        maxLifetime: pwr.duration ?? 8,
+        team,
+        done: false,
       });
     } else if (pwr.effect === 'destroy_planet') {
-      const planetIdx = this.state.planets.findIndex(p =>
-        Math.sqrt((p.x - targetX)**2 + (p.y - targetY)**2) < p.radius * 3);
+      const planetIdx = this.state.planets.findIndex((p) => Math.sqrt((p.x - targetX) ** 2 + (p.y - targetY) ** 2) < p.radius * 3);
       if (planetIdx >= 0) {
         const p = this.state.planets[planetIdx];
         // Kill enemy ships orbiting/near it (spare the caster's fleet)
         for (const [, s] of this.state.ships) {
           if (s.dead || s.team === team) continue;
-          if (Math.sqrt((s.x - p.x)**2 + (s.y - p.y)**2) < p.captureRadius) this.applyDamage(s, 99999);
+          if (Math.sqrt((s.x - p.x) ** 2 + (s.y - p.y) ** 2) < p.captureRadius) this.applyDamage(s, 99999);
         }
         // Remove station
-        if (p.stationId) { this.state.stations.delete(p.stationId); }
+        if (p.stationId) {
+          this.state.stations.delete(p.stationId);
+        }
         // Remove planet
         this.state.planets.splice(planetIdx, 1);
         this.spawnSpriteEffect(p.x, p.y, 0, 'explosion-1-e', 12);
@@ -945,11 +1229,14 @@ export class SpaceEngine {
     for (const eff of this.state.activeVoidEffects) {
       if (eff.done) continue;
       eff.lifetime += dt;
-      if (eff.lifetime >= eff.maxLifetime) { eff.done = true; continue; }
+      if (eff.lifetime >= eff.maxLifetime) {
+        eff.done = true;
+        continue;
+      }
       // Pull + damage ENEMY ships each tick (skip friendlies)
       for (const [, s] of this.state.ships) {
         if (s.dead || s.team === eff.team) continue;
-        const d = Math.sqrt((s.x - eff.x)**2 + (s.y - eff.y)**2);
+        const d = Math.sqrt((s.x - eff.x) ** 2 + (s.y - eff.y) ** 2);
         if (d < eff.radius) {
           // Pull toward center
           const a = Math.atan2(eff.y - s.y, eff.x - s.x);
@@ -957,12 +1244,12 @@ export class SpaceEngine {
           s.x += Math.cos(a) * pull * dt;
           s.y += Math.sin(a) * pull * dt;
           // Damage per second
-          const dps = (eff.damage ?? 80);
+          const dps = eff.damage ?? 80;
           this.applyDamage(s, dps * dt);
         }
       }
     }
-    this.state.activeVoidEffects = this.state.activeVoidEffects.filter(e => !e.done);
+    this.state.activeVoidEffects = this.state.activeVoidEffects.filter((e) => !e.done);
   }
 
   private updateVoidCooldowns(dt: number) {
@@ -975,28 +1262,39 @@ export class SpaceEngine {
 
   // ── Planet Turrets ────────────────────────────────────────────
   buildPlanetTurret(team: Team, planetId: number, turretType: string): boolean {
-    const planet = this.state.planets.find(p => p.id === planetId);
+    const planet = this.state.planets.find((p) => p.id === planetId);
     if (!planet || planet.owner !== team) return false;
     const st = this.state.techState.get(team);
     if (!st || !st.unlockedTurrets.has(turretType)) return false;
-    const existing = [...this.state.planetTurrets.values()].filter(t => t.planetId === planetId && !t.dead);
+    const existing = [...this.state.planetTurrets.values()].filter((t) => t.planetId === planetId && !t.dead);
     if (existing.length >= 4) return false;
     const def = TURRET_DEFS[turretType];
     if (!def) return false;
     const res = this.state.resources[team];
     if (!res || res.credits < def.cost.credits || res.energy < def.cost.energy || res.minerals < def.cost.minerals) return false;
-    res.credits -= def.cost.credits; res.energy -= def.cost.energy; res.minerals -= def.cost.minerals;
+    res.credits -= def.cost.credits;
+    res.energy -= def.cost.energy;
+    res.minerals -= def.cost.minerals;
     // Place in orbit
     const angle = (existing.length / 4) * Math.PI * 2;
     const orbitR = planet.radius * 1.5;
     const id = this.state.nextId++;
     const turret: PlanetTurret = {
-      id, planetId, team, turretType,
+      id,
+      planetId,
+      team,
+      turretType,
       x: planet.x + Math.cos(angle) * orbitR,
       y: planet.y + Math.sin(angle) * orbitR,
-      z: 20, orbitAngle: angle, orbitRadius: orbitR,
-      hp: def.maxHp, maxHp: def.maxHp, dead: false,
-      attackCooldown: def.attackCooldown, attackTimer: 0, targetId: null,
+      z: 20,
+      orbitAngle: angle,
+      orbitRadius: orbitR,
+      hp: def.maxHp,
+      maxHp: def.maxHp,
+      dead: false,
+      attackCooldown: def.attackCooldown,
+      attackTimer: 0,
+      targetId: null,
     };
     this.state.planetTurrets.set(id, turret);
     return true;
@@ -1007,7 +1305,7 @@ export class SpaceEngine {
       if (t.dead) continue;
       t.attackTimer = Math.max(0, t.attackTimer - dt);
       // Update orbit position
-      const planet = this.state.planets.find(p => p.id === t.planetId);
+      const planet = this.state.planets.find((p) => p.id === t.planetId);
       if (planet) {
         t.orbitAngle += 0.1 * dt;
         t.x = planet.x + Math.cos(t.orbitAngle) * t.orbitRadius;
@@ -1018,18 +1316,22 @@ export class SpaceEngine {
       if (!def) continue;
       if (!t.targetId || t.attackTimer > 0) {
         if (!t.targetId) {
-          let best: SpaceShip | null = null; let bd = Infinity;
+          let best: SpaceShip | null = null;
+          let bd = Infinity;
           for (const [, s] of this.state.ships) {
             if (s.dead || s.team === t.team) continue;
-            const d = Math.sqrt((s.x - t.x)**2 + (s.y - t.y)**2);
-            if (d < def.attackRange && d < bd) { bd = d; best = s; }
+            const d = Math.sqrt((s.x - t.x) ** 2 + (s.y - t.y) ** 2);
+            if (d < def.attackRange && d < bd) {
+              bd = d;
+              best = s;
+            }
           }
           t.targetId = best?.id ?? null;
         }
       }
       if (t.targetId && t.attackTimer <= 0) {
         const target = this.state.ships.get(t.targetId);
-        if (!target || target.dead || Math.sqrt((target.x - t.x)**2 + (target.y - t.y)**2) > def.attackRange) {
+        if (!target || target.dead || Math.sqrt((target.x - t.x) ** 2 + (target.y - t.y) ** 2) > def.attackRange) {
           t.targetId = null;
         } else {
           this.applyDamage(target, def.attackDamage);
@@ -1043,21 +1345,26 @@ export class SpaceEngine {
   // ── Commander System ─────────────────────────────────────────────
   /** Start training a new commander at a planet. Spec is inferred from planet type. */
   trainCommander(team: Team, planetId: number): boolean {
-    const planet = this.state.planets.find(p => p.id === planetId);
+    const planet = this.state.planets.find((p) => p.id === planetId);
     if (!planet || planet.owner !== team) return false;
     // Only one commander training per planet at a time
-    const alreadyTraining = [...this.state.commanders.values()]
-      .some(c => c.trainingPlanetId === planetId && c.state === 'training');
+    const alreadyTraining = [...this.state.commanders.values()].some((c) => c.trainingPlanetId === planetId && c.state === 'training');
     if (alreadyTraining) return false;
     const res = this.state.resources[team];
     if (!res) return false;
     const cost = COMMANDER_TRAIN_COST[1]; // cost to recruit level 1
     if (res.credits < cost.credits || res.energy < cost.energy || res.minerals < cost.minerals) return false;
-    res.credits -= cost.credits; res.energy -= cost.energy; res.minerals -= cost.minerals;
+    res.credits -= cost.credits;
+    res.energy -= cost.energy;
+    res.minerals -= cost.minerals;
     // Derive spec from planet type
     const specMap: Record<string, CommanderSpec> = {
-      volcanic: 'forge', oceanic: 'tide', crystalline: 'prism',
-      gas_giant: 'vortex', barren: 'void', frozen: 'void',
+      volcanic: 'forge',
+      oceanic: 'tide',
+      crystalline: 'prism',
+      gas_giant: 'vortex',
+      barren: 'void',
+      frozen: 'void',
     };
     const spec: CommanderSpec = specMap[planet.planetType] ?? 'forge';
     // 20 pixel-art sci-fi commander portraits (craftpix-617771, transparent set)
@@ -1067,14 +1374,23 @@ export class SpaceEngine {
     const id = this.state.nextId++;
     const totalTime = COMMANDER_TRAIN_TIME[1];
     const cmd: Commander = {
-      id, name, portrait, spec, level: 0, xp: 0,
+      id,
+      name,
+      portrait,
+      spec,
+      level: 0,
+      xp: 0,
       xpToNextLevel: COMMANDER_XP_LEVELS[1],
-      team, state: 'training',
+      team,
+      state: 'training',
       trainingPlanetId: planetId,
       trainingTimeRemaining: totalTime,
       trainingTotalTime: totalTime,
       equippedShipId: null,
-      attackBonus: 0, defenseBonus: 0, speedBonus: 0, specialBonus: 0,
+      attackBonus: 0,
+      defenseBonus: 0,
+      speedBonus: 0,
+      specialBonus: 0,
     };
     this.state.commanders.set(id, cmd);
     return true;
@@ -1089,7 +1405,9 @@ export class SpaceEngine {
     const nextLevel = cmd.level + 1;
     const cost = COMMANDER_TRAIN_COST[nextLevel];
     if (!cost || res.credits < cost.credits || res.energy < cost.energy || res.minerals < cost.minerals) return false;
-    res.credits -= cost.credits; res.energy -= cost.energy; res.minerals -= cost.minerals;
+    res.credits -= cost.credits;
+    res.energy -= cost.energy;
+    res.minerals -= cost.minerals;
     cmd.state = 'training';
     cmd.trainingTimeRemaining = COMMANDER_TRAIN_TIME[nextLevel];
     cmd.trainingTotalTime = COMMANDER_TRAIN_TIME[nextLevel];
@@ -1107,14 +1425,18 @@ export class SpaceEngine {
       cmd.xpToNextLevel = COMMANDER_XP_LEVELS[Math.min(5, cmd.level + 1)] ?? 99999;
       // Calculate bonuses based on level and spec
       const pct = cmd.level * 0.05; // +5% per level
-      cmd.attackBonus  = pct;
+      cmd.attackBonus = pct;
       cmd.defenseBonus = pct;
-      cmd.speedBonus   = pct;
+      cmd.speedBonus = pct;
       cmd.specialBonus = pct * 1.5; // spec bonus is 50% stronger
       cmd.state = 'idle';
       cmd.trainingPlanetId = null;
       this.state.alerts.push({
-        id: this.state.nextId++, x: 0, y: 0, z: 0, type: 'build_complete',
+        id: this.state.nextId++,
+        x: 0,
+        y: 0,
+        z: 0,
+        type: 'build_complete',
         time: this.state.gameTime,
         message: `Commander ${cmd.name} promoted to Level ${cmd.level}!`,
       });
@@ -1123,18 +1445,16 @@ export class SpaceEngine {
 
   /** Equip an idle commander to a hero ship. Called after ship is built. */
   private equipCommanderToShip(ship: SpaceShip) {
-    const idleCmd = [...this.state.commanders.values()].find(
-      c => c.team === ship.team && c.state === 'idle',
-    );
+    const idleCmd = [...this.state.commanders.values()].find((c) => c.team === ship.team && c.state === 'idle');
     if (!idleCmd) return;
     idleCmd.state = 'onship';
     idleCmd.equippedShipId = ship.id;
     // Apply commander bonuses on top of ship stats
     ship.attackDamage = Math.round(ship.attackDamage * (1 + idleCmd.attackBonus));
     ship.maxHp = Math.round(ship.maxHp * (1 + idleCmd.defenseBonus));
-    ship.hp    = ship.maxHp;
+    ship.hp = ship.maxHp;
     ship.maxShield = Math.round(ship.maxShield * (1 + idleCmd.defenseBonus));
-    ship.speed *= (1 + idleCmd.speedBonus);
+    ship.speed *= 1 + idleCmd.speedBonus;
     ship.baseSpeed = ship.speed; // keep baseSpeed in sync with permanent buffs
   }
 
@@ -1147,16 +1467,20 @@ export class SpaceEngine {
       ship.rank++;
       // Apply +5% to all stats compounding
       const mult = 1 + RANK_STAT_BONUS;
-      ship.maxHp        = Math.round(ship.maxHp * mult);
-      ship.hp           = Math.min(ship.hp + Math.round(ship.maxHp * 0.1), ship.maxHp);
-      ship.maxShield    = Math.round(ship.maxShield * mult);
+      ship.maxHp = Math.round(ship.maxHp * mult);
+      ship.hp = Math.min(ship.hp + Math.round(ship.maxHp * 0.1), ship.maxHp);
+      ship.maxShield = Math.round(ship.maxShield * mult);
       ship.attackDamage = Math.round(ship.attackDamage * mult);
-      ship.speed       *= mult;
-      ship.baseSpeed    = ship.speed; // keep baseSpeed in sync with permanent buffs
-      ship.armor        = Math.round(ship.armor * mult);
+      ship.speed *= mult;
+      ship.baseSpeed = ship.speed; // keep baseSpeed in sync with permanent buffs
+      ship.armor = Math.round(ship.armor * mult);
       this.state.alerts.push({
-        id: this.state.nextId++, x: ship.x, y: ship.y, z: 0,
-        type: 'build_complete', time: this.state.gameTime,
+        id: this.state.nextId++,
+        x: ship.x,
+        y: ship.y,
+        z: 0,
+        type: 'build_complete',
+        time: this.state.gameTime,
         message: `${ship.shipType} promoted to Rank ${ship.rank}!`,
       });
     }
@@ -1169,7 +1493,9 @@ export class SpaceEngine {
       const brain = this.aiBrains.get(team);
       if (!brain) continue;
       updateAIBrain(
-        brain, this.state, dt,
+        brain,
+        this.state,
+        dt,
         (stId, type) => this.queueBuild(stId, type),
         (t, nodeId) => this.startResearch(t as Team, nodeId),
         (t, pwrId, x, y) => this.castVoidPower(t as Team, pwrId, x, y),
@@ -1185,27 +1511,57 @@ export class SpaceEngine {
     this.winCheckTimer = 0;
     for (const team of this.state.activePlayers) {
       let has = false;
-      for (const [, s] of this.state.ships) { if (!s.dead && s.team === team) { has = true; break; } }
-      if (!has) for (const [, st] of this.state.stations) { if (!st.dead && st.team === team) { has = true; break; } }
+      for (const [, s] of this.state.ships) {
+        if (!s.dead && s.team === team) {
+          has = true;
+          break;
+        }
+      }
+      if (!has)
+        for (const [, st] of this.state.stations) {
+          if (!st.dead && st.team === team) {
+            has = true;
+            break;
+          }
+        }
       if (!has) {
-        const rem = this.state.activePlayers.filter(t => {
+        const rem = this.state.activePlayers.filter((t) => {
           if (t === team) return false;
-          for (const [, s] of this.state.ships) { if (!s.dead && s.team === t) return true; }
-          for (const [, st] of this.state.stations) { if (!st.dead && st.team === t) return true; }
+          for (const [, s] of this.state.ships) {
+            if (!s.dead && s.team === t) return true;
+          }
+          for (const [, st] of this.state.stations) {
+            if (!st.dead && st.team === t) return true;
+          }
           return false;
         });
-        if (rem.length === 1) { this.state.gameOver = true; this.state.winner = rem[0]; this.state.winCondition = 'elimination'; return; }
+        if (rem.length === 1) {
+          this.state.gameOver = true;
+          this.state.winner = rem[0];
+          this.state.winCondition = 'elimination';
+          return;
+        }
       }
     }
-    const owned = this.state.planets.filter(p => p.owner !== 0);
+    const owned = this.state.planets.filter((p) => p.owner !== 0);
     if (owned.length > 0 && owned.length >= this.state.planets.length * 0.7) {
       const o = owned[0].owner;
-      if (owned.every(p => p.owner === o)) {
+      if (owned.every((p) => p.owner === o)) {
         if (this.state.dominationTeam === o) {
           this.state.dominationTimer += 2;
-          if (this.state.dominationTimer >= DOMINATION_TIME) { this.state.gameOver = true; this.state.winner = o; this.state.winCondition = 'domination'; }
-        } else { this.state.dominationTeam = o; this.state.dominationTimer = 0; }
-      } else { this.state.dominationTimer = 0; this.state.dominationTeam = null; }
+          if (this.state.dominationTimer >= DOMINATION_TIME) {
+            this.state.gameOver = true;
+            this.state.winner = o;
+            this.state.winCondition = 'domination';
+          }
+        } else {
+          this.state.dominationTeam = o;
+          this.state.dominationTimer = 0;
+        }
+      } else {
+        this.state.dominationTimer = 0;
+        this.state.dominationTeam = null;
+      }
     }
   }
 
@@ -1218,12 +1574,23 @@ export class SpaceEngine {
     // In game units: fighter placeholder = size 9 Three.js = 180 gu,
     // so MIN_SEP = 150 keeps fighters from touching.
     const MIN_SEP: Record<string, number> = {
-      dreadnought: 380, battleship: 320, carrier: 280,
-      cruiser: 240, light_cruiser: 220, destroyer: 200,
-      frigate: 180, corvette: 160, assault_frigate: 180,
-      bomber: 200, transport: 180, stealth: 150,
-      heavy_fighter: 140, fighter: 130, interceptor: 120,
-      scout: 110, worker: 90,
+      dreadnought: 380,
+      battleship: 320,
+      carrier: 280,
+      cruiser: 240,
+      light_cruiser: 220,
+      destroyer: 200,
+      frigate: 180,
+      corvette: 160,
+      assault_frigate: 180,
+      bomber: 200,
+      transport: 180,
+      stealth: 150,
+      heavy_fighter: 140,
+      fighter: 130,
+      interceptor: 120,
+      scout: 110,
+      worker: 90,
     };
 
     const alive: SpaceShip[] = [];
@@ -1238,7 +1605,8 @@ export class SpaceEngine {
       // Ships with fixed orbit targets or hold positions stay put
       if (a.orbitTarget !== null) continue;
 
-      let fx = 0, fy = 0;
+      let fx = 0,
+        fy = 0;
       const minA = MIN_SEP[a.shipClass] ?? 130;
 
       for (let j = i + 1; j < alive.length; j++) {
@@ -1246,22 +1614,23 @@ export class SpaceEngine {
         if (b.team !== a.team) continue; // only separate own fleet
         if (b.orbitTarget !== null) continue;
 
-        const minB   = MIN_SEP[b.shipClass] ?? 130;
+        const minB = MIN_SEP[b.shipClass] ?? 130;
         const minDist = (minA + minB) * 0.5; // average of both radii
 
         const dx = a.x - b.x;
         const dy = a.y - b.y;
         const d2 = dx * dx + dy * dy;
         if (d2 < minDist * minDist && d2 > 1) {
-          const d     = Math.sqrt(d2);
-          const depth = minDist - d;          // how much they overlap
-          const force = depth / minDist * 0.6; // gentle spring
-          const nx = dx / d, ny = dy / d;
+          const d = Math.sqrt(d2);
+          const depth = minDist - d; // how much they overlap
+          const force = (depth / minDist) * 0.6; // gentle spring
+          const nx = dx / d,
+            ny = dy / d;
           // Push both apart (equal & opposite)
-          fx       += nx * force;
-          fy       += ny * force;
-          b.x      -= nx * force * b.speed * dt;
-          b.y      -= ny * force * b.speed * dt;
+          fx += nx * force;
+          fy += ny * force;
+          b.x -= nx * force * b.speed * dt;
+          b.y -= ny * force * b.speed * dt;
         }
       }
 
@@ -1274,12 +1643,12 @@ export class SpaceEngine {
 
   // ── Ship Role Behaviors ─────────────────────────────────────────
   private updateShipRoles(dt: number) {
-    const REPAIR_TICK   = 2.0;   // seconds between heals
-    const REPAIR_AMOUNT = 18;    // HP healed per tick
-    const REPAIR_RANGE  = 220;   // game units
-    const JUG_PULSE_TICK    = 4.0;  // juggernaut shield pulse interval
-    const JUG_PULSE_SHIELD  = 12;   // shield restored to allies
-    const JUG_PULSE_RANGE   = 180;
+    const REPAIR_TICK = 2.0; // seconds between heals
+    const REPAIR_AMOUNT = 18; // HP healed per tick
+    const REPAIR_RANGE = 220; // game units
+    const JUG_PULSE_TICK = 4.0; // juggernaut shield pulse interval
+    const JUG_PULSE_SHIELD = 12; // shield restored to allies
+    const JUG_PULSE_RANGE = 180;
 
     for (const [, ship] of this.state.ships) {
       if (ship.dead || ship.shipClass === 'worker') continue;
@@ -1327,7 +1696,7 @@ export class SpaceEngine {
   }
 
   removeTacticalOrder(id: number) {
-    this.state.tacticalOrders = this.state.tacticalOrders.filter(o => o.id !== id);
+    this.state.tacticalOrders = this.state.tacticalOrders.filter((o) => o.id !== id);
   }
 
   addFleet(name: string, color: string): Fleet {
@@ -1339,7 +1708,7 @@ export class SpaceEngine {
   assignShipsToFleet(fleetName: string, shipIds: number[]) {
     // Remove from any existing fleet first
     for (const [, f] of this.state.fleets) {
-      f.shipIds = f.shipIds.filter(id => !shipIds.includes(id));
+      f.shipIds = f.shipIds.filter((id) => !shipIds.includes(id));
     }
     const fleet = this.state.fleets.get(fleetName);
     if (fleet) fleet.shipIds.push(...shipIds);
@@ -1348,28 +1717,35 @@ export class SpaceEngine {
   private updateTacticalOrders(dt: number) {
     for (const order of this.state.tacticalOrders) {
       if (!order.enabled) continue;
-      if (order.cooldownRemaining > 0) { order.cooldownRemaining -= dt; continue; }
+      if (order.cooldownRemaining > 0) {
+        order.cooldownRemaining -= dt;
+        continue;
+      }
 
       let triggered = false;
 
       if (order.trigger === 'planet_attacked' && order.triggerPlanetId !== null) {
         // Triggered if enemies are near the watched planet
-        const planet = this.state.planets.find(p => p.id === order.triggerPlanetId);
+        const planet = this.state.planets.find((p) => p.id === order.triggerPlanetId);
         if (planet) {
-          const enemyCount = [...this.state.ships.values()]
-            .filter(s => !s.dead && s.team !== 1 && s.team !== 0 &&
-              Math.sqrt((s.x - planet.x)**2 + (s.y - planet.y)**2) < planet.captureRadius * 1.5)
-            .length;
+          const enemyCount = [...this.state.ships.values()].filter(
+            (s) =>
+              !s.dead &&
+              s.team !== 1 &&
+              s.team !== 0 &&
+              Math.sqrt((s.x - planet.x) ** 2 + (s.y - planet.y) ** 2) < planet.captureRadius * 1.5,
+          ).length;
           triggered = enemyCount >= 2;
         }
       } else if (order.trigger === 'planet_captured') {
-        const planet = this.state.planets.find(p => p.id === order.triggerPlanetId);
+        const planet = this.state.planets.find((p) => p.id === order.triggerPlanetId);
         triggered = !!(planet && planet.owner !== 1 && planet.owner !== 0);
       } else if (order.trigger === 'fleet_below_half' && order.triggerFleetName) {
         const fleet = this.state.fleets.get(order.triggerFleetName);
         if (fleet) {
-          const alive = fleet.shipIds.filter(id => {
-            const s = this.state.ships.get(id); return s && !s.dead;
+          const alive = fleet.shipIds.filter((id) => {
+            const s = this.state.ships.get(id);
+            return s && !s.dead;
           }).length;
           triggered = alive > 0 && alive <= fleet.shipIds.length / 2;
         }
@@ -1381,21 +1757,20 @@ export class SpaceEngine {
       // Execute action
       const fleet = order.fleetName ? this.state.fleets.get(order.fleetName) : null;
       const ships = fleet
-        ? fleet.shipIds.map(id => this.state.ships.get(id)).filter((s): s is SpaceShip => !!(s && !s.dead))
-        : [...this.state.ships.values()].filter(s => !s.dead && s.team === 1);
+        ? fleet.shipIds.map((id) => this.state.ships.get(id)).filter((s): s is SpaceShip => !!(s && !s.dead))
+        : [...this.state.ships.values()].filter((s) => !s.dead && s.team === 1);
 
       if (order.action === 'attack_planet' || order.action === 'defend_planet') {
-        const tgt = this.state.planets.find(p => p.id === order.actionPlanetId);
+        const tgt = this.state.planets.find((p) => p.id === order.actionPlanetId);
         if (tgt) {
           for (const s of ships) {
-            s.moveTarget = { x: tgt.x + (Math.random()-0.5)*200, y: tgt.y + (Math.random()-0.5)*200, z:0 };
+            s.moveTarget = { x: tgt.x + (Math.random() - 0.5) * 200, y: tgt.y + (Math.random() - 0.5) * 200, z: 0 };
             s.isAttackMoving = order.action === 'attack_planet';
           }
         }
       } else if (order.action === 'focus_class' && order.focusClass) {
         // Mark nearby enemies of given class as priority targets for all ships in fleet
-        const enemyOfClass = [...this.state.ships.values()]
-          .find(s => !s.dead && s.team !== 1 && s.shipClass === order.focusClass);
+        const enemyOfClass = [...this.state.ships.values()].find((s) => !s.dead && s.team !== 1 && s.shipClass === order.focusClass);
         if (enemyOfClass) {
           for (const s of ships) s.targetId = enemyOfClass.id;
         }
@@ -1406,41 +1781,44 @@ export class SpaceEngine {
   // ── Resource Nodes ─────────────────────────────────────────────
   private generateResourceNodes() {
     type NK = ResourceNode['kind'];
-    const kindYield: Record<NK, { credits:number; energy:number; minerals:number }> = {
-      moon:            { credits: 3, energy:  2, minerals: 10 },
-      asteroid:        { credits: 0, energy:  0, minerals: 15 },
-      ice_rock:        { credits: 0, energy: 12, minerals:  2 },
-      crystal_deposit: { credits: 12, energy: 2, minerals:  0 },
+    const kindYield: Record<NK, { credits: number; energy: number; minerals: number }> = {
+      moon: { credits: 3, energy: 2, minerals: 10 },
+      asteroid: { credits: 0, energy: 0, minerals: 15 },
+      ice_rock: { credits: 0, energy: 12, minerals: 2 },
+      crystal_deposit: { credits: 12, energy: 2, minerals: 0 },
     };
-    const kindRadius:     Record<NK, number> = { moon: 36, asteroid: 12, ice_rock: 17, crystal_deposit: 11 };
-    const kindOrbitSpd:   Record<NK, number> = { moon: 0.12, asteroid: 0.42, ice_rock: 0.28, crystal_deposit: 0.52 };
-    const kindHarvestCD:  Record<NK, number> = { moon: 8, asteroid: 5, ice_rock: 5, crystal_deposit: 6 };
+    const kindRadius: Record<NK, number> = { moon: 36, asteroid: 12, ice_rock: 17, crystal_deposit: 11 };
+    const kindOrbitSpd: Record<NK, number> = { moon: 0.12, asteroid: 0.42, ice_rock: 0.28, crystal_deposit: 0.52 };
+    const kindHarvestCD: Record<NK, number> = { moon: 8, asteroid: 5, ice_rock: 5, crystal_deposit: 6 };
     const typeNodes: Record<PlanetType, NK[]> = {
-      volcanic:    ['asteroid', 'moon', 'asteroid'],
-      oceanic:     ['ice_rock', 'moon', 'ice_rock'],
-      barren:      ['asteroid', 'moon', 'asteroid'],
+      volcanic: ['asteroid', 'moon', 'asteroid'],
+      oceanic: ['ice_rock', 'moon', 'ice_rock'],
+      barren: ['asteroid', 'moon', 'asteroid'],
       crystalline: ['crystal_deposit', 'moon', 'crystal_deposit'],
-      gas_giant:   ['ice_rock', 'moon', 'ice_rock'],
-      frozen:      ['ice_rock', 'crystal_deposit', 'moon'],
+      gas_giant: ['ice_rock', 'moon', 'ice_rock'],
+      frozen: ['ice_rock', 'crystal_deposit', 'moon'],
     };
     for (const planet of this.state.planets) {
       const preferred = typeNodes[planet.planetType];
       const baseCount = planet.isStartingPlanet ? 3 : 1 + Math.floor(Math.random() * 2);
-      const extraAst  = planet.hasAsteroidField ? 3 : 0;
-      const total     = baseCount + extraAst;
+      const extraAst = planet.hasAsteroidField ? 3 : 0;
+      const total = baseCount + extraAst;
       for (let i = 0; i < total; i++) {
         const kind: NK = i < baseCount ? preferred[i % preferred.length] : 'asteroid';
         const minOrbit = planet.radius * (kind === 'moon' ? 3.0 : 2.0);
         const maxOrbit = planet.radius * (kind === 'moon' ? 4.2 : 3.2);
         const orbitRadius = minOrbit + Math.random() * (maxOrbit - minOrbit);
-        const orbitAngle  = (i / total) * Math.PI * 2 + Math.random() * 0.4;
-        const orbitSpd    = kindOrbitSpd[kind] * (0.75 + Math.random() * 0.5) * (i % 2 === 0 ? 1 : -1);
+        const orbitAngle = (i / total) * Math.PI * 2 + Math.random() * 0.4;
+        const orbitSpd = kindOrbitSpd[kind] * (0.75 + Math.random() * 0.5) * (i % 2 === 0 ? 1 : -1);
         const node: ResourceNode = {
           id: this.state.nextId++,
           parentPlanetId: planet.id,
           x: planet.x + Math.cos(orbitAngle) * orbitRadius,
           y: planet.y + Math.sin(orbitAngle) * orbitRadius,
-          z: 0, orbitAngle, orbitRadius, orbitSpeed: orbitSpd,
+          z: 0,
+          orbitAngle,
+          orbitRadius,
+          orbitSpeed: orbitSpd,
           kind,
           radius: kindRadius[kind] * (0.8 + Math.random() * 0.4),
           yield: { ...kindYield[kind] },
@@ -1455,7 +1833,7 @@ export class SpaceEngine {
   private updateResourceNodes(dt: number) {
     for (const [, node] of this.state.resourceNodes) {
       if (node.harvestCooldown > 0) node.harvestCooldown = Math.max(0, node.harvestCooldown - dt);
-      const planet = this.state.planets.find(p => p.id === node.parentPlanetId);
+      const planet = this.state.planets.find((p) => p.id === node.parentPlanetId);
       if (!planet) continue;
       node.orbitAngle += node.orbitSpeed * dt;
       node.x = planet.x + Math.cos(node.orbitAngle) * node.orbitRadius;
@@ -1473,30 +1851,44 @@ export class SpaceEngine {
       if (ship.workerState === undefined) ship.workerState = 'idle';
       switch (ship.workerState) {
         case 'idle': {
-          let bestNode: ResourceNode | null = null, bestDist = Infinity;
+          let bestNode: ResourceNode | null = null,
+            bestDist = Infinity;
           for (const [, node] of this.state.resourceNodes) {
             if (node.harvestCooldown > 0) continue;
-            const planet = this.state.planets.find(p => p.id === node.parentPlanetId);
+            const planet = this.state.planets.find((p) => p.id === node.parentPlanetId);
             // Harvest from owned planets or uncaptured neutral planets
             if (!planet || (planet.owner !== ship.team && planet.owner !== 0)) continue;
             const d = dist2d(ship, node);
-            if (d < bestDist) { bestDist = d; bestNode = node; }
+            if (d < bestDist) {
+              bestDist = d;
+              bestNode = node;
+            }
           }
           if (bestNode) {
             ship.workerNodeId = bestNode.id;
-            ship.workerState  = 'traveling';
-            ship.moveTarget   = { x: bestNode.x, y: bestNode.y, z: 0 };
+            ship.workerState = 'traveling';
+            ship.moveTarget = { x: bestNode.x, y: bestNode.y, z: 0 };
           }
           break;
         }
         case 'traveling': {
-          if (!ship.workerNodeId) { ship.workerState = 'idle'; break; }
+          if (!ship.workerNodeId) {
+            ship.workerState = 'idle';
+            break;
+          }
           const node = this.state.resourceNodes.get(ship.workerNodeId);
-          if (!node || node.harvestCooldown > 0) { ship.workerState = 'idle'; ship.moveTarget = null; break; }
+          if (!node || node.harvestCooldown > 0) {
+            ship.workerState = 'idle';
+            ship.moveTarget = null;
+            break;
+          }
           // Abort if the node's planet was captured by an enemy
-          const tPlanet = this.state.planets.find(p => p.id === node.parentPlanetId);
+          const tPlanet = this.state.planets.find((p) => p.id === node.parentPlanetId);
           if (tPlanet && tPlanet.owner !== ship.team && tPlanet.owner !== 0) {
-            ship.workerState = 'idle'; ship.moveTarget = null; ship.workerNodeId = null; break;
+            ship.workerState = 'idle';
+            ship.moveTarget = null;
+            ship.workerNodeId = null;
+            break;
           }
           ship.moveTarget = { x: node.x, y: node.y, z: 0 }; // track moving node
           if (dist2d(ship, node) < HARVEST_RANGE) {
@@ -1508,27 +1900,37 @@ export class SpaceEngine {
           break;
         }
         case 'harvesting': {
-          if (!ship.workerNodeId) { ship.workerState = 'idle'; break; }
+          if (!ship.workerNodeId) {
+            ship.workerState = 'idle';
+            break;
+          }
           const node = this.state.resourceNodes.get(ship.workerNodeId);
-          if (!node) { ship.workerState = 'idle'; break; }
+          if (!node) {
+            ship.workerState = 'idle';
+            break;
+          }
           // Abort if the node's planet was captured by an enemy
-          const hPlanet = this.state.planets.find(p => p.id === node.parentPlanetId);
+          const hPlanet = this.state.planets.find((p) => p.id === node.parentPlanetId);
           if (hPlanet && hPlanet.owner !== ship.team && hPlanet.owner !== 0) {
-            ship.workerState = 'idle'; ship.holdPosition = false; ship.moveTarget = null; ship.workerNodeId = null; break;
+            ship.workerState = 'idle';
+            ship.holdPosition = false;
+            ship.moveTarget = null;
+            ship.workerNodeId = null;
+            break;
           }
           // Worker stays at harvest position — laser beam connects to node
           // Face towards the node
           ship.facing = Math.atan2(node.y - ship.y, node.x - ship.x);
           ship.workerHarvestTimer = (ship.workerHarvestTimer ?? 0) + dt;
           if ((ship.workerHarvestTimer ?? 0) >= HARVEST_TIME) {
-            ship.workerCargoType = node.kind === 'asteroid' || node.kind === 'moon' ? 'minerals'
-              : node.kind === 'ice_rock' ? 'energy' : 'credits';
+            ship.workerCargoType =
+              node.kind === 'asteroid' || node.kind === 'moon' ? 'minerals' : node.kind === 'ice_rock' ? 'energy' : 'credits';
             ship.workerCargo = 1;
             node.harvestCooldown = node.maxHarvestCooldown;
             ship.workerState = 'returning';
             ship.holdPosition = false;
             // Head to home station (or nearest friendly)
-            let target: { x:number; y:number } | null = null;
+            let target: { x: number; y: number } | null = null;
             if (ship.stationId) {
               const st = this.state.stations.get(ship.stationId);
               if (st && !st.dead) target = st;
@@ -1538,7 +1940,11 @@ export class SpaceEngine {
               for (const [, st] of this.state.stations) {
                 if (st.dead || st.team !== ship.team) continue;
                 const d = dist2d(ship, st);
-                if (d < nd) { nd = d; target = st; ship.stationId = st.id; }
+                if (d < nd) {
+                  nd = d;
+                  target = st;
+                  ship.stationId = st.id;
+                }
               }
             }
             if (target) ship.moveTarget = { x: target.x, y: target.y, z: 0 };
@@ -1546,21 +1952,30 @@ export class SpaceEngine {
           break;
         }
         case 'returning': {
-          if (!ship.stationId) { ship.workerState = 'idle'; break; }
+          if (!ship.stationId) {
+            ship.workerState = 'idle';
+            break;
+          }
           const st = this.state.stations.get(ship.stationId);
-          if (!st || st.dead) { ship.stationId = null; ship.workerState = 'idle'; break; }
+          if (!st || st.dead) {
+            ship.stationId = null;
+            ship.workerState = 'idle';
+            break;
+          }
           if (dist2d(ship, st) < DEPOSIT_RANGE) {
             const res = this.state.resources[ship.team];
             if (res && ship.workerNodeId) {
               const node = this.state.resourceNodes.get(ship.workerNodeId);
               if (node) {
-                res.credits  += node.yield.credits;
-                res.energy   += node.yield.energy;
+                res.credits += node.yield.credits;
+                res.energy += node.yield.energy;
                 res.minerals += node.yield.minerals;
               }
             }
-            ship.workerCargo = 0; ship.workerNodeId = null;
-            ship.workerState = 'idle'; ship.moveTarget = null;
+            ship.workerCargo = 0;
+            ship.workerNodeId = null;
+            ship.workerState = 'idle';
+            ship.moveTarget = null;
           }
           break;
         }
@@ -1569,16 +1984,22 @@ export class SpaceEngine {
   }
 
   private cleanupDead() {
-    for (const [id, s] of this.state.ships) { if (s.dead && s.animTimer > 3) this.state.ships.delete(id); }
+    for (const [id, s] of this.state.ships) {
+      if (s.dead && s.animTimer > 3) this.state.ships.delete(id);
+    }
   }
 
   private findNearestEnemy(ship: SpaceShip): SpaceShip | null {
-    let best: SpaceShip | null = null, bd = Infinity;
+    let best: SpaceShip | null = null,
+      bd = Infinity;
     for (const [, o] of this.state.ships) {
       if (o.dead || o.team === ship.team) continue;
       if (ship.team !== 0 && o.team === 0 && !o.orbitTarget) continue;
       const d = dist2d(ship, o);
-      if (d < bd) { bd = d; best = o; }
+      if (d < bd) {
+        bd = d;
+        best = o;
+      }
     }
     return best;
   }
