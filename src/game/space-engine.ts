@@ -52,6 +52,7 @@ import {
   type TacticalOrder,
 } from './space-types';
 import { ALL_TECH_TREES, VOID_POWERS, PLANET_TYPE_TO_TECH, TURRET_DEFS, XP_THRESHOLDS, RANK_STAT_BONUS } from './space-techtree';
+import { FACTION_ABILITIES, SKILL_SPRITES, STATUS_VFX, WARP_VFX, type FactionAbility, type StatusEffectType } from './space-skill-vfx';
 import { createAIBrain, updateAIBrain, type AIBrain } from './space-ai';
 import { gameAudio } from './space-audio';
 import { getMuzzleWorldPosition } from './space-rig';
@@ -1035,6 +1036,7 @@ export class SpaceEngine {
     this.updatePlanetTurrets(_dt);
     this.updateVoidEffects(_dt);
     this.updateVoidCooldowns(_dt);
+    this.updateFactionAbilityCooldowns(_dt);
     this.updateDarkRifts(_dt);
     this.updatePOIs(_dt);
     this.updateAdvancedAI(_dt);
@@ -1655,6 +1657,10 @@ export class SpaceEngine {
       'bomb-high-2': 8,
       'bomb-high-3': 10,
     };
+    // Also check skill sprite sheets for frame counts
+    const skillDef = SKILL_SPRITES[type];
+    const totalFrames = counts[type] ?? (skillDef ? skillDef.frames : 8);
+    const isLoop = skillDef?.loop ?? false;
     this.state.spriteEffects.push({
       id: this.state.nextId++,
       x,
@@ -1663,12 +1669,135 @@ export class SpaceEngine {
       type: type as SpriteEffect['type'],
       scale,
       frame: 0,
-      totalFrames: counts[type] ?? 8,
+      totalFrames,
       frameTimer: 0,
-      frameDuration: 0.06,
+      frameDuration: isLoop ? 0.08 : 0.06,
       done: false,
       rotation: Math.random() * Math.PI * 2,
     });
+  }
+
+  // ── Faction Abilities ─────────────────────────────────────────
+  // Each faction has 4 unique elemental abilities with distinct VFX.
+  // Abilities are cast like Void Powers but faction-themed.
+  private factionAbilityCooldowns = new Map<number, Map<string, number>>();
+
+  castFactionAbility(team: Team, abilityId: string, targetX: number, targetY: number): boolean {
+    const ability = FACTION_ABILITIES[abilityId];
+    if (!ability) return false;
+
+    // Check faction alignment (own faction abilities cost base, cross-faction 1.5x)
+    const sparkState = this.state.sparkState.get(team);
+    const playerFaction = sparkState?.faction ?? 'legion';
+    const costMult = ability.faction === playerFaction ? 1.0 : 1.5;
+
+    // Check cooldown
+    const cds = this.factionAbilityCooldowns.get(team) ?? new Map<string, number>();
+    if ((cds.get(abilityId) ?? 0) > 0) return false;
+
+    // Check resources
+    const res = this.state.resources[team];
+    if (!res) return false;
+    const cost = {
+      credits: Math.ceil(ability.cost.credits * costMult),
+      energy: Math.ceil(ability.cost.energy * costMult),
+      minerals: Math.ceil(ability.cost.minerals * costMult),
+    };
+    if (res.credits < cost.credits || res.energy < cost.energy || res.minerals < cost.minerals) return false;
+
+    // Deduct cost and set cooldown
+    res.credits -= cost.credits;
+    res.energy -= cost.energy;
+    res.minerals -= cost.minerals;
+    cds.set(abilityId, ability.cooldown);
+    this.factionAbilityCooldowns.set(team, cds);
+
+    // Cast VFX at origin
+    this.spawnSpriteEffect(targetX, targetY, 0, ability.castVfx, 3.0);
+
+    // Impact VFX
+    this.spawnSpriteEffect(targetX, targetY, 0, ability.impactVfx, ability.radius > 0 ? 6.0 : 3.0);
+
+    // AoE damage
+    if (ability.damage > 0 && ability.radius > 0) {
+      for (const [, s] of this.state.ships) {
+        if (s.dead || s.team === team) continue;
+        const d = Math.sqrt((s.x - targetX) ** 2 + (s.y - targetY) ** 2);
+        if (d < ability.radius) {
+          const falloff = ability.duration > 0 ? 1 : 1 - d / ability.radius;
+          this.applyDamage(s, ability.damage * falloff);
+        }
+      }
+    } else if (ability.damage > 0 && ability.target === 'ship') {
+      // Single target — find nearest enemy to cursor
+      let closest: SpaceShip | null = null;
+      let closestD = 400; // max target acquisition range
+      for (const [, s] of this.state.ships) {
+        if (s.dead || s.team === team) continue;
+        const d = Math.sqrt((s.x - targetX) ** 2 + (s.y - targetY) ** 2);
+        if (d < closestD) {
+          closestD = d;
+          closest = s;
+        }
+      }
+      if (closest) {
+        this.applyDamage(closest, ability.damage);
+        this.spawnSpriteEffect(closest.x, closest.y, 0, ability.impactVfx, 4.0);
+      }
+    }
+
+    // Lingering AoE effect (DoT / debuff zone)
+    if (ability.duration > 0 && ability.auraVfx) {
+      this.state.activeVoidEffects.push({
+        id: this.state.nextId++,
+        powerId: abilityId,
+        x: targetX,
+        y: targetY,
+        radius: ability.radius || 500,
+        damage: ability.damage > 0 ? ability.damage : 0,
+        lifetime: 0,
+        maxLifetime: ability.duration,
+        team,
+        done: false,
+      });
+      // Persistent aura VFX
+      this.spawnSpriteEffect(targetX, targetY, 0, ability.auraVfx, 5.0);
+    }
+
+    // Self-buff abilities (haste, shield_boost)
+    if (ability.target === 'self' && ability.statusEffect) {
+      for (const [, s] of this.state.ships) {
+        if (s.dead || s.team !== team) continue;
+        const d = Math.sqrt((s.x - targetX) ** 2 + (s.y - targetY) ** 2);
+        if (d < (ability.radius || 1000)) {
+          this.applyStatusVfx(s, ability.statusEffect);
+          // Apply buff effect
+          if (ability.statusEffect === 'haste') {
+            s.speed *= 1.4;
+          } else if (ability.statusEffect === 'shield_boost') {
+            s.shield = Math.min(s.maxShield * 1.5, s.shield + s.maxShield * 0.5);
+          }
+        }
+      }
+    }
+
+    return true;
+  }
+
+  /** Spawn a status effect VFX on a ship */
+  private applyStatusVfx(ship: SpaceShip, status: StatusEffectType) {
+    const vfxKey = STATUS_VFX[status];
+    if (vfxKey) {
+      this.spawnSpriteEffect(ship.x, ship.y, 0, vfxKey, 1.5);
+    }
+  }
+
+  private updateFactionAbilityCooldowns(dt: number) {
+    for (const [, cdMap] of this.factionAbilityCooldowns) {
+      for (const [key, val] of cdMap) {
+        if (val > 0) cdMap.set(key, Math.max(0, val - dt));
+      }
+    }
   }
 
   // ── Tech Research ───────────────────────────────────────────────
@@ -1789,6 +1918,21 @@ export class SpaceEngine {
         }
       }
     } else if (pwr.effect === 'teleport_fleet') {
+      // Departure warp portal VFX at fleet center
+      let cx = 0,
+        cy = 0,
+        cnt = 0;
+      for (const id of this.state.selectedIds) {
+        const s = this.state.ships.get(id);
+        if (s && !s.dead && s.team === team) {
+          cx += s.x;
+          cy += s.y;
+          cnt++;
+        }
+      }
+      if (cnt > 0) {
+        this.spawnSpriteEffect(cx / cnt, cy / cnt, 0, WARP_VFX.departure, 6.0);
+      }
       for (const id of this.state.selectedIds) {
         const s = this.state.ships.get(id);
         if (!s || s.dead || s.team !== team) continue;
@@ -1798,6 +1942,8 @@ export class SpaceEngine {
         s.y = targetY + Math.floor(idx / 5) * 80;
         s.moveTarget = null;
       }
+      // Arrival warp portal VFX at destination
+      this.spawnSpriteEffect(targetX, targetY, 0, WARP_VFX.arrival, 6.0);
     } else if (pwr.effect === 'pull_damage') {
       // Create a lingering void rift effect
       this.state.activeVoidEffects.push({
@@ -1917,9 +2063,9 @@ export class SpaceEngine {
         time: this.state.gameTime,
         message: 'Dark Rift detected!',
       });
-      // VFX at rift location
-      this.spawnSpriteEffect(rx, ry, 0, 'waveform', 4.0);
-      this.spawnSpriteEffect(rx, ry, 0, 'crossed', 3.0);
+      // VFX at rift location — dark warp portal
+      this.spawnSpriteEffect(rx, ry, 0, WARP_VFX.darkRift, 6.0);
+      this.spawnSpriteEffect(rx, ry, 0, 'aura-rift', 5.0);
       gameAudio.play('alert', 0.7);
     }
 
