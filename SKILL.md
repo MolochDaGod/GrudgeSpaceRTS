@@ -150,13 +150,110 @@ Each ability has a painted PNG icon from `scifi-gui/skills/` and an SVG fallback
 - C → Commander Character Panel
 - Ctrl+1-9 → assign control group, 1-9 recall
 
-### AI Difficulty (Quick Game)
-Selectable in Commander Select modal before launch:
-- **Passive (D1)**: Random builds, no tech, wanders aimlessly
-- **Basic (D2)**: Cheap fighters, basic expansion, some tech
-- **Balanced (D3)**: Good composition, flanking, workers, mid tech (default)
-- **Aggressive (D4)**: Multi-front attacks, void powers, strafe micro
-- **Optimal (D5)**: Perfect economy, full tech tree, strafe + retreat micro
+### AI System (`space-ai.ts`)
+
+#### Core Principle
+The AI is a player, not a cheat engine. It uses the **exact same** ship stats, cooldowns, costs, and resource rates as the human. The only difference is **decision quality** — what it builds, where it attacks, and how it micro-manages combat. Build poll rates are identical (2s) across all difficulties; the queue + resource cost is the real limiter.
+
+#### Difficulty Levels
+Selectable in Commander Select modal before quick game launch. Campaign AI auto-scales with conquest progress (0-20% = D1, 20-40% = D2, etc.).
+
+**D1 — Passive**
+- Composition: Single cheap units (red_fighter, micro_recon)
+- Tactics: Random wander, sends 1-4 ships at random planets
+- Tech: None (techCycleTime = 999s, effectively disabled)
+- Workers: None
+- Micro: None
+- Response delay: 5s before reacting to threats
+- Max tier: T2 ships only
+
+**D2 — Basic**
+- Composition: Mixed cheap (red_fighter + cf_corvette_01, dual_striker)
+- Tactics: Standard expand-then-attack, single-front
+- Tech: Basic forge (cannons, plating), checks every 20s
+- Workers: None
+- Micro: None
+- Response delay: 3s
+- Max tier: T2
+
+**D3 — Tactical** (default)
+- Composition: Good mixed (corvettes + frigates, warships)
+- Tactics: Flanking — attacks from perpendicular angle to base-target line
+- Tech: Forge + Tide (cannons, plating, siege, shields, regen), checks every 15s
+- Workers: Yes — maintains 3 mining drones
+- Micro: Retreat when HP < 35% (damageLevel > 0.65)
+- Scouting: Dispatches scouts/interceptors to unexplored fog cells
+- Response delay: 2s
+- Max tier: T3
+
+**D4 — Strategic**
+- Composition: Heavy (frigates, destroyers, light cruisers, battleship)
+- Tactics: Multi-front — splits fleet into expansion group + assault group when ≥6 idle ships
+- Tech: Full forge + tide + command tree, checks every 10s
+- Workers: Yes
+- Micro: Retreat + strafe (sidestep while in attack range, alternating direction by ship ID)
+- Scouting: Yes + last-seen enemy memory (probes last known center when no visible enemies)
+- Void Powers: Yes — casts AoE damage on densest enemy clusters, push on threatened planets, warp fleet near enemy
+- Turrets: Builds 2 turrets per owned planet (railgun preferred)
+- Response delay: 1s
+- Max tier: T4
+
+**D5 — Optimal**
+- Composition: Capital ships (light cruisers, destroyers, boss ships)
+- Tactics: Targets highest-value enemy planet (most total resource yield), full fleet commit
+- Tech: Complete priority list (13 nodes), checks every 8s
+- Workers: Yes
+- Micro: Full retreat + strafe
+- Scouting: Hunts undiscovered POIs for resource/tech bonuses
+- Void Powers: Yes + planet destruction on neutral planets
+- Turrets: Yes
+- Response delay: 0.5s
+- Max tier: T5 (boss ships)
+
+#### AI Brain Architecture
+Each AI team gets an `AIBrain` instance (`space-ai.ts:172`) with independent timers:
+- `buildTimer` — triggers `aiBuildStep()` every `buildCycleTime` seconds
+- `tacticsTimer` — triggers `aiTacticsStep()` every `tacticsCycleTime` seconds
+- `techTimer` — triggers `aiTechStep()` every `techCycleTime` seconds
+- `scoutTimer` — triggers `aiScoutStep()` (D3+ only)
+- `aiMicroStep()` — runs every frame for per-ship evasion (D3+)
+- `aiVoidPowerStep()` — runs every frame for D4+ void power casting
+
+#### Build Step
+1. Count current combat ships + workers
+2. D3+: maintain 3 workers minimum
+3. Pick composition archetype from `COMPOSITION[difficulty]` (4 presets per level, cycles through them)
+4. Try each ship in the composition, respecting tier cap and buildability
+5. Fallback: walk down tier-appropriate fallback lists (T3→T2→T1)
+6. Advance composition index each build cycle for variety
+
+#### Tactics Step
+1. Collect idle combat ships (no moveTarget, no targetId, no orbitTarget)
+2. D4+: track visible enemy center for last-seen memory
+3. D1: random wander to any planet
+4. D2-3: single-front — expand to nearest neutral, then attack nearest enemy (D3 flanks)
+5. D4+: split fleet — half expand to neutrals, half assault weakest enemy planet from flank angle
+6. D4+: probe last-seen enemy position with remaining idle ships
+
+#### Tech Priority
+Each difficulty has a fixed research order. The AI researches the first unresearched node in its list. After exhausting the list, D4+ also builds planet turrets.
+
+#### Void Power Targeting
+- `aoe_damage` / `aoe_scatter` / `pull_damage` → cast on densest enemy cluster (≥2 ships visible in fog)
+- `push` → cast on owned planet with most enemies nearby (≥2)
+- `teleport_fleet` → warp near weakest enemy planet
+- `destroy_planet` → D5 only, targets neutral planets
+
+#### Campaign AI Scaling
+- `createCampaignAI(team, conquestPct)` — difficulty = ceil(conquestPct / 20)
+- `updateCampaignAIDifficulty(brain, conquestPct)` — recalibrate on planet capture
+- Campaign AI never targets the player's homeworld (`isCampaignHomeworldProtected`)
+
+#### Neutral Defenders
+- Each neutral planet spawns 1 boss captain + pirate escorts (boss_captain_01-03, pirate_01-06)
+- Boss and escorts orbit the planet with `holdPosition = true`
+- Roaming pirate fleets patrol between random neutral planet pairs (2-3 pirates per fleet)
+- All neutral/pirate ships have abilities set to autocast
 
 ### Ship Spawning Flow
 1. `space-engine.ts` `spawnShip()` creates entity with stats from `getShipDef()`
@@ -175,10 +272,21 @@ Selectable in Commander Select modal before launch:
 6. Deposits resources, returns to `idle`
 
 ### Deployment
+**Primary (Vercel):**
+- Domain: `starrts.grudge-studio.com`
+- Cloudflare DNS: CNAME `starrts` → `cname.vercel-dns.com` (DNS only, gray cloud)
+- `vercel.json`: Vite framework, `/privacy` + `/tos` rewrites before SPA fallback
+- Build env: `VITE_GRUDGE_API`, `VITE_GRUDGE_ID_URL`, etc. set in Vercel dashboard
+- Auto-deploys on push to `master`
+
+**Backup (Docker/VPS):**
 - Dockerfile: multi-stage (Node 20 build → nginx:alpine serve)
-- docker-compose.yml: Traefik labels for Coolify at `grudge-rts.grudge-studio.com`
-- Build arg: `VITE_GRUDGE_API` (defaults to `https://api.grudge-studio.com`)
-- Set CNAME in Cloudflare pointing to VPS IP
+- docker-compose.yml: Traefik labels for `starrts.grudge-studio.com`
+- nginx.conf: /privacy, /tos served as static HTML before SPA fallback
+
+**Legal pages** (required for Discord app):
+- `/privacy` → `public/privacy.html`
+- `/tos` → `public/tos.html`
 
 ## Validation
 ```bash
