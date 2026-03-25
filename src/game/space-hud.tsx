@@ -35,6 +35,7 @@ import { HackOverlay } from './hack-overlay';
 import { FleetBar, CommandCard as SciFiCommandCard, BuildQueueBar } from './scifi-hud-bars';
 import { JournalPanel, InventoryPanel } from './scifi-panels';
 import { MenuButtonBar } from './scifi-menu-buttons';
+import { CommanderCharacterPanel, UnifiedSkillTreePanel } from './scifi-commander';
 
 interface SpaceHUDProps {
   renderer: SpaceRenderer | null;
@@ -51,6 +52,8 @@ export function SpaceHUD({ renderer, onQuit }: SpaceHUDProps) {
   const [planetCardOpen, setPlanetCardOpen] = useState(false);
   const [surfaceOpen, setSurfaceOpen] = useState(false);
   const [inventoryOpen, setInventoryOpen] = useState(false);
+  const [charPanelOpen, setCharPanelOpen] = useState(false);
+  const [skillTreeOpen, setSkillTreeOpen] = useState(false);
   const [selectedPlanetId, setSelectedPlanetId] = useState<number | null>(null);
   const [selectedCmdId, setSelectedCmdId] = useState<number | null>(null);
   const [planetCardIdx, setPlanetCardIdx] = useState(0);
@@ -99,11 +102,15 @@ export function SpaceHUD({ renderer, onQuit }: SpaceHUDProps) {
         e.preventDefault();
         setPlanetCardOpen((o) => !o);
       }
+      if (e.key.toLowerCase() === 'k') setSkillTreeOpen((o) => !o);
+      if (e.key.toLowerCase() === 'c') setCharPanelOpen((o) => !o);
       if (e.key === 'Escape') {
         setLogOpen(false);
         setPlanetCardOpen(false);
         setSurfaceOpen(false);
         setInventoryOpen(false);
+        setCharPanelOpen(false);
+        setSkillTreeOpen(false);
       }
     };
     window.addEventListener('keydown', onKey);
@@ -528,6 +535,24 @@ export function SpaceHUD({ renderer, onQuit }: SpaceHUDProps) {
 
       {/* ── Captain's Journal (L key) — new sci-fi panel ── */}
       {logOpen && <JournalPanel state={state} onClose={() => setLogOpen(false)} />}
+
+      {/* ── Commander Character Panel (C key) ── */}
+      {charPanelOpen && (
+        <CommanderCharacterPanel
+          state={state}
+          commander={[...state.commanders.values()].find((c) => c.team === 1 && !c.isDead) ?? null}
+          onClose={() => setCharPanelOpen(false)}
+        />
+      )}
+
+      {/* ── Unified Skill Tree (K key) ── */}
+      {skillTreeOpen && (
+        <UnifiedSkillTreePanel
+          state={state}
+          onResearch={(nodeId) => renderer.engine.startResearch(1 as any, nodeId)}
+          onClose={() => setSkillTreeOpen(false)}
+        />
+      )}
 
       {/* ── Floating panels ──────────────────── */}
       {techOpen && (
@@ -1053,8 +1078,8 @@ export function SpaceHUD({ renderer, onQuit }: SpaceHUDProps) {
         <div style={{ flexShrink: 0, zIndex: 1, display: 'flex', alignItems: 'flex-start', paddingTop: 4 }}>
           <MenuButtonBar
             onAction={(id) => {
-              if (id === 'tech') setTechOpen((o) => !o);
-              else if (id === 'commander') setCmdOpen((o) => !o);
+              if (id === 'tech') setSkillTreeOpen((o) => !o);
+              else if (id === 'commander') setCharPanelOpen((o) => !o);
               else if (id === 'log') setLogOpen((o) => !o);
               else if (id === 'inventory') setInventoryOpen((o) => !o);
               else if (id === 'starmap') {

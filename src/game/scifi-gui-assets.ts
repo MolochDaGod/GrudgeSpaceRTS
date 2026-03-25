@@ -175,9 +175,69 @@ export const CHAT_RADAR = {
   gold: `${G}/chat-radar-gold.png`,
 } as const;
 
-// ── Avatars ───────────────────────────────────────────────────────────
+// ── Avatars ───────────────────────────────────────────────────────
 export const AVATARS = {
   green: `${G}/avatar-green.png`,
   purple: `${G}/avatar-purple.png`,
   gold: `${G}/avatar-gold.png`,
 } as const;
+
+// ── Character Panel (Commander UI) ────────────────────────────────
+export const CHARACTER = {
+  green: `${G}/character-green.png`,
+  purple: `${G}/character-purple.png`,
+  gold: `${G}/character-gold.png`,
+} as const;
+
+// Character panel layout (805×700 approx)
+// Left: wireframe body with 8 hex equipment slots
+// Right: stats panel with name bars + stat bars + upgrade buttons
+export const CHARACTER_LAYOUT = {
+  // Hex equipment slot positions (% from panel top-left)
+  hexSlots: [
+    { id: 'head', x: 30, y: 7, w: 9, h: 10 },
+    { id: 'shoulders', x: 18, y: 20, w: 9, h: 10 },
+    { id: 'torso', x: 30, y: 20, w: 9, h: 10 },
+    { id: 'hands_l', x: 10, y: 38, w: 9, h: 10 },
+    { id: 'hands_r', x: 38, y: 38, w: 9, h: 10 },
+    { id: 'legs', x: 24, y: 55, w: 9, h: 10 },
+    { id: 'feet_l', x: 18, y: 72, w: 9, h: 10 },
+    { id: 'feet_r', x: 30, y: 72, w: 9, h: 10 },
+  ],
+  // Right stats area
+  statsPanel: { x: 52, y: 15, w: 42, h: 72 },
+  // Name bars (3 rows at top of stats panel)
+  nameBars: { x: 55, y: 18, w: 36, h: 4, gap: 1.5, count: 3 },
+  // Stat bars (4 rows below name, with +/- buttons)
+  statBars: { x: 55, y: 44, w: 28, h: 5, gap: 3, count: 4 },
+  // +/- button column right of stat bars
+  statButtons: { x: 85, y: 44, w: 4, h: 5, gap: 3 },
+};
+
+// ── Skill Tree Node Positions ─────────────────────────────────────
+// Positions of the 11 octagonal node slots on the Skilltree frame (742×793)
+// Measured as % from the panel’s content area top-left.
+// Layout matches the mockup: pyramid of connected nodes.
+export const SKILLTREE_NODES = [
+  // Row 1 (top) — 1 node
+  { idx: 0, x: 43, y: 14, w: 13, h: 10, size: 'large' },
+  // Row 2 — 2 nodes
+  { idx: 1, x: 24, y: 28, w: 10, h: 8, size: 'small' },
+  { idx: 2, x: 55, y: 25, w: 13, h: 10, size: 'large' },
+  // Row 3 — 3 nodes
+  { idx: 3, x: 12, y: 44, w: 13, h: 10, size: 'large' },
+  { idx: 4, x: 38, y: 44, w: 13, h: 10, size: 'large' },
+  { idx: 5, x: 62, y: 44, w: 10, h: 8, size: 'small' },
+  // Row 4 (bottom) — 3 nodes
+  { idx: 6, x: 12, y: 64, w: 13, h: 10, size: 'large' },
+  { idx: 7, x: 32, y: 64, w: 10, h: 8, size: 'small' },
+  { idx: 8, x: 60, y: 68, w: 10, h: 8, size: 'small' },
+] as const;
+
+// Tab categories matching the ATTACK/DEFENCE/CYBER/HEAL tabs on the frame
+export const SKILLTREE_TABS = [
+  { id: 'attack', label: 'ATTACK', trees: ['forge'] },
+  { id: 'defence', label: 'DEFENCE', trees: ['tide', 'void'] },
+  { id: 'cyber', label: 'CYBER', trees: ['cyber'] },
+  { id: 'support', label: 'SUPPORT', trees: ['prism', 'vortex', 'command'] },
+] as const;
