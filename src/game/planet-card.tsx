@@ -10,7 +10,7 @@
  *   - Bottom button: BUILD (owned) or SCAN (enemy/neutral)
  */
 
-import { useState } from 'react';
+// React hooks not currently needed but component may add interactivity later
 import type { Planet, SpaceGameState, Team } from './space-types';
 import { PLANET_TYPE_DATA, TEAM_COLORS, getShipDef, PLANET_SHIP_UNLOCKS } from './space-types';
 import { SHIP_PREVIEW } from './space-ui-shared';
