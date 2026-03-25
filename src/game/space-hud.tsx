@@ -31,6 +31,7 @@ import { CaptainsLogOverlay } from './captains-log-ui';
 import { PlanetCard } from './planet-card';
 import { PlanetSurfaceView } from './planet-surface';
 import { ShipDetailPanel } from './ship-detail-panel';
+import { HackOverlay } from './hack-overlay';
 
 interface SpaceHUDProps {
   renderer: SpaceRenderer | null;
@@ -486,6 +487,9 @@ export function SpaceHUD({ renderer, onQuit }: SpaceHUDProps) {
       {techSt && Object.values(VOID_POWERS).some((p) => techSt.researchedNodes.has(p.techNodeId)) && (
         <VoidPowerBar state={state} techSt={techSt} onCast={(id, x, y) => renderer.engine.castVoidPower(1 as any, id, x, y)} />
       )}
+
+      {/* ── Hack Overlay (cyber terminal when hacking) ── */}
+      {state.activeHacks.length > 0 && <HackOverlay activeHacks={state.activeHacks} />}
 
       {/* ── Floating panels ──────────────────── */}
       {techOpen && (
