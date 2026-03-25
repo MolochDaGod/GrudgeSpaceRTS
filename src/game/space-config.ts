@@ -508,6 +508,7 @@ export const PLANET_LEVEL_SUPPLY_BONUS = [0, 5, 10, 15, 25];
 // ── Spark System ───────────────────────────────────────────
 import type { SparkShipNode, FactionShipTree, FactionCommander, CommanderArchetype } from './space-types';
 
+/** Spark gains — campaign uses base values, quick game multiplies by QUICK_SPARK_MULT for faster unlocks. */
 export const SPARK_GAINS = {
   planetCapture: 10,
   shipKill: 1,
@@ -521,6 +522,16 @@ export const SPARK_GAINS = {
   campaignEventMin: 2,
   campaignEventMax: 15,
 };
+/**
+ * Quick game Spark multiplier — fast games need faster unlocks.
+ * Campaign = 1.0x (base), Quick = 3.0x so players unlock ships in 5-10 min not 30+.
+ */
+export const QUICK_SPARK_MULT = 3.0;
+/** Quick game starts with bonus Spark so players can immediately unlock 1-2 ships. */
+export const QUICK_START_SPARK = 15;
+/** Campaign starting planet level (L1), quick game starting planet = L2 for faster progression. */
+export const CAMPAIGN_START_PLANET_LEVEL = 1;
+export const QUICK_START_PLANET_LEVEL = 2;
 
 /** Ships each faction starts with (buildable without any Spark). */
 export const FACTION_STARTER_SHIPS: Record<SpaceFaction, string[]> = {

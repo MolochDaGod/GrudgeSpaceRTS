@@ -71,6 +71,7 @@ import {
   CHUNK_BASE_YIELD,
   CHUNK_ORBIT_RANGE,
 } from './space-types';
+import { QUICK_SPARK_MULT, QUICK_START_SPARK, CAMPAIGN_START_PLANET_LEVEL, QUICK_START_PLANET_LEVEL } from './space-config';
 import { generateSector } from './campaign-sector';
 import { logConquest, logStoryBeat, generateUuid } from './captains-log';
 import { startLogAutoFlush, stopLogAutoFlush } from './captains-log';
@@ -301,24 +302,39 @@ export class SpaceEngine {
       }
       const start = this.state.planets.find((p) => p.isStartingPlanet && p.owner === team);
       if (!start) continue;
+
+      // Set starting planet level: campaign L1 (slow build), quick L2 (faster start)
+      start.planetLevel = (isCampaign ? CAMPAIGN_START_PLANET_LEVEL : QUICK_START_PLANET_LEVEL) as 1 | 2 | 3 | 4 | 5;
+      start.planetXp = 0;
+
       const station = this.buildStation(start, team);
       const sign = team % 2 === 1 ? -1 : 1;
 
-      // Start: harvesters + your flagship. No free combat fleet.
-      // Flagship: custom_hero if player made one, otherwise pyramid_ship
-      if (team === 1) {
-        const heroType = this.hasCustomHero ? 'custom_hero' : 'pyramid_ship';
-        const hero = this.spawnShip(heroType, team, start.x + sign * 60, start.y + 50, station.id);
-        hero.selected = false;
-      } else {
-        // AI gets a pyramid_ship flagship too
-        this.spawnShip('pyramid_ship', team, start.x + sign * 60, start.y + 50, station.id);
+      // Spawn faction-appropriate starting ships (not hardcoded pyramid_ship)
+      const ss = this.state.sparkState.get(team);
+      const starters = ss ? (FACTION_STARTER_SHIPS[ss.faction] ?? ['red_fighter', 'mining_drone']) : ['red_fighter', 'mining_drone'];
+
+      // Spawn combat starters (first 2 entries in faction starter list)
+      for (let si = 0; si < Math.min(2, starters.length); si++) {
+        const shipType = starters[si];
+        if (getShipDef(shipType)) {
+          this.spawnShip(shipType, team, start.x + sign * (60 + si * 80), start.y + 50, station.id);
+        }
       }
-      // 3 workers with their home station assigned
+      // Spawn workers (last entry in faction starter list, or mining_drone)
+      const workerType = starters.length >= 3 ? starters[2] : 'mining_drone';
       for (let wi = 0; wi < 3; wi++) {
-        const wType = wi < 2 ? 'mining_drone' : 'energy_skimmer';
-        const w = this.spawnShip(wType, team, start.x + sign * (200 + wi * 60), start.y + 60 + wi * 40, station.id);
+        const w = this.spawnShip(workerType, team, start.x + sign * (200 + wi * 60), start.y + 60 + wi * 40, station.id);
         w.workerState = 'idle';
+      }
+
+      // Quick game: give starting Spark so players can unlock 1-2 ships immediately
+      if (!isCampaign) {
+        const res = this.state.resources[team];
+        if (res) {
+          res.spark += QUICK_START_SPARK;
+          res.sparkTotal += QUICK_START_SPARK;
+        }
       }
     }
     // Generate resource nodes after all planets and states are initialized
