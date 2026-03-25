@@ -401,7 +401,7 @@ export default function App() {
         setRenderer(r);
       });
     },
-    [authUser],
+    [authUser, campaignBuild, selectedFaction],
   );
 
   const backToMenu = useCallback(() => {
