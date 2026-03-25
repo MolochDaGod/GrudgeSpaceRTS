@@ -377,29 +377,35 @@ export default function App() {
       const r = new SpaceRenderer(containerRef.current, mode);
       rendererRef.current = r;
       r.playerCommanderSpec = spec;
-      // Set AI difficulty before engine init
-      if (difficulty != null) r.engine.aiDifficulty = difficulty;
-      // Campaign-specific: set faction + grudgeId + commander build on engine
+      // Set AI difficulty before engine init (stored on renderer, copied during init)
+      if (difficulty != null) r.aiDifficulty = difficulty;
+      // Campaign-specific: set faction + grudgeId + commander build on renderer
       if (mode === 'campaign' && campaignBuild) {
-        r.engine.campaignFaction = campaignBuild.faction;
-        r.engine.campaignGrudgeId = authUser?.grudgeId ?? 'guest';
-        r.engine.campaignCommanderName = campaignBuild.name;
-        r.engine.campaignPortrait = campaignBuild.portraitUrl;
+        r.campaignFaction = campaignBuild.faction;
+        r.campaignGrudgeId = authUser?.grudgeId ?? 'guest';
+        r.campaignCommanderName = campaignBuild.name;
+        r.campaignPortrait = campaignBuild.portraitUrl ?? null;
       } else if (mode === 'campaign') {
-        r.engine.campaignFaction = selectedFaction;
-        r.engine.campaignGrudgeId = authUser?.grudgeId ?? 'guest';
-        r.engine.campaignCommanderName = authUser?.displayName ?? 'Commander';
-        r.engine.campaignPortrait = authUser?.avatarUrl ?? null;
+        r.campaignFaction = selectedFaction as any;
+        r.campaignGrudgeId = authUser?.grudgeId ?? 'guest';
+        r.campaignCommanderName = authUser?.displayName ?? 'Commander';
+        r.campaignPortrait = authUser?.avatarUrl ?? null;
       }
       try {
         r.hasCustomHero = await hasHeroShip();
       } catch {
         /* no hero */
       }
-      r.init().then(() => {
-        setLoading(false);
-        setRenderer(r);
-      });
+      r.init()
+        .then(() => {
+          setLoading(false);
+          setRenderer(r);
+        })
+        .catch((err) => {
+          console.error('[GRUDA] Engine init failed:', err);
+          setLoading(false);
+          backToMenu();
+        });
     },
     [authUser, campaignBuild, selectedFaction],
   );

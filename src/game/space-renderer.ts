@@ -159,6 +159,13 @@ export class SpaceRenderer {
   public hasCustomHero = false;
   /** Commander spec chosen at the pre-game modal. */
   public playerCommanderSpec: import('./space-types').CommanderSpec | null = null;
+  /** AI difficulty (1-5). Set before init(). */
+  public aiDifficulty: number | null = null;
+  /** Campaign properties — set before init(). */
+  public campaignFaction: 'wisdom' | 'construct' | 'void' | 'legion' | null = null;
+  public campaignGrudgeId: string | null = null;
+  public campaignCommanderName: string | null = null;
+  public campaignPortrait: string | null = null;
 
   // Planet decoration assets (from provided props pack)
   private readonly ORBITAL_RING_MODELS = [
@@ -231,6 +238,11 @@ export class SpaceRenderer {
     this.engine = new SpaceEngine();
     this.engine.hasCustomHero = this.hasCustomHero;
     this.engine.playerCommanderSpec = this.playerCommanderSpec;
+    if (this.aiDifficulty != null) this.engine.aiDifficulty = this.aiDifficulty;
+    if (this.campaignFaction) this.engine.campaignFaction = this.campaignFaction;
+    if (this.campaignGrudgeId != null) this.engine.campaignGrudgeId = this.campaignGrudgeId;
+    if (this.campaignCommanderName != null) this.engine.campaignCommanderName = this.campaignCommanderName;
+    if (this.campaignPortrait != null) this.engine.campaignPortrait = this.campaignPortrait;
     this.engine.initGame(this.gameMode);
 
     this.controls = new SpaceControls(this.container, this.camera, this.engine.state, this.renderer);
