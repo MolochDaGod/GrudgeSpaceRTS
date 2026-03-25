@@ -523,6 +523,113 @@ export const ENEMY_PREFABS: Record<string, SpacePrefab> = {
   },
 };
 
+// ── Forge-Prefab Fleet (FBX/GLB — Sketchfab low-poly packs) ────────────
+const FP = '/assets/space/models/forge-prefabs';
+export const FORGE_SHIP_PREFABS: Record<string, SpacePrefab> = {
+  // Fighters (small, fast ships)
+  fp_fighter_01: {
+    modelPath: `${FP}/spaceship_1.fbx`,
+    format: 'fbx',
+    scale: 0.03,
+    offset: S(0, 0, 0),
+    enginePoints: [S(0, 0, -0.5)],
+    weaponPoints: [S(0, 0, 0.6)],
+  },
+  fp_fighter_02: {
+    modelPath: `${FP}/spaceship_2.fbx`,
+    format: 'fbx',
+    scale: 0.03,
+    offset: S(0, 0, 0),
+    enginePoints: [S(-0.3, 0, -0.5), S(0.3, 0, -0.5)],
+    weaponPoints: [S(0, 0, 0.7)],
+  },
+  fp_fighter_03: {
+    modelPath: `${FP}/spaceship_3.fbx`,
+    format: 'fbx',
+    scale: 0.03,
+    offset: S(0, 0, 0),
+    enginePoints: [S(0, 0, -0.6)],
+    weaponPoints: [S(-0.3, 0, 0.5), S(0.3, 0, 0.5)],
+  },
+  // Cruisers (medium, balanced)
+  fp_cruiser_01: {
+    modelPath: `${FP}/spaceship_4.fbx`,
+    format: 'fbx',
+    scale: 0.027,
+    offset: S(0, 0, 0),
+    enginePoints: [S(-0.5, 0, -1.2), S(0.5, 0, -1.2)],
+    weaponPoints: [S(-0.4, 0.2, 0.8), S(0.4, 0.2, 0.8)],
+  },
+  fp_cruiser_02: {
+    modelPath: `${FP}/spaceship_5.fbx`,
+    format: 'fbx',
+    scale: 0.027,
+    offset: S(0, 0, 0),
+    enginePoints: [S(-0.6, 0, -1.4), S(0, 0, -1.4), S(0.6, 0, -1.4)],
+    weaponPoints: [S(-0.5, 0.2, 1.0), S(0.5, 0.2, 1.0)],
+  },
+  // Frigates (light escort)
+  fp_frigate_01: {
+    modelPath: `${FP}/spaceship_6.fbx`,
+    format: 'fbx',
+    scale: 0.027,
+    offset: S(0, 0, 0),
+    enginePoints: [S(-0.4, 0, -0.8), S(0.4, 0, -0.8)],
+    weaponPoints: [S(0, 0.2, 0.9)],
+  },
+  fp_frigate_02: {
+    modelPath: `${FP}/spaceship_7.fbx`,
+    format: 'fbx',
+    scale: 0.027,
+    offset: S(0, 0, 0),
+    enginePoints: [S(-0.5, 0, -0.9), S(0.5, 0, -0.9)],
+    weaponPoints: [S(0, 0.2, 1.0)],
+  },
+  // Destroyers (heavy assault)
+  fp_destroyer_01: {
+    modelPath: `${FP}/spaceship_8.fbx`,
+    format: 'fbx',
+    scale: 0.027,
+    offset: S(0, 0, 0),
+    enginePoints: [S(-0.5, 0, -1.4), S(0.5, 0, -1.4)],
+    weaponPoints: [S(0, 0.2, 1.2)],
+  },
+  fp_destroyer_02: {
+    modelPath: `${FP}/spaceship_9.fbx`,
+    format: 'fbx',
+    scale: 0.027,
+    offset: S(0, 0, 0),
+    enginePoints: [S(-0.5, 0, -1.4), S(0, 0, -1.4), S(0.5, 0, -1.4)],
+    weaponPoints: [S(-0.4, 0.2, 1.0), S(0.4, 0.2, 1.0)],
+  },
+  // Capital (battleship class)
+  fp_capital_01: {
+    modelPath: `${FP}/spaceship_10.fbx`,
+    format: 'fbx',
+    scale: 0.024,
+    offset: S(0, 0, 0),
+    enginePoints: [S(-0.8, 0, -2.0), S(0, 0, -2.0), S(0.8, 0, -2.0)],
+    weaponPoints: [S(-0.6, 0.3, 1.2), S(0, 0.4, 1.5), S(0.6, 0.3, 1.2)],
+  },
+  // Heavy ships (GLB)
+  fp_heavy_dark: {
+    modelPath: `${FP}/heavy_ship_black.glb`,
+    format: 'glb',
+    scale: 0.024,
+    offset: S(0, 0, 0),
+    enginePoints: [S(-0.6, 0, -1.5), S(0.6, 0, -1.5)],
+    weaponPoints: [S(-0.5, 0.2, 1.0), S(0.5, 0.2, 1.0)],
+  },
+  fp_heavy_light: {
+    modelPath: `${FP}/heavy_ship_white.glb`,
+    format: 'glb',
+    scale: 0.024,
+    offset: S(0, 0, 0),
+    enginePoints: [S(-0.6, 0, -1.5), S(0, 0, -1.5), S(0.6, 0, -1.5)],
+    weaponPoints: [S(-0.5, 0.2, 1.0), S(0.5, 0.2, 1.0)],
+  },
+};
+
 // ── Voxel Fleet (OBJ) ──────────────────────────────────────────
 export const VOXEL_FLEET_PREFABS: Record<string, SpacePrefab> = {};
 for (let i = 1; i <= 6; i++) {
@@ -775,6 +882,7 @@ export function getShipPrefab(shipType: string): SpacePrefab | null {
     SHIP_PREFABS[shipType] ??
     CAPITAL_PREFABS[shipType] ??
     BATTLE_SHIP_PREFABS[shipType] ??
+    FORGE_SHIP_PREFABS[shipType] ??
     ENEMY_PREFABS[shipType] ??
     VOXEL_FLEET_PREFABS[shipType] ??
     null

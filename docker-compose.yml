@@ -20,7 +20,7 @@ services:
       start_period: 10s
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.gruda-armada.rule=Host(`grudge-rts.grudge-studio.com`)"
+      - "traefik.http.routers.gruda-armada.rule=Host(`starrts.grudge-studio.com`)"
       - "traefik.http.routers.gruda-armada.entrypoints=https"
       - "traefik.http.routers.gruda-armada.tls.certresolver=letsencrypt"
       - "traefik.http.services.gruda-armada.loadbalancer.server.port=80"

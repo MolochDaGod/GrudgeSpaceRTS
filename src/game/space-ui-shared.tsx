@@ -143,6 +143,13 @@ export const ABILITY_IMG: Record<string, string> = {
   repair: `${SK}/7.png`, // hand holding gear — repair
   ram: `${SK}/8.png`, // golden energy blade — ram charge
   launch_fighters: `${SK}/1.png`, // dual pistols firing — launch fighters
+  // Hacking abilities — use remaining skill art + cyber GUI icons
+  hack_weapons: `${SK}/11.png`, // cyber skull — disable weapons
+  hack_shields: `${SK}/12.png`, // digital brain — drop shields
+  hack_siphon: `${SK}/9.png`, // implant circuit — siphon resources
+  hack_sensors: `${SK}/11.png`, // cyber skull variant — blind sensors
+  hack_sabotage: `${SK}/12.png`, // digital brain variant — sabotage systems
+  hack_hijack: `${SK}/9.png`, // implant circuit variant — hijack control
 };
 // Fallback for ability art (skill-icon packs — same quality, different style)
 export const ABILITY_IMG_FALLBACK: Record<string, string> = {

@@ -20,7 +20,6 @@ import type {
   SpaceFaction,
 } from './space-types';
 import { TEAM_COLORS } from './space-types';
-
 // ── Team Color Palette ────────────────────────────────────────────
 export const TEAM_COLOR_PALETTE: TeamColorOption[] = [
   { label: 'Blue', hex: 0x4488ff },
@@ -34,9 +33,7 @@ export const TEAM_COLOR_PALETTE: TeamColorOption[] = [
   { label: 'Cyan', hex: 0x44ddff },
   { label: 'Crimson', hex: 0xcc2244 },
 ];
-
 const DEFAULT_ENEMY_COLORS = [1, 2, 3]; // Red, Orange, Purple — for teams 2,3,4
-
 export function applyColorPreferences(prefs: TeamColorPrefs): void {
   const pal = TEAM_COLOR_PALETTE;
   TEAM_COLORS[1] = pal[prefs.playerColorIdx]?.hex ?? 0x4488ff;
@@ -61,7 +58,6 @@ export function applyColorPreferences(prefs: TeamColorPrefs): void {
   }
   TEAM_COLORS[0] = 0x44ff44;
 }
-
 // ── Planet Type Data ──────────────────────────────────────────────
 export const PLANET_TYPE_DATA: Record<PlanetType, PlanetTypeData> = {
   volcanic: {
@@ -135,7 +131,6 @@ export const PLANET_TYPE_DATA: Record<PlanetType, PlanetTypeData> = {
     baseColor: 0x6622aa,
   },
 };
-
 // ── VFX Scale Values ──────────────────────────────────────────────
 export const EXPLOSION_SCALE_VALUES: Record<ExplosionScale, number> = {
   tiny: 0.3,
@@ -145,7 +140,6 @@ export const EXPLOSION_SCALE_VALUES: Record<ExplosionScale, number> = {
   huge: 4.0,
   epic: 8.0,
 };
-
 // ── Upgrade Costs & Bonuses ───────────────────────────────────────
 export const UPGRADE_COSTS: { credits: number; minerals: number; energy: number }[] = [
   { credits: 200, minerals: 100, energy: 50 },
@@ -154,7 +148,6 @@ export const UPGRADE_COSTS: { credits: number; minerals: number; energy: number 
   { credits: 1100, minerals: 550, energy: 275 },
   { credits: 1600, minerals: 800, energy: 400 },
 ];
-
 export const UPGRADE_BONUSES: Record<UpgradeType, number[]> = {
   attack: [0, 0.1, 0.22, 0.36, 0.52, 0.7],
   armor: [0, 1, 2, 4, 6, 9],
@@ -162,13 +155,11 @@ export const UPGRADE_BONUSES: Record<UpgradeType, number[]> = {
   health: [0, 0.1, 0.22, 0.36, 0.52, 0.7],
   shield: [0, 0.1, 0.22, 0.36, 0.52, 0.7],
 };
-
 // ── Game Constants ────────────────────────────────────────────────
 export const CAPTURE_TIME = 100;
 export const CAPTURE_RATE_PER_UNIT = 5;
 export const NEUTRAL_DEFENDERS = 3;
 export const DOMINATION_TIME = 60;
-
 // ── Map Constants ─────────────────────────────────────────────────
 export function getMapSize(mode: GameMode): { width: number; height: number; depth: number } {
   switch (mode) {
@@ -185,7 +176,6 @@ export function getMapSize(mode: GameMode): { width: number; height: number; dep
 export const MAP_WIDTH = 24000;
 export const MAP_HEIGHT = 24000;
 export const MAP_DEPTH = 800;
-
 // ── Campaign Constants ────────────────────────────────────────────
 /** All dt values are multiplied by this in campaign mode (10x slower gameplay). */
 export const CAMPAIGN_TIME_SCALE = 0.1;
@@ -197,7 +187,6 @@ export const CAMPAIGN_HOMEWORLD_INVINCIBLE = true;
 export const CAMPAIGN_START_RESOURCES = { credits: 1000, energy: 400, minerals: 600 };
 /** Domination not used in campaign — conquest is the only win condition. */
 export const CAMPAIGN_NEUTRAL_DEFENDERS = 5;
-
 export const CAMPAIGN_LORE_INTRO = [
   'They said the sky was burning.',
   'They were right.',
@@ -228,7 +217,6 @@ export const CAMPAIGN_LORE_INTRO = [
   'Choose your faction. Take this galaxy.',
   'Then face the universe.',
 ];
-
 /** Story beats triggered at conquest milestones. */
 export const CAMPAIGN_STORY_BEATS: { atPercent: number; id: string; title: string; text: string }[] = [
   {
@@ -292,7 +280,6 @@ export const CAMPAIGN_STORY_BEATS: { atPercent: number; id: string; title: strin
     text: 'Every star in this sector answers to your command. But beyond the edge... the universe stirs. The wars are just beginning.',
   },
 ];
-
 /** Tutorial tooltip hints — shown progressively based on game state. */
 export const CAMPAIGN_TOOLTIPS: { id: string; condition: string; text: string; position: 'top' | 'bottom' | 'left' | 'right' }[] = [
   {
@@ -350,7 +337,6 @@ export const CAMPAIGN_TOOLTIPS: { id: string; condition: string; text: string; p
     position: 'top',
   },
 ];
-
 /** Base building model paths — KayKit Space Base + playerbase assets. */
 const SB = '/assets/space/models/space-base/KayKit_Space_Base_Bits_1.0_FREE/Assets/gltf';
 const PB = '/assets/space/models/playerbase/playerbase';
@@ -388,11 +374,9 @@ export const BASE_BUILDING_MODELS: Record<string, { path: string; format: 'gltf'
   pb_solar_panel: { path: `${PB}/SolarPanel_4.fbx`, format: 'fbx', label: 'Colony Solar Panel' },
   pb_building_block: { path: `${PB}/BuildingBlock_2.fbx`, format: 'fbx', label: 'Building Block' },
 };
-
 // ── Homeworld Chunk System ───────────────────────────────────
 // Homeworld forever spawns minable chunks into orbit.
 // What you build on the surface influences what those chunks yield.
-
 /** Seconds between homeworld chunk spawns (game-time, already 10x scaled). */
 export const CHUNK_SPAWN_INTERVAL = 45;
 /** Max chunks orbiting homeworld at once. */
@@ -403,7 +387,6 @@ export const CHUNK_BASE_YIELD = { credits: 15, energy: 10, minerals: 20 };
 export const CHUNK_RESPAWN_COOLDOWN = 30;
 /** Orbit radius range for chunks (game units from planet center). */
 export const CHUNK_ORBIT_RANGE = { min: 400, max: 800 };
-
 /**
  * How each building type on the homeworld surface influences chunk yields.
  * Multiplier applied to the base yield category. Stacks with building level.
@@ -427,7 +410,6 @@ export const BUILDING_CHUNK_INFLUENCE: Partial<
   research_lab: { creditsMult: 1.0, energyMult: 1.6, mineralsMult: 1.0, factionResourceChance: 0.15 },
   faction_forge: { creditsMult: 1.0, energyMult: 1.0, mineralsMult: 1.0, factionResourceChance: 0.6 },
 };
-
 /** Maps each PlanetBuildingType to the 3D model used at each level (1-3). */
 export const BUILDING_TO_MODEL: Record<string, { level1: string; level2: string; level3: string }> = {
   station: { level1: 'basemodule_a', level2: 'basemodule_c', level3: 'basemodule_e' },
@@ -437,7 +419,6 @@ export const BUILDING_TO_MODEL: Record<string, { level1: string; level2: string;
   research_lab: { level1: 'pb_satellite_dish', level2: 'windturbine_tall', level3: 'roof_solarpanels' },
   faction_forge: { level1: 'pb_building_block', level2: 'cargodepot_b', level3: 'spacetruck_large' },
 };
-
 // ── Space Factions ────────────────────────────────────────────
 export interface FactionData {
   label: string;
@@ -447,7 +428,6 @@ export interface FactionData {
   bonuses: { attack: number; defense: number; speed: number; economy: number };
   perks: string[]; // unlocked at faction levels 2, 4, 6, 8, 10
 }
-
 export const FACTION_DATA: Record<SpaceFaction, FactionData> = {
   wisdom: {
     label: 'Wisdom',
@@ -482,32 +462,24 @@ export const FACTION_DATA: Record<SpaceFaction, FactionData> = {
     perks: ['mass_production', 'veteran_crew', 'war_cry', 'orbital_strike', 'armada'],
   },
 };
-
 export const FACTION_LABELS: Record<SpaceFaction, string> = {
   wisdom: 'Wisdom',
   construct: 'Construct',
   void: 'Void',
   legion: 'Legion',
 };
-
 /** XP required to reach each faction level (cumulative). */
 export const FACTION_LEVEL_XP = [0, 100, 300, 600, 1000, 1500, 2200, 3000, 4000, 5500, 7500];
-
 /** Planet XP thresholds for each level (1→5). */
 export const PLANET_LEVEL_XP = [0, 200, 500, 1000, 2000];
-
 /** Resource yield multiplier per planet level. */
 export const PLANET_LEVEL_YIELD_MULT = [1.0, 1.25, 1.5, 1.8, 2.2];
-
 /** Max turret slots per planet level. */
 export const PLANET_LEVEL_TURRET_SLOTS = [2, 3, 4, 5, 6];
-
 /** Supply bonus per planet level. */
 export const PLANET_LEVEL_SUPPLY_BONUS = [0, 5, 10, 15, 25];
-
 // ── Spark System ───────────────────────────────────────────
 import type { SparkShipNode, FactionShipTree, FactionCommander, CommanderArchetype } from './space-types';
-
 /** Spark gains — campaign uses base values, quick game multiplies by QUICK_SPARK_MULT for faster unlocks. */
 export const SPARK_GAINS = {
   planetCapture: 10,
@@ -532,7 +504,6 @@ export const QUICK_START_SPARK = 15;
 /** Campaign starting planet level (L1), quick game starting planet = L2 for faster progression. */
 export const CAMPAIGN_START_PLANET_LEVEL = 1;
 export const QUICK_START_PLANET_LEVEL = 2;
-
 /** Ships each faction starts with (buildable without any Spark). */
 export const FACTION_STARTER_SHIPS: Record<SpaceFaction, string[]> = {
   wisdom: ['micro_recon', 'galactix_racer', 'energy_skimmer'],
@@ -540,7 +511,6 @@ export const FACTION_STARTER_SHIPS: Record<SpaceFaction, string[]> = {
   void: ['cf_corvette_05', 'camo_stellar_jet', 'energy_skimmer'],
   legion: ['red_fighter', 'cf_corvette_01', 'mining_drone'],
 };
-
 /** 12 faction commanders — 3 per faction (caster / tank / strategist). All bonuses under 7%. */
 export const FACTION_COMMANDERS: FactionCommander[] = [
   // Wisdom
@@ -683,12 +653,10 @@ export const FACTION_COMMANDERS: FactionCommander[] = [
     lore: 'Efficiency is the ultimate weapon of war.',
   },
 ];
-
 /** Get commanders for a specific faction. */
 export function getFactionCommanders(faction: SpaceFaction): FactionCommander[] {
   return FACTION_COMMANDERS.filter((c) => c.faction === faction);
 }
-
 // ── Faction Ship Trees ─────────────────────────────────────
 export const FACTION_SHIP_TREES: Record<SpaceFaction, FactionShipTree> = {
   wisdom: {
@@ -795,11 +763,9 @@ export const FACTION_SHIP_TREES: Record<SpaceFaction, FactionShipTree> = {
     ],
   },
 };
-
 /** Battleship is shared across all factions — unlocks at 60 total Spark earned. */
 export const SHARED_SHIP_UNLOCK_THRESHOLD = 60;
 export const SHARED_SHIPS = ['battleship'];
-
 /**
  * Cross-faction Spark cost multiplier.
  * Your own faction tree = 1.0x (base cost).
@@ -808,14 +774,12 @@ export const SHARED_SHIPS = ['battleship'];
  * not impossible but not free either.
  */
 export const CROSS_FACTION_SPARK_MULT = 1.5;
-
 /** Calculate the effective Spark cost for a node, considering faction alignment. */
 export function getEffectiveSparkCost(node: SparkShipNode, nodeFaction: SpaceFaction, playerFaction: SpaceFaction): number {
   const base = node.sparkCost;
   if (nodeFaction === playerFaction) return base;
   return Math.ceil(base * CROSS_FACTION_SPARK_MULT);
 }
-
 /** Check if a node's prerequisites are all unlocked. */
 export function canUnlockNode(nodeId: string, faction: SpaceFaction, unlockedNodes: Set<string>): boolean {
   const tree = FACTION_SHIP_TREES[faction];
@@ -825,7 +789,6 @@ export function canUnlockNode(nodeId: string, faction: SpaceFaction, unlockedNod
   if (unlockedNodes.has(nodeId)) return false; // already unlocked
   return node.requires.every((reqId) => unlockedNodes.has(reqId));
 }
-
 /** Get all nodes a player can currently unlock (prereqs met, not yet unlocked). */
 export function getAvailableNodes(
   playerFaction: SpaceFaction,
@@ -842,7 +805,6 @@ export function getAvailableNodes(
   }
   return available;
 }
-
 /** Get starting unlocked node IDs for a commander (their faction starters + commander bonus node). */
 export function getStartingUnlocks(commanderId: string): Set<string> {
   const cmd = FACTION_COMMANDERS.find((c) => c.id === commanderId);
@@ -863,7 +825,6 @@ export function getStartingUnlocks(commanderId: string): Set<string> {
   }
   return nodes;
 }
-
 /**
  * Planet-granted ship unlocks.
  * Capturing a planet of a specific type instantly unlocks these ships
@@ -885,7 +846,6 @@ export const PLANET_SHIP_UNLOCKS: Record<PlanetType, { ships: string[]; reason: 
   metallic: { ships: ['cf_light_cruiser_04', 'cf_destroyer_04'], reason: 'Dense alloy cores enable ultra-heavy armor plating' },
   dark_matter: { ships: ['cf_light_cruiser_03', 'cf_frigate_04'], reason: 'Dark matter reactors power void-phase stealth systems' },
 };
-
 /** Get all ships unlocked by currently owned planets. */
 export function getPlanetUnlockedShips(ownedPlanetTypes: PlanetType[]): Set<string> {
   const ships = new Set<string>();
@@ -897,7 +857,6 @@ export function getPlanetUnlockedShips(ownedPlanetTypes: PlanetType[]): Set<stri
   }
   return ships;
 }
-
 /**
  * Planet level → max ship tier that planet can build.
  * L1 = T1 only, L2 = T1-T2, L3 = T1-T3, L4 = T1-T4, L5 = T1-T5 (hero ships).
@@ -905,13 +864,11 @@ export function getPlanetUnlockedShips(ownedPlanetTypes: PlanetType[]): Set<stri
  * Each planet level-up is a meaningful milestone that unlocks the next tier.
  */
 export const PLANET_LEVEL_MAX_TIER: Record<number, number> = { 1: 1, 2: 2, 3: 3, 4: 4, 5: 5 };
-
 /** Check if a specific planet can build a specific ship based on its level. */
 export function canPlanetBuildTier(planetLevel: number | undefined, shipTier: number): boolean {
   const maxTier = PLANET_LEVEL_MAX_TIER[planetLevel ?? 1] ?? 1;
   return shipTier <= maxTier;
 }
-
 /**
  * Commanders per homeworld level.
  * You earn 1 commander slot per planet level of your homeworld.
@@ -922,7 +879,6 @@ export const COMMANDERS_PER_HOMEWORLD_LEVEL: Record<number, number> = { 1: 1, 2:
 export const COMMANDER_FLEET_SIZE = 12; // max ships per commander fleet
 export const COMMANDER_RESPAWN_TIME = 60; // game-seconds to respawn at homeworld
 export const COMMANDER_RESPAWN_COST = { credits: 500, energy: 200, minerals: 300 };
-
 /** All hero ship keys (T5, require L5 planet). */
 export const ALL_HERO_SHIP_KEYS: string[] = [
   'custom_hero',
@@ -938,7 +894,6 @@ export const ALL_HERO_SHIP_KEYS: string[] = [
   'boss_ship_01',
   'boss_ship_02',
 ];
-
 /** Check if a ship type is buildable for a team. Sources checked in order:
  * 1. Faction starter ships (always, regardless of planet level)
  * 2. Planet-granted unlocks (own a planet of the right type)
@@ -974,7 +929,6 @@ export function isShipBuildable(
   if (SHARED_SHIPS.includes(shipType) && sparkTotal >= SHARED_SHIP_UNLOCK_THRESHOLD) return true;
   return false;
 }
-
 // ── Tech Bonuses Default ────────────────────────────────────────
 export function defaultTechBonuses(): TeamTechBonuses {
   return {
@@ -989,7 +943,6 @@ export function defaultTechBonuses(): TeamTechBonuses {
     cooldownReduction: 0,
   };
 }
-
 // ── Ship Definitions ──────────────────────────────────────────────
 export const SHIP_DEFINITIONS: Record<string, { class: ShipClass; stats: ShipStats; displayName: string }> = {
   micro_recon: {
@@ -1947,7 +1900,276 @@ export const SHIP_DEFINITIONS: Record<string, { class: ShipClass; stats: ShipSta
       ],
     },
   },
-  // ── Pirate Ships ───────────────────────────────────────────────
+  // ── Forge-Prefab Fleet (Sketchfab low-poly packs) ────────────────
+  fp_fighter_01: {
+    class: 'fighter',
+    displayName: 'Viper',
+    stats: {
+      maxHp: 55,
+      maxShield: 18,
+      shieldRegen: 1,
+      armor: 1,
+      speed: 80,
+      turnRate: 3.8,
+      attackDamage: 11,
+      attackRange: 140,
+      attackCooldown: 0.9,
+      attackType: 'laser',
+      supplyCost: 2,
+      buildTime: 7,
+      creditCost: 90,
+      energyCost: 18,
+      mineralCost: 45,
+      tier: 1,
+    },
+  },
+  fp_fighter_02: {
+    class: 'heavy_fighter',
+    displayName: 'Hornet',
+    stats: {
+      maxHp: 75,
+      maxShield: 28,
+      shieldRegen: 1.5,
+      armor: 2,
+      speed: 65,
+      turnRate: 3.0,
+      attackDamage: 18,
+      attackRange: 155,
+      attackCooldown: 1.1,
+      attackType: 'pulse',
+      supplyCost: 3,
+      buildTime: 11,
+      creditCost: 140,
+      energyCost: 28,
+      mineralCost: 70,
+      tier: 2,
+    },
+  },
+  fp_fighter_03: {
+    class: 'fighter',
+    displayName: 'Talon',
+    stats: {
+      maxHp: 65,
+      maxShield: 22,
+      shieldRegen: 1.2,
+      armor: 1,
+      speed: 75,
+      turnRate: 3.5,
+      attackDamage: 14,
+      attackRange: 145,
+      attackCooldown: 0.85,
+      attackType: 'laser',
+      supplyCost: 2,
+      buildTime: 9,
+      creditCost: 115,
+      energyCost: 22,
+      mineralCost: 55,
+      tier: 2,
+    },
+  },
+  fp_cruiser_01: {
+    class: 'cruiser',
+    displayName: 'Warden',
+    stats: {
+      maxHp: 360,
+      maxShield: 130,
+      shieldRegen: 3.5,
+      armor: 7,
+      speed: 30,
+      turnRate: 1.3,
+      attackDamage: 32,
+      attackRange: 260,
+      attackCooldown: 1.6,
+      attackType: 'missile',
+      supplyCost: 7,
+      buildTime: 38,
+      creditCost: 650,
+      energyCost: 140,
+      mineralCost: 280,
+      tier: 3,
+    },
+  },
+  fp_cruiser_02: {
+    class: 'cruiser',
+    displayName: 'Sentinel',
+    stats: {
+      maxHp: 420,
+      maxShield: 160,
+      shieldRegen: 4.2,
+      armor: 9,
+      speed: 26,
+      turnRate: 1.1,
+      attackDamage: 38,
+      attackRange: 290,
+      attackCooldown: 1.7,
+      attackType: 'missile',
+      supplyCost: 9,
+      buildTime: 44,
+      creditCost: 780,
+      energyCost: 170,
+      mineralCost: 340,
+      tier: 4,
+    },
+  },
+  fp_frigate_01: {
+    class: 'frigate',
+    displayName: 'Corsair',
+    stats: {
+      maxHp: 130,
+      maxShield: 55,
+      shieldRegen: 2.5,
+      armor: 4,
+      speed: 50,
+      turnRate: 2.2,
+      attackDamage: 22,
+      attackRange: 190,
+      attackCooldown: 1.3,
+      attackType: 'pulse',
+      supplyCost: 4,
+      buildTime: 18,
+      creditCost: 240,
+      energyCost: 55,
+      mineralCost: 110,
+      tier: 2,
+    },
+  },
+  fp_frigate_02: {
+    class: 'frigate',
+    displayName: 'Buccaneer',
+    stats: {
+      maxHp: 155,
+      maxShield: 65,
+      shieldRegen: 2.8,
+      armor: 5,
+      speed: 46,
+      turnRate: 2.0,
+      attackDamage: 26,
+      attackRange: 200,
+      attackCooldown: 1.4,
+      attackType: 'pulse',
+      supplyCost: 5,
+      buildTime: 22,
+      creditCost: 300,
+      energyCost: 65,
+      mineralCost: 135,
+      tier: 3,
+    },
+  },
+  fp_destroyer_01: {
+    class: 'destroyer',
+    displayName: 'Havoc',
+    stats: {
+      maxHp: 280,
+      maxShield: 115,
+      shieldRegen: 3.3,
+      armor: 7,
+      speed: 37,
+      turnRate: 1.5,
+      attackDamage: 54,
+      attackRange: 265,
+      attackCooldown: 2.1,
+      attackType: 'railgun',
+      supplyCost: 6,
+      buildTime: 33,
+      creditCost: 540,
+      energyCost: 115,
+      mineralCost: 220,
+      tier: 4,
+    },
+  },
+  fp_destroyer_02: {
+    class: 'destroyer',
+    displayName: 'Reaver',
+    stats: {
+      maxHp: 305,
+      maxShield: 125,
+      shieldRegen: 3.6,
+      armor: 8,
+      speed: 35,
+      turnRate: 1.4,
+      attackDamage: 60,
+      attackRange: 275,
+      attackCooldown: 2.2,
+      attackType: 'railgun',
+      supplyCost: 7,
+      buildTime: 36,
+      creditCost: 580,
+      energyCost: 125,
+      mineralCost: 240,
+      tier: 4,
+    },
+  },
+  fp_capital_01: {
+    class: 'battleship',
+    displayName: 'Leviathan',
+    stats: {
+      maxHp: 850,
+      maxShield: 320,
+      shieldRegen: 5.5,
+      armor: 13,
+      speed: 17,
+      turnRate: 0.7,
+      attackDamage: 65,
+      attackRange: 360,
+      attackCooldown: 2.0,
+      attackType: 'railgun',
+      supplyCost: 13,
+      buildTime: 65,
+      creditCost: 1300,
+      energyCost: 270,
+      mineralCost: 540,
+      tier: 5,
+      abilities: [
+        { id: 'iron_dome', name: 'Bastion Shield', key: 'Q', cooldown: 45, energyCost: 90, type: 'iron_dome', duration: 10, radius: 160 },
+      ],
+    },
+  },
+  fp_heavy_dark: {
+    class: 'cruiser',
+    displayName: 'Obsidian',
+    stats: {
+      maxHp: 380,
+      maxShield: 140,
+      shieldRegen: 3.8,
+      armor: 8,
+      speed: 28,
+      turnRate: 1.2,
+      attackDamage: 34,
+      attackRange: 270,
+      attackCooldown: 1.5,
+      attackType: 'missile',
+      supplyCost: 8,
+      buildTime: 40,
+      creditCost: 680,
+      energyCost: 150,
+      mineralCost: 300,
+      tier: 3,
+      abilities: [{ id: 'cloak', name: 'Shadow Cloak', key: 'Q', cooldown: 30, energyCost: 50, type: 'cloak', duration: 8 }],
+    },
+  },
+  fp_heavy_light: {
+    class: 'light_cruiser',
+    displayName: 'Aurora',
+    stats: {
+      maxHp: 220,
+      maxShield: 90,
+      shieldRegen: 3.0,
+      armor: 5,
+      speed: 40,
+      turnRate: 1.8,
+      attackDamage: 28,
+      attackRange: 230,
+      attackCooldown: 1.4,
+      attackType: 'pulse',
+      supplyCost: 5,
+      buildTime: 26,
+      creditCost: 380,
+      energyCost: 85,
+      mineralCost: 170,
+      tier: 2,
+    },
+  },
+  // ── Pirate Ships ───────────────────────────────────────────────────
   pirate_01: {
     class: 'corvette',
     displayName: 'Pirate Raider',
@@ -2216,7 +2438,6 @@ export const SHIP_DEFINITIONS: Record<string, { class: ShipClass; stats: ShipSta
     },
   },
 };
-
 // ── Hero Definitions ──────────────────────────────────────────────
 export const HERO_DEFINITIONS: Record<string, { class: ShipClass; stats: ShipStats; displayName: string; lore: string }> = {
   vanguard_prime: {
@@ -2388,10 +2609,9 @@ export const HERO_DEFINITIONS: Record<string, { class: ShipClass; stats: ShipSta
     },
   },
 };
-
 // ── Buildable Ships & Heroes ──────────────────────────────────────
 export const BUILDABLE_SHIPS: Record<number, string[]> = {
-  1: ['mining_drone', 'energy_skimmer', 'micro_recon', 'red_fighter', 'galactix_racer', 'cf_corvette_01'],
+  1: ['mining_drone', 'energy_skimmer', 'micro_recon', 'red_fighter', 'galactix_racer', 'cf_corvette_01', 'fp_fighter_01'],
   2: [
     'dual_striker',
     'camo_stellar_jet',
@@ -2402,8 +2622,23 @@ export const BUILDABLE_SHIPS: Record<number, string[]> = {
     'cf_corvette_02',
     'cf_corvette_03',
     'cf_frigate_01',
+    'fp_fighter_02',
+    'fp_fighter_03',
+    'fp_frigate_01',
+    'fp_heavy_light',
   ],
-  3: ['ultraviolet_intruder', 'warship', 'star_marine_trooper', 'pyramid_ship', 'cf_frigate_02', 'cf_frigate_04', 'cf_frigate_05'],
+  3: [
+    'ultraviolet_intruder',
+    'warship',
+    'star_marine_trooper',
+    'pyramid_ship',
+    'cf_frigate_02',
+    'cf_frigate_04',
+    'cf_frigate_05',
+    'fp_frigate_02',
+    'fp_cruiser_01',
+    'fp_heavy_dark',
+  ],
   4: [
     'destroyer',
     'cruiser',
@@ -2413,16 +2648,16 @@ export const BUILDABLE_SHIPS: Record<number, string[]> = {
     'cf_destroyer_04',
     'cf_light_cruiser_03',
     'cf_light_cruiser_05',
+    'fp_cruiser_02',
+    'fp_destroyer_01',
+    'fp_destroyer_02',
   ],
-  5: ['battleship', 'custom_hero'],
+  5: ['battleship', 'custom_hero', 'fp_capital_01'],
 };
-
 export const HERO_SHIPS: string[] = ['custom_hero', 'vanguard_prime', 'shadow_reaper', 'iron_bastion', 'storm_herald', 'plague_mother'];
-
 export function getShipDef(key: string): { class: ShipClass; stats: ShipStats; displayName: string } | null {
   return SHIP_DEFINITIONS[key] ?? HERO_DEFINITIONS[key] ?? FACTION_HERO_DEFINITIONS[key] ?? null;
 }
-
 // ── Commander Constants ───────────────────────────────────────────
 export const COMMANDER_NAMES = [
   'Vex Mara',
@@ -2446,7 +2681,6 @@ export const COMMANDER_TRAIN_COST = [
   { credits: 1100, energy: 440, minerals: 550 },
   { credits: 1600, energy: 640, minerals: 800 },
 ];
-
 export const COMMANDER_SPEC_PLANET: Record<CommanderSpec, PlanetType> = {
   forge: 'volcanic',
   tide: 'oceanic',
@@ -2461,7 +2695,6 @@ export const COMMANDER_SPEC_LABEL: Record<CommanderSpec, string> = {
   vortex: 'Vortex',
   void: 'Void',
 };
-
 // ── Ship Roles ────────────────────────────────────────────────────
 export const SHIP_ROLE_LABELS: Record<ShipRoleType, string> = {
   repair: 'Repair',
@@ -2505,10 +2738,8 @@ export const SHIP_ROLES: Partial<Record<string, ShipRoleType>> = {
   hero_void_wraith: 'star_splitter',
   hero_legion_warlord: 'juggernaut',
 };
-
 // ── Faction Resources ─────────────────────────────────────────
 import type { FactionResource, PlanetBuildingType } from './space-types';
-
 export interface FactionResourceData {
   key: FactionResource;
   label: string;
@@ -2519,7 +2750,6 @@ export interface FactionResourceData {
   minPlanetLevel: 3 | 4 | 5;
   baseRate: number; // per game-minute at L3
 }
-
 export const FACTION_RESOURCE_DATA: Record<FactionResource, FactionResourceData> = {
   aetheric_ore: {
     key: 'aetheric_ore',
@@ -2562,7 +2792,6 @@ export const FACTION_RESOURCE_DATA: Record<FactionResource, FactionResourceData>
     baseRate: 2,
   },
 };
-
 /** Maps faction → its unique resource. */
 export const FACTION_TO_RESOURCE: Record<SpaceFaction, FactionResource> = {
   wisdom: 'aetheric_ore',
@@ -2570,7 +2799,6 @@ export const FACTION_TO_RESOURCE: Record<SpaceFaction, FactionResource> = {
   void: 'void_crystal',
   legion: 'legion_core',
 };
-
 // ── Faction Hero Ship Definitions ─────────────────────────────
 export const FACTION_HERO_DEFINITIONS: Record<
   string,
@@ -2698,7 +2926,6 @@ export const FACTION_HERO_DEFINITIONS: Record<
     },
   },
 };
-
 // ── Planet Building Definitions ───────────────────────────────
 export interface PlanetBuildingDef {
   type: PlanetBuildingType;
@@ -2711,7 +2938,6 @@ export interface PlanetBuildingDef {
   maxPerPlanet: number; // how many can exist on one planet
   factionLocked?: SpaceFaction; // only this faction can build it
 }
-
 export const PLANET_BUILDING_DEFS: Record<PlanetBuildingType, PlanetBuildingDef> = {
   station: {
     type: 'station',

@@ -391,6 +391,16 @@ export class SpaceEngine {
       }
     }
 
+    // Auto-populate starting commander fleet with all team-1 combat ships
+    for (const [, cmd] of this.state.commanders) {
+      if (cmd.team !== 1 || cmd.isDead) continue;
+      for (const [, ship] of this.state.ships) {
+        if (ship.dead || ship.team !== 1 || ship.shipClass === 'worker') continue;
+        if (cmd.fleetShipIds.length >= cmd.maxFleetSize) break;
+        if (!cmd.fleetShipIds.includes(ship.id)) cmd.fleetShipIds.push(ship.id);
+      }
+    }
+
     // AI autocast
     for (const [, ship] of this.state.ships) {
       if (ship.team !== 1) for (const ab of ship.abilities) ab.autoCast = true;
@@ -1670,6 +1680,16 @@ export class SpaceEngine {
           // Equip idle commander to hero/dreadnought ships
           if (ship.shipClass === 'dreadnought' || HERO_SHIPS.includes(item.shipType)) {
             this.equipCommanderToShip(ship);
+          }
+          // Auto-add new ship to first non-full commander fleet
+          if (ship.shipClass !== 'worker') {
+            for (const [, cmd] of this.state.commanders) {
+              if (cmd.team !== ship.team || cmd.isDead) continue;
+              if (cmd.fleetShipIds.length < cmd.maxFleetSize && !cmd.fleetShipIds.includes(ship.id)) {
+                cmd.fleetShipIds.push(ship.id);
+                break;
+              }
+            }
           }
           const shipDef = getShipDef(item.shipType);
           this.state.alerts.push({

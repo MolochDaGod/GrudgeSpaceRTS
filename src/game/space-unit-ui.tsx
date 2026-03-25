@@ -264,91 +264,297 @@ function SingleUnitInfo({ ship, def }: { ship: SpaceShip; def: { class: string; 
 
 // ── Multi Unit Info — clickable cards (LMB = isolate that ship) ──────────
 
-function MultiUnitInfo({ ships, onIsolate }: { ships: SpaceShip[]; onIsolate: (shipId: number) => void }) {
-  const groups = new Map<string, SpaceShip[]>();
+function MultiUnitInfo({
+  ships,
+  onIsolate,
+  focusedGroupIdx,
+  renderer,
+}: {
+  ships: SpaceShip[];
+  onIsolate: (shipId: number) => void;
+  focusedGroupIdx: number;
+  renderer?: any;
+}) {
+  const groups: [string, SpaceShip[]][] = [];
+  const seen = new Map<string, number>();
   for (const s of ships) {
-    if (!groups.has(s.shipType)) groups.set(s.shipType, []);
-    groups.get(s.shipType)!.push(s);
+    if (!seen.has(s.shipType)) {
+      seen.set(s.shipType, groups.length);
+      groups.push([s.shipType, []]);
+    }
+    groups[seen.get(s.shipType)!][1].push(s);
   }
 
+  const focusIdx = groups.length > 0 ? focusedGroupIdx % groups.length : 0;
+  const [focusType, focusGroup] = groups[focusIdx] ?? [null, []];
+  const focusDef = focusType ? getShipDef(focusType) : null;
+  const focusShip = focusGroup[0] ?? null;
+  const focusPreview = focusType ? SHIP_PREVIEW[focusType] : null;
+
   return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-      <div style={{ fontSize: 10, fontWeight: 600, marginBottom: 5, color: 'rgba(160,200,255,0.55)' }}>
-        {ships.length} UNITS · <span style={{ fontSize: 9, opacity: 0.6 }}>Click to select one type</span>
-      </div>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, overflowY: 'auto' }}>
-        {Array.from(groups.entries()).map(([type, group]) => {
+    <div style={{ height: '100%', display: 'flex', gap: 6 }}>
+      {/* ── LEFT: Group type cards (WC3 wireframe grid) ─── */}
+      <div style={{ width: 90, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 2, overflowY: 'auto' }}>
+        <div style={{ fontSize: 8, color: 'rgba(160,200,255,0.4)', letterSpacing: 1, marginBottom: 2 }}>{ships.length} UNITS · TAB</div>
+        {groups.map(([type, group], gi) => {
           const def = getShipDef(type);
           const preview = SHIP_PREVIEW[type];
           const role = SHIP_ROLES[type];
           const avgHp = group.reduce((sum, s) => sum + s.hp / s.maxHp, 0) / group.length;
           const hpCol = avgHp > 0.5 ? '#44cc44' : avgHp > 0.25 ? '#ccaa00' : '#cc4444';
-          const maxRank = Math.max(...group.map((s) => s.rank ?? 0));
+          const isFocused = gi === focusIdx;
           const tierCol = def ? (TIER_COLORS[def.stats.tier] ?? '#4488ff') : '#4488ff';
-          const abbr = def ? (CLASS_ABBR[def.class] ?? '') : '';
           return (
             <div
               key={type}
               onClick={() => onIsolate(group[0].id)}
-              title={`${def?.displayName ?? type} ×${group.length} — Click to select`}
               style={{
-                width: 72,
-                flexShrink: 0,
-                border: `1px solid ${role ? SHIP_ROLE_COLORS[role] + '66' : '#1a3050'}`,
-                borderLeft: `3px solid ${tierCol}`,
-                borderRadius: 5,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 4,
+                padding: '3px 4px',
+                borderRadius: 4,
                 cursor: 'pointer',
-                background: 'rgba(8,16,34,0.85)',
-                position: 'relative',
-                overflow: 'hidden',
-                transition: 'border-color 0.15s, background 0.15s',
-              }}
-              onMouseEnter={(e) => {
-                (e.currentTarget as HTMLDivElement).style.borderColor = '#4488ff';
-              }}
-              onMouseLeave={(e) => {
-                (e.currentTarget as HTMLDivElement).style.borderColor = role ? SHIP_ROLE_COLORS[role] + '66' : '#1a3050';
+                border: isFocused ? `1px solid ${tierCol}` : '1px solid transparent',
+                background: isFocused ? 'rgba(68,136,255,0.12)' : 'transparent',
               }}
             >
-              {/* Ship image */}
               <div
                 style={{
-                  height: 52,
+                  width: 28,
+                  height: 28,
+                  flexShrink: 0,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  background: 'rgba(2,6,18,0.8)',
+                  background: 'rgba(2,6,18,0.7)',
+                  borderRadius: 3,
                   overflow: 'hidden',
                 }}
               >
                 {preview ? (
                   <img
                     src={preview}
-                    alt={type}
-                    style={{ width: '100%', height: '100%', objectFit: 'contain', imageRendering: 'auto' }}
+                    alt=""
+                    style={{ width: '100%', height: '100%', objectFit: 'contain' }}
                     onError={(e) => {
                       (e.target as HTMLImageElement).style.display = 'none';
                     }}
                   />
                 ) : (
-                  <div style={{ fontSize: 22, opacity: 0.15 }}>🚀</div>
+                  <div style={{ fontSize: 12, opacity: 0.2 }}>🚀</div>
                 )}
               </div>
-              {/* Count + rank + class */}
-              <div style={{ padding: '3px 4px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: 11, fontWeight: 700, color: '#fff' }}>x{group.length}</span>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-                  {maxRank > 0 && <span style={{ fontSize: 8, color: '#ffcc00' }}>★{maxRank}</span>}
-                  {abbr && <span style={{ fontSize: 7, color: tierCol, fontWeight: 700, letterSpacing: 0.3 }}>{abbr}</span>}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div
+                  style={{
+                    fontSize: 9,
+                    fontWeight: 700,
+                    color: isFocused ? '#fff' : '#8ac',
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                  }}
+                >
+                  x{group.length} {def?.displayName?.slice(0, 8) ?? type.slice(0, 8)}
                 </div>
-              </div>
-              {/* HP bar */}
-              <div style={{ height: 4, background: '#0a1020' }}>
-                <div style={{ height: '100%', width: `${avgHp * 100}%`, background: hpCol, borderRadius: 1 }} />
+                <div style={{ height: 3, background: '#0a1020', borderRadius: 1, marginTop: 1 }}>
+                  <div style={{ height: '100%', width: `${avgHp * 100}%`, background: hpCol, borderRadius: 1 }} />
+                </div>
               </div>
             </div>
           );
         })}
+      </div>
+
+      {/* ── CENTER: Focused type info (portrait + stats) ─── */}
+      <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+        {focusShip && focusDef ? (
+          <>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 4 }}>
+              <div
+                style={{
+                  width: 48,
+                  height: 48,
+                  flexShrink: 0,
+                  borderRadius: 4,
+                  overflow: 'hidden',
+                  background: 'rgba(2,6,18,0.8)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                {focusPreview ? (
+                  <img
+                    src={focusPreview}
+                    alt=""
+                    style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).style.display = 'none';
+                    }}
+                  />
+                ) : (
+                  <div style={{ fontSize: 22, opacity: 0.2 }}>🚀</div>
+                )}
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div
+                  style={{
+                    fontSize: 12,
+                    fontWeight: 800,
+                    color: '#fff',
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                  }}
+                >
+                  {focusDef.displayName} <span style={{ fontSize: 9, color: '#8ac', fontWeight: 400 }}>×{focusGroup.length}</span>
+                </div>
+                <div style={{ fontSize: 8, color: 'rgba(160,200,255,0.5)' }}>
+                  {focusDef.class.replace(/_/g, ' ')} · T{focusDef.stats.tier}
+                </div>
+                {/* Aggregate HP bar */}
+                <div style={{ height: 5, background: '#0a1020', borderRadius: 2, marginTop: 3 }}>
+                  {(() => {
+                    const avg = focusGroup.reduce((s, sh) => s + sh.hp / sh.maxHp, 0) / focusGroup.length;
+                    return (
+                      <div
+                        style={{
+                          height: '100%',
+                          width: `${avg * 100}%`,
+                          background: avg > 0.5 ? '#44ee44' : avg > 0.25 ? '#eebb00' : '#ee4444',
+                          borderRadius: 2,
+                        }}
+                      />
+                    );
+                  })()}
+                </div>
+              </div>
+            </div>
+            {/* Stats row */}
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '3px 8px', fontSize: 9, color: 'rgba(160,200,255,0.6)' }}>
+              <span style={{ color: '#ff8844' }}>⚔ {focusShip.attackDamage}dmg</span>
+              <span>
+                {STAT_ICONS.armor} {focusShip.armor}ar
+              </span>
+              <span style={{ color: '#ffcc00' }}>
+                {STAT_ICONS.speed} {Math.round(focusShip.speed)}
+              </span>
+              <span>
+                {STAT_ICONS.range} {focusShip.attackRange}
+              </span>
+            </div>
+          </>
+        ) : (
+          <div style={{ fontSize: 10, color: '#446', textAlign: 'center', marginTop: 20 }}>No focused type</div>
+        )}
+      </div>
+
+      {/* ── RIGHT: Ability grid (WC3/SC2 3×3 command card) ─── */}
+      <div style={{ width: 140, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
+        <div style={{ fontSize: 8, color: 'rgba(160,200,255,0.4)', letterSpacing: 1, marginBottom: 2 }}>ABILITIES</div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 3 }}>
+          {focusShip && focusShip.abilities.length > 0 ? (
+            focusShip.abilities.map((ab, i) => {
+              const icon = ABILITY_IMG[ab.ability.type];
+              const cdPct = ab.ability.cooldown > 0 ? ab.cooldownRemaining / ab.ability.cooldown : 0;
+              const onCd = ab.cooldownRemaining > 0;
+              return (
+                <div
+                  key={ab.ability.id}
+                  onClick={() => {
+                    if (focusShip.abilities[i]) {
+                      const key = focusShip.abilities[i].ability.key;
+                      window.dispatchEvent(new KeyboardEvent('keydown', { key: key.toLowerCase() }));
+                    }
+                  }}
+                  title={`${ab.ability.name} (${ab.ability.key})\n${ab.ability.type}`}
+                  style={{
+                    width: 40,
+                    height: 40,
+                    borderRadius: 4,
+                    cursor: 'pointer',
+                    position: 'relative',
+                    overflow: 'hidden',
+                    border: ab.active ? '2px solid #44ff88' : '1px solid #1a3050',
+                    background: 'rgba(6,14,30,0.9)',
+                    opacity: onCd && !ab.active ? 0.5 : 1,
+                    transition: 'border-color 0.15s',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.borderColor = '#4488ff';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.borderColor = ab.active ? '#44ff88' : '#1a3050';
+                  }}
+                >
+                  {icon ? (
+                    <img
+                      src={icon}
+                      alt={ab.ability.name}
+                      style={{
+                        width: '100%',
+                        height: '100%',
+                        objectFit: 'cover',
+                        filter: onCd ? 'grayscale(0.7) brightness(0.5)' : 'none',
+                      }}
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).style.display = 'none';
+                      }}
+                    />
+                  ) : (
+                    <div
+                      style={{
+                        width: '100%',
+                        height: '100%',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: 14,
+                        color: '#446',
+                      }}
+                    >
+                      ?
+                    </div>
+                  )}
+                  {/* Cooldown sweep */}
+                  {onCd && (
+                    <div
+                      style={{
+                        position: 'absolute',
+                        inset: 0,
+                        background: `conic-gradient(rgba(0,0,0,0.6) ${cdPct * 360}deg, transparent ${cdPct * 360}deg)`,
+                        pointerEvents: 'none',
+                      }}
+                    />
+                  )}
+                  {/* Key label */}
+                  <div
+                    style={{
+                      position: 'absolute',
+                      bottom: 1,
+                      right: 2,
+                      fontSize: 7,
+                      fontWeight: 700,
+                      color: '#44ffaa',
+                      textShadow: '0 0 3px #000',
+                    }}
+                  >
+                    {ab.ability.key}
+                  </div>
+                  {onCd && (
+                    <div style={{ position: 'absolute', top: 1, left: 2, fontSize: 8, fontWeight: 700, color: '#f88' }}>
+                      {Math.ceil(ab.cooldownRemaining)}s
+                    </div>
+                  )}
+                </div>
+              );
+            })
+          ) : (
+            <div style={{ gridColumn: 'span 3', fontSize: 9, color: '#333', textAlign: 'center', marginTop: 8 }}>No abilities</div>
+          )}
+        </div>
       </div>
     </div>
   );
