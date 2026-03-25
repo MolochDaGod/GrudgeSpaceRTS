@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { SpaceGameState, SpriteEffect } from './space-types';
 import { EXPLOSION_SPRITES, SHOOTING_SPRITES, HIT_SPRITES, BOMB_SPRITES } from './space-prefabs';
+import { SKILL_SPRITES, type SkillSpriteDef } from './space-skill-vfx';
 
 const WORLD_SCALE = 0.05;
 
@@ -115,6 +116,11 @@ export class SpaceEffectsRenderer {
   }
 
   private getSpriteDef(type: string) {
+    // Check skill sprites first (faction abilities, status effects, warp portals)
+    const skillDef = SKILL_SPRITES[type];
+    if (skillDef) {
+      return { path: skillDef.path, frames: skillDef.frames, cols: skillDef.cols, rows: skillDef.rows };
+    }
     return EXPLOSION_SPRITES[type] ?? SHOOTING_SPRITES[type] ?? HIT_SPRITES[type] ?? BOMB_SPRITES[type] ?? null;
   }
 
