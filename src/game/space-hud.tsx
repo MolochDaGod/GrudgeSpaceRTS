@@ -32,6 +32,9 @@ import { PlanetCard } from './planet-card';
 import { PlanetSurfaceView } from './planet-surface';
 import { ShipDetailPanel } from './ship-detail-panel';
 import { HackOverlay } from './hack-overlay';
+import { FleetBar, CommandCard as SciFiCommandCard, BuildQueueBar } from './scifi-hud-bars';
+import { JournalPanel, InventoryPanel } from './scifi-panels';
+import { MenuButtonBar } from './scifi-menu-buttons';
 
 interface SpaceHUDProps {
   renderer: SpaceRenderer | null;
@@ -47,6 +50,7 @@ export function SpaceHUD({ renderer, onQuit }: SpaceHUDProps) {
   const [logOpen, setLogOpen] = useState(false);
   const [planetCardOpen, setPlanetCardOpen] = useState(false);
   const [surfaceOpen, setSurfaceOpen] = useState(false);
+  const [inventoryOpen, setInventoryOpen] = useState(false);
   const [selectedPlanetId, setSelectedPlanetId] = useState<number | null>(null);
   const [selectedCmdId, setSelectedCmdId] = useState<number | null>(null);
   const [planetCardIdx, setPlanetCardIdx] = useState(0);
@@ -90,6 +94,7 @@ export function SpaceHUD({ renderer, onQuit }: SpaceHUDProps) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key.toLowerCase() === 'l') setLogOpen((o) => !o);
+      if (e.key.toLowerCase() === 'i') setInventoryOpen((o) => !o);
       if (e.key === 'F1') {
         e.preventDefault();
         setPlanetCardOpen((o) => !o);
@@ -98,6 +103,7 @@ export function SpaceHUD({ renderer, onQuit }: SpaceHUDProps) {
         setLogOpen(false);
         setPlanetCardOpen(false);
         setSurfaceOpen(false);
+        setInventoryOpen(false);
       }
     };
     window.addEventListener('keydown', onKey);
@@ -490,6 +496,38 @@ export function SpaceHUD({ renderer, onQuit }: SpaceHUDProps) {
 
       {/* ── Hack Overlay (cyber terminal when hacking) ── */}
       {state.activeHacks.length > 0 && <HackOverlay activeHacks={state.activeHacks} />}
+
+      {/* ── Build Queue Bar (below resource header) ── */}
+      <div style={{ position: 'absolute', top: 38, left: '50%', transform: 'translateX(-50%)', zIndex: 12, pointerEvents: 'auto' }}>
+        <BuildQueueBar state={state} />
+      </div>
+
+      {/* ── Inventory Panel (I key) ── */}
+      {inventoryOpen && (
+        <InventoryPanel
+          state={state}
+          onClose={() => setInventoryOpen(false)}
+          onSelectShip={(id) => {
+            setInventoryOpen(false);
+            state.selectedIds.clear();
+            state.selectedIds.add(id);
+            const s = state.ships.get(id);
+            if (s) s.selected = true;
+          }}
+          onSelectPlanet={(id) => {
+            setInventoryOpen(false);
+            setSelectedPlanetId(id);
+            const idx = state.planets.findIndex((p) => p.id === id);
+            if (idx >= 0) {
+              setPlanetCardIdx(idx);
+              setPlanetCardOpen(true);
+            }
+          }}
+        />
+      )}
+
+      {/* ── Captain's Journal (L key) — new sci-fi panel ── */}
+      {logOpen && <JournalPanel state={state} onClose={() => setLogOpen(false)} />}
 
       {/* ── Floating panels ──────────────────── */}
       {techOpen && (
@@ -946,32 +984,86 @@ export function SpaceHUD({ renderer, onQuit }: SpaceHUDProps) {
           </div>
         </div>
 
-        {/* ── Region 3: Command Card / Build Panel / Planet Info ── */}
+        {/* ── Region 3: Sci-Fi Command Card + Fleet Bar ── */}
         <div
           style={{
             flex: 1,
             minWidth: 200,
             position: 'relative',
             zIndex: 1,
-            padding: '8px 12px',
+            padding: '4px 8px',
             overflowY: 'auto',
             display: 'flex',
             flexDirection: 'column',
+            gap: 2,
           }}
         >
-          {selectedStation ? (
+          {/* Fleet Bar — commander + 12 ships */}
+          <FleetBar state={state} />
+
+          {/* Command Card — sci-fi bar with 4 commands + 4 skills + stop */}
+          {primary ? (
+            <SciFiCommandCard
+              ship={primary}
+              onCommand={(cmd) => {
+                if (cmd === 'attack') {
+                  /* toggle attack mode */
+                } else if (cmd === 'move') {
+                  /* set move cursor */
+                } else if (cmd === 'patrol') {
+                  /* set patrol mode */
+                } else if (cmd === 'hold') {
+                  for (const id of state.selectedIds) {
+                    const s = state.ships.get(id);
+                    if (s) s.holdPosition = !s.holdPosition;
+                  }
+                } else if (cmd === 'stop') {
+                  for (const id of state.selectedIds) {
+                    const s = state.ships.get(id);
+                    if (s) {
+                      s.moveTarget = null;
+                      s.targetId = null;
+                      s.holdPosition = false;
+                    }
+                  }
+                } else if (cmd.startsWith('ability_')) {
+                  // Simulate the ability hotkey press so the engine handles it
+                  const idx = parseInt(cmd.split('_')[1]);
+                  if (!isNaN(idx) && primary.abilities[idx]) {
+                    const key = primary.abilities[idx].ability.key;
+                    window.dispatchEvent(new KeyboardEvent('keydown', { key: key.toLowerCase() }));
+                  }
+                }
+              }}
+            />
+          ) : selectedStation ? (
             <BuildPanel station={selectedStation} renderer={renderer} res={res} />
-          ) : primary ? (
-            <CommandCard ship={primary} renderer={renderer} allSelected={selectedShips} />
           ) : selectedPlanet ? (
             <PlanetInfoPanel planet={selectedPlanet} state={state} renderer={renderer} />
           ) : upg ? (
             <UpgradePanel upg={upg} res={res} renderer={renderer} />
           ) : (
-            <div style={{ opacity: 0.12, fontSize: 10, color: '#8ab', textAlign: 'center', marginTop: 60 }}>
+            <div style={{ opacity: 0.12, fontSize: 10, color: '#8ab', textAlign: 'center', marginTop: 40 }}>
               Select a unit, station, or planet
             </div>
           )}
+        </div>
+
+        {/* ── Region 4: Menu Button Bar (right strip) ── */}
+        <div style={{ flexShrink: 0, zIndex: 1, display: 'flex', alignItems: 'flex-start', paddingTop: 4 }}>
+          <MenuButtonBar
+            onAction={(id) => {
+              if (id === 'tech') setTechOpen((o) => !o);
+              else if (id === 'commander') setCmdOpen((o) => !o);
+              else if (id === 'log') setLogOpen((o) => !o);
+              else if (id === 'inventory') setInventoryOpen((o) => !o);
+              else if (id === 'starmap') {
+                /* M key handled externally */
+              } else if (id === 'save') {
+                console.log('[menu] Manual save');
+              }
+            }}
+          />
         </div>
       </div>
     </div>
