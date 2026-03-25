@@ -55,7 +55,22 @@ import { ALL_TECH_TREES, VOID_POWERS, PLANET_TYPE_TO_TECH, TURRET_DEFS, XP_THRES
 import { createAIBrain, updateAIBrain, type AIBrain } from './space-ai';
 import { gameAudio } from './space-audio';
 import { getMuzzleWorldPosition } from './space-rig';
-import { CAMPAIGN_TIME_SCALE, CAMPAIGN_START_RESOURCES, CAMPAIGN_STORY_BEATS } from './space-types';
+import {
+  CAMPAIGN_TIME_SCALE,
+  CAMPAIGN_START_RESOURCES,
+  CAMPAIGN_STORY_BEATS,
+  FACTION_STARTER_SHIPS,
+  SPARK_GAINS,
+  isShipBuildable,
+  canPlanetBuildTier,
+  getStartingUnlocks,
+  PLANET_LEVEL_XP,
+  PLANET_LEVEL_YIELD_MULT,
+  CHUNK_SPAWN_INTERVAL,
+  CHUNK_MAX_ORBITING,
+  CHUNK_BASE_YIELD,
+  CHUNK_ORBIT_RANGE,
+} from './space-types';
 import { generateSector } from './campaign-sector';
 import { logConquest, logStoryBeat, generateUuid } from './captains-log';
 import { startLogAutoFlush, stopLogAutoFlush } from './captains-log';
@@ -125,6 +140,8 @@ export class SpaceEngine {
   private resourceTimer = 0;
   private winCheckTimer = 0;
   private campaignEventTimer = 0;
+  private sparkPassiveTimer = 0;
+  private chunkSpawnTimer = 0;
   private aiBrains = new Map<number, AIBrain>();
   mapW = 16000;
   mapH = 16000;
@@ -234,6 +251,17 @@ export class SpaceEngine {
       campaignEvents: [],
       sparkState: new Map(),
     };
+
+    // Initialize sparkState for all teams with faction starter unlocks
+    for (const t of activePlayers) {
+      const faction = t === 1 ? this.campaignFaction : (['wisdom', 'construct', 'void', 'legion'] as const)[(t - 2) % 4];
+      // For player team, use commander starting unlocks if available
+      const startNodes =
+        t === 1 && this.playerCommanderSpec
+          ? new Set<string>() // will be populated after commander creation
+          : new Set<string>();
+      this.state.sparkState.set(t, { unlockedNodes: startNodes, faction, commanderId: '' });
+    }
 
     // ── Campaign sector generation ─────────────────────────────
     if (isCampaign) {
@@ -816,17 +844,32 @@ export class SpaceEngine {
     const station = this.state.stations.get(stationId);
     if (!station || station.dead) return false;
     if (station.buildQueue.length >= station.maxBuildSlots) return false;
-    // Hero ships only from starting planet stations
-    const isHero = HERO_SHIPS.includes(shipType);
-    const isDreadnought = getShipDef(shipType)?.class === 'dreadnought';
-    if (isHero && !station.canBuildHeroes) return false;
-    // Dreadnought/Hero ships require an idle commander
-    if (isDreadnought) {
-      const hasCommander = [...this.state.commanders.values()].some((c) => c.team === station.team && c.state === 'idle');
-      if (!hasCommander) return false;
-    }
+
     const def = getShipDef(shipType);
     if (!def) return false;
+
+    // Planet level gates ship tier
+    const planet = this.state.planets.find((p) => p.stationId === station.id);
+    if (planet && !canPlanetBuildTier(planet.planetLevel, def.stats.tier)) return false;
+
+    // Spark tree + faction + planet unlock check (skip for AI teams — they use old system)
+    if (station.team === 1) {
+      const ss = this.state.sparkState.get(1);
+      if (ss) {
+        const ownedTypes = this.state.planets.filter((p) => p.owner === 1).map((p) => p.planetType);
+        if (!isShipBuildable(shipType, ss.faction, ss.unlockedNodes, this.state.resources[1]?.sparkTotal ?? 0, ownedTypes)) {
+          return false;
+        }
+      }
+    }
+
+    // Dreadnought/Hero ships require an idle commander
+    const isDreadnought = def.class === 'dreadnought';
+    if (isDreadnought) {
+      const hasCommander = [...this.state.commanders.values()].some((c) => c.team === station.team && c.state === 'idle' && !c.isDead);
+      if (!hasCommander) return false;
+    }
+
     const res = this.state.resources[station.team];
     if (!res) return false;
     if (res.credits < def.stats.creditCost || res.energy < def.stats.energyCost || res.minerals < def.stats.mineralCost) return false;
@@ -834,6 +877,11 @@ export class SpaceEngine {
     res.energy -= def.stats.energyCost;
     res.minerals -= def.stats.mineralCost;
     station.buildQueue.push({ shipType, buildTimeRemaining: def.stats.buildTime, totalBuildTime: def.stats.buildTime });
+
+    // Grant planet XP for building ships
+    if (planet) {
+      planet.planetXp = (planet.planetXp ?? 0) + def.stats.tier * 5;
+    }
     return true;
   }
 
@@ -845,7 +893,6 @@ export class SpaceEngine {
     const cost = UPGRADE_COSTS[cur];
     const res = this.state.resources[team];
     if (!res) return false;
-    // 20% discount if starting planet type matches this upgrade's tech focus
     const startPlanet = this.state.planets.find((p) => p.isStartingPlanet && p.owner === team);
     const discount = startPlanet && PLANET_TYPE_DATA[startPlanet.planetType].upgradeDiscount === type ? 0.8 : 1.0;
     const cc = Math.ceil(cost.credits * discount);
@@ -856,6 +903,8 @@ export class SpaceEngine {
     res.minerals -= mc;
     res.energy -= ec;
     upg[type] = cur + 1;
+    // Grant Spark for purchasing upgrades
+    this.grantSpark(team, SPARK_GAINS.globalUpgrade);
     return true;
   }
 
@@ -974,6 +1023,22 @@ export class SpaceEngine {
     this.updatePOIs(_dt);
     this.updateAdvancedAI(_dt);
     this.updateWinCondition(_dt);
+    // Passive Spark timer (+1 per 60 game-seconds)
+    this.sparkPassiveTimer += _dt;
+    if (this.sparkPassiveTimer >= 60) {
+      this.sparkPassiveTimer = 0;
+      for (const team of this.state.activePlayers) {
+        this.grantSpark(team, SPARK_GAINS.passivePerMinute);
+      }
+    }
+    // Planet level-ups
+    this.checkPlanetLevelUps();
+    // Planet XP from holding (1 XP per planet per 10 game-seconds)
+    if (Math.floor(this.state.gameTime) % 10 === 0 && _dt > 0) {
+      for (const planet of this.state.planets) {
+        if (planet.owner !== 0) planet.planetXp = (planet.planetXp ?? 0) + 1;
+      }
+    }
     // Campaign event ticker (every ~30 game-seconds)
     if (this.state.gameMode === 'campaign') {
       this.campaignEventTimer += _dt;
@@ -1297,16 +1362,15 @@ export class SpaceEngine {
               this.spawnSpriteEffect(t.x + 20, t.y - 30, 0, 'bomb-high-2', sc * 0.6);
             }
           }
-          // Grant XP to killing ship
+          // Grant XP + Spark to killing ship's team
           const killer = this.state.ships.get(p.sourceId);
           if (killer && !killer.dead) {
-            const xpGain =
-              t.shipClass === 'battleship' || t.shipClass === 'dreadnought'
-                ? 60
-                : t.shipClass === 'destroyer' || t.shipClass === 'cruiser'
-                  ? 30
-                  : 15;
+            const isCapital = t.shipClass === 'battleship' || t.shipClass === 'dreadnought' || t.shipClass === 'cruiser';
+            const xpGain = isCapital ? 60 : t.shipClass === 'destroyer' || t.shipClass === 'light_cruiser' ? 30 : 15;
             this.grantXP(killer, xpGain);
+            // Spark on kill
+            const sparkGain = t.team === 0 ? SPARK_GAINS.neutralKill : isCapital ? SPARK_GAINS.capitalKill : SPARK_GAINS.shipKill;
+            this.grantSpark(killer.team, sparkGain);
           }
         }
       }
@@ -1356,12 +1420,15 @@ export class SpaceEngine {
       // Release or lose commander when ship dies
       for (const [, cmd] of this.state.commanders) {
         if (cmd.equippedShipId === ship.id) {
+          cmd.equippedShipId = null;
+          cmd.fleetShipIds = [];
           if (ship.shipClass === 'dreadnought') {
-            // Commander dies with the Dreadnought (permadeath)
-            this.state.commanders.delete(cmd.id);
+            // Commander dies — can respawn at homeworld after timer
+            cmd.isDead = true;
+            cmd.state = 'idle';
+            cmd.respawnTimer = 60; // COMMANDER_RESPAWN_TIME
           } else {
             cmd.state = 'idle';
-            cmd.equippedShipId = null;
           }
           break;
         }
@@ -1466,6 +1533,18 @@ export class SpaceEngine {
             planet.stationId = null;
           }
           this.buildStation(planet, sole);
+          // Grant Spark for planet capture
+          this.grantSpark(sole, SPARK_GAINS.planetCapture);
+          // Grant planet XP for capture
+          planet.planetXp = (planet.planetXp ?? 0) + 20;
+          // Log to Captain's Log (campaign)
+          if (sole === 1 && this.state.gameMode === 'campaign') {
+            logConquest(this.state, planet.name, planet.grudgeUuid);
+            // Track in campaign progress
+            if (this.state.campaignProgress && !this.state.campaignProgress.conqueredPlanetIds.includes(planet.id)) {
+              this.state.campaignProgress.conqueredPlanetIds.push(planet.id);
+            }
+          }
           this.state.alerts.push({
             id: this.state.nextId++,
             x: planet.x,
@@ -2115,7 +2194,41 @@ export class SpaceEngine {
     ship.baseSpeed = ship.speed; // keep baseSpeed in sync with permanent buffs
   }
 
-  // ── XP & Rank ──────────────────────────────────────────────────
+  // ── Spark ───────────────────────────────────────────────
+  grantSpark(team: Team, amount: number): void {
+    const res = this.state.resources[team];
+    if (!res) return;
+    res.spark += amount;
+    res.sparkTotal += amount;
+  }
+
+  // ── Planet Level ─────────────────────────────────────────
+  private checkPlanetLevelUps(): void {
+    for (const planet of this.state.planets) {
+      if (planet.owner === 0) continue;
+      const xp = planet.planetXp ?? 0;
+      const level = planet.planetLevel ?? 1;
+      if (level >= 5) continue;
+      const threshold = PLANET_LEVEL_XP[level] ?? 9999;
+      if (xp >= threshold) {
+        planet.planetLevel = (level + 1) as 1 | 2 | 3 | 4 | 5;
+        planet.planetXp = 0; // reset XP for next level
+        this.state.alerts.push({
+          id: this.state.nextId++,
+          x: planet.x,
+          y: planet.y,
+          z: 0,
+          type: 'build_complete',
+          time: this.state.gameTime,
+          message: `${planet.name} reached Level ${planet.planetLevel}!`,
+        });
+        // Grant Spark for planet level-up
+        this.grantSpark(planet.owner, 5);
+      }
+    }
+  }
+
+  // ── XP & Rank ────────────────────────────────────────────
   grantXP(ship: SpaceShip, amount: number) {
     if (ship.dead || ship.rank >= 5) return;
     ship.xp += amount;
@@ -2161,8 +2274,10 @@ export class SpaceEngine {
     }
   }
 
-  // ── Win ────────────────────────────────────────────────────
+  // ── Win ────────────────────────────────────────────────
   private updateWinCondition(dt: number) {
+    // Campaign is endless — no win/loss by elimination or domination
+    if (this.state.gameMode === 'campaign') return;
     this.winCheckTimer += dt;
     if (this.winCheckTimer < 2) return;
     this.winCheckTimer = 0;
