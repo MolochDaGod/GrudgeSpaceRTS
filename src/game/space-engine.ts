@@ -53,6 +53,8 @@ import {
 } from './space-types';
 import { ALL_TECH_TREES, VOID_POWERS, PLANET_TYPE_TO_TECH, TURRET_DEFS, XP_THRESHOLDS, RANK_STAT_BONUS } from './space-techtree';
 import { FACTION_ABILITIES, SKILL_SPRITES, STATUS_VFX, WARP_VFX, type FactionAbility, type StatusEffectType } from './space-skill-vfx';
+import { HACK_DEFINITIONS, getAdjustedChannelTime } from './space-hacking';
+import type { HackType, ActiveHack } from './space-types';
 import { createAIBrain, updateAIBrain, type AIBrain } from './space-ai';
 import { gameAudio } from './space-audio';
 import { getMuzzleWorldPosition } from './space-rig';
@@ -222,6 +224,7 @@ export class SpaceEngine {
       techState,
       voidCooldowns: voidCds,
       activeVoidEffects: [],
+      activeHacks: [],
       darkRifts: [],
       darkRiftTimer: 90 + Math.random() * 30, // first rift at 90-120s
       aiDifficulty: this.aiDifficulty,
@@ -1037,6 +1040,7 @@ export class SpaceEngine {
     this.updateVoidEffects(_dt);
     this.updateVoidCooldowns(_dt);
     this.updateFactionAbilityCooldowns(_dt);
+    this.updateHacks(_dt);
     this.updateDarkRifts(_dt);
     this.updatePOIs(_dt);
     this.updateAdvancedAI(_dt);
@@ -1256,11 +1260,204 @@ export class SpaceEngine {
       this.spawnSpriteEffect(ship.x, ship.y, 0, 'bomb-low-2', 1.5);
     } else if (ab.ability.type === 'repair') {
       this.spawnSpriteEffect(ship.x, ship.y, 0, 'bomb-tiny-3', 0.8);
+    } else if (ab.ability.type.startsWith('hack_')) {
+      // Hacking abilities — initiate channeled hack on current target
+      const tgt = ship.targetId ? this.state.ships.get(ship.targetId) : null;
+      if (tgt && !tgt.dead && tgt.team !== ship.team) {
+        this.initiateHack(ship, tgt, ab.ability.type as HackType);
+      } else {
+        // No valid target — refund energy, reset cooldown
+        res.energy += ab.ability.energyCost;
+        ab.cooldownRemaining = 0;
+        ab.active = false;
+      }
     }
     ship.animTimer = 0;
   }
 
-  // ── Projectiles ────────────────────────────────────────────────
+  // ── Hacking System ──────────────────────────────────────────────
+  initiateHack(hacker: SpaceShip, target: SpaceShip, hackType: HackType): boolean {
+    const def = HACK_DEFINITIONS[hackType];
+    if (!def) return false;
+
+    // Range check
+    const d = dist2d(hacker, target);
+    if (d > def.range) return false;
+
+    // Can't hack friendlies or self
+    if (target.team === hacker.team) return false;
+
+    // Only one hack per hacker at a time
+    if (this.state.activeHacks.some((h) => h.hackerShipId === hacker.id && !h.done)) return false;
+
+    // Adjusted channel time for target class
+    const channelTime = getAdjustedChannelTime(def.channelTime, target);
+
+    const hack: ActiveHack = {
+      id: this.state.nextId++,
+      hackType,
+      hackerShipId: hacker.id,
+      targetShipId: target.id,
+      team: hacker.team,
+      channelTime,
+      elapsed: 0,
+      done: false,
+      success: false,
+      interrupted: false,
+      effectDuration: def.effectDuration,
+      effectTimer: 0,
+    };
+
+    this.state.activeHacks.push(hack);
+
+    // VFX: boot sequence spark on hacker
+    this.spawnSpriteEffect(hacker.x, hacker.y, 0, 'spark', 1.0);
+    // Signal line between hacker and target
+    this.spawnSpriteEffect(target.x, target.y, 0, 'waveform', 1.0);
+
+    return true;
+  }
+
+  private updateHacks(dt: number) {
+    for (const hack of this.state.activeHacks) {
+      if (hack.done) continue;
+
+      const hacker = this.state.ships.get(hack.hackerShipId);
+      const target = this.state.ships.get(hack.targetShipId);
+      const def = HACK_DEFINITIONS[hack.hackType];
+
+      // Interrupt conditions: hacker dead, target dead, out of range, hacker moving
+      if (!hacker || hacker.dead || !target || target.dead) {
+        hack.interrupted = true;
+        hack.done = true;
+        continue;
+      }
+
+      const d = dist2d(hacker, target);
+      if (d > (def?.range ?? 800) * 1.2) {
+        // 20% grace range
+        hack.interrupted = true;
+        hack.done = true;
+        // VFX: interrupt spark
+        this.spawnSpriteEffect(hacker.x, hacker.y, 0, 'hits-3', 1.0);
+        continue;
+      }
+
+      // Channel progress
+      hack.elapsed += dt;
+
+      if (hack.elapsed >= hack.channelTime) {
+        // Hack complete — apply effect
+        hack.success = true;
+        hack.done = true;
+        hack.effectTimer = hack.effectDuration;
+        this.applyHackEffect(hack, hacker, target);
+        // VFX: success
+        this.spawnSpriteEffect(target.x, target.y, 0, 'crossed', 2.0);
+        this.spawnSpriteEffect(hacker.x, hacker.y, 0, 'spark', 1.5);
+      }
+    }
+
+    // Update active hack effects (debuffs ticking)
+    for (const hack of this.state.activeHacks) {
+      if (!hack.success || hack.effectTimer <= 0) continue;
+      hack.effectTimer -= dt;
+
+      const target = this.state.ships.get(hack.targetShipId);
+      if (!target || target.dead) {
+        hack.effectTimer = 0;
+        continue;
+      }
+
+      // Per-tick effects
+      switch (hack.hackType) {
+        case 'hack_weapons':
+          // Weapons disabled — reset attack timer each tick to prevent firing
+          target.attackTimer = target.attackCooldown;
+          break;
+        case 'hack_shields':
+          // Shield regen blocked, shields stay at 0
+          target.shield = 0;
+          break;
+        case 'hack_siphon': {
+          // Steal 5 credits + 3 energy per second
+          const hackerRes = this.state.resources[hack.team];
+          const targetRes = this.state.resources[target.team];
+          if (hackerRes && targetRes) {
+            const cSiphon = Math.min(5 * dt, targetRes.credits);
+            const eSiphon = Math.min(3 * dt, targetRes.energy);
+            targetRes.credits -= cSiphon;
+            targetRes.energy -= eSiphon;
+            hackerRes.credits += cSiphon;
+            hackerRes.energy += eSiphon;
+          }
+          break;
+        }
+        case 'hack_sensors':
+          // Target lock broken each tick
+          target.targetId = null;
+          break;
+        case 'hack_sabotage':
+          // Internal damage: 2 hp/sec
+          target.hp = Math.max(1, target.hp - 2 * dt);
+          target.damageLevel = 1 - target.hp / target.maxHp;
+          break;
+        case 'hack_hijack':
+          // Ship fights for hacker's team temporarily
+          if (target.team !== hack.team) {
+            (target as any)._originalTeam = target.team;
+            target.team = hack.team;
+            target.targetId = null; // clear old targets
+          }
+          break;
+      }
+
+      // Revert hijack when effect expires
+      if (hack.hackType === 'hack_hijack' && hack.effectTimer <= 0) {
+        const origTeam = (target as any)._originalTeam;
+        if (origTeam != null) {
+          target.team = origTeam;
+          delete (target as any)._originalTeam;
+          target.targetId = null;
+        }
+      }
+    }
+
+    // Cleanup completed hacks with expired effects
+    this.state.activeHacks = this.state.activeHacks.filter((h) => !(h.done && (h.interrupted || h.effectTimer <= 0)));
+  }
+
+  private applyHackEffect(hack: ActiveHack, hacker: SpaceShip, target: SpaceShip) {
+    switch (hack.hackType) {
+      case 'hack_shields':
+        // Instant shield drop
+        target.shield = 0;
+        break;
+      case 'hack_sensors':
+        // Break target lock immediately
+        target.targetId = null;
+        break;
+      case 'hack_hijack':
+        // Immediate team swap (reverted by updateHacks when timer expires)
+        (target as any)._originalTeam = target.team;
+        target.team = hack.team;
+        target.targetId = null;
+        break;
+    }
+    // Floating text
+    this.state.floatingTexts.push({
+      id: this.state.nextId++,
+      x: target.x,
+      y: target.y,
+      z: target.z + 30,
+      text: `HACKED: ${HACK_DEFINITIONS[hack.hackType]?.name ?? hack.hackType}`,
+      color: HACK_DEFINITIONS[hack.hackType]?.accentColor ?? '#ff4444',
+      age: 0,
+      maxAge: 2.5,
+    });
+  }
+
+  // ── Projectiles ──────────────────────────────────────────────────
   private fireProjectile(src: SpaceShip, tgt: SpaceShip) {
     const id = this.state.nextId++;
     const a = Math.atan2(tgt.y - src.y, tgt.x - src.x);

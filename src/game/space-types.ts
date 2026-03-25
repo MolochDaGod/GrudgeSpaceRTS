@@ -84,9 +84,29 @@ export interface ShipAbility {
   key: string; // Q, W, E, R
   cooldown: number;
   energyCost: number;
-  type: 'barrel_roll' | 'speed_boost' | 'cloak' | 'iron_dome' | 'warp' | 'emp' | 'boarding' | 'repair' | 'ram' | 'launch_fighters';
+  type:
+    | 'barrel_roll'
+    | 'speed_boost'
+    | 'cloak'
+    | 'iron_dome'
+    | 'warp'
+    | 'emp'
+    | 'boarding'
+    | 'repair'
+    | 'ram'
+    | 'launch_fighters'
+    | 'hack_weapons'
+    | 'hack_shields'
+    | 'hack_siphon'
+    | 'hack_sensors'
+    | 'hack_sabotage'
+    | 'hack_hijack';
   duration: number;
   radius?: number;
+  /** Hacking channel time in seconds (ability channels while hack completes) */
+  hackTime?: number;
+  /** Max range at which the hack can be initiated */
+  hackRange?: number;
 }
 
 // ── Game Entity Base ────────────────────────────────────────────
@@ -705,9 +725,28 @@ export interface FloatingText {
   maxAge: number; // total display time
 }
 
+// ── Hacking System ──────────────────────────────────────────────
+export type HackType = 'hack_weapons' | 'hack_shields' | 'hack_siphon' | 'hack_sensors' | 'hack_sabotage' | 'hack_hijack';
+
+export interface ActiveHack {
+  id: number;
+  hackType: HackType;
+  hackerShipId: number;
+  targetShipId: number;
+  team: Team;
+  channelTime: number; // total seconds to complete
+  elapsed: number; // seconds elapsed
+  done: boolean;
+  success: boolean; // set when elapsed >= channelTime
+  interrupted: boolean; // set if hacker moves/dies/target dies
+  effectDuration: number; // how long the debuff lasts after success
+  effectTimer: number; // countdown of active effect
+}
+
 export interface SpaceGameState {
   gameMode: GameMode;
   ships: Map<number, SpaceShip>;
+  activeHacks: ActiveHack[];
   stations: Map<number, SpaceStation>;
   planets: Planet[];
   resourceNodes: Map<number, ResourceNode>;
