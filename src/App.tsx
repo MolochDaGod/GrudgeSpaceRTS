@@ -346,6 +346,7 @@ export default function App() {
   const [playerColorIdx, setPlayerColorIdx] = useState(0); // Blue default
   const [enemyColorMode, setEnemyColorMode] = useState<EnemyColorMode>('unique');
   const [enemyColorIdx, setEnemyColorIdx] = useState(1); // Red default
+  const [aiDifficulty, setAiDifficulty] = useState(3); // 1=Passive, 3=Balanced, 5=Aggressive
 
   // M key opens Star Map while playing
   useEffect(() => {
@@ -360,7 +361,7 @@ export default function App() {
   }, [screen, renderer]);
 
   const launchWithSpec = useCallback(
-    async (mode: GameMode, spec: CommanderSpec, colorPrefs: TeamColorPrefs) => {
+    async (mode: GameMode, spec: CommanderSpec, colorPrefs: TeamColorPrefs, difficulty?: number) => {
       if (!containerRef.current) return;
       if (rendererRef.current) {
         rendererRef.current.dispose();
@@ -376,6 +377,8 @@ export default function App() {
       const r = new SpaceRenderer(containerRef.current, mode);
       rendererRef.current = r;
       r.playerCommanderSpec = spec;
+      // Set AI difficulty before engine init
+      if (difficulty != null) r.engine.aiDifficulty = difficulty;
       // Campaign-specific: set faction + grudgeId + commander build on engine
       if (mode === 'campaign' && campaignBuild) {
         r.engine.campaignFaction = campaignBuild.faction;
@@ -447,7 +450,9 @@ export default function App() {
           setEnemyColorMode={setEnemyColorMode}
           enemyColorIdx={enemyColorIdx}
           setEnemyColorIdx={setEnemyColorIdx}
-          onConfirm={() => launchWithSpec(gameMode, selectedSpec, { playerColorIdx, enemyColorMode, enemyColorIdx })}
+          aiDifficulty={aiDifficulty}
+          setAiDifficulty={setAiDifficulty}
+          onConfirm={() => launchWithSpec(gameMode, selectedSpec, { playerColorIdx, enemyColorMode, enemyColorIdx }, aiDifficulty)}
           onCancel={() => setShowCmdModal(false)}
         />
       )}
@@ -473,7 +478,9 @@ export default function App() {
       {screen === 'howto' && <HowToPlay onBack={() => setScreen('menu')} />}
       {screen === 'editor' && <ShipForgeEditor onBack={() => setScreen('menu')} />}
       {loading && <LoadingScreen />}
-      {screen === 'playing' && !loading && renderer && <SpaceHUD renderer={renderer} onQuit={backToMenu} />}
+      {screen === 'playing' && !loading && renderer && (
+        <SpaceHUD renderer={renderer} onQuit={backToMenu} onToggleStarMap={() => setStarMapOpen((o) => !o)} />
+      )}
       {screen === 'playing' && starMapOpen && renderer && <StarMapOverlay renderer={renderer} onClose={() => setStarMapOpen(false)} />}
       {/* Admin UI overlay — toggle with backtick key */}
       <DevOverlay />
@@ -491,6 +498,8 @@ function CommanderSelectModal({
   setEnemyColorMode,
   enemyColorIdx,
   setEnemyColorIdx,
+  aiDifficulty,
+  setAiDifficulty,
   onConfirm,
   onCancel,
 }: {
@@ -502,6 +511,8 @@ function CommanderSelectModal({
   setEnemyColorMode: (m: EnemyColorMode) => void;
   enemyColorIdx: number;
   setEnemyColorIdx: (i: number) => void;
+  aiDifficulty: number;
+  setAiDifficulty: (d: number) => void;
   onConfirm: () => void;
   onCancel: () => void;
 }) {
@@ -628,6 +639,47 @@ function CommanderSelectModal({
                 </div>
               );
             })}
+          </div>
+
+          {/* ── AI Difficulty ──────────────────────────────── */}
+          <div
+            style={{
+              padding: '12px 14px',
+              borderRadius: 8,
+              marginBottom: 14,
+              background: 'rgba(6,14,30,0.7)',
+              border: '1px solid rgba(40,60,80,0.4)',
+            }}
+          >
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#8ac', marginBottom: 8, letterSpacing: 1 }}>AI DIFFICULTY</div>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              {[
+                { d: 1, label: 'PASSIVE', desc: 'Random builds, no tech, wanders', color: '#44ee88' },
+                { d: 2, label: 'BASIC', desc: 'Cheap fighters, basic expansion', color: '#88cc44' },
+                { d: 3, label: 'BALANCED', desc: 'Good composition, flanking, tech', color: '#ffaa22' },
+                { d: 4, label: 'AGGRESSIVE', desc: 'Multi-front, void powers, micro', color: '#ff6644' },
+                { d: 5, label: 'OPTIMAL', desc: 'Perfect economy, strafe micro', color: '#ff4444' },
+              ].map((opt) => (
+                <div
+                  key={opt.d}
+                  onClick={() => setAiDifficulty(opt.d)}
+                  style={{
+                    flex: '1 1 100px',
+                    minWidth: 100,
+                    padding: '8px 10px',
+                    borderRadius: 6,
+                    cursor: 'pointer',
+                    textAlign: 'center',
+                    border: aiDifficulty === opt.d ? `2px solid ${opt.color}` : '1px solid rgba(40,60,80,0.4)',
+                    background: aiDifficulty === opt.d ? `${opt.color}18` : 'rgba(6,14,30,0.6)',
+                    transition: 'all 0.15s',
+                  }}
+                >
+                  <div style={{ fontSize: 11, fontWeight: 700, color: aiDifficulty === opt.d ? opt.color : '#68a' }}>{opt.label}</div>
+                  <div style={{ fontSize: 8, color: 'rgba(160,200,255,0.4)', marginTop: 2 }}>{opt.desc}</div>
+                </div>
+              ))}
+            </div>
           </div>
 
           {/* ── Team Color Selection ─────────────────────────── */}
@@ -1002,6 +1054,19 @@ function MainMenu({
           <Btn label="CODEX" onClick={onCodex} style={{ minWidth: 80 }} />
           <Btn label="HOW TO PLAY" onClick={onHowTo} style={{ minWidth: 100 }} />
           <Btn label="ADMIN" onClick={() => window.open('/admin.html', '_blank')} style={{ minWidth: 70 }} />
+        </div>
+
+        {/* Legal links — required for Discord app */}
+        <div style={{ display: 'flex', gap: 16, marginTop: 16, fontSize: 10, opacity: 0.35 }}>
+          <a href="/privacy.html" target="_blank" rel="noopener" style={{ color: '#8ac', textDecoration: 'none' }}>
+            Privacy Policy
+          </a>
+          <span style={{ color: '#333' }}>·</span>
+          <a href="/tos.html" target="_blank" rel="noopener" style={{ color: '#8ac', textDecoration: 'none' }}>
+            Terms of Service
+          </a>
+          <span style={{ color: '#333' }}>·</span>
+          <span style={{ color: '#556' }}>© 2026 Grudge Studio</span>
         </div>
       </div>
     </div>

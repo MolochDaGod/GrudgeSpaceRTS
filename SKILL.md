@@ -73,6 +73,62 @@ Players design a custom hero ship in a 32×16×32 voxel grid.
 - `resource-icons/Icon39_01-40.png` → resource type icons (01=credits, 02=energy, 03=minerals used; 04-40 available)
 - `commanders/1-20.png` → commander portrait sprites (20 pixel-art sci-fi faces)
 
+## Ship Abilities & Skills
+
+### Ability Types (16 total)
+Each ability has a painted PNG icon from `scifi-gui/skills/` and an SVG fallback.
+
+**Combat Abilities**
+| ID | Name | Key | Icon | Description |
+|---|---|---|---|---|
+| barrel_roll | Barrel Roll | Q | skills/3.png | Evasive spin, brief invulnerability |
+| speed_boost | Afterburner | W | skills/2.png | 3s speed burst |
+| cloak | Cloak | Q | skills/4.png | Invisibility until attack |
+| iron_dome | Iron Dome | W | skills/13.png | AoE shield bubble |
+| warp | Warp Jump | E | skills/10.png | Teleport to cursor |
+| emp | EMP Blast | Q | skills/5.png | Area disable, shield damage |
+| boarding | Board Ship | E | skills/6.png | Capture enemy ship |
+| repair | Repair Pulse | W | skills/7.png | AoE heal nearby allies |
+| ram | Ram Charge | Q | skills/8.png | High-speed collision damage |
+| launch_fighters | Launch Fighters | R | skills/1.png | Deploy escort fighters |
+
+**Hacking Abilities** (Scout / Stealth / Corvette only)
+| ID | Name | Key | Icon | Description |
+|---|---|---|---|---|
+| hack_weapons | Disable Weapons | Q | skills/11.png | Channel: disables target weapons |
+| hack_shields | Drop Shields | W | skills/12.png | Channel: drains target shields |
+| hack_siphon | Siphon Data | E | skills/9.png | Channel: steals resources |
+| hack_sensors | Blind Sensors | Q | skills/11.png | Channel: removes target vision |
+| hack_sabotage | Sabotage | W | skills/12.png | Channel: random system failure |
+| hack_hijack | Hijack | R | skills/9.png | Channel: take control of target |
+
+### Ability Icon Pipeline
+- Primary art: `public/assets/space/ui/scifi-gui/skills/1-13.png` (13 painted cyberpunk icons)
+- Fallback art: `public/assets/space/ui/skill-icons-1/PNG/` and `skill-icons-2/PNG/`
+- SVG fallback: inline React SVGs in `ABILITY_ICONS` (space-ui-shared.tsx)
+- Resolution chain: ABILITY_IMG → ABILITY_IMG_FALLBACK → ABILITY_ICONS (SVG)
+
+### Ability UI in HUD
+**Single unit selected**: Full `SingleUnitInfo` with portrait, stats, and `AbilityButton` slots (64px each with cooldown sweep overlay, autocast indicator, energy cost badge).
+
+**Multiple units selected (WC3/SC2 layout)**:
+- **Left column**: Ship type group list (Tab cycles focused type)
+- **Center**: Focused type portrait + aggregate HP bar + stats
+- **Right**: 3×3 ability grid showing focused type's abilities with icon art, hotkey badge, cooldown sweep
+- **Tab key**: Cycles focus between ship types in the selection
+- **Click on group**: Isolates that type (selects only ships of that type)
+
+### Cooldown Visualization
+- Conic gradient sweep from dark to transparent based on `cooldownRemaining / cooldown`
+- Remaining seconds shown in top-left of ability slot
+- Active abilities get bright green border + saturated icon
+- On-cooldown abilities are 50% opacity + grayscale filter
+
+### Autocast
+- Right-click ability slot to toggle autocast
+- "AUTO" badge in top-left when enabled
+- AI ships have all abilities set to autocast by default
+
 ## Game Systems
 
 ### Controls
@@ -81,10 +137,26 @@ Players design a custom hero ship in a 32×16×32 voxel grid.
 - Scroll → zoom (logarithmic)
 - Left Click → select / place (editor)
 - Right Click → move / attack command
-- A → attack-move mode
+- A → attack-move mode (also clickable in Command Card)
+- G → attack-move cursor
+- P → patrol mode
 - H → defend (hold position, attack in range)
-- M → star map overlay
+- S → stop all movement
+- Tab → cycle focused ship type in multi-selection
+- M → star map overlay (also via menu button bar)
+- L → Captain's Journal
+- I → Fleet/Planet Inventory
+- K → Unified Skill Tree
+- C → Commander Character Panel
 - Ctrl+1-9 → assign control group, 1-9 recall
+
+### AI Difficulty (Quick Game)
+Selectable in Commander Select modal before launch:
+- **Passive (D1)**: Random builds, no tech, wanders aimlessly
+- **Basic (D2)**: Cheap fighters, basic expansion, some tech
+- **Balanced (D3)**: Good composition, flanking, workers, mid tech (default)
+- **Aggressive (D4)**: Multi-front attacks, void powers, strafe micro
+- **Optimal (D5)**: Perfect economy, full tech tree, strafe + retreat micro
 
 ### Ship Spawning Flow
 1. `space-engine.ts` `spawnShip()` creates entity with stats from `getShipDef()`

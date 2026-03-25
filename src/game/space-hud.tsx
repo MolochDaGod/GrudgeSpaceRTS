@@ -27,10 +27,8 @@ import { ProductionSidebar } from './production-sidebar';
 import { FlagshipInterior } from './flagship-interior';
 import { VOID_POWERS } from './space-techtree';
 import type { CommanderSpec } from './space-types';
-import { CaptainsLogOverlay } from './captains-log-ui';
 import { PlanetCard } from './planet-card';
 import { PlanetSurfaceView } from './planet-surface';
-import { ShipDetailPanel } from './ship-detail-panel';
 import { HackOverlay } from './hack-overlay';
 import { FleetBar, CommandCard as SciFiCommandCard, BuildQueueBar } from './scifi-hud-bars';
 import { JournalPanel, InventoryPanel } from './scifi-panels';
@@ -40,9 +38,10 @@ import { CommanderCharacterPanel, UnifiedSkillTreePanel } from './scifi-commande
 interface SpaceHUDProps {
   renderer: SpaceRenderer | null;
   onQuit?: () => void;
+  onToggleStarMap?: () => void;
 }
 
-export function SpaceHUD({ renderer, onQuit }: SpaceHUDProps) {
+export function SpaceHUD({ renderer, onQuit, onToggleStarMap }: SpaceHUDProps) {
   const [, forceUpdate] = useState(0);
   const animRef = useRef(0);
   const [techOpen, setTechOpen] = useState(false);
@@ -57,6 +56,7 @@ export function SpaceHUD({ renderer, onQuit }: SpaceHUDProps) {
   const [selectedPlanetId, setSelectedPlanetId] = useState<number | null>(null);
   const [selectedCmdId, setSelectedCmdId] = useState<number | null>(null);
   const [planetCardIdx, setPlanetCardIdx] = useState(0);
+  const [focusedGroupIdx, setFocusedGroupIdx] = useState(0);
 
   // Re-render HUD at 15fps for smoother counters
   useEffect(() => {
@@ -104,6 +104,10 @@ export function SpaceHUD({ renderer, onQuit }: SpaceHUDProps) {
       }
       if (e.key.toLowerCase() === 'k') setSkillTreeOpen((o) => !o);
       if (e.key.toLowerCase() === 'c') setCharPanelOpen((o) => !o);
+      if (e.key === 'Tab') {
+        e.preventDefault();
+        setFocusedGroupIdx((i) => i + 1);
+      }
       if (e.key === 'Escape') {
         setLogOpen(false);
         setPlanetCardOpen(false);
@@ -577,9 +581,6 @@ export function SpaceHUD({ renderer, onQuit }: SpaceHUDProps) {
         />
       )}
 
-      {/* ── Captain's Log Overlay (L key) ──────────── */}
-      {logOpen && renderer && <CaptainsLogOverlay renderer={renderer} onClose={() => setLogOpen(false)} />}
-
       {/* ── Planet Card (planet click / F1) ────────── */}
       {planetCardOpen &&
         state.planets.length > 0 &&
@@ -992,6 +993,8 @@ export function SpaceHUD({ renderer, onQuit }: SpaceHUDProps) {
             ) : (
               <MultiUnitInfo
                 ships={selectedShips}
+                focusedGroupIdx={focusedGroupIdx}
+                renderer={renderer}
                 onIsolate={(shipId) => {
                   for (const id of state.selectedIds) {
                     const s = state.ships.get(id);
@@ -1003,6 +1006,7 @@ export function SpaceHUD({ renderer, onQuit }: SpaceHUDProps) {
                     target.selected = true;
                     state.selectedIds.add(shipId);
                   }
+                  setFocusedGroupIdx(0);
                 }}
               />
             )}
@@ -1032,11 +1036,11 @@ export function SpaceHUD({ renderer, onQuit }: SpaceHUDProps) {
               ship={primary}
               onCommand={(cmd) => {
                 if (cmd === 'attack') {
-                  /* toggle attack mode */
+                  window.dispatchEvent(new KeyboardEvent('keydown', { key: 'a' }));
                 } else if (cmd === 'move') {
-                  /* set move cursor */
+                  window.dispatchEvent(new KeyboardEvent('keydown', { key: 'g' }));
                 } else if (cmd === 'patrol') {
-                  /* set patrol mode */
+                  window.dispatchEvent(new KeyboardEvent('keydown', { key: 'p' }));
                 } else if (cmd === 'hold') {
                   for (const id of state.selectedIds) {
                     const s = state.ships.get(id);
@@ -1082,11 +1086,11 @@ export function SpaceHUD({ renderer, onQuit }: SpaceHUDProps) {
               else if (id === 'commander') setCharPanelOpen((o) => !o);
               else if (id === 'log') setLogOpen((o) => !o);
               else if (id === 'inventory') setInventoryOpen((o) => !o);
-              else if (id === 'starmap') {
-                /* M key handled externally */
-              } else if (id === 'save') {
-                console.log('[menu] Manual save');
-              }
+              else if (id === 'starmap') onToggleStarMap?.();
+              else if (id === 'checklist') onToggleStarMap?.();
+              else if (id === 'save') console.log('[menu] Manual save');
+              else if (id === 'mail') console.log('[menu] AI Chat — coming soon');
+              else if (id === 'databook') console.log('[menu] Codex — coming soon');
             }}
           />
         </div>
