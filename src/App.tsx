@@ -39,6 +39,7 @@ import { gameAudio } from './game/space-audio';
 import { initAuth, login, logout, getUser, onAuthChange, type GrudgeUser } from './game/grudge-auth';
 import { loadRemoteBalance } from './game/space-data-loader';
 import { DevOverlay } from './game/dev-overlay';
+import { ShipCodex3D } from './game/codex-ui';
 
 type Screen = 'intro' | 'menu' | 'codex' | 'howto' | 'editor' | 'playing';
 
@@ -480,7 +481,7 @@ export default function App() {
           onCancel={() => setShowCampaignBuilder(false)}
         />
       )}
-      {screen === 'codex' && <ShipCodex onBack={() => setScreen('menu')} />}
+      {screen === 'codex' && <ShipCodex3D onBack={() => setScreen('menu')} />}
       {screen === 'howto' && <HowToPlay onBack={() => setScreen('menu')} />}
       {screen === 'editor' && <ShipForgeEditor onBack={() => setScreen('menu')} />}
       {loading && <LoadingScreen />}
