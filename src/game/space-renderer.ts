@@ -1612,10 +1612,8 @@ export class SpaceRenderer {
     this.effectsRenderer.update(this.engine.state, dt, this.camera);
     // Update three.quarks particle systems (engine trails, explosions, trails)
     this.vfx.update(dt);
-    // Update mine warnings
-    for (const [, mine] of (this.engine.state as any).mines ?? new Map()) {
-      if (!(mine as any).dead) this.vfx.updateMineWarning((mine as any).id, this.twinkleTime);
-    }
+    // Sync mine VFX warnings
+    this.syncMines(this.engine.state);
     this.updateSelectionBox();
     this.updateCamera();
 
@@ -1675,7 +1673,20 @@ export class SpaceRenderer {
     this.renderer.render(this.scene, this.camera);
   };
 
-  // ── Station Rendering ─────────────────────────────────────────
+  // ── Mine VFX Sync ──────────────────────────────────────────────
+  private syncMines(state: SpaceGameState): void {
+    for (const [id, mine] of state.mines) {
+      if (mine.dead) {
+        this.vfx.removeMineWarning(id);
+        continue;
+      }
+      // Spawn warning marker if not yet registered
+      this.vfx.spawnMineWarning(id, mine.x, mine.y, TEAM_COLORS[mine.team] ?? 0xff4400);
+      this.vfx.updateMineWarning(id, mine.blinkPhase);
+    }
+  }
+
+  // ── Station Rendering ──────────────────────────────────────────────────
   private syncStations(state: SpaceGameState) {
     // Remove deleted
     for (const [id, mesh] of this.stationMeshes) {
@@ -2264,6 +2275,7 @@ export class SpaceRenderer {
     window.removeEventListener('resize', this.onResize);
     window.removeEventListener('keydown', this.onRigDebugKeyDown);
     this.clearRigDebugOverlay();
+    this.vfx?.dispose();
     this.controls.dispose();
     this.renderer.dispose();
     if (this.customHeroUrl) {

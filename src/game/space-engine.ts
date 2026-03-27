@@ -24,6 +24,7 @@ import type {
   POIType,
   PlanetBuilding,
   PlanetBuildingType,
+  SpaceMine,
 } from './space-types';
 import {
   SHIP_DEFINITIONS,
@@ -266,6 +267,7 @@ export class SpaceEngine {
       captainsLog: [],
       campaignEvents: [],
       sparkState: new Map(),
+      mines: new Map(),
     };
 
     // Initialize sparkState for all teams with faction starter unlocks
@@ -1065,6 +1067,7 @@ export class SpaceEngine {
     this.updateDarkRifts(_dt);
     this.updatePOIs(_dt);
     this.updatePlanetBuildings(_dt);
+    this.updateMines(_dt);
     this.updateAdvancedAI(_dt);
     this.updateWinCondition(_dt);
     // Passive Spark timer (+1 per 60 game-seconds)
@@ -2607,6 +2610,85 @@ export class SpaceEngine {
     ship.maxShield = Math.round(ship.maxShield * (1 + idleCmd.defenseBonus));
     ship.speed *= 1 + idleCmd.speedBonus;
     ship.baseSpeed = ship.speed; // keep baseSpeed in sync with permanent buffs
+  }
+
+  // ── Mine System ─────────────────────────────────────────────
+
+  /**
+   * Deploy a proximity mine at the given game coords.
+   * Costs 80 credits, 40 energy. Mine arms after 2 seconds.
+   * Detonates when an enemy ship enters triggerRadius (120 units).
+   */
+  deployMine(team: Team, x: number, y: number): boolean {
+    const res = this.state.resources[team];
+    if (!res || res.credits < 80 || res.energy < 40) return false;
+    res.credits -= 80;
+    res.energy -= 40;
+    const id = this.state.nextId++;
+    const mine: SpaceMine = {
+      id,
+      x,
+      y,
+      team,
+      triggerRadius: 120,
+      damage: 350,
+      aoeRadius: 200,
+      dead: false,
+      armed: false,
+      armTimer: 2.0,
+      blinkPhase: Math.random() * Math.PI * 2,
+    };
+    this.state.mines.set(id, mine);
+    return true;
+  }
+
+  private updateMines(dt: number): void {
+    for (const [id, mine] of this.state.mines) {
+      if (mine.dead) {
+        this.state.mines.delete(id);
+        continue;
+      }
+
+      mine.blinkPhase += dt * 2;
+
+      // Arm after delay
+      if (!mine.armed) {
+        mine.armTimer -= dt;
+        if (mine.armTimer <= 0) mine.armed = true;
+        continue;
+      }
+
+      // Check for enemy ships in trigger radius
+      for (const [, ship] of this.state.ships) {
+        if (ship.dead || ship.team === mine.team || ship.team === 0) continue;
+        const d = Math.sqrt((ship.x - mine.x) ** 2 + (ship.y - mine.y) ** 2);
+        if (d > mine.triggerRadius) continue;
+
+        // Detonate: AoE damage to all enemies within aoeRadius
+        mine.dead = true;
+        for (const [, target] of this.state.ships) {
+          if (target.dead || target.team === mine.team) continue;
+          const td = Math.sqrt((target.x - mine.x) ** 2 + (target.y - mine.y) ** 2);
+          if (td <= mine.aoeRadius) {
+            const falloff = 1 - td / mine.aoeRadius;
+            this.applyDamage(target, Math.round(mine.damage * falloff));
+          }
+        }
+        this.spawnSpriteEffect(mine.x, mine.y, 0, 'explosion-1-e', 6);
+        this.spawnSpriteEffect(mine.x, mine.y, 0, 'bomb-high-3', 4);
+        this.state.alerts.push({
+          id: this.state.nextId++,
+          x: mine.x,
+          y: mine.y,
+          z: 0,
+          type: 'conquest',
+          time: this.state.gameTime,
+          message: 'Mine detonated!',
+        });
+        if (mine.team === 1) gameAudio.play('alert', 0.8);
+        break;
+      }
+    }
   }
 
   // ── Planet Building System ────────────────────────────────────

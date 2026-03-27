@@ -743,10 +743,26 @@ export interface ActiveHack {
   effectTimer: number; // countdown of active effect
 }
 
+// ── Space Mine ────────────────────────────────────────────────────
+export interface SpaceMine {
+  id: number;
+  x: number;
+  y: number;
+  team: Team;
+  triggerRadius: number; // game units — ships entering this radius detonate it
+  damage: number;
+  aoeRadius: number; // blast radius
+  dead: boolean;
+  armed: boolean; // false for first 2s (prevents self-detonation)
+  armTimer: number;
+  blinkPhase: number; // VFX phase for pulsing warning light
+}
+
 export interface SpaceGameState {
   gameMode: GameMode;
   ships: Map<number, SpaceShip>;
   activeHacks: ActiveHack[];
+  mines: Map<number, SpaceMine>;
   stations: Map<number, SpaceStation>;
   planets: Planet[];
   resourceNodes: Map<number, ResourceNode>;

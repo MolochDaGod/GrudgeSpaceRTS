@@ -5,12 +5,76 @@
  *   DEPLOY  — Player drags squads onto their half of the battlefield.
  *   BATTLE  — Squads march, fight, rout. Winner when enemy army breaks.
  *
- * Squads have: position, facing, HP, morale, speed, attack, armor, type.
- * Combat is auto-resolved when squads are in melee/ranged range.
+ * Movement improvements (sourced from GitHub):
+ *   A* pathfinding  — qiao/PathFinding.js (MIT, 8.7k stars)
+ *                     npm: pathfinding — grid-based A* with diagonal movement.
+ *                     Squads path around friendly blockers instead of overlapping.
+ *   Boids separation — Craig Reynolds steering (mreinstein/boids, MIT)
+ *                     Soft repulsion from nearby same-team squads prevents overlap.
+ *
  * Flanking and rear charges deal bonus damage + morale shock.
  */
 
+import { Grid, AStarFinder } from 'pathfinding';
 import type { PlanetType } from './space-types';
+
+// ── Pathfinding constants ─────────────────────────────────────────
+const PF_CELL = 4; // world-units per grid cell
+const PF_INTERVAL = 1.5; // seconds between A* recomputes
+
+const finder = new AStarFinder({ allowDiagonal: true, dontCrossCorners: true });
+
+function toCell(v: number, max: number): number {
+  return Math.max(0, Math.min(Math.floor(v / PF_CELL), max - 1));
+}
+
+function computePath(state: GroundBattleState, sq: Squad, tx: number, ty: number): Vec2[] {
+  const cols = Math.ceil(state.fieldW / PF_CELL);
+  const rows = Math.ceil(state.fieldH / PF_CELL);
+  const grid = new Grid(cols, rows);
+
+  for (const other of state.squads) {
+    if (other.id === sq.id || other.dead || other.routed || other.team !== sq.team) continue;
+    grid.setWalkableAt(toCell(other.x, cols), toCell(other.y, rows), false);
+  }
+
+  const sx = toCell(sq.x, cols),
+    sy = toCell(sq.y, rows);
+  const ex = toCell(tx, cols),
+    ey = toCell(ty, rows);
+  if (sx === ex && sy === ey) return [{ x: tx, y: ty }];
+
+  const raw = finder.findPath(sx, sy, ex, ey, grid);
+  if (raw.length === 0) return [{ x: tx, y: ty }];
+  return raw.map(([cx, cy]) => ({ x: cx * PF_CELL + PF_CELL / 2, y: cy * PF_CELL + PF_CELL / 2 }));
+}
+
+/**
+ * Craig Reynolds boids separation steering.
+ * Steers sq away from nearby same-team squads to prevent overlap.
+ */
+function separationForce(sq: Squad, all: Squad[]): Vec2 {
+  const RADIUS = 12,
+    MAX = 20;
+  let fx = 0,
+    fy = 0,
+    count = 0;
+  for (const o of all) {
+    if (o.id === sq.id || o.dead || o.routed) continue;
+    const dx = sq.x - o.x,
+      dy = sq.y - o.y;
+    const d = Math.sqrt(dx * dx + dy * dy);
+    if (d > 0 && d < RADIUS) {
+      const w = (RADIUS - d) / RADIUS;
+      fx += (dx / d) * w;
+      fy += (dy / d) * w;
+      count++;
+    }
+  }
+  if (count === 0) return { x: 0, y: 0 };
+  const mag = Math.sqrt(fx * fx + fy * fy);
+  return mag > 0 ? { x: (fx / mag) * MAX, y: (fy / mag) * MAX } : { x: 0, y: 0 };
+}
 
 // ── Types ─────────────────────────────────────────────────────────
 export type BattlePhase = 'deploy' | 'battle' | 'done';
@@ -24,19 +88,19 @@ export interface Vec2 {
 
 export interface Squad {
   id: number;
-  team: 0 | 1; // 0 = player, 1 = enemy
+  team: 0 | 1;
   type: SquadType;
   name: string;
   x: number;
   y: number;
-  facing: number; // radians
+  facing: number;
   hp: number;
   maxHp: number;
-  morale: number; // 0-100, routs at 0
+  morale: number;
   maxMorale: number;
   speed: number;
   attackDmg: number;
-  attackRange: number; // melee ~2, ranged ~20
+  attackRange: number;
   attackCooldown: number;
   attackTimer: number;
   armor: number;
@@ -47,6 +111,10 @@ export interface Squad {
   selected: boolean;
   moveTarget: Vec2 | null;
   attackTargetId: number | null;
+  // A* path following
+  path: Vec2[];
+  pathTimer: number;
+  pathTargetKey: string;
   // Visual
   color: string;
   icon: string;
@@ -68,12 +136,12 @@ export interface GroundBattleState {
   floatTexts: BattleFloatText[];
   fieldW: number;
   fieldH: number;
-  deployLineY: number; // y-coordinate dividing player/enemy halves
+  deployLineY: number;
   gameTime: number;
   nextId: number;
 }
 
-// ── Squad templates ───────────────────────────────────────────────
+// ── Templates ─────────────────────────────────────────────────────
 interface SquadTemplate {
   type: SquadType;
   name: string;
@@ -235,9 +303,9 @@ const ENEMY_TEMPLATES: SquadTemplate[] = [
   },
 ];
 
-// ── Initialization ────────────────────────────────────────────────
-const FIELD_W = 120;
-const FIELD_H = 80;
+// ── Init ─────────────────────────────────────────────────────────
+const FIELD_W = 120,
+  FIELD_H = 80;
 
 export function createBattleState(planetType: PlanetType): GroundBattleState {
   const state: GroundBattleState = {
@@ -252,21 +320,16 @@ export function createBattleState(planetType: PlanetType): GroundBattleState {
     gameTime: 0,
     nextId: 1,
   };
-
-  // Spawn player squads at bottom (y > deployLineY)
   for (let i = 0; i < PLAYER_TEMPLATES.length; i++) {
     const t = PLAYER_TEMPLATES[i];
-    const spacing = FIELD_W / (PLAYER_TEMPLATES.length + 1);
-    state.squads.push(makeSquad(state, t, 0, spacing * (i + 1), FIELD_H - 10, 0));
+    const sp = FIELD_W / (PLAYER_TEMPLATES.length + 1);
+    state.squads.push(makeSquad(state, t, 0, sp * (i + 1), FIELD_H - 10, 0));
   }
-
-  // Spawn enemy squads at top (y < deployLineY)
   for (let i = 0; i < ENEMY_TEMPLATES.length; i++) {
     const t = ENEMY_TEMPLATES[i];
-    const spacing = FIELD_W / (ENEMY_TEMPLATES.length + 1);
-    state.squads.push(makeSquad(state, t, 1, spacing * (i + 1), 10, Math.PI));
+    const sp = FIELD_W / (ENEMY_TEMPLATES.length + 1);
+    state.squads.push(makeSquad(state, t, 1, sp * (i + 1), 10, Math.PI));
   }
-
   return state;
 }
 
@@ -296,16 +359,18 @@ function makeSquad(state: GroundBattleState, t: SquadTemplate, team: 0 | 1, x: n
     selected: false,
     moveTarget: null,
     attackTargetId: null,
+    path: [],
+    pathTimer: 0,
+    pathTargetKey: '',
     color: t.color,
     icon: t.icon,
   };
 }
 
-// ── Start battle (transition from deploy → battle) ────────────────
+// ── Start battle ──────────────────────────────────────────────────
 export function startBattle(state: GroundBattleState): void {
   if (state.phase !== 'deploy') return;
   state.phase = 'battle';
-  // Enemy AI: assign attack targets — each enemy targets nearest player squad
   for (const sq of state.squads) {
     if (sq.team === 1 && !sq.dead) {
       sq.moveTarget = { x: sq.x, y: FIELD_H * 0.6 + Math.random() * 10 };
@@ -323,21 +388,20 @@ export function updateGroundBattle(state: GroundBattleState, dt: number): void {
   for (const sq of state.squads) {
     if (sq.dead || sq.routed) continue;
 
-    // ── Morale recovery (slow out of combat) ────────────────
-    if (!sq.attackTargetId) {
-      sq.morale = Math.min(sq.maxMorale, sq.morale + 2 * dt);
-    }
+    // Morale recovery
+    if (!sq.attackTargetId) sq.morale = Math.min(sq.maxMorale, sq.morale + 2 * dt);
 
-    // ── Rout check ──────────────────────────────────────────
+    // Rout
     if (sq.morale <= 0) {
       sq.routed = true;
+      sq.path = [];
       sq.moveTarget = sq.team === 0 ? { x: sq.x, y: FIELD_H + 20 } : { x: sq.x, y: -20 };
       sq.attackTargetId = null;
       spawnFloat(state, sq.x, sq.y, 'ROUTED!', '#ff4444');
       continue;
     }
 
-    // ── Unit count from HP ──────────────────────────────────
+    // HP → unit count
     sq.unitCount = Math.max(0, Math.ceil((sq.hp / sq.maxHp) * sq.maxUnits));
     if (sq.hp <= 0) {
       sq.dead = true;
@@ -345,13 +409,11 @@ export function updateGroundBattle(state: GroundBattleState, dt: number): void {
       continue;
     }
 
-    // ── Target acquisition (enemy AI + player squads with attackTargetId) ─
+    // Enemy AI: target nearest player squad
     if (sq.team === 1 && !sq.attackTargetId) {
-      // AI: find nearest player squad
-      const targets = alive(0);
       let best: Squad | null = null,
         bestD = Infinity;
-      for (const t of targets) {
+      for (const t of alive(0)) {
         const d = dist(sq, t);
         if (d < bestD) {
           bestD = d;
@@ -361,69 +423,102 @@ export function updateGroundBattle(state: GroundBattleState, dt: number): void {
       if (best) sq.attackTargetId = best.id;
     }
 
-    // ── Movement ────────────────────────────────────────────
-    const target = sq.attackTargetId ? state.squads.find((s) => s.id === sq.attackTargetId) : null;
-    const moveTo = target && !target.dead && !target.routed ? { x: target.x, y: target.y } : sq.moveTarget;
+    // ── Movement: A* + boids separation ─────────────────────
+    const tgt = sq.attackTargetId ? (state.squads.find((s) => s.id === sq.attackTargetId) ?? null) : null;
+    const rawDest = tgt && !tgt.dead && !tgt.routed ? { x: tgt.x, y: tgt.y } : sq.moveTarget;
 
-    if (moveTo) {
-      const dx = moveTo.x - sq.x,
-        dy = moveTo.y - sq.y;
-      const d = Math.sqrt(dx * dx + dy * dy);
-      const stopDist = target ? sq.attackRange * 0.8 : 1;
-      if (d > stopDist) {
-        const spd = (sq.routed ? sq.speed * 1.5 : sq.speed) * dt;
-        sq.x += (dx / d) * Math.min(spd, d);
-        sq.y += (dy / d) * Math.min(spd, d);
+    if (rawDest) {
+      const stopDist = tgt ? sq.attackRange * 0.8 : 1;
+      const dxFull = rawDest.x - sq.x,
+        dyFull = rawDest.y - sq.y;
+      const dFull = Math.sqrt(dxFull * dxFull + dyFull * dyFull);
+
+      if (dFull > stopDist) {
+        const key = `${Math.round(rawDest.x)},${Math.round(rawDest.y)}`;
+        sq.pathTimer -= dt;
+        if (sq.pathTargetKey !== key || sq.pathTimer <= 0 || sq.path.length === 0) {
+          sq.path = computePath(state, sq, rawDest.x, rawDest.y);
+          sq.pathTimer = PF_INTERVAL;
+          sq.pathTargetKey = key;
+        }
+
+        // Skip already-reached waypoints
+        while (sq.path.length > 1 && Math.hypot(sq.path[0].x - sq.x, sq.path[0].y - sq.y) < PF_CELL) {
+          sq.path.shift();
+        }
+        const wp = sq.path[0] ?? rawDest;
+
+        let dx = wp.x - sq.x,
+          dy = wp.y - sq.y;
+        const dw = Math.sqrt(dx * dx + dy * dy);
+        if (dw > 0) {
+          dx /= dw;
+          dy /= dw;
+        }
+
+        // Boids separation (Craig Reynolds)
+        const sep = separationForce(sq, state.squads);
+        dx += sep.x / sq.speed;
+        dy += sep.y / sq.speed;
+        const mag = Math.sqrt(dx * dx + dy * dy);
+        if (mag > 0) {
+          dx /= mag;
+          dy /= mag;
+        }
+
+        const spd = sq.speed * dt;
+        sq.x = Math.max(0, Math.min(state.fieldW, sq.x + dx * Math.min(spd, dFull)));
+        sq.y = Math.max(0, Math.min(state.fieldH, sq.y + dy * Math.min(spd, dFull)));
         sq.facing = Math.atan2(dy, dx);
-      } else if (!target) {
+      } else if (!tgt) {
         sq.moveTarget = null;
+        sq.path = [];
+      }
+    } else {
+      // Stationary — gentle separation
+      const sep = separationForce(sq, state.squads);
+      if (sep.x !== 0 || sep.y !== 0) {
+        sq.x = Math.max(0, Math.min(state.fieldW, sq.x + (sep.x * 6 * dt) / sq.speed));
+        sq.y = Math.max(0, Math.min(state.fieldH, sq.y + (sep.y * 6 * dt) / sq.speed));
       }
     }
 
     // ── Combat ──────────────────────────────────────────────
     sq.attackTimer = Math.max(0, sq.attackTimer - dt);
-    if (target && !target.dead && !target.routed) {
-      const d = dist(sq, target);
-      if (d <= sq.attackRange && sq.attackTimer <= 0) {
-        // Flanking: if attacker is behind target (dot product of facing)
-        const toTarget = Math.atan2(target.y - sq.y, target.x - sq.x);
-        const facingDiff = angleDiff(target.facing, toTarget + Math.PI);
-        const isFlank = Math.abs(facingDiff) < Math.PI * 0.4;
-        const flankMult = isFlank ? 1.5 : 1.0;
-
-        const dmg = Math.max(1, sq.attackDmg * flankMult - target.armor);
-        target.hp -= dmg;
-        target.morale -= isFlank ? 8 : 3;
+    if (tgt && !tgt.dead && !tgt.routed) {
+      if (dist(sq, tgt) <= sq.attackRange && sq.attackTimer <= 0) {
+        const toT = Math.atan2(tgt.y - sq.y, tgt.x - sq.x);
+        const faceDiff = angleDiff(tgt.facing, toT + Math.PI);
+        const isFlank = Math.abs(faceDiff) < Math.PI * 0.4;
+        const dmg = Math.max(1, sq.attackDmg * (isFlank ? 1.5 : 1.0) - tgt.armor);
+        tgt.hp -= dmg;
+        tgt.morale -= isFlank ? 8 : 3;
         sq.attackTimer = sq.attackCooldown;
-
-        spawnFloat(state, target.x, target.y - 1, `-${Math.round(dmg)}`, isFlank ? '#ff8800' : '#ff4444');
-
-        if (target.hp <= 0) {
-          target.dead = true;
-          target.unitCount = 0;
+        spawnFloat(state, tgt.x, tgt.y - 1, `-${Math.round(dmg)}`, isFlank ? '#ff8800' : '#ff4444');
+        if (tgt.hp <= 0) {
+          tgt.dead = true;
+          tgt.unitCount = 0;
           sq.attackTargetId = null;
-          spawnFloat(state, target.x, target.y, 'DESTROYED', '#ff2222');
+          spawnFloat(state, tgt.x, tgt.y, 'DESTROYED', '#ff2222');
         }
       }
-    } else if (target && (target.dead || target.routed)) {
+    } else if (tgt && (tgt.dead || tgt.routed)) {
       sq.attackTargetId = null;
     }
   }
 
-  // ── Float text decay ──────────────────────────────────────
+  // Float decay
   for (let i = state.floatTexts.length - 1; i >= 0; i--) {
     state.floatTexts[i].age += dt;
     state.floatTexts[i].y -= 4 * dt;
     if (state.floatTexts[i].age > 1.5) state.floatTexts.splice(i, 1);
   }
 
-  // ── Win/loss check ────────────────────────────────────────
-  const playerAlive = alive(0).length;
-  const enemyAlive = alive(1).length;
-  if (enemyAlive === 0 && state.phase === 'battle') {
+  // Win/loss
+  if (alive(1).length === 0) {
     state.phase = 'done';
     state.result = 'victory';
-  } else if (playerAlive === 0 && state.phase === 'battle') {
+  } else if (alive(0).length === 0) {
     state.phase = 'done';
     state.result = 'defeat';
   }
@@ -435,6 +530,8 @@ export function moveSquad(state: GroundBattleState, squadId: number, target: Vec
   if (!sq || sq.dead || sq.routed || sq.team !== 0) return;
   sq.moveTarget = target;
   sq.attackTargetId = null;
+  sq.path = [];
+  sq.pathTargetKey = '';
 }
 
 export function attackSquad(state: GroundBattleState, squadId: number, targetId: number): void {
@@ -442,13 +539,14 @@ export function attackSquad(state: GroundBattleState, squadId: number, targetId:
   if (!sq || sq.dead || sq.routed || sq.team !== 0) return;
   sq.attackTargetId = targetId;
   sq.moveTarget = null;
+  sq.path = [];
+  sq.pathTargetKey = '';
 }
 
 export function repositionSquad(state: GroundBattleState, squadId: number, x: number, y: number): void {
   if (state.phase !== 'deploy') return;
   const sq = state.squads.find((s) => s.id === squadId);
   if (!sq || sq.team !== 0) return;
-  // Clamp to player half (below deploy line)
   sq.x = Math.max(2, Math.min(state.fieldW - 2, x));
   sq.y = Math.max(state.deployLineY + 2, Math.min(state.fieldH - 2, y));
 }
@@ -457,14 +555,12 @@ export function repositionSquad(state: GroundBattleState, squadId: number, x: nu
 function dist(a: Vec2, b: Vec2): number {
   return Math.sqrt((a.x - b.x) ** 2 + (a.y - b.y) ** 2);
 }
-
 function angleDiff(a: number, b: number): number {
   let d = b - a;
   while (d > Math.PI) d -= Math.PI * 2;
   while (d < -Math.PI) d += Math.PI * 2;
   return d;
 }
-
 function spawnFloat(state: GroundBattleState, x: number, y: number, text: string, color: string): void {
   state.floatTexts.push({ x, y, text, color, age: 0 });
 }

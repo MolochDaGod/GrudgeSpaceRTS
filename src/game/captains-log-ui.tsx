@@ -7,11 +7,9 @@
 
 import { useState, useMemo } from 'react';
 import type { SpaceRenderer } from './space-renderer';
-import type { LogEntry, LogCategory, SpaceFaction } from './space-types';
+import type { LogEntry, LogCategory } from './space-types';
 import { Panel, Btn, Bar } from './ui-lib';
 import { FACTION_DATA, FACTION_LEVEL_XP } from './space-types';
-
-const H = '/assets/space/ui/hud';
 
 const CATEGORY_ICONS: Record<LogCategory, string> = {
   discovery: '🔭',
@@ -45,14 +43,15 @@ type FilterTab = 'all' | LogCategory;
 
 export function CaptainsLogOverlay({ renderer, onClose }: { renderer: SpaceRenderer; onClose: () => void }) {
   const state = renderer.engine.state;
-  const log = state.captainsLog ?? [];
   const progress = state.campaignProgress;
   const faction = progress?.factionProgress;
   const [filter, setFilter] = useState<FilterTab>('all');
 
+  // Stabilise log reference so downstream useMemo doesn't re-run every frame
+  const log = useMemo(() => state.captainsLog ?? [], [state.captainsLog]);
   const filtered = useMemo(() => {
     const entries = filter === 'all' ? log : log.filter((e) => e.category === filter);
-    return [...entries].reverse(); // newest first
+    return [...entries].reverse();
   }, [log, filter]);
 
   const formatTime = (t: number) => {

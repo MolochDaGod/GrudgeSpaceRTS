@@ -15,32 +15,21 @@ import { Btn } from './ui-lib';
 // ── Asset paths ───────────────────────────────────────────────
 const SL = '/assets/space/ui/spaceliner';
 const BG = `${SL}/3 Backgrounds/Background.png`;
-const BG2 = `${SL}/3 Backgrounds/2.png`;
-const BG3 = `${SL}/3 Backgrounds/3.png`;
-// Furniture
+// Furniture (only used subset kept)
 const CHAIR = `${SL}/4 Objects/1 Furniture/1.png`;
-const TABLE = `${SL}/4 Objects/1 Furniture/2.png`;
 const DESK = `${SL}/4 Objects/1 Furniture/3.png`;
-const CABINET = `${SL}/4 Objects/1 Furniture/4.png`;
-const BED = `${SL}/4 Objects/1 Furniture/5.png`;
-const SHELF = `${SL}/4 Objects/1 Furniture/6.png`;
 const LOCKER = `${SL}/4 Objects/1 Furniture/7.png`;
-const CONSOLE = `${SL}/4 Objects/1 Furniture/8.png`;
 const SEAT = `${SL}/4 Objects/1 Furniture/9.png`;
-const BENCH = `${SL}/4 Objects/1 Furniture/10.png`;
 const RACK = `${SL}/4 Objects/1 Furniture/11.png`;
 const WEAPONS_RACK = `${SL}/4 Objects/1 Furniture/12.png`;
 const ENGINE1 = `${SL}/4 Objects/1 Furniture/13.png`;
 const ENGINE2 = `${SL}/4 Objects/1 Furniture/14.png`;
 const TANK = `${SL}/4 Objects/1 Furniture/15.png`;
-// Monitors
 const MONITOR1 = `${SL}/4 Objects/2 Monitors/1.png`;
 const MONITOR2 = `${SL}/4 Objects/2 Monitors/2.png`;
 const MONITOR3 = `${SL}/4 Objects/2 Monitors/3.png`;
 const MONITOR4 = `${SL}/4 Objects/2 Monitors/4.png`;
 const MONITOR5 = `${SL}/4 Objects/2 Monitors/5.png`;
-const MONITOR6 = `${SL}/4 Objects/2 Monitors/6.png`;
-// Boxes & Decor
 const BOX1 = `${SL}/4 Objects/3 Boxes/1.png`;
 const BOX2 = `${SL}/4 Objects/3 Boxes/2.png`;
 const BOX3 = `${SL}/4 Objects/3 Boxes/3.png`;
@@ -50,15 +39,10 @@ const LAMP = `${SL}/4 Objects/4 Decor/2.png`;
 const PIPE1 = `${SL}/4 Objects/4 Decor/5.png`;
 const PIPE2 = `${SL}/4 Objects/4 Decor/6.png`;
 const VENT = `${SL}/4 Objects/4 Decor/7.png`;
-const ANTENNA = `${SL}/4 Objects/4 Decor/8.png`;
 const PANEL1 = `${SL}/4 Objects/4 Decor/9.png`;
-const PANEL2 = `${SL}/4 Objects/4 Decor/10.png`;
 const WIRE1 = `${SL}/4 Objects/4 Decor/11.png`;
 const WIRE2 = `${SL}/4 Objects/4 Decor/12.png`;
-// Animated
 const DOOR = `${SL}/5 Animated Objects/Door.png`;
-const ANIM_MON = `${SL}/5 Animated Objects/Monitor.png`;
-// Tiles
 const TILE_FLOOR = `${SL}/1 Tileset/Tile_05.png`;
 const BACK_PANEL = `${SL}/2 BackTiles/BackTile_01.png`;
 const BACK_PANEL2 = `${SL}/2 BackTiles/BackTile_05.png`;
