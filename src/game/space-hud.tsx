@@ -626,8 +626,7 @@ export function SpaceHUD({ renderer, onQuit, onToggleStarMap, onDeployGround, on
           state={state}
           onClose={() => setSurfaceOpen(false)}
           onBuild={(planetId, buildingType) => {
-            // TODO: wire to engine.buildOnPlanet(planetId, buildingType)
-            console.log('[surface] Build', buildingType, 'on planet', planetId);
+            renderer.engine.buildOnPlanet(1 as any, planetId, buildingType);
           }}
           onDeploy={(p) => {
             setSurfaceOpen(false);
