@@ -301,19 +301,48 @@ const CHARACTER_FBXS = Array.from({ length: 12 }, (_, i) =>
 );
 const CHARACTER_TEXTURE = '/assets/ground/characters/DungeonCrawler_Character.png';
 
+/**
+ * Weapon FBX per weapon type — uses the full weapon pack in public/assets/ground/weapons/
+ * Richer assignments: axes for berserker, longbow for ranger, daggers for rogue, etc.
+ */
 const WEAPON_MAP: Record<string, string> = {
-  sword: '/assets/ground/weapons/Sword.fbx',
-  bow: '/assets/ground/weapons/Bow.fbx',
-  staff: '/assets/ground/weapons/MagicCane.fbx',
-  spear: '/assets/ground/weapons/Spear.fbx',
+  sword: '/assets/ground/weapons/kaykit/sword_A.fbx',
+  spear: '/assets/ground/weapons/kaykit/halberd.fbx', // berserker greatsword-style
+  bow: '/assets/ground/weapons/kaykit/bow_A.fbx',
+  staff: '/assets/ground/weapons/kaykit/staff_A.fbx',
+  rifle: '/assets/ground/weapons/scifi/Rifle.fbx',
+  // Fallbacks used directly by old code paths
+  Sword: '/assets/ground/weapons/kaykit/sword_A.fbx',
+  Bow: '/assets/ground/weapons/kaykit/bow_A.fbx',
+  MagicCane: '/assets/ground/weapons/kaykit/staff_A.fbx',
+  Spear: '/assets/ground/weapons/kaykit/spear_A.fbx',
 };
 
-// ── Camera constants ──────────────────────────────────────────────
+/** Class → specific weapon override */
+const CLASS_WEAPON_MAP: Record<string, string> = {
+  warrior: '/assets/ground/weapons/kaykit/sword_A.fbx',
+  berserker: '/assets/ground/weapons/kaykit/axe_B.fbx',
+  ranger: '/assets/ground/weapons/kaykit/bow_B_withString.fbx',
+  mage: '/assets/ground/weapons/kaykit/staff_A.fbx',
+  rogue: '/assets/ground/weapons/kaykit/dagger_A.fbx',
+  gunslinger: '/assets/ground/weapons/scifi/Rifle.fbx',
+};
+
+// ── Camera constants ───────────────────────────────────────────────
 const CAM_DISTANCE = 8;
 const CAM_HEIGHT = 4;
-const CAM_SHOULDER_OFFSET = 1.2; // over-shoulder offset
+const CAM_SHOULDER = 1.2;
 const CAM_LERP = 6;
 const MOUSE_SENSITIVITY = 0.003;
+const FREE_CAM_SPEED = 18;
+const FREE_CAM_FAST = 50; // shift-held speed
+
+/** Nav mesh blocked zone — characters cannot occupy these radii. */
+interface BlockedZone {
+  x: number;
+  z: number;
+  radius: number;
+}
 
 export class GroundRenderer {
   // ── Three.js core ─────────────────────────────────────────────
@@ -325,7 +354,7 @@ export class GroundRenderer {
   private disposed = false;
   private animFrame = 0;
 
-  // ── Game state ────────────────────────────────────────────────
+  // ── Game state ─────────────────────────────────────────────
   public state: GroundCombatState;
   private input: GroundInput = {
     forward: false,
@@ -341,12 +370,26 @@ export class GroundRenderer {
     cameraYaw: 0,
   };
 
-  // ── Camera ────────────────────────────────────────────────────
+  // ── Camera ───────────────────────────────────────────────
   private cameraYaw = 0;
   private cameraPitch = 0.3;
   private pointerLocked = false;
   private mouseHeld = false;
   private mouseHeldTime = 0;
+  /** P key toggles between gameplay follow-cam and free editor fly-cam. */
+  private cameraMode: 'follow' | 'free' = 'follow';
+  private freeCamPos = new THREE.Vector3(0, 20, -20);
+  private freeCamYaw = 0;
+  private freeCamPitch = -0.4;
+  private freeCamRMB = false; // right-mouse held in free mode
+  private freeCamOverlay: HTMLDivElement | null = null;
+
+  // ── Nav mesh ───────────────────────────────────────────────
+  /** Blocked navigation zones from solid terrain props. */
+  private blockedZones: BlockedZone[] = [];
+  /** Terrain height at world-space (x,z). Used to keep characters on the surface. */
+  private heightData: Float32Array = new Float32Array(0);
+  private heightRes = 0; // grid resolution (vertices per side)
 
   // ── Model cache ───────────────────────────────────────────────
   private fbxLoader = new FBXLoader();
@@ -423,20 +466,10 @@ export class GroundRenderer {
     const hemi = new THREE.HemisphereLight(0x88aacc, palette.ground, 0.3);
     this.scene.add(hemi);
 
-    // Ground plane
-    const groundGeo = new THREE.PlaneGeometry(200, 200);
-    const groundMat = new THREE.MeshStandardMaterial({
-      color: palette.ground,
-      roughness: 0.9,
-      metalness: 0.1,
-    });
-    this.groundPlane = new THREE.Mesh(groundGeo, groundMat);
-    this.groundPlane.rotation.x = -Math.PI / 2;
-    this.groundPlane.receiveShadow = true;
-    this.scene.add(this.groundPlane);
-
-    // Terrain cover objects
-    this.generateTerrain(palette);
+    // Heightmap terrain — high-res subdivided plane with per-vertex displacement
+    this.buildTerrain(palette);
+    // Free-camera overlay badge (hidden until P pressed)
+    this.buildFreeCamOverlay();
 
     // Lock-on indicator ring
     const ringGeo = new THREE.RingGeometry(1.2, 1.4, 32);
@@ -473,56 +506,432 @@ export class GroundRenderer {
     this.animate();
   }
 
-  // ── Terrain generation ────────────────────────────────────────
-  private generateTerrain(palette: { ground: number; accent: number }): void {
-    // Scatter box-based cover objects
-    const coverMat = new THREE.MeshStandardMaterial({
+  // ── Heightmap terrain (replaces flat plane) ───────────────────────
+
+  /** Deterministic hash for planet seed (no real randomness — same map every game). */
+  private planetSeed(pt: PlanetType): number {
+    const seeds: Record<PlanetType, number> = {
+      volcanic: 1.3,
+      oceanic: 2.7,
+      barren: 0.8,
+      crystalline: 4.1,
+      gas_giant: 3.5,
+      frozen: 5.2,
+      plasma: 6.9,
+      fungal: 2.1,
+      metallic: 7.4,
+      dark_matter: 8.8,
+    };
+    return seeds[pt] ?? 1.0;
+  }
+
+  /** Sample terrain height at (worldX, worldZ) using the stored heightmap. */
+  sampleHeight(wx: number, wz: number): number {
+    if (this.heightRes === 0) return 0;
+    const res = this.heightRes;
+    const nx = Math.max(0, Math.min(res - 1, Math.round((wx / 200 + 0.5) * (res - 1))));
+    const nz = Math.max(0, Math.min(res - 1, Math.round((wz / 200 + 0.5) * (res - 1))));
+    return this.heightData[nz * res + nx] ?? 0;
+  }
+
+  /**
+   * Build the heightmap-displaced ground plane, tiling texture, and planet-specific props.
+   * Heights use layered sine/cosine waves per-planet with a flat safe-spawn circle (r≤10).
+   */
+  private buildTerrain(palette: { ground: number; accent: number; fog: number }): void {
+    const RES = 80; // vertices per side — good detail without excess tris
+    const SIZE = 200;
+    const seed = this.planetSeed(this.state.planetType);
+
+    // ── Height profile per planet type ───────────────────────────
+    type HeightProfile = { amp: number; freq1: number; freq2: number; freq3: number; ridges: boolean };
+    const profiles: Record<PlanetType, HeightProfile> = {
+      volcanic: { amp: 6, freq1: 0.04, freq2: 0.08, freq3: 0.22, ridges: true },
+      oceanic: { amp: 1.2, freq1: 0.02, freq2: 0.05, freq3: 0.12, ridges: false },
+      barren: { amp: 2.5, freq1: 0.03, freq2: 0.06, freq3: 0.15, ridges: false },
+      crystalline: { amp: 5, freq1: 0.05, freq2: 0.12, freq3: 0.3, ridges: true },
+      gas_giant: { amp: 1.5, freq1: 0.02, freq2: 0.04, freq3: 0.1, ridges: false },
+      frozen: { amp: 3, freq1: 0.03, freq2: 0.07, freq3: 0.18, ridges: false },
+      plasma: { amp: 4, freq1: 0.05, freq2: 0.1, freq3: 0.25, ridges: true },
+      fungal: { amp: 2, freq1: 0.03, freq2: 0.06, freq3: 0.16, ridges: false },
+      metallic: { amp: 3.5, freq1: 0.04, freq2: 0.09, freq3: 0.22, ridges: true },
+      dark_matter: { amp: 7, freq1: 0.06, freq2: 0.13, freq3: 0.32, ridges: true },
+    };
+    const prof = profiles[this.state.planetType];
+
+    // ── Generate heightmap ──────────────────────────────────
+    this.heightRes = RES;
+    this.heightData = new Float32Array(RES * RES);
+    for (let zi = 0; zi < RES; zi++) {
+      for (let xi = 0; xi < RES; xi++) {
+        const wx = (xi / (RES - 1) - 0.5) * SIZE;
+        const wz = (zi / (RES - 1) - 0.5) * SIZE;
+        const dist = Math.sqrt(wx * wx + wz * wz);
+        // Spawn area (r<12) stays flat for gameplay
+        if (dist < 12) {
+          this.heightData[zi * RES + xi] = 0;
+          continue;
+        }
+        // Layered waves
+        let h = Math.sin((wx + seed * 10) * prof.freq1) * Math.cos((wz + seed * 5) * prof.freq1);
+        h += 0.5 * Math.sin((wx + seed * 3) * prof.freq2) * Math.cos((wz - seed * 4) * prof.freq2);
+        h += 0.25 * Math.sin(wx * prof.freq3 + seed) * Math.cos(wz * prof.freq3 - seed * 2);
+        if (prof.ridges) h = Math.abs(h) * 1.8 - 0.4; // sharper ridges
+        // Smooth blend from flat spawn to terrain (12–18 unit transition)
+        const blend = Math.min(1, (dist - 12) / 6);
+        this.heightData[zi * RES + xi] = h * prof.amp * blend;
+      }
+    }
+
+    // ── Build geometry ────────────────────────────────────
+    const geo = new THREE.PlaneGeometry(SIZE, SIZE, RES - 1, RES - 1);
+    geo.rotateX(-Math.PI / 2);
+    const pos = geo.attributes.position;
+    for (let i = 0; i < pos.count; i++) {
+      const xi = i % RES;
+      const zi = Math.floor(i / RES);
+      pos.setY(i, this.heightData[zi * RES + xi]);
+    }
+    geo.computeVertexNormals();
+
+    // ── Procedural tiling terrain texture ────────────────────
+    const tex = this.buildTerrainTexture(palette);
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    tex.repeat.set(16, 16); // tile 16× across 200-unit ground
+    tex.colorSpace = THREE.SRGBColorSpace;
+
+    const groundMat = new THREE.MeshStandardMaterial({
+      map: tex,
+      roughness: 0.92,
+      metalness: 0.04,
+    });
+    this.groundPlane = new THREE.Mesh(geo, groundMat);
+    this.groundPlane.receiveShadow = true;
+    this.scene.add(this.groundPlane);
+
+    // ── Planet-specific props ──────────────────────────────
+    this.generateProps(palette);
+  }
+
+  /**
+   * Build a 256×256 canvas texture with noise/grain appropriate for the planet.
+   * Tiled 16× over the ground so it looks like a real surface material.
+   */
+  private buildTerrainTexture(palette: { ground: number; accent: number }): THREE.CanvasTexture {
+    const SZ = 256;
+    const cvs = document.createElement('canvas');
+    cvs.width = cvs.height = SZ;
+    const ctx = cvs.getContext('2d')!;
+
+    // Base fill
+    const r = (palette.ground >> 16) & 0xff;
+    const g = (palette.ground >> 8) & 0xff;
+    const b = palette.ground & 0xff;
+    const ar = (palette.accent >> 16) & 0xff;
+    const ag = (palette.accent >> 8) & 0xff;
+    const ab = palette.accent & 0xff;
+    ctx.fillStyle = `rgb(${r},${g},${b})`;
+    ctx.fillRect(0, 0, SZ, SZ);
+
+    // Random grain noise — gives rocky/sandy look without a real texture file
+    for (let y = 0; y < SZ; y++) {
+      for (let x = 0; x < SZ; x++) {
+        const n = (Math.random() - 0.5) * 28;
+        const tr = Math.min(255, Math.max(0, r + n));
+        const tg = Math.min(255, Math.max(0, g + n * 0.8));
+        const tb = Math.min(255, Math.max(0, b + n * 0.6));
+        ctx.fillStyle = `rgb(${tr | 0},${tg | 0},${tb | 0})`;
+        ctx.fillRect(x, y, 1, 1);
+      }
+    }
+
+    // Accent streaks (cracks, veins, ice lines)
+    ctx.strokeStyle = `rgba(${ar},${ag},${ab},0.15)`;
+    ctx.lineWidth = 1;
+    for (let i = 0; i < 18; i++) {
+      ctx.beginPath();
+      ctx.moveTo(Math.random() * SZ, Math.random() * SZ);
+      ctx.lineTo(Math.random() * SZ, Math.random() * SZ);
+      ctx.stroke();
+    }
+
+    return new THREE.CanvasTexture(cvs);
+  }
+
+  /**
+   * Planet-specific themed props: trees, crystal spires, mushrooms, ice shards, etc.
+   * Each solid prop registers a BlockedZone for nav-mesh collision.
+   */
+  private generateProps(palette: { ground: number; accent: number }): void {
+    const pt = this.state.planetType;
+    const baseMat = new THREE.MeshStandardMaterial({ color: palette.ground, roughness: 0.9, metalness: 0.05 });
+    const accentMat = new THREE.MeshStandardMaterial({
       color: palette.accent,
-      roughness: 0.7,
-      metalness: 0.3,
+      roughness: 0.6,
+      metalness: 0.2,
       emissive: palette.accent,
-      emissiveIntensity: 0.05,
+      emissiveIntensity: 0.07,
     });
-    const rockMat = new THREE.MeshStandardMaterial({
-      color: palette.ground,
-      roughness: 0.95,
-      metalness: 0.05,
-    });
+    const darkMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.95, metalness: 0.1 });
 
-    for (let i = 0; i < 40; i++) {
-      const x = (Math.random() - 0.5) * 80;
-      const z = (Math.random() - 0.5) * 80;
-      // Skip near spawn area
-      if (Math.abs(x) < 5 && Math.abs(z) < 5) continue;
-
-      const isAccent = Math.random() < 0.3;
-      const w = 0.5 + Math.random() * 2;
-      const h = 0.5 + Math.random() * 3;
-      const d = 0.5 + Math.random() * 2;
-      const geo = new THREE.BoxGeometry(w, h, d);
-      const mesh = new THREE.Mesh(geo, isAccent ? coverMat : rockMat);
-      mesh.position.set(x, h / 2, z);
-      mesh.rotation.y = Math.random() * Math.PI;
-      mesh.castShadow = true;
-      mesh.receiveShadow = true;
+    // ── Spawn helper ──────────────────────────────────────────
+    const addProp = (mesh: THREE.Mesh | THREE.Group, x: number, z: number, navR: number) => {
+      const y = this.sampleHeight(x, z);
+      if (mesh instanceof THREE.Mesh) {
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+      } else {
+        mesh.traverse((c) => {
+          if ((c as THREE.Mesh).isMesh) {
+            (c as THREE.Mesh).castShadow = true;
+            (c as THREE.Mesh).receiveShadow = true;
+          }
+        });
+      }
+      mesh.position.set(x, y, z);
       this.scene.add(mesh);
       this.terrainObjects.push(mesh);
+      if (navR > 0) this.blockedZones.push({ x, z, radius: navR });
+    };
+
+    // Ensures we don’t place props in the player spawn zone
+    const safePos = (range = 80): [number, number] => {
+      let px: number, pz: number;
+      do {
+        px = (Math.random() - 0.5) * range;
+        pz = (Math.random() - 0.5) * range;
+      } while (Math.sqrt(px * px + pz * pz) < 14);
+      return [px, pz];
+    };
+
+    // ── Shared background mountains (all planet types) ──────────────
+    for (let i = 0; i < 6; i++) {
+      const [mx, mz] = safePos(180);
+      if (Math.sqrt(mx * mx + mz * mz) < 50) continue; // far-field only
+      const mh = 8 + Math.random() * 16;
+      const mr = 4 + Math.random() * 8;
+      const mGeo = new THREE.ConeGeometry(mr, mh, 7 + Math.floor(Math.random() * 4));
+      const mountain = new THREE.Mesh(mGeo, baseMat);
+      mountain.position.set(mx, this.sampleHeight(mx, mz), mz);
+      mountain.castShadow = true;
+      this.scene.add(mountain);
+      this.terrainObjects.push(mountain);
+      // Mountains are background decoration — nav zone covers their base only
+      this.blockedZones.push({ x: mx, z: mz, radius: mr * 0.6 });
     }
 
-    // Accent crystal/pillar objects for visual variety
-    for (let i = 0; i < 15; i++) {
-      const x = (Math.random() - 0.5) * 90;
-      const z = (Math.random() - 0.5) * 90;
-      if (Math.abs(x) < 8 && Math.abs(z) < 8) continue;
-      const r = 0.2 + Math.random() * 0.5;
-      const h = 2 + Math.random() * 5;
-      const geo = new THREE.CylinderGeometry(r * 0.6, r, h, 6);
-      const mesh = new THREE.Mesh(geo, coverMat);
-      mesh.position.set(x, h / 2, z);
-      mesh.castShadow = true;
-      this.scene.add(mesh);
-      this.terrainObjects.push(mesh);
+    // ── Planet-specific foreground props ───────────────────────
+    if (pt === 'volcanic') {
+      // Lava rock pillars + obsidian shards
+      for (let i = 0; i < 18; i++) {
+        const [x, z] = safePos(70);
+        const h = 1.5 + Math.random() * 4;
+        const r = 0.4 + Math.random() * 0.8;
+        const g = new THREE.Group();
+        g.add(Object.assign(new THREE.Mesh(new THREE.CylinderGeometry(r * 0.4, r, h, 6), darkMat), { castShadow: true }));
+        g.add(
+          Object.assign(new THREE.Mesh(new THREE.ConeGeometry(r * 0.5, h * 0.4, 5), accentMat), {
+            castShadow: true,
+            position: { x: 0, y: h * 0.5, z: 0 },
+          }),
+        );
+        (g.children[1] as THREE.Mesh).position.y = h * 0.5;
+        addProp(g, x, z, r + 0.3);
+      }
+      // Lava pools (decal-like flat discs with emissive glow)
+      for (let i = 0; i < 8; i++) {
+        const [x, z] = safePos(60);
+        const r = 1.5 + Math.random() * 3;
+        const m = new THREE.Mesh(
+          new THREE.CircleGeometry(r, 16),
+          new THREE.MeshStandardMaterial({
+            color: 0xff3300,
+            emissive: 0xff3300,
+            emissiveIntensity: 0.6,
+            roughness: 0.3,
+            transparent: true,
+            opacity: 0.85,
+          }),
+        );
+        m.rotation.x = -Math.PI / 2;
+        m.position.set(x, this.sampleHeight(x, z) + 0.05, z);
+        this.scene.add(m);
+        // Lava pools are navigable (players walk around them — damage is separate)
+      }
+    } else if (pt === 'oceanic') {
+      // Coral towers + rock islands
+      for (let i = 0; i < 22; i++) {
+        const [x, z] = safePos(70);
+        const segs = 5 + Math.floor(Math.random() * 4);
+        const h = 2 + Math.random() * 6;
+        const r = 0.2 + Math.random() * 0.6;
+        const geo = new THREE.CylinderGeometry(r * 0.3, r, h, segs);
+        const m = new THREE.Mesh(geo, Math.random() < 0.5 ? accentMat : baseMat);
+        m.rotation.z = (Math.random() - 0.5) * 0.4;
+        addProp(m, x, z, r);
+      }
+      // Kelp/seaweed — thin tall cylinders
+      for (let i = 0; i < 30; i++) {
+        const [x, z] = safePos(80);
+        const h = 3 + Math.random() * 5;
+        const m = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.12, h, 5), accentMat);
+        m.rotation.x = (Math.random() - 0.5) * 0.3;
+        addProp(m, x, z, 0); // thin — no nav block
+      }
+    } else if (pt === 'frozen') {
+      // Ice crystal spires — hexagonal prisms tilted at angles
+      for (let i = 0; i < 25; i++) {
+        const [x, z] = safePos(70);
+        const h = 2 + Math.random() * 7;
+        const r = 0.3 + Math.random() * 0.7;
+        const geo = new THREE.CylinderGeometry(r * 0.25, r * 0.6, h, 6);
+        const m = new THREE.Mesh(
+          geo,
+          new THREE.MeshStandardMaterial({
+            color: 0xaaddff,
+            roughness: 0.1,
+            metalness: 0.4,
+            transparent: true,
+            opacity: 0.8,
+            emissive: 0x224466,
+            emissiveIntensity: 0.15,
+          }),
+        );
+        m.rotation.z = (Math.random() - 0.5) * 0.6;
+        addProp(m, x, z, r * 0.7);
+      }
+      // Snow mounds — low hemispheres
+      for (let i = 0; i < 15; i++) {
+        const [x, z] = safePos(80);
+        const r = 1 + Math.random() * 2.5;
+        const m = new THREE.Mesh(new THREE.SphereGeometry(r, 8, 6, 0, Math.PI * 2, 0, Math.PI * 0.4), baseMat);
+        addProp(m, x, z, r * 0.8);
+      }
+    } else if (pt === 'fungal') {
+      // Mushrooms — cylinder stalk + flattened sphere cap
+      for (let i = 0; i < 28; i++) {
+        const [x, z] = safePos(70);
+        const h = 1.5 + Math.random() * 5;
+        const cr = 1.0 + Math.random() * 2.5;
+        const g = new THREE.Group();
+        g.add(new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.35, h, 7), baseMat));
+        const cap = new THREE.Mesh(new THREE.SphereGeometry(cr, 10, 6, 0, Math.PI * 2, 0, Math.PI * 0.55), accentMat);
+        cap.position.y = h * 0.55;
+        cap.scale.y = 0.45;
+        g.add(cap);
+        addProp(g, x, z, cr * 0.7);
+      }
+    } else if (pt === 'crystalline') {
+      // Crystal formations — clusters of pointed prisms
+      for (let i = 0; i < 20; i++) {
+        const [x, z] = safePos(70);
+        const g = new THREE.Group();
+        const clusterR = 1 + Math.random() * 2;
+        const count = 3 + Math.floor(Math.random() * 4);
+        for (let ci = 0; ci < count; ci++) {
+          const angle = (ci / count) * Math.PI * 2;
+          const dist = clusterR * 0.5 * Math.random();
+          const h = 1.5 + Math.random() * 4;
+          const r = 0.15 + Math.random() * 0.35;
+          const c = new THREE.Mesh(new THREE.ConeGeometry(r, h, 5), accentMat);
+          c.position.set(Math.cos(angle) * dist, h / 2, Math.sin(angle) * dist);
+          c.rotation.z = (Math.random() - 0.5) * 0.5;
+          c.castShadow = true;
+          g.add(c);
+        }
+        addProp(g, x, z, clusterR * 0.8);
+      }
+    } else if (pt === 'barren') {
+      // Sandstone arch-like formations and wind-eroded pillars
+      for (let i = 0; i < 18; i++) {
+        const [x, z] = safePos(70);
+        const h = 1 + Math.random() * 3.5;
+        const r = 0.5 + Math.random() * 1.2;
+        const m = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.7, r, h, 5 + Math.floor(Math.random() * 3)), baseMat);
+        m.rotation.y = Math.random() * Math.PI;
+        addProp(m, x, z, r);
+      }
+      // Dead tree stumps (thin, very tall)
+      for (let i = 0; i < 12; i++) {
+        const [x, z] = safePos(75);
+        const h = 3 + Math.random() * 5;
+        const m = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.3, h, 6), darkMat);
+        addProp(m, x, z, 0.4);
+      }
+    } else if (pt === 'metallic') {
+      // Industrial struts and broken machinery chunks
+      for (let i = 0; i < 20; i++) {
+        const [x, z] = safePos(70);
+        const h = 0.8 + Math.random() * 4;
+        const w = 0.4 + Math.random() * 1.5;
+        const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, w * 0.8), accentMat);
+        m.rotation.y = Math.random() * Math.PI;
+        addProp(m, x, z, w * 0.6);
+      }
+      // Tall antenna spires
+      for (let i = 0; i < 8; i++) {
+        const [x, z] = safePos(75);
+        const h = 5 + Math.random() * 12;
+        const m = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.25, h, 4), darkMat);
+        addProp(m, x, z, 0.4);
+      }
+    } else if (pt === 'dark_matter' || pt === 'plasma') {
+      // Floating shards (elevated via sampleHeight + extra offset)
+      for (let i = 0; i < 22; i++) {
+        const [x, z] = safePos(70);
+        const h = 2 + Math.random() * 5;
+        const w = 0.3 + Math.random() * 1;
+        const m = new THREE.Mesh(
+          new THREE.BoxGeometry(w, h, w * 0.7),
+          new THREE.MeshStandardMaterial({
+            color: palette.accent,
+            roughness: 0.3,
+            metalness: 0.6,
+            emissive: palette.accent,
+            emissiveIntensity: 0.2,
+          }),
+        );
+        m.rotation.set(Math.random() * 0.6, Math.random() * Math.PI, Math.random() * 0.6);
+        addProp(m, x, z, w * 0.8);
+      }
+    } else {
+      // gas_giant fallback — low rolling dunes (rounded boxes)
+      for (let i = 0; i < 16; i++) {
+        const [x, z] = safePos(70);
+        const w = 2 + Math.random() * 4;
+        const h = 0.4 + Math.random() * 1;
+        const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, w * 0.7), baseMat);
+        m.rotation.y = Math.random() * Math.PI;
+        addProp(m, x, z, 0);
+      }
     }
+  }
+
+  /** Create a floating DOM badge shown only in free-camera mode. */
+  private buildFreeCamOverlay(): void {
+    const div = document.createElement('div');
+    Object.assign(div.style, {
+      position: 'absolute',
+      top: '12px',
+      left: '50%',
+      transform: 'translateX(-50%)',
+      padding: '5px 16px',
+      borderRadius: '6px',
+      background: 'rgba(0,0,0,0.75)',
+      border: '1px solid #ffcc44',
+      color: '#ffcc44',
+      fontFamily: "'Segoe UI', monospace",
+      fontSize: '11px',
+      letterSpacing: '2px',
+      fontWeight: '700',
+      pointerEvents: 'none',
+      display: 'none',
+      zIndex: '999',
+    });
+    div.textContent = 'CAMERA: FREE   WASD=fly  RMB=orbit  P=play';
+    this.container.style.position = 'relative';
+    this.container.appendChild(div);
+    this.freeCamOverlay = div;
   }
 
   // ── Model loading ─────────────────────────────────────────────
@@ -613,8 +1022,8 @@ export class GroundRenderer {
       this.scene.add(this.playerGroup);
     }
 
-    // Load weapon matching the character class
-    const weaponPath = WEAPON_MAP[this.state.player.weaponType] ?? WEAPON_MAP.sword;
+    // Load weapon matching the character class (prefer class-specific override)
+    const weaponPath = CLASS_WEAPON_MAP[this.state.player.characterClass] ?? WEAPON_MAP[this.state.player.weaponType] ?? WEAPON_MAP.sword;
     try {
       const weapon = await this.loadFBX(weaponPath);
       weapon.scale.setScalar(0.5);
@@ -784,31 +1193,40 @@ export class GroundRenderer {
   }
 
   private onMouseDown = (e: MouseEvent) => {
+    if (this.cameraMode === 'free') {
+      if (e.button === 2) this.freeCamRMB = true;
+      return; // ignore game inputs in free cam
+    }
     if (e.button === 0) {
       this.mouseHeld = true;
       this.mouseHeldTime = 0;
     }
-    if (e.button === 2) {
-      this.input.block = true;
-    }
+    if (e.button === 2) this.input.block = true;
   };
 
   private onMouseUp = (e: MouseEvent) => {
+    if (this.cameraMode === 'free') {
+      if (e.button === 2) this.freeCamRMB = false;
+      return;
+    }
     if (e.button === 0) {
-      if (this.mouseHeldTime > 0.4) {
-        this.input.heavyAttack = true;
-      } else {
-        this.input.attack = true;
-      }
+      if (this.mouseHeldTime > 0.4) this.input.heavyAttack = true;
+      else this.input.attack = true;
       this.mouseHeld = false;
       this.mouseHeldTime = 0;
     }
-    if (e.button === 2) {
-      this.input.block = false;
-    }
+    if (e.button === 2) this.input.block = false;
   };
 
   private onMouseMove = (e: MouseEvent) => {
+    if (this.cameraMode === 'free') {
+      // Free cam orbit via right-mouse drag (no pointer lock needed)
+      if (this.freeCamRMB) {
+        this.freeCamYaw -= e.movementX * MOUSE_SENSITIVITY;
+        this.freeCamPitch = Math.max(-1.4, Math.min(1.4, this.freeCamPitch - e.movementY * MOUSE_SENSITIVITY));
+      }
+      return;
+    }
     if (!this.pointerLocked) return;
     this.cameraYaw -= e.movementX * MOUSE_SENSITIVITY;
     this.cameraPitch = Math.max(-0.5, Math.min(1.2, this.cameraPitch - e.movementY * MOUSE_SENSITIVITY));
@@ -823,6 +1241,22 @@ export class GroundRenderer {
     if (e.key === ' ') {
       e.preventDefault();
       this.dodgePressed = true;
+    }
+    // P key — toggle free-camera / follow-camera
+    if (e.key.toLowerCase() === 'p') {
+      this.cameraMode = this.cameraMode === 'follow' ? 'free' : 'follow';
+      if (this.cameraMode === 'free') {
+        // Initialise free cam at current camera position
+        this.freeCamPos.copy(this.camera.position);
+        this.freeCamYaw = this.cameraYaw;
+        this.freeCamPitch = this.cameraPitch - 0.4;
+        // Exit pointer lock so mouse is free
+        document.exitPointerLock();
+        this.pointerLocked = false;
+        if (this.freeCamOverlay) this.freeCamOverlay.style.display = 'block';
+      } else {
+        if (this.freeCamOverlay) this.freeCamOverlay.style.display = 'none';
+      }
     }
   };
 
@@ -861,34 +1295,91 @@ export class GroundRenderer {
   private animate = (): void => {
     if (this.disposed) return;
     this.animFrame = requestAnimationFrame(this.animate);
-
     const dt = Math.min(this.clock.getDelta(), 0.05);
 
-    // Gather input
     this.updateInput(dt);
 
-    // Update combat engine
-    updateGroundCombat(this.state, this.input, dt);
-
-    // Clear one-shot inputs
-    this.clearOneShot();
-
-    // Sync visuals
-    this.syncEnemyVisuals();
-    this.syncPlayerVisual(dt);
-    this.syncEnemyVisualPositions(dt);
-    this.syncDamageNumbers();
-    this.syncLockOn();
-    this.updateCamera(dt);
-
-    // Check result
-    if (this.state.result !== 'none') {
-      this.onResult?.(this.state.result);
+    if (this.cameraMode === 'free') {
+      // ── Free-camera fly mode: game paused, editor-style control ─────
+      this.updateFreeCam(dt);
+    } else {
+      // ── Normal gameplay ─────────────────────────────────────
+      updateGroundCombat(this.state, this.input, dt);
+      this.clearOneShot();
+      this.applyNavMesh(); // push player out of blocked zones
+      this.syncEnemyVisuals();
+      this.syncPlayerVisual(dt);
+      this.syncEnemyVisualPositions(dt);
+      this.syncDamageNumbers();
+      this.syncLockOn();
+      this.updateCamera(dt);
+      if (this.state.result !== 'none') this.onResult?.(this.state.result);
     }
 
-    // Render
     this.renderer.render(this.scene, this.camera);
   };
+
+  // ── Nav mesh: push player and enemies out of BlockedZones ──────────
+  private applyNavMesh(): void {
+    const p = this.state.player;
+    for (const zone of this.blockedZones) {
+      const dx = p.pos.x - zone.x;
+      const dz = p.pos.z - zone.z;
+      const dist = Math.sqrt(dx * dx + dz * dz);
+      if (dist < zone.radius && dist > 0.001) {
+        // Push the player out along the normal
+        const push = (zone.radius - dist) / dist;
+        p.pos.x += dx * push;
+        p.pos.z += dz * push;
+      }
+    }
+    // Also snap player Y to terrain height
+    p.pos.y = this.sampleHeight(p.pos.x, p.pos.z);
+
+    // Enemy collision with blocked zones
+    for (const enemy of this.state.enemies) {
+      if (enemy.aiState === 'dead') continue;
+      for (const zone of this.blockedZones) {
+        const dx = enemy.pos.x - zone.x;
+        const dz = enemy.pos.z - zone.z;
+        const dist = Math.sqrt(dx * dx + dz * dz);
+        if (dist < zone.radius && dist > 0.001) {
+          const push = (zone.radius - dist) / dist;
+          enemy.pos.x += dx * push;
+          enemy.pos.z += dz * push;
+        }
+      }
+      enemy.pos.y = this.sampleHeight(enemy.pos.x, enemy.pos.z);
+    }
+  }
+
+  // ── Free camera (editor fly-around) ─────────────────────────────
+  private updateFreeCam(dt: number): void {
+    const fast = this.keys.has('shift');
+    const speed = (fast ? FREE_CAM_FAST : FREE_CAM_SPEED) * dt;
+
+    // Build look direction from yaw/pitch
+    const lookDir = new THREE.Vector3(
+      Math.sin(this.freeCamYaw) * Math.cos(this.freeCamPitch),
+      Math.sin(this.freeCamPitch),
+      Math.cos(this.freeCamYaw) * Math.cos(this.freeCamPitch),
+    );
+    const right = new THREE.Vector3().crossVectors(lookDir, new THREE.Vector3(0, 1, 0)).normalize();
+    const up = new THREE.Vector3(0, 1, 0);
+
+    // WASD = pan in look direction (like FPS editor camera)
+    if (this.keys.has('w')) this.freeCamPos.addScaledVector(lookDir, speed);
+    if (this.keys.has('s')) this.freeCamPos.addScaledVector(lookDir, -speed);
+    if (this.keys.has('a')) this.freeCamPos.addScaledVector(right, -speed);
+    if (this.keys.has('d')) this.freeCamPos.addScaledVector(right, speed);
+    // E/Q = fly up/down
+    if (this.keys.has('e')) this.freeCamPos.addScaledVector(up, speed);
+    if (this.keys.has('q')) this.freeCamPos.addScaledVector(up, -speed);
+
+    // Apply to Three.js camera
+    this.camera.position.copy(this.freeCamPos);
+    this.camera.lookAt(this.freeCamPos.clone().add(lookDir));
+  }
 
   // ── Visual sync ───────────────────────────────────────────────
   private syncPlayerVisual(dt: number): void {
@@ -1068,40 +1559,31 @@ export class GroundRenderer {
     this.lockOnIndicator.scale.set(scale, scale, scale);
   }
 
-  // ── Camera ────────────────────────────────────────────────────
+  // ── Follow camera (gameplay) ────────────────────────────────
   private updateCamera(dt: number): void {
     const p = this.state.player;
+    const lookAt = new THREE.Vector3(p.pos.x, p.pos.y + 1.5, p.pos.z);
 
-    // If locked on, camera centres between player and target
-    const lookAtPos = new THREE.Vector3(p.pos.x, p.pos.y + 1.5, p.pos.z);
-
+    // Lock-on: centre camera between player and target, auto-yaw
     if (p.lockOnTargetId !== null) {
       const t = this.state.enemies.find((e) => e.id === p.lockOnTargetId);
       if (t) {
-        const midX = (p.pos.x + t.pos.x) / 2;
-        const midZ = (p.pos.z + t.pos.z) / 2;
-        lookAtPos.set(midX, p.pos.y + 1.5, midZ);
-        // Auto-rotate camera to face target
+        lookAt.set((p.pos.x + t.pos.x) / 2, p.pos.y + 1.5, (p.pos.z + t.pos.z) / 2);
         const targetYaw = Math.atan2(t.pos.x - p.pos.x, t.pos.z - p.pos.z);
         this.cameraYaw += (targetYaw - this.cameraYaw) * 3 * dt;
       }
     }
 
-    // Over-shoulder third person
+    // Over-shoulder third-person
     const offX = Math.sin(this.cameraYaw) * CAM_DISTANCE;
     const offZ = Math.cos(this.cameraYaw) * CAM_DISTANCE;
-    const shoulderX = Math.sin(this.cameraYaw + Math.PI / 2) * CAM_SHOULDER_OFFSET;
-    const shoulderZ = Math.cos(this.cameraYaw + Math.PI / 2) * CAM_SHOULDER_OFFSET;
+    const sh = CAM_SHOULDER;
+    const shX = Math.sin(this.cameraYaw + Math.PI / 2) * sh;
+    const shZ = Math.cos(this.cameraYaw + Math.PI / 2) * sh;
 
-    const targetCamPos = new THREE.Vector3(
-      p.pos.x - offX + shoulderX,
-      p.pos.y + CAM_HEIGHT + this.cameraPitch * 3,
-      p.pos.z - offZ + shoulderZ,
-    );
-
-    // Smooth follow
-    this.camera.position.lerp(targetCamPos, CAM_LERP * dt);
-    this.camera.lookAt(lookAtPos);
+    const targetPos = new THREE.Vector3(p.pos.x - offX + shX, p.pos.y + CAM_HEIGHT + this.cameraPitch * 3, p.pos.z - offZ + shZ);
+    this.camera.position.lerp(targetPos, CAM_LERP * dt);
+    this.camera.lookAt(lookAt);
   }
 
   // ── Resize ────────────────────────────────────────────────────
@@ -1121,6 +1603,7 @@ export class GroundRenderer {
     window.removeEventListener('keydown', this.onKeyDown);
     window.removeEventListener('keyup', this.onKeyUp);
     document.exitPointerLock();
+    if (this.freeCamOverlay?.parentNode) this.freeCamOverlay.parentNode.removeChild(this.freeCamOverlay);
 
     this.renderer.domElement.removeEventListener('mousedown', this.onMouseDown);
     this.renderer.domElement.removeEventListener('mouseup', this.onMouseUp);
