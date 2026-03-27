@@ -29,7 +29,7 @@ import { SHIP_PREVIEW } from '../game/space-ui-shared';
 import { FACTION_HERO_DEFINITIONS } from '../game/space-config';
 
 // ── Types ──────────────────────────────────────────────────────────
-type AdminTab = 'ships' | 'dashboard' | 'players' | 'matches' | 'balance' | 'config' | 'tools' | 'editor';
+type AdminTab = 'ships' | 'dashboard' | 'players' | 'matches' | 'balance' | 'config' | 'tools';
 
 // ── Derived ship list from real game data ──────────────────────────
 interface ShipEntry {
@@ -983,9 +983,6 @@ function ToolsTab() {
   );
 }
 
-// ── Toon Editor Tab (imported from dedicated module) ───────────────
-import ToonAdminEditor from './ToonAdminEditor';
-
 // ── Main Admin App ─────────────────────────────────────────────────
 export default function AdminApp() {
   const [user, setUser] = useState<AdminUser | null>(null);
@@ -1057,7 +1054,6 @@ export default function AdminApp() {
     { key: 'balance', label: 'BALANCE', icon: '⚖️' },
     { key: 'config', label: 'CONFIG', icon: '⚙️' },
     { key: 'tools', label: 'TOOLS', icon: '🔧' },
-    { key: 'editor', label: 'TOON EDITOR', icon: '🎨' },
   ];
 
   return (
@@ -1095,7 +1091,6 @@ export default function AdminApp() {
         {tab === 'balance' && <BalanceTab />}
         {tab === 'config' && <ConfigTab />}
         {tab === 'tools' && <ToolsTab />}
-        {tab === 'editor' && <ToonAdminEditor />}
       </div>
     </div>
   );

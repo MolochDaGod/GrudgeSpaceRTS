@@ -47,9 +47,10 @@ interface PlanetSurfaceViewProps {
   state: SpaceGameState;
   onClose: () => void;
   onBuild: (planetId: number, buildingType: PlanetBuildingType) => void;
+  onDeploy?: (planet: Planet) => void;
 }
 
-export function PlanetSurfaceView({ planet, state, onClose, onBuild }: PlanetSurfaceViewProps) {
+export function PlanetSurfaceView({ planet, state, onClose, onBuild, onDeploy }: PlanetSurfaceViewProps) {
   const [cameraMode, setCameraMode] = useState<CameraMode>('orbital');
   const [selectedSlot, setSelectedSlot] = useState<PlanetBuildingType | null>(null);
   const surface: PlanetSurface = planet.surface ?? {
@@ -471,6 +472,24 @@ export function PlanetSurfaceView({ planet, state, onClose, onBuild }: PlanetSur
                   </div>
                 </div>
               </SmallPanel>
+            )}
+
+            {/* Deploy ground team */}
+            {onDeploy && (
+              <div
+                style={{
+                  padding: '12px 14px',
+                  borderRadius: 8,
+                  background: 'rgba(255,100,0,0.08)',
+                  border: '1px solid rgba(255,100,0,0.3)',
+                }}
+              >
+                <div style={{ fontSize: 9, color: '#ff8822', fontWeight: 700, letterSpacing: 2, marginBottom: 6 }}>GROUND OPS</div>
+                <div style={{ fontSize: 10, color: 'rgba(200,180,140,0.6)', marginBottom: 8, lineHeight: 1.5 }}>
+                  Deploy a ground team for combat missions on the surface.
+                </div>
+                <Btn label="⚔️ DEPLOY GROUND TEAM" wide active onClick={() => onDeploy(planet)} style={{ height: 36 }} />
+              </div>
             )}
 
             {/* Resource yield from this planet */}

@@ -41,7 +41,10 @@ import { loadRemoteBalance } from './game/space-data-loader';
 import { DevOverlay } from './game/dev-overlay';
 import { ShipCodex3D } from './game/codex-ui';
 
-type Screen = 'intro' | 'menu' | 'codex' | 'howto' | 'editor' | 'playing';
+import { GroundCombatView } from './game/GroundCombatView';
+import type { PlanetType } from './game/space-types';
+
+type Screen = 'intro' | 'menu' | 'codex' | 'howto' | 'editor' | 'playing' | 'ground_combat';
 
 // ── Space Background: stars + nebulae + comets ────────────────────
 const StarfieldCanvas = memo(function StarfieldCanvas() {
@@ -329,7 +332,7 @@ export default function App() {
   useEffect(() => {
     if (screen === 'menu' || screen === 'codex' || screen === 'howto' || screen === 'editor') {
       gameAudio.playMusic('menu');
-    } else if (screen === 'playing') {
+    } else if (screen === 'playing' || screen === 'ground_combat') {
       gameAudio.playMusic('battle');
     } else if (screen === 'intro') {
       gameAudio.playMusic('main');
@@ -348,6 +351,8 @@ export default function App() {
   const [enemyColorMode, setEnemyColorMode] = useState<EnemyColorMode>('unique');
   const [enemyColorIdx, setEnemyColorIdx] = useState(1); // Red default
   const [aiDifficulty, setAiDifficulty] = useState(3); // 1=Passive, 3=Balanced, 5=Aggressive
+  const [groundPlanetType, setGroundPlanetType] = useState<PlanetType>('barren');
+  const [groundPlanetName, setGroundPlanetName] = useState('Unknown');
 
   // M key opens Star Map while playing
   useEffect(() => {
@@ -431,7 +436,10 @@ export default function App() {
         fontFamily: "'Segoe UI', monospace",
       }}
     >
-      <div ref={containerRef} style={{ width: '100%', height: '100%', display: screen === 'playing' ? 'block' : 'none' }} />
+      <div
+        ref={containerRef}
+        style={{ width: '100%', height: '100%', display: screen === 'playing' || screen === 'ground_combat' ? 'block' : 'none' }}
+      />
       {screen === 'intro' && <IntroScreen onFinish={() => setScreen('menu')} />}
       {screen === 'menu' && (
         <MainMenu
@@ -486,9 +494,28 @@ export default function App() {
       {screen === 'editor' && <ShipForgeEditor onBack={() => setScreen('menu')} />}
       {loading && <LoadingScreen />}
       {screen === 'playing' && !loading && renderer && (
-        <SpaceHUD renderer={renderer} onQuit={backToMenu} onToggleStarMap={() => setStarMapOpen((o) => !o)} />
+        <SpaceHUD
+          renderer={renderer}
+          onQuit={backToMenu}
+          onToggleStarMap={() => setStarMapOpen((o) => !o)}
+          onDeployGround={(pType, pName) => {
+            setGroundPlanetType(pType);
+            setGroundPlanetName(pName);
+            setScreen('ground_combat');
+          }}
+        />
       )}
       {screen === 'playing' && starMapOpen && renderer && <StarMapOverlay renderer={renderer} onClose={() => setStarMapOpen(false)} />}
+      {screen === 'ground_combat' && (
+        <GroundCombatView
+          planetType={groundPlanetType}
+          planetName={groundPlanetName}
+          onExit={(result) => {
+            console.log('[GROUND] Mission result:', result);
+            setScreen('playing');
+          }}
+        />
+      )}
       {/* Admin UI overlay — toggle with backtick key */}
       <DevOverlay />
     </div>
