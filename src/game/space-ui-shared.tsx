@@ -161,6 +161,8 @@ export const ABILITY_IMG: Record<string, string> = {
   repair: `${SK}/7.png`, // hand holding gear — repair
   ram: `${SK}/8.png`, // golden energy blade — ram charge
   launch_fighters: `${SK}/1.png`, // dual pistols firing — launch fighters
+  // Mine deployment — torpedo bomb sprite from bombs pack
+  deploy_mine: '/assets/space/ui/bombs/1 Bombs/7.png',
   // Hacking abilities — use remaining skill art + cyber GUI icons
   hack_weapons: `${SK}/11.png`, // cyber skull — disable weapons
   hack_shields: `${SK}/12.png`, // digital brain — drop shields
@@ -265,6 +267,24 @@ export const ABILITY_ICONS: Record<string, React.ReactNode> = {
       <polygon points="16,4 20,10 12,10" fill="#4df" />
       <line x1="8" y1="10" x2="8" y2="6" stroke="#4df" strokeWidth="1" strokeDasharray="2 1" />
       <line x1="24" y1="10" x2="24" y2="6" stroke="#4df" strokeWidth="1" strokeDasharray="2 1" />
+    </svg>
+  ),
+  /** Deploy Mine — concentric ring landmine icon */
+  deploy_mine: (
+    <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+      {/* Outer pulse ring */}
+      <circle cx="16" cy="18" r="11" stroke="#ff4422" strokeWidth="1" strokeDasharray="3 2" opacity="0.5" />
+      {/* Mine body */}
+      <circle cx="16" cy="18" r="7" fill="#331100" stroke="#ff6633" strokeWidth="2" />
+      {/* Trigger spike */}
+      <line x1="16" y1="11" x2="16" y2="6" stroke="#ff4422" strokeWidth="2" strokeLinecap="round" />
+      <circle cx="16" cy="5" r="1.5" fill="#ff6633" />
+      {/* Warning markings */}
+      <line x1="10" y1="18" x2="22" y2="18" stroke="#ffaa22" strokeWidth="1.5" strokeLinecap="round" />
+      <line x1="16" y1="12" x2="16" y2="24" stroke="#ffaa22" strokeWidth="1.5" strokeLinecap="round" />
+      {/* Corner spikes */}
+      <line x1="11" y1="13" x2="8" y2="10" stroke="#ff4422" strokeWidth="1.5" strokeLinecap="round" />
+      <line x1="21" y1="13" x2="24" y2="10" stroke="#ff4422" strokeWidth="1.5" strokeLinecap="round" />
     </svg>
   ),
 };
