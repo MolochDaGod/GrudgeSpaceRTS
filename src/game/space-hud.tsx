@@ -39,9 +39,10 @@ interface SpaceHUDProps {
   renderer: SpaceRenderer | null;
   onQuit?: () => void;
   onToggleStarMap?: () => void;
+  onDeployGround?: (planetType: import('./space-types').PlanetType, planetName: string) => void;
 }
 
-export function SpaceHUD({ renderer, onQuit, onToggleStarMap }: SpaceHUDProps) {
+export function SpaceHUD({ renderer, onQuit, onToggleStarMap, onDeployGround }: SpaceHUDProps) {
   const [, forceUpdate] = useState(0);
   const animRef = useRef(0);
   const [techOpen, setTechOpen] = useState(false);
@@ -626,6 +627,10 @@ export function SpaceHUD({ renderer, onQuit, onToggleStarMap }: SpaceHUDProps) {
           onBuild={(planetId, buildingType) => {
             // TODO: wire to engine.buildOnPlanet(planetId, buildingType)
             console.log('[surface] Build', buildingType, 'on planet', planetId);
+          }}
+          onDeploy={(p) => {
+            setSurfaceOpen(false);
+            onDeployGround?.(p.planetType, p.name);
           }}
         />
       )}
