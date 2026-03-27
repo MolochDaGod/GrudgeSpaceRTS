@@ -28,6 +28,7 @@ import { ProductionSidebar } from './production-sidebar';
 import { FlagshipInterior } from './flagship-interior';
 import { VOID_POWERS } from './space-techtree';
 import type { CommanderSpec } from './space-types';
+import { getKey } from './hotkeys';
 import { PlanetCard } from './planet-card';
 import { PlanetSurfaceView } from './planet-surface';
 import { HackOverlay } from './hack-overlay';
@@ -96,22 +97,37 @@ export function SpaceHUD({ renderer, onQuit, onToggleStarMap, onDeployGround, on
     };
   }, [renderer]);
 
-  // L key: Captain's Log | F1: Planet list | Escape: close overlays
+  // HUD panel hotkeys — all driven through the hotkeys config for editability
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key.toLowerCase() === 'l') setLogOpen((o) => !o);
-      if (e.key.toLowerCase() === 'i') setInventoryOpen((o) => !o);
-      if (e.key === 'F1') {
+      const k = e.key.toLowerCase();
+      if (k === getKey('hud_log')) {
+        setLogOpen((o) => !o);
+        return;
+      }
+      if (k === getKey('hud_inventory')) {
+        setInventoryOpen((o) => !o);
+        return;
+      }
+      if (k === getKey('hud_planet_list')) {
         e.preventDefault();
         setPlanetCardOpen((o) => !o);
+        return;
       }
-      if (e.key.toLowerCase() === 'k') setSkillTreeOpen((o) => !o);
-      if (e.key.toLowerCase() === 'c') setCharPanelOpen((o) => !o);
-      if (e.key === 'Tab') {
+      if (k === getKey('hud_skills')) {
+        setSkillTreeOpen((o) => !o);
+        return;
+      }
+      if (k === getKey('hud_commander')) {
+        setCharPanelOpen((o) => !o);
+        return;
+      }
+      if (k === getKey('hud_cycle_group')) {
         e.preventDefault();
         setFocusedGroupIdx((i) => i + 1);
+        return;
       }
-      if (e.key === 'Escape') {
+      if (k === 'escape') {
         setLogOpen(false);
         setPlanetCardOpen(false);
         setSurfaceOpen(false);

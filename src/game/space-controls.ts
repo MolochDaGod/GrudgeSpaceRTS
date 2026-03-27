@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { SpaceGameState, SelectionBox, CameraState, Vec3, Command } from './space-types';
+import { getKey } from './hotkeys';
 
 const WORLD_SCALE = 0.05;
 const EDGE_SCROLL_ZONE = 30;
@@ -144,68 +145,78 @@ export class SpaceControls {
     }
 
     const hasSelection = this.state.selectedIds.size > 0;
-    switch (e.key.toLowerCase()) {
-      // ─ Ability hotkeys — W/R/T activate abilities. Q/E reserved for camera orbit.
-      // T = deploy_mine (stealth/scout units), W/R = general abilities.
-      case 'w':
-      case 'r':
-      case 't':
-        if (hasSelection) this.onAbilityActivateByKey?.(e.key.toUpperCase());
-        break;
-      // Q/E are handled continuously in update() for camera rotation
-      case 'q':
-      case 'e':
-        break;
-      // ─ Command shortcuts (G = attack-move, A = always pan) ────────
-      case 'g':
-        this.commandMode = 'attack_move';
-        break;
-      // S always pans camera (no stop command). H = hold/defend in place.
-      case 'h':
-        if (hasSelection) this.issueHoldCommand();
-        break;
-      case 'p':
-        this.commandMode = 'patrol';
-        break;
-      case 'v':
-        if (hasSelection) this.splitSelection();
-        break;
-      case 'escape':
-        this.commandMode = 'normal';
+    const k = e.key.toLowerCase();
+
+    // ─ Ability slots (W / R / T) ─────────────────────────────────────────
+    if (hasSelection) {
+      if (k === getKey('ability_slot_w')) {
+        this.onAbilityActivateByKey?.('W');
+        return;
+      }
+      if (k === getKey('ability_slot_r')) {
+        this.onAbilityActivateByKey?.('R');
+        return;
+      }
+      if (k === getKey('ability_slot_t')) {
+        this.onAbilityActivateByKey?.('T');
+        return;
+      }
+    }
+
+    // ─ Commands ───────────────────────────────────────────────────
+    if (k === getKey('cmd_attack_move')) {
+      this.commandMode = 'attack_move';
+      return;
+    }
+    if (k === getKey('cmd_hold') && hasSelection) {
+      this.issueHoldCommand();
+      return;
+    }
+    if (k === getKey('cmd_patrol')) {
+      this.commandMode = this.commandMode === 'patrol' ? 'normal' : 'patrol';
+      return;
+    }
+    if (k === getKey('cmd_split') && hasSelection) {
+      this.splitSelection();
+      return;
+    }
+    if (k === getKey('cmd_deselect')) {
+      this.commandMode = 'normal';
+      this.clearSelection();
+      return;
+    }
+
+    // ─ Flagship / bookmarks (F1–F4) ──────────────────────────────
+    if (k === getKey('bookmark_goto_1')) {
+      e.preventDefault();
+      if (e.ctrlKey) {
+        this.cameraState.bookmarks[0] = { x: this.cameraState.x, y: this.cameraState.y, z: 0 };
+      } else {
         this.clearSelection();
-        break;
-      case 'f1': {
-        // F1 = select flagship (pyramid_ship / custom_hero) and center camera
-        e.preventDefault();
-        if (e.ctrlKey) {
-          this.cameraState.bookmarks[0] = { x: this.cameraState.x, y: this.cameraState.y, z: 0 };
-        } else {
-          this.clearSelection();
-          for (const [id, ship] of this.state.ships) {
-            if (ship.dead || ship.team !== 1) continue;
-            if (ship.shipType === 'pyramid_ship' || ship.shipType === 'custom_hero') {
-              ship.selected = true;
-              this.state.selectedIds.add(id);
-              this.cameraState.x = ship.x;
-              this.cameraState.y = ship.y;
-              break;
-            }
+        for (const [id, ship] of this.state.ships) {
+          if (ship.dead || ship.team !== 1) continue;
+          if (ship.shipType === 'pyramid_ship' || ship.shipType === 'custom_hero') {
+            ship.selected = true;
+            this.state.selectedIds.add(id);
+            this.cameraState.x = ship.x;
+            this.cameraState.y = ship.y;
+            break;
           }
         }
-        break;
       }
-      case 'f2':
-      case 'f3':
-      case 'f4': {
-        const idx = parseInt(e.key.slice(1)) - 1;
-        if (e.ctrlKey) {
-          this.cameraState.bookmarks[idx] = { x: this.cameraState.x, y: this.cameraState.y, z: 0 };
-        } else if (this.cameraState.bookmarks[idx]) {
-          this.cameraState.x = this.cameraState.bookmarks[idx].x;
-          this.cameraState.y = this.cameraState.bookmarks[idx].y;
-        }
+      return;
+    }
+    for (const [idx, action] of (['bookmark_goto_2', 'bookmark_goto_3', 'bookmark_goto_4'] as const).entries()) {
+      if (k === getKey(action)) {
         e.preventDefault();
-        break;
+        const bi = idx + 1;
+        if (e.ctrlKey) {
+          this.cameraState.bookmarks[bi] = { x: this.cameraState.x, y: this.cameraState.y, z: 0 };
+        } else if (this.cameraState.bookmarks[bi]) {
+          this.cameraState.x = this.cameraState.bookmarks[bi].x;
+          this.cameraState.y = this.cameraState.bookmarks[bi].y;
+        }
+        return;
       }
     }
   };
@@ -222,21 +233,20 @@ export class SpaceControls {
 
     // ── Camera yaw rotation (Q/E orbit around look-at point) ────────
     const ROTATE_SPEED = 90; // degrees per second
-    if (this.keys.has('q')) this.cameraState.rotation -= ROTATE_SPEED * dt;
-    if (this.keys.has('e')) this.cameraState.rotation += ROTATE_SPEED * dt;
+    if (this.keys.has(getKey('cam_orbit_left'))) this.cameraState.rotation -= ROTATE_SPEED * dt;
+    if (this.keys.has(getKey('cam_orbit_right'))) this.cameraState.rotation += ROTATE_SPEED * dt;
     // Normalise to 0–360
     this.cameraState.rotation = ((this.cameraState.rotation % 360) + 360) % 360;
 
-    // ── Camera panning (relative to current yaw) ─────────────────
-    // W/D always pan. A pans only when no units selected (A = attack-move when selected).
-    // S always pans (no stop command). Arrow keys ALWAYS pan regardless of selection.
-    const sel = this.state.selectedIds.size > 0;
+    // ── Camera panning (relative to current yaw) ─────────────────────
+    const _sel = this.state.selectedIds.size > 0;
+    void _sel;
     let fwd = 0,
-      right = 0; // forward/right in camera-relative space
-    if (this.keys.has('w') || this.keys.has('arrowup')) fwd -= panSpeed * dt;
-    if (this.keys.has('arrowdown') || this.keys.has('s')) fwd += panSpeed * dt;
-    if (this.keys.has('arrowleft') || this.keys.has('a')) right -= panSpeed * dt;
-    if (this.keys.has('d') || this.keys.has('arrowright')) right += panSpeed * dt;
+      right = 0;
+    if (this.keys.has(getKey('cam_pan_forward')) || this.keys.has('arrowup')) fwd -= panSpeed * dt;
+    if (this.keys.has(getKey('cam_pan_back')) || this.keys.has('arrowdown')) fwd += panSpeed * dt;
+    if (this.keys.has(getKey('cam_pan_left')) || this.keys.has('arrowleft')) right -= panSpeed * dt;
+    if (this.keys.has(getKey('cam_pan_right')) || this.keys.has('arrowright')) right += panSpeed * dt;
     // Rotate pan direction by camera yaw so W always pushes "into" the screen
     const yawRad = this.cameraState.rotation * (Math.PI / 180);
     const cosY = Math.cos(yawRad),
