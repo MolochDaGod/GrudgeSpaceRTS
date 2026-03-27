@@ -13,45 +13,85 @@ import {
   type GroundCombatState,
   type GroundInput,
   type GroundEnemy,
+  type CharacterClass,
   createInitialState,
   updateGroundCombat,
-  spawnEnemy,
+  spawnWave,
 } from './ground-combat';
 
-// ── Animation clip paths per weapon type ──────────────────────────
+// ── Animation system ─────────────────────────────────────────────
 const ANIM_BASE = '/assets/ground/animations';
-type AnimKey = 'idle' | 'walk' | 'run' | 'attack' | 'heavy_attack' | 'block' | 'dodge' | 'hit' | 'death' | 'kick' | 'jump';
 
-/** Maps weaponType → animKey → FBX path */
+/**
+ * Full animation key set.
+ * combo2/combo3 chain from attack for high-skill play.
+ * strafe is directional movement while locked on.
+ * shoot/cast are ranged / magic special actions.
+ */
+type AnimKey =
+  | 'idle'
+  | 'walk'
+  | 'run'
+  | 'strafe'
+  | 'attack'
+  | 'combo2'
+  | 'combo3'
+  | 'heavy_attack'
+  | 'jump_attack'
+  | 'slide_attack'
+  | 'block'
+  | 'block_idle'
+  | 'dodge'
+  | 'shoot'
+  | 'cast'
+  | 'kick'
+  | 'jump'
+  | 'hit'
+  | 'death'
+  | 'injured_idle'
+  | 'injured_walk'
+  | 'injured_run';
+
+/** All available animations per weapon type — uses every extracted FBX */
 const ANIM_SETS: Record<string, Partial<Record<AnimKey, string>>> = {
   sword: {
     idle: `${ANIM_BASE}/sword/idle.fbx`,
     walk: `${ANIM_BASE}/sword/walk.fbx`,
     run: `${ANIM_BASE}/sword/run.fbx`,
+    strafe: `${ANIM_BASE}/sword/strafe.fbx`,
     attack: `${ANIM_BASE}/sword/attack.fbx`,
+    combo2: `${ANIM_BASE}/sword/combo2.fbx`,
+    combo3: `${ANIM_BASE}/sword/combo3.fbx`,
     heavy_attack: `${ANIM_BASE}/sword/heavy_attack.fbx`,
     block: `${ANIM_BASE}/sword/block.fbx`,
-    hit: `${ANIM_BASE}/sword/hit.fbx`,
-    death: `${ANIM_BASE}/sword/death.fbx`,
+    block_idle: `${ANIM_BASE}/sword/block_idle.fbx`,
     kick: `${ANIM_BASE}/sword/kick.fbx`,
     jump: `${ANIM_BASE}/sword/jump.fbx`,
+    hit: `${ANIM_BASE}/sword/hit.fbx`,
+    death: `${ANIM_BASE}/sword/death.fbx`,
   },
   greatsword: {
     idle: `${ANIM_BASE}/greatsword/idle.fbx`,
     walk: `${ANIM_BASE}/greatsword/walk.fbx`,
     run: `${ANIM_BASE}/greatsword/run.fbx`,
     attack: `${ANIM_BASE}/greatsword/attack.fbx`,
+    combo2: `${ANIM_BASE}/greatsword/combo2.fbx`,
+    combo3: `${ANIM_BASE}/greatsword/combo3.fbx`,
     heavy_attack: `${ANIM_BASE}/greatsword/heavy_attack.fbx`,
+    jump_attack: `${ANIM_BASE}/greatsword/jump_attack.fbx`,
+    slide_attack: `${ANIM_BASE}/greatsword/slide_attack.fbx`,
     block: `${ANIM_BASE}/greatsword/block.fbx`,
+    kick: `${ANIM_BASE}/greatsword/kick.fbx`,
     hit: `${ANIM_BASE}/greatsword/hit.fbx`,
     death: `${ANIM_BASE}/greatsword/death.fbx`,
-    kick: `${ANIM_BASE}/greatsword/kick.fbx`,
   },
   bow: {
     idle: `${ANIM_BASE}/bow/idle.fbx`,
     walk: `${ANIM_BASE}/bow/walk.fbx`,
     run: `${ANIM_BASE}/bow/run.fbx`,
+    strafe: `${ANIM_BASE}/bow/strafe_left.fbx`,
     attack: `${ANIM_BASE}/bow/attack.fbx`,
+    shoot: `${ANIM_BASE}/bow/shoot.fbx`,
     block: `${ANIM_BASE}/bow/block.fbx`,
     dodge: `${ANIM_BASE}/bow/dodge.fbx`,
     hit: `${ANIM_BASE}/bow/hit.fbx`,
@@ -60,33 +100,133 @@ const ANIM_SETS: Record<string, Partial<Record<AnimKey, string>>> = {
   staff: {
     idle: `${ANIM_BASE}/magic/idle.fbx`,
     attack: `${ANIM_BASE}/magic/attack.fbx`,
+    combo2: `${ANIM_BASE}/magic/combo2.fbx`,
+    combo3: `${ANIM_BASE}/magic/combo3.fbx`,
     heavy_attack: `${ANIM_BASE}/magic/heavy_attack.fbx`,
+    cast: `${ANIM_BASE}/magic/cast.fbx`,
   },
   spear: {
     idle: `${ANIM_BASE}/greatsword/idle.fbx`,
     walk: `${ANIM_BASE}/greatsword/walk.fbx`,
     run: `${ANIM_BASE}/greatsword/run.fbx`,
     attack: `${ANIM_BASE}/greatsword/attack.fbx`,
+    combo2: `${ANIM_BASE}/greatsword/combo2.fbx`,
+    heavy_attack: `${ANIM_BASE}/greatsword/heavy_attack.fbx`,
+    jump_attack: `${ANIM_BASE}/greatsword/jump_attack.fbx`,
     hit: `${ANIM_BASE}/greatsword/hit.fbx`,
     death: `${ANIM_BASE}/greatsword/death.fbx`,
   },
+  rifle: {
+    idle: `${ANIM_BASE}/rifle/idle.fbx`,
+    walk: `${ANIM_BASE}/rifle/walk.fbx`,
+    run: `${ANIM_BASE}/rifle/run.fbx`,
+    strafe: `${ANIM_BASE}/rifle/strafe_left.fbx`,
+    shoot: `${ANIM_BASE}/rifle/idle.fbx`, // fire from idle stance
+    attack: `${ANIM_BASE}/rifle/walk.fbx`, // shooting while advancing
+    death: `${ANIM_BASE}/rifle/death.fbx`,
+  },
 };
 
-/** Common fallback clips for any weapon type missing a specific anim */
+/** Common fallback clips — used when weapon set is missing a key */
 const COMMON_ANIMS: Partial<Record<AnimKey, string>> = {
   dodge: `${ANIM_BASE}/common/stand_to_roll.fbx`,
   hit: `${ANIM_BASE}/common/getting_hit_backwards.fbx`,
   death: `${ANIM_BASE}/common/flying_back_death.fbx`,
+  jump: `${ANIM_BASE}/common/front_twist_flip.fbx`,
 };
 
-/** Injured locomotion overrides (used when HP < 5%) */
+/** Injured overrides — switched in below INJURED_HP_THRESHOLD */
 const INJURED_ANIMS: Partial<Record<AnimKey, string>> = {
-  idle: `${ANIM_BASE}/injured/idle.fbx`,
-  walk: `${ANIM_BASE}/injured/walk.fbx`,
-  run: `${ANIM_BASE}/injured/run.fbx`,
+  injured_idle: `${ANIM_BASE}/injured/idle.fbx`,
+  injured_walk: `${ANIM_BASE}/injured/walk.fbx`,
+  injured_run: `${ANIM_BASE}/injured/run.fbx`,
 };
 
-const INJURED_HP_THRESHOLD = 0.05; // 5%
+const INJURED_HP_THRESHOLD = 0.12; // 12% — visible sooner for better feedback
+
+// ── Character roster ─────────────────────────────────────────────
+/**
+ * Maps CharacterClass → model index (0-11), weapon type, tint colour.
+ * Models 0-5 = player-side classes; 6-11 = enemy variants.
+ */
+export interface CharacterConfig {
+  modelIdx: number;
+  weapon: string;
+  displayName: string;
+  description: string;
+  color: number; // team tint hex
+  icon: string;
+  stats: { hp: number; stamina: number; speed: number; attackDmg: number; defense: number };
+}
+
+export const CHARACTER_ROSTER: Record<string, CharacterConfig> = {
+  warrior: {
+    modelIdx: 0,
+    weapon: 'sword',
+    displayName: 'Warrior',
+    description: 'Balanced fighter with sword+shield. Best parry window and block. Combo x3.',
+    color: 0x4488ff,
+    icon: '⚔️',
+    stats: { hp: 200, stamina: 100, speed: 5.0, attackDmg: 18, defense: 4 },
+  },
+  berserker: {
+    modelIdx: 1,
+    weapon: 'greatsword',
+    displayName: 'Berserker',
+    description: 'Greatsword powerhouse. Massive damage, jump & slide attacks. Low defense.',
+    color: 0xff6622,
+    icon: '🪓',
+    stats: { hp: 170, stamina: 80, speed: 5.5, attackDmg: 35, defense: 1 },
+  },
+  ranger: {
+    modelIdx: 2,
+    weapon: 'bow',
+    displayName: 'Ranger',
+    description: 'Longbow master. Kite enemies, dodge-shoot, strafe while aiming.',
+    color: 0x44ffaa,
+    icon: '🏹',
+    stats: { hp: 120, stamina: 120, speed: 6.0, attackDmg: 24, defense: 2 },
+  },
+  mage: {
+    modelIdx: 3,
+    weapon: 'staff',
+    displayName: 'Mage',
+    description: 'Arcane caster. AoE heavy blast, spell combos. Very fragile.',
+    color: 0xaa44ff,
+    icon: '🔮',
+    stats: { hp: 100, stamina: 130, speed: 4.5, attackDmg: 42, defense: 0 },
+  },
+  rogue: {
+    modelIdx: 4,
+    weapon: 'sword',
+    displayName: 'Rogue',
+    description: 'Rapid dual strikes and acrobatic dodges. Backstab bonus damage.',
+    color: 0xffcc22,
+    icon: '🗡️',
+    stats: { hp: 130, stamina: 90, speed: 7.0, attackDmg: 14, defense: 2 },
+  },
+  gunslinger: {
+    modelIdx: 5,
+    weapon: 'rifle',
+    displayName: 'Gunslinger',
+    description: 'Mid-range rifle specialist. Burst fire, cover roll, suppress enemies.',
+    color: 0xddbb66,
+    icon: '🔫',
+    stats: { hp: 150, stamina: 100, speed: 5.5, attackDmg: 28, defense: 2 },
+  },
+};
+
+/** Enemy model indices and configs (models 6-11 + CorsairKing boss) */
+const ENEMY_MODEL_MAP: Record<string, { modelIdx: number; tint: number }> = {
+  melee: { modelIdx: 6, tint: 0xff4444 },
+  ranged: { modelIdx: 7, tint: 0xff8844 },
+  heavy: { modelIdx: 8, tint: 0xcc2222 },
+  stalker: { modelIdx: 9, tint: 0xff44aa },
+  titan: { modelIdx: 10, tint: 0xaa0000 },
+  boss: { modelIdx: 11, tint: 0xffaa00 }, // CorsairKing-like boss
+};
+
+const CORSAIR_KING_PATH = '/assets/ground/characters/CorsairKing.fbx';
 
 // ── AnimationController — per-entity mixer + clip management ──────
 class AnimationController {
@@ -235,9 +375,9 @@ export class GroundRenderer {
   // ── Callbacks ─────────────────────────────────────────────────
   public onResult?: (result: 'win' | 'lose') => void;
 
-  constructor(container: HTMLElement, planetType: PlanetType) {
+  constructor(container: HTMLElement, planetType: PlanetType, characterClass: CharacterClass = 'warrior') {
     this.container = container;
-    this.state = createInitialState(planetType);
+    this.state = createInitialState(planetType, characterClass);
   }
 
   // ── Init ──────────────────────────────────────────────────────
@@ -450,16 +590,30 @@ export class GroundRenderer {
   }
 
   private async loadPlayerModel(): Promise<void> {
+    // Use character roster to pick the correct model and color
+    const cls = this.state.player.characterClass;
+    const cfg = CHARACTER_ROSTER[cls];
+    const modelPath = CHARACTER_FBXS[cfg?.modelIdx ?? 0];
+    const tint = cfg ? new THREE.Color(cfg.color) : new THREE.Color(0x4488ff);
+
     try {
-      const model = await this.loadFBX(CHARACTER_FBXS[0]);
+      const model = await this.loadFBX(modelPath);
+      // Tint model to character class color
+      model.traverse((child) => {
+        if ((child as THREE.Mesh).isMesh) {
+          const m = (child as THREE.Mesh).material as THREE.MeshStandardMaterial;
+          if (m.color) m.color.lerp(tint, 0.25);
+          if (m.emissive) m.emissive.set(tint.clone().multiplyScalar(0.05));
+        }
+      });
       this.playerGroup = model;
       this.scene.add(model);
     } catch {
-      this.playerGroup = this.createPlaceholder(0x4488ff);
+      this.playerGroup = this.createPlaceholder(cfg?.color ?? 0x4488ff);
       this.scene.add(this.playerGroup);
     }
 
-    // Load weapon
+    // Load weapon matching the character class
     const weaponPath = WEAPON_MAP[this.state.player.weaponType] ?? WEAPON_MAP.sword;
     try {
       const weapon = await this.loadFBX(weaponPath);
@@ -468,10 +622,10 @@ export class GroundRenderer {
       weapon.position.set(0.6, 1.2, 0.2);
       this.playerGroup!.add(weapon);
     } catch {
-      // No weapon visual
+      // No weapon visual — OK
     }
 
-    // Set up animation controller for player
+    // Animation controller for player — load the full set for this weapon type
     this.playerAnim = new AnimationController(this.playerGroup!, this.fbxLoader);
     await this.loadAnimSet(this.playerAnim, this.state.player.weaponType);
   }
@@ -479,18 +633,38 @@ export class GroundRenderer {
   /** Load animation clips for a weapon type into a controller. */
   private async loadAnimSet(ctrl: AnimationController, weaponType: string): Promise<void> {
     const set = ANIM_SETS[weaponType] ?? ANIM_SETS.sword;
-    const keys: AnimKey[] = ['idle', 'walk', 'run', 'attack', 'heavy_attack', 'block', 'dodge', 'hit', 'death', 'kick', 'jump'];
+    // Load every key that has a resolved path (weapon-specific or common fallback)
+    const allKeys: AnimKey[] = [
+      'idle',
+      'walk',
+      'run',
+      'strafe',
+      'attack',
+      'combo2',
+      'combo3',
+      'heavy_attack',
+      'jump_attack',
+      'slide_attack',
+      'block',
+      'block_idle',
+      'dodge',
+      'shoot',
+      'cast',
+      'kick',
+      'jump',
+      'hit',
+      'death',
+    ];
     const promises: Promise<void>[] = [];
-    for (const key of keys) {
+    for (const key of allKeys) {
       const path = set[key] ?? COMMON_ANIMS[key];
       if (path) promises.push(ctrl.loadClip(key, path));
     }
-    // Also load injured overrides
+    // Load injured overrides under their own keys
     for (const [key, path] of Object.entries(INJURED_ANIMS)) {
-      promises.push(ctrl.loadClip(`injured_${key}`, path));
+      if (path) promises.push(ctrl.loadClip(key, path)); // key is already 'injured_idle' etc.
     }
     await Promise.allSettled(promises);
-    // Start idle
     ctrl.play('idle');
   }
 
@@ -518,20 +692,23 @@ export class GroundRenderer {
   }
 
   private async loadEnemyModel(enemy: GroundEnemy): Promise<THREE.Group> {
-    const idx = enemy.characterModelIdx % CHARACTER_FBXS.length;
+    const cfg = ENEMY_MODEL_MAP[enemy.enemyType] ?? { modelIdx: 6, tint: 0xff4444 };
+    const idx = cfg.modelIdx % CHARACTER_FBXS.length;
+    // Boss (titan or boss type with maxHp > 300) uses CorsairKing model
+    const path = enemy.enemyType === 'boss' || enemy.maxHp >= 400 ? CORSAIR_KING_PATH : CHARACTER_FBXS[idx];
+    const tint = new THREE.Color(cfg.tint);
     try {
-      const model = await this.loadFBX(CHARACTER_FBXS[idx]);
-      // Tint enemy model reddish
+      const model = await this.loadFBX(path);
       model.traverse((child) => {
         if ((child as THREE.Mesh).isMesh) {
           const m = (child as THREE.Mesh).material as THREE.MeshStandardMaterial;
-          if (m.color) m.color.lerp(new THREE.Color(0xff4444), 0.3);
-          if (m.emissive) m.emissive.set(0x220000);
+          if (m.color) m.color.lerp(tint, 0.35);
+          if (m.emissive) m.emissive.set(new THREE.Color(cfg.tint).multiplyScalar(0.15));
         }
       });
       return model;
     } catch {
-      return this.createPlaceholder(0xff4444);
+      return this.createPlaceholder(cfg.tint);
     }
   }
 
@@ -577,25 +754,10 @@ export class GroundRenderer {
     }
   }
 
-  // ── Spawn initial enemies ─────────────────────────────────────
+  // ── Spawn wave 1 enemies ──────────────────────────────────────
   private spawnInitialEnemies(): void {
-    const types: Array<'melee' | 'ranged' | 'heavy'> = ['melee', 'ranged', 'heavy'];
-    for (let i = 0; i < 8; i++) {
-      const angle = (i / 8) * Math.PI * 2;
-      const radius = 15 + Math.random() * 15;
-      const pos = {
-        x: Math.cos(angle) * radius,
-        y: 0,
-        z: Math.sin(angle) * radius,
-      };
-      const type = types[i % 3];
-      const modelIdx = Math.floor(Math.random() * 12);
-      spawnEnemy(this.state, pos, type, modelIdx);
-    }
-    // Set up initial mission
-    this.state.missionActive = true;
-    this.state.missionObjective = 'Eliminate all hostiles';
-    this.state.missionGoal = 0; // Use "all dead" check
+    // Use the planet-aware wave system from ground-combat.ts
+    spawnWave(this.state);
   }
 
   // ── Input binding ─────────────────────────────────────────────
