@@ -80,6 +80,15 @@ function separationForce(sq: Squad, all: Squad[]): Vec2 {
 export type BattlePhase = 'deploy' | 'battle' | 'done';
 export type SquadType = 'infantry' | 'ranged' | 'cavalry' | 'siege';
 export type BattleResult = 'none' | 'victory' | 'defeat';
+export type MissionType = 'eliminate' | 'assassinate' | 'sabotage' | 'hold';
+
+export interface MissionDef {
+  type: MissionType;
+  label: string;
+  shortDesc: string;
+  icon: string;
+  color: string;
+}
 
 export interface Vec2 {
   x: number;
@@ -128,6 +137,38 @@ export interface BattleFloatText {
   age: number;
 }
 
+/** Catalogue of all mission types — used for the select screen. */
+export const MISSION_DEFS: MissionDef[] = [
+  {
+    type: 'eliminate',
+    label: 'ELIMINATE',
+    shortDesc: 'Destroy every enemy squad.',
+    icon: '⚔️',
+    color: '#ff4444',
+  },
+  {
+    type: 'assassinate',
+    label: 'ASSASSINATE',
+    shortDesc: 'Hunt down and destroy the enemy commander squad.',
+    icon: '🗡️',
+    color: '#ff8800',
+  },
+  {
+    type: 'sabotage',
+    label: 'SABOTAGE',
+    shortDesc: 'Reach the target zone with at least one squad.',
+    icon: '💥',
+    color: '#44ddff',
+  },
+  {
+    type: 'hold',
+    label: 'HOLD THE LINE',
+    shortDesc: 'Survive 3 enemy waves. Reinforcements come every 30s.',
+    icon: '🛡️',
+    color: '#44ee88',
+  },
+];
+
 export interface GroundBattleState {
   phase: BattlePhase;
   result: BattleResult;
@@ -139,6 +180,23 @@ export interface GroundBattleState {
   deployLineY: number;
   gameTime: number;
   nextId: number;
+  // ── Mission system ────────────────────────────────────────────
+  missionType: MissionType;
+  missionObjective: string;
+  missionProgress: number; // generic progress value
+  missionGoal: number; // target value
+  // Assassinate
+  bossSquadId: number | null;
+  // Sabotage
+  sabotageX: number;
+  sabotageY: number;
+  sabotageRadius: number;
+  sabotageReached: boolean;
+  // Hold
+  holdWave: number; // current wave number (1-based)
+  holdMaxWaves: number; // total waves to survive
+  holdWaveTimer: number; // countdown to next wave
+  holdWaveInterval: number; // seconds between waves
 }
 
 // ── Templates ─────────────────────────────────────────────────────
@@ -307,7 +365,7 @@ const ENEMY_TEMPLATES: SquadTemplate[] = [
 const FIELD_W = 120,
   FIELD_H = 80;
 
-export function createBattleState(planetType: PlanetType): GroundBattleState {
+export function createBattleState(planetType: PlanetType, missionType: MissionType = 'eliminate'): GroundBattleState {
   const state: GroundBattleState = {
     phase: 'deploy',
     result: 'none',
@@ -319,17 +377,86 @@ export function createBattleState(planetType: PlanetType): GroundBattleState {
     deployLineY: FIELD_H / 2,
     gameTime: 0,
     nextId: 1,
+    // Mission
+    missionType,
+    missionObjective: '',
+    missionProgress: 0,
+    missionGoal: 0,
+    bossSquadId: null,
+    sabotageX: FIELD_W / 2,
+    sabotageY: 10,
+    sabotageRadius: 10,
+    sabotageReached: false,
+    holdWave: 0,
+    holdMaxWaves: 3,
+    holdWaveTimer: 30,
+    holdWaveInterval: 30,
   };
+
+  // Spawn player squads
   for (let i = 0; i < PLAYER_TEMPLATES.length; i++) {
     const t = PLAYER_TEMPLATES[i];
     const sp = FIELD_W / (PLAYER_TEMPLATES.length + 1);
     state.squads.push(makeSquad(state, t, 0, sp * (i + 1), FIELD_H - 10, 0));
   }
-  for (let i = 0; i < ENEMY_TEMPLATES.length; i++) {
-    const t = ENEMY_TEMPLATES[i];
-    const sp = FIELD_W / (ENEMY_TEMPLATES.length + 1);
-    state.squads.push(makeSquad(state, t, 1, sp * (i + 1), 10, Math.PI));
+
+  // Spawn enemies based on mission type
+  if (missionType === 'assassinate') {
+    // Normal enemies + a beefed-up boss squad
+    for (let i = 0; i < ENEMY_TEMPLATES.length - 1; i++) {
+      const t = ENEMY_TEMPLATES[i];
+      const sp = FIELD_W / ENEMY_TEMPLATES.length;
+      state.squads.push(makeSquad(state, t, 1, sp * (i + 1), 10, Math.PI));
+    }
+    const bossTmpl: SquadTemplate = {
+      ...ENEMY_TEMPLATES[1],
+      name: 'Commander',
+      hp: 900,
+      morale: 110,
+      speed: 18,
+      attackDmg: 28,
+      attackRange: 5,
+      attackCooldown: 0.9,
+      armor: 10,
+      unitCount: 6,
+      icon: '👑',
+      color: '#ffaa00',
+    };
+    const boss = makeSquad(state, bossTmpl, 1, FIELD_W / 2, 8, Math.PI);
+    state.squads.push(boss);
+    state.bossSquadId = boss.id;
+    state.missionObjective = 'Assassinate the enemy Commander';
+    state.missionGoal = 1;
+  } else if (missionType === 'sabotage') {
+    // Lighter enemy force, objective marker placed deep in enemy territory
+    const lightTempls = ENEMY_TEMPLATES.slice(0, 3);
+    for (let i = 0; i < lightTempls.length; i++) {
+      const t = lightTempls[i];
+      const sp = FIELD_W / (lightTempls.length + 1);
+      state.squads.push(makeSquad(state, t, 1, sp * (i + 1), 10, Math.PI));
+    }
+    state.sabotageX = FIELD_W / 2;
+    state.sabotageY = 8;
+    state.missionObjective = 'Reach the target zone';
+    state.missionGoal = 1;
+  } else if (missionType === 'hold') {
+    // First wave spawns on battle start — state initially empty enemies
+    state.holdWave = 0;
+    state.holdWaveTimer = 5; // first wave comes quickly
+    state.holdMaxWaves = 3;
+    state.missionObjective = 'Survive all waves';
+    state.missionGoal = state.holdMaxWaves;
+  } else {
+    // Eliminate — standard squad setup
+    for (let i = 0; i < ENEMY_TEMPLATES.length; i++) {
+      const t = ENEMY_TEMPLATES[i];
+      const sp = FIELD_W / (ENEMY_TEMPLATES.length + 1);
+      state.squads.push(makeSquad(state, t, 1, sp * (i + 1), 10, Math.PI));
+    }
+    state.missionObjective = 'Destroy all enemy squads';
+    state.missionGoal = ENEMY_TEMPLATES.length;
   }
+
   return state;
 }
 
@@ -514,13 +641,84 @@ export function updateGroundBattle(state: GroundBattleState, dt: number): void {
     if (state.floatTexts[i].age > 1.5) state.floatTexts.splice(i, 1);
   }
 
-  // Win/loss
-  if (alive(1).length === 0) {
-    state.phase = 'done';
-    state.result = 'victory';
-  } else if (alive(0).length === 0) {
+  // ── Mission win / loss logic ─────────────────────────────────────────
+  if (alive(0).length === 0) {
     state.phase = 'done';
     state.result = 'defeat';
+    return;
+  }
+
+  if (state.missionType === 'eliminate') {
+    if (alive(1).length === 0) {
+      state.phase = 'done';
+      state.result = 'victory';
+    }
+  } else if (state.missionType === 'assassinate') {
+    const boss = state.squads.find((s) => s.id === state.bossSquadId);
+    if (!boss || boss.dead || boss.routed) {
+      state.phase = 'done';
+      state.result = 'victory';
+    }
+  } else if (state.missionType === 'sabotage') {
+    // Check if any player squad is in the sabotage zone
+    if (!state.sabotageReached) {
+      for (const sq of alive(0)) {
+        const dx = sq.x - state.sabotageX;
+        const dy = sq.y - state.sabotageY;
+        if (Math.sqrt(dx * dx + dy * dy) < state.sabotageRadius) {
+          state.sabotageReached = true;
+          state.missionProgress = 1;
+          spawnFloat(state, state.sabotageX, state.sabotageY, 'SABOTAGE COMPLETE!', '#44ddff');
+          break;
+        }
+      }
+    }
+    if (state.sabotageReached) {
+      state.phase = 'done';
+      state.result = 'victory';
+    }
+  } else if (state.missionType === 'hold') {
+    // Tick wave timer
+    state.holdWaveTimer -= dt;
+    if (state.holdWaveTimer <= 0) {
+      if (state.holdWave < state.holdMaxWaves) {
+        state.holdWave++;
+        state.holdWaveTimer = state.holdWaveInterval;
+        state.missionProgress = state.holdWave;
+        spawnHoldWave(state);
+        spawnFloat(state, state.fieldW / 2, state.fieldH / 2, `WAVE ${state.holdWave} INCOMING!`, '#ff4444');
+      } else {
+        // All waves survived
+        if (alive(1).length === 0) {
+          state.phase = 'done';
+          state.result = 'victory';
+        }
+      }
+    }
+    // Also win if all waves spawned and all enemies cleared
+    if (state.holdWave >= state.holdMaxWaves && alive(1).length === 0) {
+      state.phase = 'done';
+      state.result = 'victory';
+    }
+  }
+}
+
+/** Spawn a wave of enemies for Hold missions, scaling with wave number. */
+function spawnHoldWave(state: GroundBattleState): void {
+  const waveScale = 0.8 + state.holdWave * 0.3; // each wave is stronger
+  const count = 3 + state.holdWave; // more squads per wave
+  for (let i = 0; i < count; i++) {
+    const t = ENEMY_TEMPLATES[i % ENEMY_TEMPLATES.length];
+    const boosted: SquadTemplate = {
+      ...t,
+      hp: Math.round(t.hp * waveScale),
+      attackDmg: Math.round(t.attackDmg * waveScale),
+      morale: Math.round(t.morale * waveScale),
+      name: `W${state.holdWave} ${t.name}`,
+    };
+    const sp = state.fieldW / (count + 1);
+    const sq = makeSquad(state, boosted, 1, sp * (i + 1), 5 + Math.random() * 5, Math.PI);
+    state.squads.push(sq);
   }
 }
 
