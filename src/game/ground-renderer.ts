@@ -6,6 +6,8 @@
 
 import * as THREE from 'three';
 import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
+import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
+import { MTLLoader } from 'three/examples/jsm/loaders/MTLLoader.js';
 import type { PlanetType } from './space-types';
 import {
   type GroundCombatState,
@@ -15,6 +17,129 @@ import {
   updateGroundCombat,
   spawnEnemy,
 } from './ground-combat';
+
+// ── Animation clip paths per weapon type ──────────────────────────
+const ANIM_BASE = '/assets/ground/animations';
+type AnimKey = 'idle' | 'walk' | 'run' | 'attack' | 'heavy_attack' | 'block' | 'dodge' | 'hit' | 'death' | 'kick' | 'jump';
+
+/** Maps weaponType → animKey → FBX path */
+const ANIM_SETS: Record<string, Partial<Record<AnimKey, string>>> = {
+  sword: {
+    idle: `${ANIM_BASE}/sword/idle.fbx`,
+    walk: `${ANIM_BASE}/sword/walk.fbx`,
+    run: `${ANIM_BASE}/sword/run.fbx`,
+    attack: `${ANIM_BASE}/sword/attack.fbx`,
+    heavy_attack: `${ANIM_BASE}/sword/heavy_attack.fbx`,
+    block: `${ANIM_BASE}/sword/block.fbx`,
+    hit: `${ANIM_BASE}/sword/hit.fbx`,
+    death: `${ANIM_BASE}/sword/death.fbx`,
+    kick: `${ANIM_BASE}/sword/kick.fbx`,
+    jump: `${ANIM_BASE}/sword/jump.fbx`,
+  },
+  greatsword: {
+    idle: `${ANIM_BASE}/greatsword/idle.fbx`,
+    walk: `${ANIM_BASE}/greatsword/walk.fbx`,
+    run: `${ANIM_BASE}/greatsword/run.fbx`,
+    attack: `${ANIM_BASE}/greatsword/attack.fbx`,
+    heavy_attack: `${ANIM_BASE}/greatsword/heavy_attack.fbx`,
+    block: `${ANIM_BASE}/greatsword/block.fbx`,
+    hit: `${ANIM_BASE}/greatsword/hit.fbx`,
+    death: `${ANIM_BASE}/greatsword/death.fbx`,
+    kick: `${ANIM_BASE}/greatsword/kick.fbx`,
+  },
+  bow: {
+    idle: `${ANIM_BASE}/bow/idle.fbx`,
+    walk: `${ANIM_BASE}/bow/walk.fbx`,
+    run: `${ANIM_BASE}/bow/run.fbx`,
+    attack: `${ANIM_BASE}/bow/attack.fbx`,
+    block: `${ANIM_BASE}/bow/block.fbx`,
+    dodge: `${ANIM_BASE}/bow/dodge.fbx`,
+    hit: `${ANIM_BASE}/bow/hit.fbx`,
+    death: `${ANIM_BASE}/bow/death.fbx`,
+  },
+  staff: {
+    idle: `${ANIM_BASE}/magic/idle.fbx`,
+    attack: `${ANIM_BASE}/magic/attack.fbx`,
+    heavy_attack: `${ANIM_BASE}/magic/heavy_attack.fbx`,
+  },
+  spear: {
+    idle: `${ANIM_BASE}/greatsword/idle.fbx`,
+    walk: `${ANIM_BASE}/greatsword/walk.fbx`,
+    run: `${ANIM_BASE}/greatsword/run.fbx`,
+    attack: `${ANIM_BASE}/greatsword/attack.fbx`,
+    hit: `${ANIM_BASE}/greatsword/hit.fbx`,
+    death: `${ANIM_BASE}/greatsword/death.fbx`,
+  },
+};
+
+/** Common fallback clips for any weapon type missing a specific anim */
+const COMMON_ANIMS: Partial<Record<AnimKey, string>> = {
+  dodge: `${ANIM_BASE}/common/stand_to_roll.fbx`,
+  hit: `${ANIM_BASE}/common/getting_hit_backwards.fbx`,
+  death: `${ANIM_BASE}/common/flying_back_death.fbx`,
+};
+
+/** Injured locomotion overrides (used when HP < 5%) */
+const INJURED_ANIMS: Partial<Record<AnimKey, string>> = {
+  idle: `${ANIM_BASE}/injured/idle.fbx`,
+  walk: `${ANIM_BASE}/injured/walk.fbx`,
+  run: `${ANIM_BASE}/injured/run.fbx`,
+};
+
+const INJURED_HP_THRESHOLD = 0.05; // 5%
+
+// ── AnimationController — per-entity mixer + clip management ──────
+class AnimationController {
+  mixer: THREE.AnimationMixer;
+  clips = new Map<string, THREE.AnimationClip>();
+  currentAction: THREE.AnimationAction | null = null;
+  currentKey = '';
+  private fbxLoader: FBXLoader;
+
+  constructor(root: THREE.Object3D, loader: FBXLoader) {
+    this.mixer = new THREE.AnimationMixer(root);
+    this.fbxLoader = loader;
+  }
+
+  /** Load an animation clip from an FBX file and register it under `key`. */
+  async loadClip(key: string, path: string): Promise<void> {
+    if (this.clips.has(key)) return;
+    try {
+      const fbx = await this.fbxLoader.loadAsync(path);
+      if (fbx.animations.length > 0) {
+        const clip = fbx.animations[0];
+        clip.name = key;
+        this.clips.set(key, clip);
+      }
+    } catch {
+      // Clip failed to load — will fall through to idle
+    }
+  }
+
+  /** Crossfade to animation `key`. If not loaded, stays on current. */
+  play(key: string, loop = true, fadeDuration = 0.2): void {
+    if (key === this.currentKey && this.currentAction?.isRunning()) return;
+    const clip = this.clips.get(key);
+    if (!clip) return;
+    const action = this.mixer.clipAction(clip);
+    action.setLoop(loop ? THREE.LoopRepeat : THREE.LoopOnce, loop ? Infinity : 1);
+    action.clampWhenFinished = !loop;
+    if (this.currentAction && this.currentAction !== action) {
+      this.currentAction.fadeOut(fadeDuration);
+    }
+    action.reset().fadeIn(fadeDuration).play();
+    this.currentAction = action;
+    this.currentKey = key;
+  }
+
+  update(dt: number): void {
+    this.mixer.update(dt);
+  }
+
+  dispose(): void {
+    this.mixer.stopAllAction();
+  }
+}
 
 // ── Terrain palette per planet type ───────────────────────────────
 const TERRAIN_PALETTE: Record<PlanetType, { ground: number; accent: number; fog: number; sky: number; ambient: number; sun: number }> = {
@@ -101,6 +226,12 @@ export class GroundRenderer {
   private lockOnIndicator: THREE.Mesh | null = null;
   private groundPlane!: THREE.Mesh;
 
+  // ── Animation controllers ─────────────────────────────────────
+  private playerAnim: AnimationController | null = null;
+  private enemyAnims = new Map<number, AnimationController>();
+  private objLoader = new OBJLoader();
+  private mtlLoader = new MTLLoader();
+
   // ── Callbacks ─────────────────────────────────────────────────
   public onResult?: (result: 'win' | 'lose') => void;
 
@@ -185,6 +316,9 @@ export class GroundRenderer {
 
     // Load player model
     await this.loadPlayerModel();
+
+    // Load crash site terrain prop
+    this.loadCrashSite();
 
     // Spawn some enemies for initial encounter
     this.spawnInitialEnemies();
@@ -331,11 +465,55 @@ export class GroundRenderer {
       const weapon = await this.loadFBX(weaponPath);
       weapon.scale.setScalar(0.5);
       this.playerWeapon = weapon;
-      // Attach to player's right hand area
       weapon.position.set(0.6, 1.2, 0.2);
       this.playerGroup!.add(weapon);
     } catch {
       // No weapon visual
+    }
+
+    // Set up animation controller for player
+    this.playerAnim = new AnimationController(this.playerGroup!, this.fbxLoader);
+    await this.loadAnimSet(this.playerAnim, this.state.player.weaponType);
+  }
+
+  /** Load animation clips for a weapon type into a controller. */
+  private async loadAnimSet(ctrl: AnimationController, weaponType: string): Promise<void> {
+    const set = ANIM_SETS[weaponType] ?? ANIM_SETS.sword;
+    const keys: AnimKey[] = ['idle', 'walk', 'run', 'attack', 'heavy_attack', 'block', 'dodge', 'hit', 'death', 'kick', 'jump'];
+    const promises: Promise<void>[] = [];
+    for (const key of keys) {
+      const path = set[key] ?? COMMON_ANIMS[key];
+      if (path) promises.push(ctrl.loadClip(key, path));
+    }
+    // Also load injured overrides
+    for (const [key, path] of Object.entries(INJURED_ANIMS)) {
+      promises.push(ctrl.loadClip(`injured_${key}`, path));
+    }
+    await Promise.allSettled(promises);
+    // Start idle
+    ctrl.play('idle');
+  }
+
+  /** Load the Ancient Crash Site OBJ as a terrain landmark. */
+  private async loadCrashSite(): Promise<void> {
+    try {
+      const mtl = await this.mtlLoader.loadAsync('/assets/ground/terrain/AncientCrashSite.mtl');
+      mtl.preload();
+      this.objLoader.setMaterials(mtl);
+      const obj = await this.objLoader.loadAsync('/assets/ground/terrain/AncientCrashSite.obj');
+      // Scale and place as a landmark
+      obj.scale.setScalar(0.02);
+      obj.position.set(25, 0, 25);
+      obj.traverse((child) => {
+        if ((child as THREE.Mesh).isMesh) {
+          (child as THREE.Mesh).castShadow = true;
+          (child as THREE.Mesh).receiveShadow = true;
+        }
+      });
+      this.scene.add(obj);
+      this.terrainObjects.push(obj);
+    } catch {
+      // Crash site not available — skip
     }
   }
 
@@ -390,6 +568,11 @@ export class GroundRenderer {
         bar.position.set(0, 2.8, 0.001);
         group.add(bar);
         this.enemyHealthBars.set(enemy.id, { bar, bg });
+
+        // Set up animation controller for enemy
+        const enemyAnim = new AnimationController(group, this.fbxLoader);
+        this.enemyAnims.set(enemy.id, enemyAnim);
+        this.loadAnimSet(enemyAnim, enemy.weaponType);
       }
     }
   }
@@ -530,8 +713,8 @@ export class GroundRenderer {
 
     // Sync visuals
     this.syncEnemyVisuals();
-    this.syncPlayerVisual();
-    this.syncEnemyVisualPositions();
+    this.syncPlayerVisual(dt);
+    this.syncEnemyVisualPositions(dt);
     this.syncDamageNumbers();
     this.syncLockOn();
     this.updateCamera(dt);
@@ -546,11 +729,25 @@ export class GroundRenderer {
   };
 
   // ── Visual sync ───────────────────────────────────────────────
-  private syncPlayerVisual(): void {
+  private syncPlayerVisual(dt: number): void {
     if (!this.playerGroup) return;
     const p = this.state.player;
     this.playerGroup.position.set(p.pos.x, p.pos.y, p.pos.z);
     this.playerGroup.rotation.y = p.facing;
+
+    // Drive player animation from combat engine animKey
+    if (this.playerAnim) {
+      const injured = p.hp > 0 && p.hp / p.maxHp < INJURED_HP_THRESHOLD;
+      let animKey = p.animKey as AnimKey;
+      // Override locomotion with injured variants when low HP
+      if (injured && (animKey === 'idle' || animKey === 'walk' || animKey === 'run')) {
+        animKey = `injured_${animKey}` as AnimKey;
+      }
+      const isOneShot =
+        animKey === 'attack' || animKey === 'heavy_attack' || animKey === 'dodge' || animKey === 'death' || animKey === 'hit';
+      this.playerAnim.play(animKey, !isOneShot);
+      this.playerAnim.update(dt);
+    }
 
     // Hit flash
     if (p.combatState === 'hit') {
@@ -589,13 +786,22 @@ export class GroundRenderer {
     }
   }
 
-  private syncEnemyVisualPositions(): void {
+  private syncEnemyVisualPositions(dt: number): void {
     for (const enemy of this.state.enemies) {
       const group = this.enemyGroups.get(enemy.id);
       if (!group) continue;
 
       group.position.set(enemy.pos.x, enemy.pos.y, enemy.pos.z);
       group.rotation.y = enemy.facing;
+
+      // Drive enemy animation
+      const eAnim = this.enemyAnims.get(enemy.id);
+      if (eAnim) {
+        const animKey = enemy.animKey as AnimKey;
+        const isOneShot = animKey === 'attack' || animKey === 'death' || animKey === 'hit';
+        eAnim.play(animKey, !isOneShot);
+        eAnim.update(dt);
+      }
 
       // Dead enemies: lay down and fade
       if (enemy.aiState === 'dead') {
@@ -766,6 +972,10 @@ export class GroundRenderer {
         else (mat as THREE.Material).dispose();
       }
     });
+    // Dispose animation controllers
+    this.playerAnim?.dispose();
+    for (const [, ctrl] of this.enemyAnims) ctrl.dispose();
+
     this.renderer.dispose();
     if (this.renderer.domElement.parentNode) {
       this.renderer.domElement.parentNode.removeChild(this.renderer.domElement);
