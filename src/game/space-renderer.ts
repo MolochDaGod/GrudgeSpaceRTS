@@ -27,6 +27,7 @@ import {
   buildVoxelShip,
   buildCapitalVoxelFallback,
   buildVoxelFromSprite,
+  buildProceduralShip,
   SPRITE_TO_VOXEL_SHIPS,
 } from './space-voxel-builder';
 import { loadHeroShip, glbBlobToUrl } from './ship-storage';
@@ -988,9 +989,18 @@ export class SpaceRenderer {
         group = (await this.fbxLoader.loadAsync(prefab.modelPath)) as unknown as THREE.Group;
         if (prefab.texturePath) {
           const tex = this.textureLoader.load(prefab.texturePath);
+          tex.colorSpace = THREE.SRGBColorSpace;
           group.traverse((c) => {
             if ((c as THREE.Mesh).isMesh) {
-              (c as THREE.Mesh).material = new THREE.MeshStandardMaterial({ map: tex });
+              (c as THREE.Mesh).material = new THREE.MeshStandardMaterial({
+                map: tex,
+                roughness: 0.4,
+                metalness: 0.5,
+                emissiveMap: tex,
+                emissiveIntensity: 0.15,
+                emissive: new THREE.Color(0x222244),
+                envMapIntensity: 1.0,
+              });
             }
           });
         }
@@ -1006,9 +1016,18 @@ export class SpaceRenderer {
         }
         if (prefab.texturePath) {
           const tex = this.textureLoader.load(prefab.texturePath);
+          tex.colorSpace = THREE.SRGBColorSpace;
           group.traverse((c) => {
             if ((c as THREE.Mesh).isMesh) {
-              (c as THREE.Mesh).material = new THREE.MeshStandardMaterial({ map: tex });
+              (c as THREE.Mesh).material = new THREE.MeshStandardMaterial({
+                map: tex,
+                roughness: 0.4,
+                metalness: 0.5,
+                emissiveMap: tex,
+                emissiveIntensity: 0.15,
+                emissive: new THREE.Color(0x222244),
+                envMapIntensity: 1.0,
+              });
             }
           });
         }
@@ -1098,23 +1117,34 @@ export class SpaceRenderer {
     // occupies ~3.4% of screen (65px) and a size-24 dreadnought ~9% (173px).
     const size = SpaceRenderer.shipClassSize(shipClass);
 
-    // Forward-pointing cone (rotated to face +Z = ship’s “forward”)
-    const geo = new THREE.ConeGeometry(size * 0.4, size * 1.2, 5);
-    geo.rotateX(Math.PI / 2);
-
+    // Ship silhouette placeholder (tapered fuselage + fins) instead of a plain cone.
+    // This reads as a ship even during the async model-load window.
     const col = TEAM_COLORS[team] ?? 0x4488ff;
-    const mat = new THREE.MeshStandardMaterial({
-      color: col,
-      emissive: col,
-      emissiveIntensity: 0.8, // bright glow so ships are always visible
-      metalness: 0.3,
-      roughness: 0.5,
-      depthTest: true,
-    });
-    const mesh = new THREE.Mesh(geo, mat);
-    // Ships must render on top of the ground plane and resource nodes
-    mesh.renderOrder = 2;
-    group.add(mesh);
+    const matOpts = { color: col, emissive: col, emissiveIntensity: 0.8, metalness: 0.5, roughness: 0.35, depthTest: true };
+    const hullMat = new THREE.MeshStandardMaterial(matOpts);
+
+    // Main fuselage: tapered box
+    const fuselage = new THREE.Mesh(
+      new THREE.CylinderGeometry(size * 0.2, size * 0.35, size * 1.2, 6),
+      hullMat,
+    );
+    fuselage.rotation.x = Math.PI / 2; // point along +Z
+    fuselage.renderOrder = 2;
+    group.add(fuselage);
+
+    // Dorsal fin
+    const finGeo = new THREE.BoxGeometry(size * 0.04, size * 0.35, size * 0.5);
+    const fin = new THREE.Mesh(finGeo, hullMat);
+    fin.position.set(0, size * 0.25, -size * 0.15);
+    fin.renderOrder = 2;
+    group.add(fin);
+
+    // Wing stubs
+    const wingGeo = new THREE.BoxGeometry(size * 0.8, size * 0.04, size * 0.35);
+    const wings = new THREE.Mesh(wingGeo, hullMat);
+    wings.position.set(0, 0, -size * 0.1);
+    wings.renderOrder = 2;
+    group.add(wings);
 
     // Thruster: layered glow sprites at inferred tail/booster anchors.
     // Names follow thruster[_n], thrusterCore[_n], thrusterTrail[_n]
@@ -1243,9 +1273,15 @@ export class SpaceRenderer {
         // 2. If no prefab OR prefab load fails → build procedural voxel
         // 3. If no voxel either → keep the cone placeholder
         const prefab = getShipPrefab(ship.shipType);
-        const removeCone = (g: THREE.Group) => {
-          const c = g.children.find((ch) => (ch as THREE.Mesh).geometry?.type === 'ConeGeometry');
-          if (c) g.remove(c);
+        const removePlaceholder = (g: THREE.Group) => {
+          // Remove all placeholder geometry (fuselage, fins, wings)
+          const toRemove = g.children.filter((ch) => {
+            const geo = (ch as THREE.Mesh).geometry;
+            if (!geo) return false;
+            const t = geo.type;
+            return t === 'ConeGeometry' || t === 'CylinderGeometry' || t === 'BoxGeometry';
+          });
+          toRemove.forEach((c) => g.remove(c));
         };
 
         // Target size for this ship class (Three.js units)
@@ -1279,21 +1315,27 @@ export class SpaceRenderer {
           const shipTeamForVox = ship.team;
           // Boss captains get higher res (24) and more extrusion (5)
           const isBoss = ship.shipType.startsWith('boss_captain');
-          buildVoxelFromSprite(spritePath, shipTeamForVox, isBoss ? 24 : 18, isBoss ? 5 : 3)
+          buildVoxelFromSprite(spritePath, shipTeamForVox, isBoss ? 32 : 24, isBoss ? 7 : 5)
             .then((voxModel) => {
               if (this.disposed) return;
               const ex = this.shipMeshes.get(shipId);
               if (!ex) return;
               autoFit(voxModel);
-              removeCone(ex.group);
-              // Remove any leftover flat sprite children
+              removePlaceholder(ex.group);
               const oldSprite = ex.group.getObjectByName('spriteShip');
               if (oldSprite) ex.group.remove(oldSprite);
               voxModel.name = 'voxelShip';
               ex.group.add(voxModel);
             })
             .catch(() => {
-              // Voxel conversion failed — keep the cone placeholder
+              // Voxel conversion failed — build procedural fallback
+              const ex2 = this.shipMeshes.get(shipId);
+              if (ex2 && !this.disposed) {
+                const proc = buildProceduralShip(ship.shipClass, shipDef?.stats.tier ?? 2, ship.team);
+                autoFit(proc);
+                removePlaceholder(ex2.group);
+                ex2.group.add(proc);
+              }
             });
         } else if (ship.shipType === 'custom_hero') {
           this.loadCustomHeroModel(id, meshData);
@@ -1306,30 +1348,38 @@ export class SpaceRenderer {
               if (!ex) return;
               autoFit(model);
               SpaceRenderer.tintModelToTeam(model, shipTeam);
-              removeCone(ex.group);
+              removePlaceholder(ex.group);
               ex.group.add(model);
             })
             .catch(() => {
-              // Real model failed — fall back to procedural voxel
+              // Real model failed — fall back to procedural voxel, then universal
               const ex = this.shipMeshes.get(id);
               if (!ex || this.disposed) return;
-              const vox = hasVoxelShip(ship.shipType)
+              let vox = hasVoxelShip(ship.shipType)
                 ? buildVoxelShip(ship.shipType, ship.team)
                 : buildCapitalVoxelFallback(ship.shipType, ship.team);
-              if (vox) {
-                autoFit(vox);
-                removeCone(ex.group);
-                ex.group.add(vox);
+              if (!vox) {
+                // Universal last-resort: procedural ship from class+tier
+                vox = buildProceduralShip(ship.shipClass, shipDef?.stats.tier ?? 2, ship.team);
               }
+              autoFit(vox);
+              removePlaceholder(ex.group);
+              ex.group.add(vox);
             });
         } else if (hasVoxelShip(ship.shipType)) {
           // No prefab — build voxel immediately (no async load wait)
           const vox = buildVoxelShip(ship.shipType, ship.team);
           if (vox) {
             autoFit(vox);
-            removeCone(meshData.group);
+            removePlaceholder(meshData.group);
             meshData.group.add(vox);
           }
+        } else {
+          // No prefab, no specific voxel — universal procedural fallback
+          const proc = buildProceduralShip(ship.shipClass, shipDef?.stats.tier ?? 2, ship.team);
+          autoFit(proc);
+          removePlaceholder(meshData.group);
+          meshData.group.add(proc);
         }
       }
 
@@ -2125,9 +2175,14 @@ export class SpaceRenderer {
 
   // ── Custom hero ship GLB loading ─────────────────────────────
   private async loadCustomHeroModel(shipId: number, meshData: ShipMesh3D) {
-    const removeCone = (g: THREE.Group) => {
-      const c = g.children.find((ch) => (ch as THREE.Mesh).geometry?.type === 'ConeGeometry');
-      if (c) g.remove(c);
+    const removePlaceholderLocal = (g: THREE.Group) => {
+      const toRemove = g.children.filter((ch) => {
+        const geo = (ch as THREE.Mesh).geometry;
+        if (!geo) return false;
+        const t = geo.type;
+        return t === 'ConeGeometry' || t === 'CylinderGeometry' || t === 'BoxGeometry';
+      });
+      toRemove.forEach((c) => g.remove(c));
     };
 
     // Load and cache the player's hero ship URL once
@@ -2144,7 +2199,7 @@ export class SpaceRenderer {
       this.customHeroLoading = false;
     }
 
-    if (!this.customHeroUrl) return; // no saved ship — keep cone placeholder
+    if (!this.customHeroUrl) return; // no saved ship — keep placeholder
 
     try {
       const gltf = await this.gltfLoader.loadAsync(this.customHeroUrl);
@@ -2158,10 +2213,22 @@ export class SpaceRenderer {
       const modelDiam = box.getSize(new THREE.Vector3()).length();
       if (modelDiam > 0) model.scale.setScalar(24 / modelDiam);
       if (ship) SpaceRenderer.tintModelToTeam(model, ship.team);
-      removeCone(ex.group);
+      removePlaceholderLocal(ex.group);
       ex.group.add(model);
     } catch {
-      // GLB load failed — keep cone placeholder
+      // GLB load failed — build procedural fallback
+      const ex = this.shipMeshes.get(shipId);
+      if (ex && !this.disposed) {
+        const ship = this.engine.state.ships.get(shipId);
+        if (ship) {
+          const proc = buildProceduralShip(ship.shipClass, 5, ship.team);
+          const box = new THREE.Box3().setFromObject(proc);
+          const diam = box.getSize(new THREE.Vector3()).length();
+          if (diam > 0) proc.scale.setScalar(24 / diam);
+          removePlaceholderLocal(ex.group);
+          ex.group.add(proc);
+        }
+      }
     }
   }
 

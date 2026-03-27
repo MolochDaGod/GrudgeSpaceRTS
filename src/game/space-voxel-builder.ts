@@ -44,12 +44,12 @@ function buildGroup(map: VoxMap, team: number, scale: number = 1): THREE.Group {
   const g = ((teamHex >> 8) & 0xff) / 255;
   const b = (teamHex & 0xff) / 255;
 
-  const palettes: Record<number, { color: THREE.Color; emissive: THREE.Color; emInt: number }> = {
-    1: { color: new THREE.Color(r * 0.9, g * 0.9, b * 0.9), emissive: new THREE.Color(r * 0.3, g * 0.3, b * 0.3), emInt: 0.35 },
-    2: { color: new THREE.Color(r * 0.45, g * 0.45, b * 0.45), emissive: new THREE.Color(0, 0, 0), emInt: 0 },
-    3: { color: new THREE.Color(0.05, 0.4, 0.9), emissive: new THREE.Color(0.0, 0.5, 1.0), emInt: 1.0 },
-    4: { color: new THREE.Color(1.0, 0.6, 0.1), emissive: new THREE.Color(1.0, 0.5, 0.0), emInt: 0.9 },
-    5: { color: new THREE.Color(r * 0.6, g * 0.6, b * 0.6), emissive: new THREE.Color(r, g, b), emInt: 0.7 },
+  const palettes: Record<number, { color: THREE.Color; emissive: THREE.Color; emInt: number; rough: number; metal: number }> = {
+    1: { color: new THREE.Color(r * 0.9, g * 0.9, b * 0.9), emissive: new THREE.Color(r * 0.35, g * 0.35, b * 0.35), emInt: 0.5, rough: 0.45, metal: 0.5 },
+    2: { color: new THREE.Color(r * 0.5, g * 0.5, b * 0.5), emissive: new THREE.Color(r * 0.1, g * 0.1, b * 0.1), emInt: 0.15, rough: 0.7, metal: 0.6 },
+    3: { color: new THREE.Color(0.08, 0.5, 1.0), emissive: new THREE.Color(0.0, 0.6, 1.0), emInt: 1.5, rough: 0.25, metal: 0.2 },
+    4: { color: new THREE.Color(1.0, 0.65, 0.15), emissive: new THREE.Color(1.0, 0.55, 0.05), emInt: 1.3, rough: 0.3, metal: 0.3 },
+    5: { color: new THREE.Color(r * 0.7, g * 0.7, b * 0.7), emissive: new THREE.Color(r, g, b), emInt: 0.9, rough: 0.2, metal: 0.1 },
   };
 
   // Group voxels by type
@@ -69,8 +69,8 @@ function buildGroup(map: VoxMap, team: number, scale: number = 1): THREE.Group {
       color: pal.color,
       emissive: pal.emissive,
       emissiveIntensity: pal.emInt,
-      roughness: 0.6,
-      metalness: 0.3,
+      roughness: pal.rough,
+      metalness: pal.metal,
     });
     const mesh = new THREE.InstancedMesh(geo, mat, positions.length);
     const dummy = new THREE.Object3D();
@@ -590,10 +590,11 @@ function buildColorVoxelGroup(grid: VoxelColor[][], team: number, maxHeight: num
     if (bucket.positions.length === 0) continue;
     const mat = new THREE.MeshStandardMaterial({
       color: bucket.color,
-      emissive: bucket.color.clone().multiplyScalar(0.3),
-      emissiveIntensity: 0.35,
-      roughness: 0.55,
-      metalness: 0.3,
+      emissive: bucket.color.clone().multiplyScalar(0.4),
+      emissiveIntensity: 0.55,
+      roughness: 0.4,
+      metalness: 0.45,
+      envMapIntensity: 1.2,
     });
     const mesh = new THREE.InstancedMesh(geo, mat, bucket.positions.length);
     const dummy = new THREE.Object3D();
@@ -612,6 +613,41 @@ function buildColorVoxelGroup(grid: VoxelColor[][], team: number, maxHeight: num
   group.children.forEach((c) => c.position.sub(centre));
 
   return group;
+}
+
+// ── Universal procedural ship builder ─────────────────────────────
+// Generates a voxel ship for ANY ship class + tier combo.
+// Used as the last-resort fallback so NO ship ever stays as a cone placeholder.
+const CLASS_TO_PATTERN: Record<string, (v: number) => VoxMap> = {
+  fighter: patternCorvette,
+  heavy_fighter: patternCorvette,
+  interceptor: patternCorvette,
+  scout: (v) => patternWorkerDrone(),
+  stealth: patternCorvette,
+  corvette: patternCorvette,
+  frigate: patternFrigate,
+  assault_frigate: patternFrigate,
+  light_cruiser: patternLightCruiser,
+  cruiser: patternLightCruiser,
+  destroyer: patternDestroyer,
+  battleship: () => patternCapitalBattleship(),
+  dreadnought: () => patternCapitalBattleship(),
+  carrier: () => patternCapitalCruiser(),
+  bomber: () => patternCapitalBomber(),
+  worker: () => patternWorkerDrone(),
+  transport: () => patternEnergySkimmer(),
+};
+
+/** Build a procedural voxel ship for any class/tier/team.
+ *  Always returns a valid Group — never null. */
+export function buildProceduralShip(shipClass: string, tier: number, team: number): THREE.Group {
+  const patternFn = CLASS_TO_PATTERN[shipClass] ?? patternCorvette;
+  // Use tier as variant (clamped 1-5) for slight visual variety
+  const variant = Math.max(1, Math.min(5, tier));
+  const voxMap = patternFn(variant);
+  // Scale up higher-tier ships slightly
+  const tierScale = 0.8 + tier * 0.1;
+  return buildGroup(voxMap, team, tierScale);
 }
 
 // ── Sprite ship paths for voxel conversion ──────────────────────────
