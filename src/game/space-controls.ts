@@ -145,9 +145,11 @@ export class SpaceControls {
 
     const hasSelection = this.state.selectedIds.size > 0;
     switch (e.key.toLowerCase()) {
-      // ─ Ability hotkeys: W/R activate abilities. Q/E reserved for camera orbit.
+      // ─ Ability hotkeys — W/R/T activate abilities. Q/E reserved for camera orbit.
+      // T = deploy_mine (stealth/scout units), W/R = general abilities.
       case 'w':
       case 'r':
+      case 't':
         if (hasSelection) this.onAbilityActivateByKey?.(e.key.toUpperCase());
         break;
       // Q/E are handled continuously in update() for camera rotation

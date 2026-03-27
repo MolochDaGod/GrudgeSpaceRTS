@@ -1293,6 +1293,26 @@ export class SpaceEngine {
       this.spawnSpriteEffect(ship.x, ship.y, 0, 'bomb-low-2', 1.5);
     } else if (ab.ability.type === 'repair') {
       this.spawnSpriteEffect(ship.x, ship.y, 0, 'bomb-tiny-3', 0.8);
+    } else if (ab.ability.type === 'deploy_mine') {
+      // Deploy a proximity mine at the ship's current position
+      const placed = this.deployMine(ship.team, ship.x, ship.y);
+      if (!placed) {
+        // Insufficient resources — refund energy and cooldown
+        res.energy += ab.ability.energyCost;
+        ab.cooldownRemaining = 0;
+        ab.active = false;
+      } else {
+        this.spawnSpriteEffect(ship.x, ship.y, 0, 'bomb-tiny', 1.0);
+        this.state.alerts.push({
+          id: this.state.nextId++,
+          x: ship.x,
+          y: ship.y,
+          z: 0,
+          type: 'build_complete',
+          time: this.state.gameTime,
+          message: 'Mine deployed',
+        });
+      }
     } else if (ab.ability.type.startsWith('hack_')) {
       // Hacking abilities — initiate channeled hack on current target
       const tgt = ship.targetId ? this.state.ships.get(ship.targetId) : null;

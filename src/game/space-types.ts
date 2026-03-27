@@ -95,6 +95,7 @@ export interface ShipAbility {
     | 'repair'
     | 'ram'
     | 'launch_fighters'
+    | 'deploy_mine'
     | 'hack_weapons'
     | 'hack_shields'
     | 'hack_siphon'
