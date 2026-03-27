@@ -48,9 +48,10 @@ interface PlanetSurfaceViewProps {
   onClose: () => void;
   onBuild: (planetId: number, buildingType: PlanetBuildingType) => void;
   onDeploy?: (planet: Planet) => void;
+  onDeployRts?: (planet: Planet) => void;
 }
 
-export function PlanetSurfaceView({ planet, state, onClose, onBuild, onDeploy }: PlanetSurfaceViewProps) {
+export function PlanetSurfaceView({ planet, state, onClose, onBuild, onDeploy, onDeployRts }: PlanetSurfaceViewProps) {
   const [cameraMode, setCameraMode] = useState<CameraMode>('orbital');
   const [selectedSlot, setSelectedSlot] = useState<PlanetBuildingType | null>(null);
   const surface: PlanetSurface = planet.surface ?? {
@@ -475,7 +476,7 @@ export function PlanetSurfaceView({ planet, state, onClose, onBuild, onDeploy }:
             )}
 
             {/* Deploy ground team */}
-            {onDeploy && (
+            {(onDeploy || onDeployRts) && (
               <div
                 style={{
                   padding: '12px 14px',
@@ -488,7 +489,12 @@ export function PlanetSurfaceView({ planet, state, onClose, onBuild, onDeploy }:
                 <div style={{ fontSize: 10, color: 'rgba(200,180,140,0.6)', marginBottom: 8, lineHeight: 1.5 }}>
                   Deploy a ground team for combat missions on the surface.
                 </div>
-                <Btn label="⚔️ DEPLOY GROUND TEAM" wide active onClick={() => onDeploy(planet)} style={{ height: 36 }} />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {onDeploy && <Btn label="⚔️ GROUND TEAM (3D)" wide active onClick={() => onDeploy(planet)} style={{ height: 36 }} />}
+                  {onDeployRts && (
+                    <Btn label="🎖️ TACTICAL BATTLE (RTS)" wide active onClick={() => onDeployRts(planet)} style={{ height: 36 }} />
+                  )}
+                </div>
               </div>
             )}
 

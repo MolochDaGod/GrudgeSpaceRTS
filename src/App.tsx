@@ -42,9 +42,10 @@ import { DevOverlay } from './game/dev-overlay';
 import { ShipCodex3D } from './game/codex-ui';
 
 import { GroundCombatView } from './game/GroundCombatView';
+import { GroundBattleView } from './game/GroundBattleView';
 import type { PlanetType } from './game/space-types';
 
-type Screen = 'intro' | 'menu' | 'codex' | 'howto' | 'editor' | 'playing' | 'ground_combat';
+type Screen = 'intro' | 'menu' | 'codex' | 'howto' | 'editor' | 'playing' | 'ground_combat' | 'ground_rts';
 
 // ── Space Background: stars + nebulae + comets ────────────────────
 const StarfieldCanvas = memo(function StarfieldCanvas() {
@@ -332,7 +333,7 @@ export default function App() {
   useEffect(() => {
     if (screen === 'menu' || screen === 'codex' || screen === 'howto' || screen === 'editor') {
       gameAudio.playMusic('menu');
-    } else if (screen === 'playing' || screen === 'ground_combat') {
+    } else if (screen === 'playing' || screen === 'ground_combat' || screen === 'ground_rts') {
       gameAudio.playMusic('battle');
     } else if (screen === 'intro') {
       gameAudio.playMusic('main');
@@ -439,6 +440,7 @@ export default function App() {
       <div
         ref={containerRef}
         style={{ width: '100%', height: '100%', display: screen === 'playing' || screen === 'ground_combat' ? 'block' : 'none' }}
+        // ground_rts uses its own canvas — keep Three.js canvas hidden during RTS
       />
       {screen === 'intro' && <IntroScreen onFinish={() => setScreen('menu')} />}
       {screen === 'menu' && (
@@ -503,6 +505,11 @@ export default function App() {
             setGroundPlanetName(pName);
             setScreen('ground_combat');
           }}
+          onDeployGroundRts={(pType, pName) => {
+            setGroundPlanetType(pType);
+            setGroundPlanetName(pName);
+            setScreen('ground_rts');
+          }}
         />
       )}
       {screen === 'playing' && starMapOpen && renderer && <StarMapOverlay renderer={renderer} onClose={() => setStarMapOpen(false)} />}
@@ -512,6 +519,16 @@ export default function App() {
           planetName={groundPlanetName}
           onExit={(result) => {
             console.log('[GROUND] Mission result:', result);
+            setScreen('playing');
+          }}
+        />
+      )}
+      {screen === 'ground_rts' && (
+        <GroundBattleView
+          planetType={groundPlanetType}
+          planetName={groundPlanetName}
+          onExit={(result) => {
+            console.log('[GROUND RTS] Battle result:', result);
             setScreen('playing');
           }}
         />

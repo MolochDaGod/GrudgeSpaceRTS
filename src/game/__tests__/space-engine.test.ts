@@ -72,6 +72,25 @@ describe('SpaceEngine', () => {
     expect(engine.state.upgrades[1].attack).toBe(0);
   });
 
+  it('neutral hold-position defenders acquire targets when enemies are in range', () => {
+    // Place defender far from any existing ships to avoid cross-targeting
+    const defender = engine.spawnShip('pirate_01', 0 as any, 5000, 5000);
+    defender.holdPosition = true;
+    // No orbit — pure stationary guard
+    defender.orbitTarget = null;
+
+    // Place enemy within half the defender's attack range (guaranteed in range)
+    const enemy = engine.spawnShip('red_fighter', 1, 5000 + defender.attackRange * 0.4, 5000);
+
+    // Tick a few frames
+    for (let i = 0; i < 5; i++) engine.update(0.1);
+
+    // The defender should have acquired the enemy as a target
+    expect(defender.targetId).toBe(enemy.id);
+    // holdPosition ships must NOT get a moveTarget (they fire in place)
+    expect(defender.moveTarget).toBeNull();
+  });
+
   it('captures a neutral planet when friendly ships are nearby', () => {
     // Find a neutral planet
     const neutral = engine.state.planets.find((p) => p.owner === 0);

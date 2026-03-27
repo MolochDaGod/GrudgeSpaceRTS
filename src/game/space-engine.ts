@@ -1167,16 +1167,24 @@ export class SpaceEngine {
 
       // Auto-acquire — attack-move uses a much wider scan radius so ships
       // proactively engage enemies along their path, not just in weapon range.
-      if (!ship.targetId && !ship.holdPosition) {
-        const scanRange = ship.isAttackMoving ? ship.attackRange * 3 : ship.attackRange * 1.5;
+      // Hold-position / orbital ships still fight back against enemies in weapon range
+      // but do NOT chase (they keep their position).
+      if (!ship.targetId) {
+        const scanRange = ship.holdPosition
+          ? ship.attackRange // stationary defenders: weapon range only
+          : ship.isAttackMoving
+            ? ship.attackRange * 3
+            : ship.attackRange * 1.5;
         const nearest = this.findNearestEnemy(ship);
         if (nearest && dist2d(ship, nearest) < scanRange) {
-          // Save the original destination so we can resume after the fight
-          if (ship.isAttackMoving && ship.moveTarget && !ship.attackMoveTarget) {
-            ship.attackMoveTarget = { ...ship.moveTarget };
+          if (!ship.holdPosition) {
+            // Save the original destination so we can resume after the fight
+            if (ship.isAttackMoving && ship.moveTarget && !ship.attackMoveTarget) {
+              ship.attackMoveTarget = { ...ship.moveTarget };
+            }
+            ship.moveTarget = null; // stop moving, engage
           }
           ship.targetId = nearest.id;
-          ship.moveTarget = null; // stop moving, engage
         }
       }
 
@@ -3150,6 +3158,8 @@ export class SpaceEngine {
       bd = Infinity;
     for (const [, o] of this.state.ships) {
       if (o.dead || o.team === ship.team) continue;
+      // Non-neutrals skip free-roaming neutrals (roaming neutrals have no orbitTarget).
+      // Neutrals (team 0) consider every other team an enemy.
       if (ship.team !== 0 && o.team === 0 && !o.orbitTarget) continue;
       const d = dist2d(ship, o);
       if (d < bd) {
