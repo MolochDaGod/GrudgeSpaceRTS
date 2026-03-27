@@ -367,6 +367,15 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKey);
   }, [screen, renderer]);
 
+  const backToMenu = useCallback(() => {
+    if (rendererRef.current) {
+      rendererRef.current.dispose();
+      rendererRef.current = null;
+    }
+    setRenderer(null);
+    setScreen('menu');
+  }, []);
+
   const launchWithSpec = useCallback(
     async (mode: GameMode, spec: CommanderSpec, colorPrefs: TeamColorPrefs, difficulty?: number) => {
       if (!containerRef.current) return;
@@ -414,17 +423,8 @@ export default function App() {
           backToMenu();
         });
     },
-    [authUser, campaignBuild, selectedFaction],
+    [authUser, campaignBuild, selectedFaction, backToMenu],
   );
-
-  const backToMenu = useCallback(() => {
-    if (rendererRef.current) {
-      rendererRef.current.dispose();
-      rendererRef.current = null;
-    }
-    setRenderer(null);
-    setScreen('menu');
-  }, []);
 
   return (
     <div
