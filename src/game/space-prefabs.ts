@@ -183,7 +183,7 @@ export const BATTLE_SHIP_PREFABS: Record<string, SpacePrefab> = {
   // Corvettes & Frigates — now with proper texture from craftpix-673467
   cf_corvette_01: {
     modelPath: '/assets/space/models/battle-ships/Corvette_01.fbx',
-    texturePath: '/assets/space/models/battle-ships/T_Spase_64.png',
+    texturePath: '/assets/space/models/battle-ships/Corvette_01.png',
     format: 'fbx',
     scale: 0.03,
     offset: S(0, 0, 0),
@@ -192,7 +192,7 @@ export const BATTLE_SHIP_PREFABS: Record<string, SpacePrefab> = {
   },
   cf_corvette_02: {
     modelPath: '/assets/space/models/battle-ships/Corvette_02.fbx',
-    texturePath: '/assets/space/models/battle-ships/T_Spase_64.png',
+    texturePath: '/assets/space/models/battle-ships/Corvette_02.png',
     format: 'fbx',
     scale: 0.03,
     offset: S(0, 0, 0),
@@ -201,7 +201,7 @@ export const BATTLE_SHIP_PREFABS: Record<string, SpacePrefab> = {
   },
   cf_corvette_03: {
     modelPath: '/assets/space/models/battle-ships/Corvette_03.fbx',
-    texturePath: '/assets/space/models/battle-ships/T_Spase_64.png',
+    texturePath: '/assets/space/models/battle-ships/Corvette_03.png',
     format: 'fbx',
     scale: 0.03,
     offset: S(0, 0, 0),
@@ -210,7 +210,7 @@ export const BATTLE_SHIP_PREFABS: Record<string, SpacePrefab> = {
   },
   cf_corvette_04: {
     modelPath: '/assets/space/models/battle-ships/Corvette_04.fbx',
-    texturePath: '/assets/space/models/battle-ships/T_Spase_blue.png',
+    texturePath: '/assets/space/models/battle-ships/Corvette_04.png',
     format: 'fbx',
     scale: 0.03,
     offset: S(0, 0, 0),
@@ -219,7 +219,7 @@ export const BATTLE_SHIP_PREFABS: Record<string, SpacePrefab> = {
   },
   cf_corvette_05: {
     modelPath: '/assets/space/models/battle-ships/Corvette_05.fbx',
-    texturePath: '/assets/space/models/battle-ships/T_Spase_blue.png',
+    texturePath: '/assets/space/models/battle-ships/Corvette_05.png',
     format: 'fbx',
     scale: 0.03,
     offset: S(0, 0, 0),
@@ -228,7 +228,7 @@ export const BATTLE_SHIP_PREFABS: Record<string, SpacePrefab> = {
   },
   cf_frigate_01: {
     modelPath: '/assets/space/models/battle-ships/Frigate_01.fbx',
-    texturePath: '/assets/space/models/battle-ships/T_Spase_64.png',
+    texturePath: '/assets/space/models/battle-ships/Frigate_01.png',
     format: 'fbx',
     scale: 0.027,
     offset: S(0, 0, 0),
@@ -237,7 +237,7 @@ export const BATTLE_SHIP_PREFABS: Record<string, SpacePrefab> = {
   },
   cf_frigate_02: {
     modelPath: '/assets/space/models/battle-ships/Frigate_02.fbx',
-    texturePath: '/assets/space/models/battle-ships/T_Spase_64.png',
+    texturePath: '/assets/space/models/battle-ships/Frigate_02.png',
     format: 'fbx',
     scale: 0.027,
     offset: S(0, 0, 0),
@@ -246,7 +246,7 @@ export const BATTLE_SHIP_PREFABS: Record<string, SpacePrefab> = {
   },
   cf_frigate_03: {
     modelPath: '/assets/space/models/battle-ships/Frigate_03.fbx',
-    texturePath: '/assets/space/models/battle-ships/T_Spase_64.png',
+    texturePath: '/assets/space/models/battle-ships/Frigate_03.png',
     format: 'fbx',
     scale: 0.027,
     offset: S(0, 0, 0),
@@ -255,7 +255,7 @@ export const BATTLE_SHIP_PREFABS: Record<string, SpacePrefab> = {
   },
   cf_frigate_04: {
     modelPath: '/assets/space/models/battle-ships/Frigate_04.fbx',
-    texturePath: '/assets/space/models/battle-ships/T_Spase_blue.png',
+    texturePath: '/assets/space/models/battle-ships/Frigate_04.png',
     format: 'fbx',
     scale: 0.027,
     offset: S(0, 0, 0),
@@ -264,7 +264,7 @@ export const BATTLE_SHIP_PREFABS: Record<string, SpacePrefab> = {
   },
   cf_frigate_05: {
     modelPath: '/assets/space/models/battle-ships/Frigate_05.fbx',
-    texturePath: '/assets/space/models/battle-ships/T_Spase_blue.png',
+    texturePath: '/assets/space/models/battle-ships/Frigate_05.png',
     format: 'fbx',
     scale: 0.027,
     offset: S(0, 0, 0),
@@ -273,6 +273,7 @@ export const BATTLE_SHIP_PREFABS: Record<string, SpacePrefab> = {
   },
   cf_light_cruiser_01: {
     modelPath: '/assets/space/models/battle-ships/Light cruiser_01.fbx',
+    texturePath: '/assets/space/models/battle-ships/Light cruiser_01.png',
     format: 'fbx',
     scale: 0.024,
     offset: S(0, 0, 0),
@@ -281,6 +282,7 @@ export const BATTLE_SHIP_PREFABS: Record<string, SpacePrefab> = {
   },
   cf_light_cruiser_02: {
     modelPath: '/assets/space/models/battle-ships/Light cruiser_02.fbx',
+    texturePath: '/assets/space/models/battle-ships/Light cruiser_02.png',
     format: 'fbx',
     scale: 0.024,
     offset: S(0, 0, 0),
@@ -289,6 +291,7 @@ export const BATTLE_SHIP_PREFABS: Record<string, SpacePrefab> = {
   },
   cf_light_cruiser_03: {
     modelPath: '/assets/space/models/battle-ships/Light cruiser_03.fbx',
+    texturePath: '/assets/space/models/battle-ships/Light cruiser_03.png',
     format: 'fbx',
     scale: 0.024,
     offset: S(0, 0, 0),
@@ -297,6 +300,7 @@ export const BATTLE_SHIP_PREFABS: Record<string, SpacePrefab> = {
   },
   cf_light_cruiser_04: {
     modelPath: '/assets/space/models/battle-ships/Light cruiser_04.fbx',
+    texturePath: '/assets/space/models/battle-ships/Light cruiser_04.png',
     format: 'fbx',
     scale: 0.024,
     offset: S(0, 0, 0),
@@ -305,6 +309,7 @@ export const BATTLE_SHIP_PREFABS: Record<string, SpacePrefab> = {
   },
   cf_light_cruiser_05: {
     modelPath: '/assets/space/models/battle-ships/Light cruiser_05.fbx',
+    texturePath: '/assets/space/models/battle-ships/Light cruiser_05.png',
     format: 'fbx',
     scale: 0.024,
     offset: S(0, 0, 0),
@@ -313,6 +318,7 @@ export const BATTLE_SHIP_PREFABS: Record<string, SpacePrefab> = {
   },
   cf_destroyer_01: {
     modelPath: '/assets/space/models/battle-ships/Destroyer_01.fbx',
+    texturePath: '/assets/space/models/battle-ships/Destroyer_01.png',
     format: 'fbx',
     scale: 0.027,
     offset: S(0, 0, 0),
@@ -321,6 +327,7 @@ export const BATTLE_SHIP_PREFABS: Record<string, SpacePrefab> = {
   },
   cf_destroyer_02: {
     modelPath: '/assets/space/models/battle-ships/Destroyer_02.fbx',
+    texturePath: '/assets/space/models/battle-ships/Destroyer_02.png',
     format: 'fbx',
     scale: 0.027,
     offset: S(0, 0, 0),
@@ -329,6 +336,7 @@ export const BATTLE_SHIP_PREFABS: Record<string, SpacePrefab> = {
   },
   cf_destroyer_03: {
     modelPath: '/assets/space/models/battle-ships/Destroyer_03.fbx',
+    texturePath: '/assets/space/models/battle-ships/Destroyer_03.png',
     format: 'fbx',
     scale: 0.027,
     offset: S(0, 0, 0),
@@ -337,6 +345,7 @@ export const BATTLE_SHIP_PREFABS: Record<string, SpacePrefab> = {
   },
   cf_destroyer_04: {
     modelPath: '/assets/space/models/battle-ships/Destroyer_04.fbx',
+    texturePath: '/assets/space/models/battle-ships/Destroyer_04.png',
     format: 'fbx',
     scale: 0.027,
     offset: S(0, 0, 0),
@@ -345,6 +354,7 @@ export const BATTLE_SHIP_PREFABS: Record<string, SpacePrefab> = {
   },
   cf_destroyer_05: {
     modelPath: '/assets/space/models/battle-ships/Destroyer_05.fbx',
+    texturePath: '/assets/space/models/battle-ships/Destroyer_05.png',
     format: 'fbx',
     scale: 0.027,
     offset: S(0, 0, 0),
@@ -353,6 +363,7 @@ export const BATTLE_SHIP_PREFABS: Record<string, SpacePrefab> = {
   },
   boss_ship_01: {
     modelPath: '/assets/space/models/new-ships/Ship_Boos_01_Hull.fbx',
+    texturePath: '/assets/space/models/new-ships/Ship_Boos_01_Hull.png',
     format: 'fbx',
     scale: 0.045,
     offset: S(0, 0, 0),
@@ -361,6 +372,7 @@ export const BATTLE_SHIP_PREFABS: Record<string, SpacePrefab> = {
   },
   boss_ship_02: {
     modelPath: '/assets/space/models/new-ships/Ship_Boss_02_Hull.fbx',
+    texturePath: '/assets/space/models/new-ships/Ship_Boss_02_Hull.png',
     format: 'fbx',
     scale: 0.045,
     offset: S(0, 0, 0),
@@ -483,6 +495,7 @@ export const STATION_PREFABS: Record<string, SpacePrefab> = {
 export const ENEMY_PREFABS: Record<string, SpacePrefab> = {
   enemy_fighter: {
     modelPath: '/assets/space/models/enemies/Enemies/Fighter/Fighter.fbx',
+    texturePath: '/assets/space/models/enemies/Enemies/Fighter/Fighter.png',
     format: 'fbx',
     scale: 0.045,
     offset: S(0, 0, 0),
@@ -491,6 +504,7 @@ export const ENEMY_PREFABS: Record<string, SpacePrefab> = {
   },
   enemy_cruiser: {
     modelPath: '/assets/space/models/enemies/Enemies/Enemy Cruiser.fbx',
+    texturePath: '/assets/space/models/enemies/Enemies/Enemy Cruiser.png',
     format: 'fbx',
     scale: 0.024,
     offset: S(0, 0, 0),
@@ -499,6 +513,7 @@ export const ENEMY_PREFABS: Record<string, SpacePrefab> = {
   },
   enemy_destroyer: {
     modelPath: '/assets/space/models/enemies/Enemies/Enemy destroyer.fbx',
+    texturePath: '/assets/space/models/enemies/Enemies/Enemy destroyer.png',
     format: 'fbx',
     scale: 0.027,
     offset: S(0, 0, 0),
@@ -507,6 +522,7 @@ export const ENEMY_PREFABS: Record<string, SpacePrefab> = {
   },
   enemy_huge: {
     modelPath: '/assets/space/models/enemies/Enemies/EnemyHuge.fbx',
+    texturePath: '/assets/space/models/enemies/Enemies/EnemyHuge.png',
     format: 'fbx',
     scale: 0.015,
     offset: S(0, 0, 0),
@@ -515,6 +531,7 @@ export const ENEMY_PREFABS: Record<string, SpacePrefab> = {
   },
   enemy_mega_boss: {
     modelPath: '/assets/space/models/enemies/Enemies/EnemyHuge2.fbx',
+    texturePath: '/assets/space/models/enemies/Enemies/EnemyHuge2.png',
     format: 'fbx',
     scale: 0.012,
     offset: S(0, 0, 0),
@@ -627,6 +644,121 @@ export const FORGE_SHIP_PREFABS: Record<string, SpacePrefab> = {
     offset: S(0, 0, 0),
     enginePoints: [S(-0.6, 0, -1.5), S(0, 0, -1.5), S(0.6, 0, -1.5)],
     weaponPoints: [S(-0.5, 0.2, 1.0), S(0.5, 0.2, 1.0)],
+  },
+};
+
+// ── Faction Hero Ships (FBX — reuse new-ships hull models) ─────────
+const NS = '/assets/space/models/new-ships';
+export const FACTION_HERO_PREFABS: Record<string, SpacePrefab> = {
+  hero_wisdom_oracle: {
+    modelPath: `${NS}/Ship_enemy_04_Hull.fbx`,
+    texturePath: `${NS}/Ship_enemy_04_Hull.png`,
+    format: 'fbx',
+    scale: 0.024,
+    offset: S(0, 0, 0),
+    enginePoints: [S(-0.5, 0, -1.5), S(0.5, 0, -1.5)],
+    weaponPoints: [S(0, 0.2, 1.2)],
+  },
+  hero_construct_titan: {
+    modelPath: `${NS}/Ship_Boos_01_Hull.fbx`,
+    texturePath: `${NS}/Ship_Boos_01_Hull.png`,
+    format: 'fbx',
+    scale: 0.018,
+    offset: S(0, 0, 0),
+    enginePoints: [S(-1, 0, -2.5), S(0, 0, -2.5), S(1, 0, -2.5)],
+    weaponPoints: [S(-0.8, 0.3, 1.5), S(0.8, 0.3, 1.5)],
+  },
+  hero_void_wraith: {
+    modelPath: `${NS}/Ship_enemy_06_Hull.fbx`,
+    texturePath: `${NS}/Ship_enemy_06_Hull.png`,
+    format: 'fbx',
+    scale: 0.03,
+    offset: S(0, 0, 0),
+    enginePoints: [S(0, 0, -0.8)],
+    weaponPoints: [S(0, 0, 0.9)],
+  },
+  hero_legion_warlord: {
+    modelPath: `${NS}/Ship_enemy_10_Hull.fbx`,
+    texturePath: `${NS}/Ship_enemy_10_Hull.png`,
+    format: 'fbx',
+    scale: 0.021,
+    offset: S(0, 0, 0),
+    enginePoints: [S(-0.6, 0, -1.8), S(0.6, 0, -1.8)],
+    weaponPoints: [S(-0.5, 0.2, 1.0), S(0.5, 0.2, 1.0)],
+  },
+  // Standard hero ships (use main hulls from new-ships pack)
+  vanguard_prime: {
+    modelPath: `${NS}/Spaceship_main_01_Hull.fbx`,
+    texturePath: `${NS}/Spaceship_main_01_Hull.png`,
+    format: 'fbx',
+    scale: 0.021,
+    offset: S(0, 0, 0),
+    enginePoints: [S(-0.8, 0, -2), S(0, 0, -2), S(0.8, 0, -2)],
+    weaponPoints: [S(-0.6, 0.2, 1.2), S(0.6, 0.2, 1.2)],
+  },
+  shadow_reaper: {
+    modelPath: `${NS}/Spaceship_main_02_Hull.fbx`,
+    texturePath: `${NS}/Spaceship_main_02_Hull.png`,
+    format: 'fbx',
+    scale: 0.03,
+    offset: S(0, 0, 0),
+    enginePoints: [S(0, 0, -0.7)],
+    weaponPoints: [S(0, 0, 0.8)],
+  },
+  iron_bastion: {
+    modelPath: `${NS}/Spaceship_main_03_Hull.fbx`,
+    texturePath: `${NS}/Spaceship_main_03_Hull.png`,
+    format: 'fbx',
+    scale: 0.024,
+    offset: S(0, 0, 0),
+    enginePoints: [S(-0.6, 0, -1.6), S(0, 0, -1.6), S(0.6, 0, -1.6)],
+    weaponPoints: [S(-0.5, 0.2, 1.0), S(0.5, 0.2, 1.0)],
+  },
+  storm_herald: {
+    modelPath: `${NS}/Ship_enemy_08_Hull.fbx`,
+    texturePath: `${NS}/Ship_enemy_08_Hull.png`,
+    format: 'fbx',
+    scale: 0.027,
+    offset: S(0, 0, 0),
+    enginePoints: [S(-0.5, 0, -1.2), S(0.5, 0, -1.2)],
+    weaponPoints: [S(0, 0.2, 1.0)],
+  },
+  plague_mother: {
+    modelPath: `${NS}/Ship_enemy_05_Hull.fbx`,
+    texturePath: `${NS}/Ship_enemy_05_Hull.png`,
+    format: 'fbx',
+    scale: 0.021,
+    offset: S(0, 0, 0),
+    enginePoints: [S(-0.6, 0, -1.5), S(0.6, 0, -1.5)],
+    weaponPoints: [S(-0.4, 0.2, 0.8), S(0.4, 0.2, 0.8)],
+  },
+  custom_hero: {
+    modelPath: `${NS}/Ship_Boss_02_Hull.fbx`,
+    texturePath: `${NS}/Ship_Boss_02_Hull.png`,
+    format: 'fbx',
+    scale: 0.018,
+    offset: S(0, 0, 0),
+    enginePoints: [S(-1, 0, -2.5), S(0, 0, -2.5), S(1, 0, -2.5)],
+    weaponPoints: [S(-0.8, 0.3, 1.5), S(0, 0.4, 2), S(0.8, 0.3, 1.5)],
+  },
+  // Boss ships (also use new-ships hull FBX)
+  boss_ship_01: {
+    modelPath: `${NS}/Ship_Boos_01_Hull.fbx`,
+    texturePath: `${NS}/Ship_Boos_01_Hull.png`,
+    format: 'fbx',
+    scale: 0.015,
+    offset: S(0, 0, 0),
+    enginePoints: [S(-1.2, 0, -3), S(0, 0, -3), S(1.2, 0, -3)],
+    weaponPoints: [S(-1, 0.4, 2), S(0, 0.5, 2.5), S(1, 0.4, 2)],
+  },
+  boss_ship_02: {
+    modelPath: `${NS}/Ship_Boss_02_Hull.fbx`,
+    texturePath: `${NS}/Ship_Boss_02_Hull.png`,
+    format: 'fbx',
+    scale: 0.012,
+    offset: S(0, 0, 0),
+    enginePoints: [S(-1.5, 0, -3.5), S(-0.5, 0, -3.5), S(0.5, 0, -3.5), S(1.5, 0, -3.5)],
+    weaponPoints: [S(-1, 0.5, 2.5), S(0, 0.6, 3), S(1, 0.5, 2.5)],
   },
 };
 
@@ -883,6 +1015,7 @@ export function getShipPrefab(shipType: string): SpacePrefab | null {
     CAPITAL_PREFABS[shipType] ??
     BATTLE_SHIP_PREFABS[shipType] ??
     FORGE_SHIP_PREFABS[shipType] ??
+    FACTION_HERO_PREFABS[shipType] ??
     ENEMY_PREFABS[shipType] ??
     VOXEL_FLEET_PREFABS[shipType] ??
     null

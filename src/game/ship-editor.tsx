@@ -12,6 +12,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { TransformControls } from 'three/examples/jsm/controls/TransformControls.js';
 import { GLTFExporter } from 'three/examples/jsm/exporters/GLTFExporter.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
 import { saveHeroShip, loadHeroShip, type HeroShipRecord } from './ship-storage';
 import { TEAM_COLORS } from './space-types';
 import { buildGroup } from './space-voxel-builder';
@@ -95,6 +96,7 @@ export function ShipForgeEditor({ onBack }: { onBack: () => void }) {
   const [gizmoMode, setGizmoMode] = useState<'translate' | 'rotate' | 'scale'>('translate');
   const nextPartId = useRef(1);
   const gltfLoader = useRef(new GLTFLoader());
+  const fbxLoader = useRef(new FBXLoader());
 
   // Persistent voxel data ref (survives re-renders)
   const voxelDataRef = useRef<Map<string, VoxelType>>(new Map());
@@ -518,8 +520,8 @@ export function ShipForgeEditor({ onBack }: { onBack: () => void }) {
       ctx.mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
       ctx.raycaster.setFromCamera(ctx.mouse, ctx.camera);
 
-      // Check if clicking an existing placed part
-      const allPartMeshes = placedParts.flatMap((p) => {
+      // Check if clicking an existing placed part (use ref to avoid stale closure)
+      const allPartMeshes = placedPartsRef.current.flatMap((p) => {
         const meshes: THREE.Object3D[] = [];
         p.group.traverse((c) => {
           if ((c as THREE.Mesh).isMesh) meshes.push(c);
@@ -551,23 +553,41 @@ export function ShipForgeEditor({ onBack }: { onBack: () => void }) {
       let group: THREE.Group;
 
       if (partDef.glbPath) {
-        // GLB turret — load async, place immediately with placeholder
+        // 3D model — load async with correct loader, place immediately with placeholder
         group = new THREE.Group();
         const placeholder = new THREE.Mesh(
           new THREE.BoxGeometry(partDef.size[0] * 0.9, partDef.size[1] * 0.9, partDef.size[2] * 0.9),
           new THREE.MeshBasicMaterial({ color: 0xffaa44, wireframe: true }),
         );
         group.add(placeholder);
-        gltfLoader.current.load(partDef.glbPath, (gltf) => {
+
+        const isFbx = partDef.glbPath.toLowerCase().endsWith('.fbx');
+        const onModelLoaded = (model: THREE.Group) => {
           group.remove(placeholder);
-          const model = gltf.scene;
+          placeholder.geometry.dispose();
           // Auto-scale to fit part size
           const box = new THREE.Box3().setFromObject(model);
           const diam = box.getSize(new THREE.Vector3()).length();
           const target = Math.max(...partDef.size);
           if (diam > 0) model.scale.setScalar(target / diam);
           group.add(model);
-        });
+        };
+        const onError = (err: unknown) => {
+          console.warn(`[ShipForge] Failed to load ${partDef.glbPath}:`, err);
+          // Keep placeholder wireframe as visual fallback
+          (placeholder.material as THREE.MeshBasicMaterial).color.set(0xff4444);
+        };
+
+        if (isFbx) {
+          fbxLoader.current.load(partDef.glbPath, onModelLoaded, undefined, onError);
+        } else {
+          gltfLoader.current.load(
+            partDef.glbPath,
+            (gltf) => onModelLoaded(gltf.scene),
+            undefined,
+            onError,
+          );
+        }
       } else if (partDef.pattern) {
         // Voxel prefab
         const voxMap = partDef.pattern();
@@ -588,7 +608,7 @@ export function ShipForgeEditor({ onBack }: { onBack: () => void }) {
       setSelectedPlacedId(id);
       setSelectedPartId(null); // Deselect from catalog after placing
     },
-    [mode, selectedPartId, placedParts],
+    [mode, selectedPartId],
   );
 
   const handleClick = useCallback(
@@ -693,7 +713,7 @@ export function ShipForgeEditor({ onBack }: { onBack: () => void }) {
       setVoxelCount(voxelDataRef.current.size);
     },
     [tool, voxelType, mirror, getGridPos],
-  ); // eslint-disable-line react-hooks/exhaustive-deps
+  );  
 
   // ── Export to GLB (includes both voxels AND placed prefab parts) ──
   const exportGLB = useCallback(async (): Promise<Blob | null> => {
