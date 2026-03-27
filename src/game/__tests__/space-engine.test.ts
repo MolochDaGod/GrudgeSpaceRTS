@@ -91,6 +91,53 @@ describe('SpaceEngine', () => {
     expect(defender.moveTarget).toBeNull();
   });
 
+  it('buildOnPlanet: builds a refinery on an owned planet and boosts resources', () => {
+    const home = engine.state.planets.find((p) => p.owner === 1);
+    expect(home).toBeDefined();
+    if (!home) return;
+
+    // Fund the build
+    const res = engine.state.resources[1];
+    res.credits = 10000;
+    res.energy = 10000;
+    res.minerals = 10000;
+
+    // Quick-game starts at L2, refinery needs L1 — should succeed
+    const ok = engine.buildOnPlanet(1 as any, home.id, 'refinery');
+    expect(ok).toBe(true);
+    expect(home.surface?.buildings.some((b) => b.type === 'refinery')).toBe(true);
+
+    // Resources should have been deducted (refinery cost: 300c / 100e / 200m)
+    expect(res.credits).toBeLessThan(10000);
+  });
+
+  it('buildOnPlanet: building ticks to completion and becomes producing', () => {
+    const home = engine.state.planets.find((p) => p.owner === 1);
+    if (!home) return;
+
+    const res = engine.state.resources[1];
+    res.credits = 10000;
+    res.energy = 10000;
+    res.minerals = 10000;
+
+    engine.buildOnPlanet(1 as any, home.id, 'refinery');
+    const building = home.surface!.buildings.find((b) => b.type === 'refinery')!;
+    expect(building.producing).toBe(false);
+
+    // Tick past the 30-second buildTime
+    for (let i = 0; i < 35; i++) engine.update(1);
+
+    expect(building.buildProgress).toBe(1);
+    expect(building.producing).toBe(true);
+  });
+
+  it('buildOnPlanet: fails on unowned planet', () => {
+    const neutral = engine.state.planets.find((p) => p.owner !== 1);
+    if (!neutral) return;
+    const ok = engine.buildOnPlanet(1 as any, neutral.id, 'refinery');
+    expect(ok).toBe(false);
+  });
+
   it('captures a neutral planet when friendly ships are nearby', () => {
     // Find a neutral planet
     const neutral = engine.state.planets.find((p) => p.owner === 0);

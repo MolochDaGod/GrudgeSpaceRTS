@@ -22,6 +22,8 @@ import type {
   CommanderSpec,
   FogGrid,
   POIType,
+  PlanetBuilding,
+  PlanetBuildingType,
 } from './space-types';
 import {
   SHIP_DEFINITIONS,
@@ -74,7 +76,16 @@ import {
   CHUNK_BASE_YIELD,
   CHUNK_ORBIT_RANGE,
 } from './space-types';
-import { QUICK_SPARK_MULT, QUICK_START_SPARK, CAMPAIGN_START_PLANET_LEVEL, QUICK_START_PLANET_LEVEL } from './space-config';
+import {
+  QUICK_SPARK_MULT,
+  QUICK_START_SPARK,
+  CAMPAIGN_START_PLANET_LEVEL,
+  QUICK_START_PLANET_LEVEL,
+  PLANET_BUILDING_DEFS,
+  PLANET_LEVEL_SUPPLY_BONUS,
+  FACTION_TO_RESOURCE,
+  FACTION_RESOURCE_DATA,
+} from './space-config';
 import { generateSector } from './campaign-sector';
 import { logConquest, logStoryBeat, generateUuid } from './captains-log';
 import { startLogAutoFlush, stopLogAutoFlush } from './captains-log';
@@ -1053,6 +1064,7 @@ export class SpaceEngine {
     this.updateHacks(_dt);
     this.updateDarkRifts(_dt);
     this.updatePOIs(_dt);
+    this.updatePlanetBuildings(_dt);
     this.updateAdvancedAI(_dt);
     this.updateWinCondition(_dt);
     // Passive Spark timer (+1 per 60 game-seconds)
@@ -1812,13 +1824,29 @@ export class SpaceEngine {
     if (this.resourceTimer >= 1) {
       this.resourceTimer = 0;
       for (const p of this.state.planets) {
-        if (p.owner !== 0) {
-          const res = this.state.resources[p.owner];
-          if (res) {
-            const m = PLANET_TYPE_DATA[p.planetType].resourceMult;
-            res.credits += p.resourceYield.credits * m.credits;
-            res.energy += p.resourceYield.energy * m.energy;
-            res.minerals += p.resourceYield.minerals * m.minerals;
+        if (p.owner === 0) continue;
+        const res = this.state.resources[p.owner];
+        if (!res) continue;
+        const m = PLANET_TYPE_DATA[p.planetType].resourceMult;
+        // Base yield
+        res.credits += p.resourceYield.credits * m.credits;
+        res.energy += p.resourceYield.energy * m.energy;
+        res.minerals += p.resourceYield.minerals * m.minerals;
+        // Building bonuses (applied once per real-second tick)
+        if (p.surface) {
+          for (const b of p.surface.buildings) {
+            if (!b.producing) continue;
+            // Refinery: +25% yield per level
+            if (b.type === 'refinery') {
+              const bonus = 0.25 * b.level;
+              res.credits += p.resourceYield.credits * m.credits * bonus;
+              res.energy += p.resourceYield.energy * m.energy * bonus;
+              res.minerals += p.resourceYield.minerals * m.minerals * bonus;
+            }
+          }
+          // Faction Forge resource tick (rate is per game-minute → /60 per second)
+          if (p.surface.factionResource && p.surface.factionResourceRate > 0) {
+            p.surface.factionResourceStockpile += p.surface.factionResourceRate / 60;
           }
         }
       }
@@ -2579,6 +2607,135 @@ export class SpaceEngine {
     ship.maxShield = Math.round(ship.maxShield * (1 + idleCmd.defenseBonus));
     ship.speed *= 1 + idleCmd.speedBonus;
     ship.baseSpeed = ship.speed; // keep baseSpeed in sync with permanent buffs
+  }
+
+  // ── Planet Building System ────────────────────────────────────
+
+  /** Start constructing a surface building on a player-owned planet. */
+  buildOnPlanet(team: Team, planetId: number, buildingType: PlanetBuildingType): boolean {
+    const planet = this.state.planets.find((p) => p.id === planetId);
+    if (!planet || planet.owner !== team) return false;
+
+    const def = PLANET_BUILDING_DEFS[buildingType];
+    if (!def) return false;
+
+    // Planet level gate
+    const level = planet.planetLevel ?? 1;
+    if (level < def.minPlanetLevel) return false;
+
+    // Faction restriction
+    if (def.factionLocked) {
+      const ss = this.state.sparkState.get(team);
+      if (!ss || ss.faction !== def.factionLocked) return false;
+    }
+
+    // Initialise surface if absent
+    if (!planet.surface) {
+      planet.surface = { buildings: [], factionResource: null, factionResourceStockpile: 0, factionResourceRate: 0 };
+    }
+
+    // Per-planet limit (station is auto-built, skip its limit here)
+    if (buildingType !== 'station') {
+      const count = planet.surface.buildings.filter((b) => b.type === buildingType).length;
+      if (count >= def.maxPerPlanet) return false;
+    }
+
+    // Resource check & deduction
+    const res = this.state.resources[team];
+    if (!res) return false;
+    if (res.credits < def.cost.credits || res.energy < def.cost.energy || res.minerals < def.cost.minerals) return false;
+    res.credits -= def.cost.credits;
+    res.energy -= def.cost.energy;
+    res.minerals -= def.cost.minerals;
+
+    const slotIndex = planet.surface.buildings.length;
+    const instant = def.buildTime <= 0;
+    planet.surface.buildings.push({
+      type: buildingType,
+      level: 1,
+      slotIndex,
+      buildProgress: instant ? 1 : 0,
+      producing: instant,
+    });
+
+    if (instant) {
+      this.onBuildingComplete(planet, planet.surface.buildings[slotIndex], team);
+    } else {
+      this.state.alerts.push({
+        id: this.state.nextId++,
+        x: planet.x,
+        y: planet.y,
+        z: 0,
+        type: 'build_complete',
+        time: this.state.gameTime,
+        message: `${def.label} construction started on ${planet.name}`,
+      });
+    }
+
+    planet.planetXp = (planet.planetXp ?? 0) + 10;
+    return true;
+  }
+
+  private updatePlanetBuildings(dt: number): void {
+    for (const planet of this.state.planets) {
+      if (planet.owner === 0 || !planet.surface) continue;
+      const team = planet.owner;
+      for (const building of planet.surface.buildings) {
+        if (building.buildProgress >= 1) continue;
+        const def = PLANET_BUILDING_DEFS[building.type];
+        if (!def || def.buildTime <= 0) {
+          building.buildProgress = 1;
+          building.producing = true;
+          this.onBuildingComplete(planet, building, team);
+          continue;
+        }
+        building.buildProgress = Math.min(1, building.buildProgress + dt / def.buildTime);
+        if (building.buildProgress >= 1) {
+          building.producing = true;
+          this.onBuildingComplete(planet, building, team);
+        }
+      }
+    }
+  }
+
+  private onBuildingComplete(planet: Planet, building: PlanetBuilding, team: Team): void {
+    const def = PLANET_BUILDING_DEFS[building.type];
+
+    // Barracks: +10 supply per level
+    if (building.type === 'barracks') {
+      const res = this.state.resources[team];
+      if (res) res.maxSupply += 10 * building.level;
+    }
+
+    // Research Lab: +15% research speed (stacks, cap 3x)
+    if (building.type === 'research_lab') {
+      const st = this.state.techState.get(team);
+      if (st) st.bonuses.buildSpeedMult = Math.min(3.0, st.bonuses.buildSpeedMult + 0.15);
+    }
+
+    // Faction Forge: begin producing faction resource
+    if (building.type === 'faction_forge' && planet.surface) {
+      const ss = this.state.sparkState.get(team);
+      if (ss) {
+        const key = FACTION_TO_RESOURCE[ss.faction];
+        if (key) {
+          planet.surface.factionResource = key;
+          planet.surface.factionResourceRate = FACTION_RESOURCE_DATA[key].baseRate;
+        }
+      }
+    }
+
+    if (!building.producing) return; // shouldn't happen, guard anyway
+    this.state.alerts.push({
+      id: this.state.nextId++,
+      x: planet.x,
+      y: planet.y,
+      z: 0,
+      type: 'build_complete',
+      time: this.state.gameTime,
+      message: `${def?.label ?? building.type} complete on ${planet.name}!`,
+    });
+    if (team === 1) gameAudio.play('build_complete', 0.7);
   }
 
   // ── Spark ───────────────────────────────────────────────
