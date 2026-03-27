@@ -37,6 +37,8 @@ import { UPGRADE_HUD_ICONS, SHIP_PREVIEW as SHARED_SHIP_PREVIEW } from './game/s
 import { Panel, Btn, Slot, SmallPanel } from './game/ui-lib';
 import { gameAudio } from './game/space-audio';
 import { initAuth, login, logout, getUser, onAuthChange, type GrudgeUser } from './game/grudge-auth';
+import { getKey } from './game/hotkeys';
+import { HotkeySettings } from './game/HotkeySettings';
 import { loadRemoteBalance } from './game/space-data-loader';
 import { DevOverlay } from './game/dev-overlay';
 import { ShipCodex3D } from './game/codex-ui';
@@ -355,10 +357,10 @@ export default function App() {
   const [groundPlanetType, setGroundPlanetType] = useState<PlanetType>('barren');
   const [groundPlanetName, setGroundPlanetName] = useState('Unknown');
 
-  // M key opens Star Map while playing
+  // Star Map hotkey — driven through the hotkeys config
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key.toLowerCase() === 'm' && screen === 'playing' && renderer) {
+      if (e.key.toLowerCase() === getKey('hud_starmap') && screen === 'playing' && renderer) {
         setStarMapOpen((o) => !o);
       }
       if (e.key === 'Escape') setStarMapOpen(false);
@@ -874,6 +876,7 @@ function MainMenu({
   onLogin: (provider?: 'discord' | 'google' | 'github') => void;
   onLogout: () => void;
 }) {
+  const [hotkeysOpen, setHotkeysOpen] = useState(false);
   const quickModes: { key: GameMode; label: string; desc: string }[] = [
     { key: '1v1', label: 'INNER SYSTEM', desc: '2 commanders · 7 planets' },
     { key: '2v2', label: 'OUTER SYSTEM', desc: '4 commanders · 14 planets' },
@@ -1104,8 +1107,10 @@ function MainMenu({
           <Btn label="SHIP FORGE" onClick={onEditor} style={{ minWidth: 100 }} />
           <Btn label="CODEX" onClick={onCodex} style={{ minWidth: 80 }} />
           <Btn label="HOW TO PLAY" onClick={onHowTo} style={{ minWidth: 100 }} />
+          <Btn label="⚙️ HOTKEYS" onClick={() => setHotkeysOpen(true)} style={{ minWidth: 100 }} />
           <Btn label="ADMIN" onClick={() => window.open('/admin.html', '_blank')} style={{ minWidth: 70 }} />
         </div>
+        {hotkeysOpen && <HotkeySettings onClose={() => setHotkeysOpen(false)} />}
 
         {/* Legal links — required for Discord app */}
         <div style={{ display: 'flex', gap: 16, marginTop: 16, fontSize: 10, opacity: 0.35 }}>
