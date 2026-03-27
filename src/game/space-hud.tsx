@@ -18,6 +18,7 @@ import {
   SHIP_ROLE_COLORS,
   Panel,
   Btn,
+  Bar,
   ResBox,
 } from './space-ui-shared';
 import { SingleUnitInfo, MultiUnitInfo, CommandCard, BuildPanel, UpgradePanel } from './space-unit-ui';
@@ -40,9 +41,10 @@ interface SpaceHUDProps {
   onQuit?: () => void;
   onToggleStarMap?: () => void;
   onDeployGround?: (planetType: import('./space-types').PlanetType, planetName: string) => void;
+  onDeployGroundRts?: (planetType: import('./space-types').PlanetType, planetName: string) => void;
 }
 
-export function SpaceHUD({ renderer, onQuit, onToggleStarMap, onDeployGround }: SpaceHUDProps) {
+export function SpaceHUD({ renderer, onQuit, onToggleStarMap, onDeployGround, onDeployGroundRts }: SpaceHUDProps) {
   const [, forceUpdate] = useState(0);
   const animRef = useRef(0);
   const [techOpen, setTechOpen] = useState(false);
@@ -252,7 +254,7 @@ export function SpaceHUD({ renderer, onQuit, onToggleStarMap, onDeployGround }: 
         </div>
       )}
 
-      {/* ── Game Alerts with cyber avatar popups ─────────── */}
+      {/* ── Game Alerts with Shop_Box.png panel backgrounds ─────── */}
       {state.alerts.length > 0 && (
         <div
           style={{
@@ -270,7 +272,7 @@ export function SpaceHUD({ renderer, onQuit, onToggleStarMap, onDeployGround }: 
         >
           {state.alerts.slice(-4).map((alert) => {
             const avatarIdx = alert.type === 'under_attack' ? 3 : alert.type === 'conquest' ? 1 : alert.type === 'build_complete' ? 10 : 7;
-            const borderCol = alert.type === 'under_attack' ? '#ff4444' : alert.type === 'conquest' ? '#44ff44' : '#4488ff';
+            const borderCol = alert.type === 'under_attack' ? '#ff4444' : alert.type === 'conquest' ? '#ffcc44' : '#4488ff';
             return (
               <div
                 key={alert.id}
@@ -278,12 +280,11 @@ export function SpaceHUD({ renderer, onQuit, onToggleStarMap, onDeployGround }: 
                   display: 'flex',
                   gap: 8,
                   alignItems: 'center',
-                  padding: '6px 10px',
-                  background: 'rgba(4,10,22,0.92)',
-                  border: `1px solid ${borderCol}44`,
-                  borderRadius: 8,
-                  maxWidth: 280,
-                  boxShadow: `0 0 12px ${borderCol}22`,
+                  padding: '8px 12px',
+                  backgroundImage: 'url(/assets/space/ui/hud/Shop_Box.png)',
+                  backgroundSize: '100% 100%',
+                  maxWidth: 290,
+                  filter: `drop-shadow(0 2px 8px ${borderCol}33)`,
                 }}
               >
                 <img
@@ -302,7 +303,7 @@ export function SpaceHUD({ renderer, onQuit, onToggleStarMap, onDeployGround }: 
                   }}
                 />
                 <div>
-                  <div style={{ fontSize: 9, fontWeight: 700, color: borderCol, letterSpacing: 0.5 }}>
+                  <div style={{ fontSize: 9, fontWeight: 700, color: borderCol, letterSpacing: 1, textTransform: 'uppercase' }}>
                     {alert.type === 'under_attack'
                       ? 'UNDER ATTACK'
                       : alert.type === 'conquest'
@@ -311,7 +312,7 @@ export function SpaceHUD({ renderer, onQuit, onToggleStarMap, onDeployGround }: 
                           ? 'BUILD COMPLETE'
                           : 'ALERT'}
                   </div>
-                  <div style={{ fontSize: 10, color: '#cde' }}>{alert.message}</div>
+                  <div style={{ fontSize: 10, color: '#e0d8c0' }}>{alert.message}</div>
                 </div>
               </div>
             );
@@ -383,8 +384,8 @@ export function SpaceHUD({ renderer, onQuit, onToggleStarMap, onDeployGround }: 
           left: 0,
           right: 0,
           height: 52,
-          background: '#060c18',
-          borderBottom: '2px solid rgba(40,180,160,0.35)',
+          background: '#0a0804',
+          borderBottom: '2px solid rgba(255,180,60,0.25)',
           display: 'flex',
           alignItems: 'center',
           padding: '0 16px',
@@ -632,6 +633,10 @@ export function SpaceHUD({ renderer, onQuit, onToggleStarMap, onDeployGround }: 
             setSurfaceOpen(false);
             onDeployGround?.(p.planetType, p.name);
           }}
+          onDeployRts={(p) => {
+            setSurfaceOpen(false);
+            onDeployGroundRts?.(p.planetType, p.name);
+          }}
         />
       )}
 
@@ -791,26 +796,22 @@ export function SpaceHUD({ renderer, onQuit, onToggleStarMap, onDeployGround }: 
           zIndex: 10,
         }}
       >
-        {/* Single background layer — no stacking */}
+        {/* Metallic panel background from scifi-gui container */}
         <img
-          src="/assets/space/ui/hud/DarkBackground.png"
+          src="/assets/space/ui/scifi-gui/container-gold.png"
           alt=""
-          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'fill', pointerEvents: 'none' }}
-          onError={(e) => {
-            (e.target as HTMLImageElement).style.display = 'none';
-          }}
-        />
-        {/* Top edge glow line */}
-        <div
           style={{
             position: 'absolute',
-            top: 0,
-            left: 0,
-            right: 0,
-            height: 2,
-            background:
-              'linear-gradient(90deg, transparent, rgba(40,180,160,0.6), rgba(68,136,255,0.5), rgba(40,180,160,0.6), transparent)',
+            inset: -6,
+            width: 'calc(100% + 12px)',
+            height: 'calc(100% + 12px)',
+            objectFit: 'fill',
             pointerEvents: 'none',
+            filter: 'brightness(0.85)',
+          }}
+          onError={(e) => {
+            // Fallback to dark bg if asset missing
+            (e.target as HTMLImageElement).style.display = 'none';
           }}
         />
 
@@ -823,7 +824,7 @@ export function SpaceHUD({ renderer, onQuit, onToggleStarMap, onDeployGround }: 
             zIndex: 1,
             display: 'flex',
             flexDirection: 'column',
-            borderRight: '1px solid rgba(40,180,160,0.2)',
+            borderRight: '1px solid rgba(255,200,100,0.15)',
           }}
         >
           <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 4 }}>
@@ -845,33 +846,33 @@ export function SpaceHUD({ renderer, onQuit, onToggleStarMap, onDeployGround }: 
             position: 'relative',
             zIndex: 1,
             display: 'flex',
-            borderRight: '1px solid rgba(40,180,160,0.2)',
+            borderRight: '1px solid rgba(255,200,100,0.12)',
           }}
         >
-          {/* Portrait (left half) — uses space-shooter-gui avatar frame */}
+          {/* Portrait (left half) — scifi-gui character frame */}
           <div
             style={{
-              width: 160,
+              width: 170,
               flexShrink: 0,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               position: 'relative',
-              borderRight: '1px solid rgba(40,180,160,0.1)',
-              padding: 6,
+              borderRight: '1px solid rgba(255,200,100,0.08)',
+              padding: 4,
             }}
           >
             {primary && def ? (
               <div style={{ position: 'relative', width: '100%', height: '100%' }}>
-                {/* Avatar frame background */}
+                {/* Metallic character frame from scifi-gui pack */}
                 <img
-                  src="/assets/space/ui/space-shooter-gui/PNG/Ingame_Interface/ingame_0017_ava_frame1.png"
+                  src="/assets/space/ui/scifi-gui/avatar-gold.png"
                   alt=""
                   style={{
                     position: 'absolute',
-                    inset: 0,
-                    width: '100%',
-                    height: '100%',
+                    inset: -4,
+                    width: 'calc(100% + 8px)',
+                    height: 'calc(100% + 8px)',
                     objectFit: 'fill',
                     pointerEvents: 'none',
                   }}
@@ -879,14 +880,14 @@ export function SpaceHUD({ renderer, onQuit, onToggleStarMap, onDeployGround }: 
                     (e.target as HTMLImageElement).style.display = 'none';
                   }}
                 />
-                {/* Ship preview image — fills the portrait square area */}
+                {/* Ship preview image */}
                 <div
                   style={{
                     position: 'absolute',
-                    left: 4,
-                    top: 4,
-                    width: '45%',
-                    height: 'calc(100% - 8px)',
+                    left: 8,
+                    top: 8,
+                    width: '42%',
+                    height: 'calc(100% - 16px)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -902,25 +903,25 @@ export function SpaceHUD({ renderer, onQuit, onToggleStarMap, onDeployGround }: 
                       maxHeight: '100%',
                       objectFit: 'contain',
                       imageRendering: 'auto',
-                      filter: 'drop-shadow(0 0 10px rgba(68,136,255,0.4))',
+                      filter: 'drop-shadow(0 0 8px rgba(255,180,0,0.3))',
                     }}
                     onError={(e) => {
                       (e.target as HTMLImageElement).style.display = 'none';
                     }}
                   />
                 </div>
-                {/* Ship name + HP bar in the right area of the frame */}
+                {/* Ship name + HP/Shield bars (right area) */}
                 <div
                   style={{
                     position: 'absolute',
-                    left: '50%',
-                    top: 6,
-                    right: 6,
-                    bottom: 6,
+                    left: '48%',
+                    top: 10,
+                    right: 10,
+                    bottom: 10,
                     display: 'flex',
                     flexDirection: 'column',
                     justifyContent: 'center',
-                    padding: '0 4px',
+                    gap: 3,
                   }}
                 >
                   <div
@@ -932,45 +933,30 @@ export function SpaceHUD({ renderer, onQuit, onToggleStarMap, onDeployGround }: 
                       whiteSpace: 'nowrap',
                       overflow: 'hidden',
                       textOverflow: 'ellipsis',
-                      marginBottom: 4,
+                      textShadow: '0 0 6px rgba(255,180,0,0.3)',
                     }}
                   >
                     {def.displayName}
                   </div>
-                  {/* HP bar */}
-                  <div style={{ height: 6, background: '#0a0e18', borderRadius: 2, marginBottom: 3 }}>
-                    <div
-                      style={{
-                        height: '100%',
-                        borderRadius: 2,
-                        width: `${(primary.hp / primary.maxHp) * 100}%`,
-                        background:
-                          primary.hp / primary.maxHp > 0.5 ? '#44ee44' : primary.hp / primary.maxHp > 0.25 ? '#eebb00' : '#ee4444',
-                      }}
-                    />
-                  </div>
+                  {/* HP bar — uses asset-backed Bar component */}
+                  <Bar
+                    value={primary.hp}
+                    max={primary.maxHp}
+                    color={primary.hp / primary.maxHp > 0.5 ? '#44ee44' : primary.hp / primary.maxHp > 0.25 ? '#eebb00' : '#ee4444'}
+                    height={7}
+                    label={`${primary.hp}/${primary.maxHp}`}
+                  />
                   {/* Shield bar */}
-                  {primary.maxShield > 0 && (
-                    <div style={{ height: 4, background: '#0a0e18', borderRadius: 2, marginBottom: 3 }}>
-                      <div
-                        style={{
-                          height: '100%',
-                          borderRadius: 2,
-                          width: `${(primary.shield / primary.maxShield) * 100}%`,
-                          background: '#44ccff',
-                        }}
-                      />
-                    </div>
-                  )}
-                  {/* Class + rank */}
-                  <div style={{ fontSize: 8, color: 'rgba(160,200,255,0.5)', display: 'flex', gap: 4, alignItems: 'center' }}>
-                    <span>{def.class.replace(/_/g, ' ')}</span>
+                  {primary.maxShield > 0 && <Bar value={primary.shield} max={primary.maxShield} color="#44ccff" height={5} />}
+                  {/* Class + rank stars */}
+                  <div style={{ fontSize: 8, color: 'rgba(200,180,120,0.6)', display: 'flex', gap: 4, alignItems: 'center' }}>
+                    <span style={{ textTransform: 'uppercase' }}>{def.class.replace(/_/g, ' ')}</span>
                     {primary.rank > 0 && <span style={{ color: '#ffcc00' }}>{'★'.repeat(primary.rank)}</span>}
                   </div>
                 </div>
               </div>
             ) : (
-              <div style={{ opacity: 0.12, fontSize: 10, color: '#8ab', textAlign: 'center', lineHeight: 1.8 }}>
+              <div style={{ opacity: 0.15, fontSize: 10, color: 'rgba(200,180,120,0.5)', textAlign: 'center', lineHeight: 1.8 }}>
                 No unit
                 <br />
                 selected

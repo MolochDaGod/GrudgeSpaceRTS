@@ -14,12 +14,18 @@ import { useState } from 'react';
 import type { SpaceGameState, SpaceStation, PlayerResources } from './space-types';
 import { BUILDABLE_SHIPS, getShipDef, PLANET_TYPE_DATA } from './space-types';
 import type { SpaceRenderer } from './space-renderer';
+import { SHIP_PREVIEW, RESOURCE_ITEM_ICONS, Bar } from './space-ui-shared';
+import { Btn, Slot } from './ui-lib';
+import { CONTAINERS } from './scifi-gui-assets';
 
+const G = '/assets/space/ui/scifi-gui/sliced';
 const C = {
   bg: 'rgba(4,10,22,0.95)',
   border: '#1a3050',
-  accent: '#4488ff',
-  muted: 'rgba(160,200,255,0.4)',
+  accent: '#ffcc44',
+  muted: 'rgba(200,180,120,0.55)',
+  panelBg: CONTAINERS.gold,
+  tagBg: `${G}/tag-sm-gold.png`,
 };
 
 export function ProductionSidebar({ state, renderer }: { state: SpaceGameState; renderer: SpaceRenderer }) {
@@ -88,12 +94,10 @@ export function ProductionSidebar({ state, renderer }: { state: SpaceGameState; 
           position: 'absolute',
           left: 0,
           top: 56,
-          width: 24,
-          height: 80,
-          background: C.bg,
-          borderRight: `1px solid ${C.border}`,
-          borderBottom: `1px solid ${C.border}`,
-          borderRadius: '0 6px 6px 0',
+          width: 28,
+          height: 90,
+          backgroundImage: `url(${C.panelBg})`,
+          backgroundSize: '100% 100%',
           cursor: 'pointer',
           display: 'flex',
           alignItems: 'center',
@@ -105,6 +109,7 @@ export function ProductionSidebar({ state, renderer }: { state: SpaceGameState; 
           color: C.accent,
           fontWeight: 700,
           letterSpacing: 1,
+          filter: 'drop-shadow(2px 0 8px rgba(0,0,0,0.5))',
         }}
       >
         PROD ▶
@@ -119,93 +124,133 @@ export function ProductionSidebar({ state, renderer }: { state: SpaceGameState; 
         left: 0,
         top: 56,
         bottom: 244,
-        width: 210,
-        background: C.bg,
-        borderRight: `1px solid ${C.border}`,
+        width: 220,
+        backgroundImage: `url(${C.panelBg})`,
+        backgroundSize: '100% 100%',
         display: 'flex',
         flexDirection: 'column',
         gap: 6,
-        padding: '8px 8px',
+        padding: '42px 14px 14px',
         overflowY: 'auto',
         zIndex: 12,
         pointerEvents: 'auto',
         fontSize: 10,
-        color: '#cde',
+        color: '#e0d8c0',
+        filter: 'drop-shadow(4px 0 16px rgba(0,0,0,0.6))',
       }}
     >
-      {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <span style={{ fontSize: 11, fontWeight: 800, color: C.accent, letterSpacing: 2 }}>PRODUCTION</span>
-        <span onClick={() => setExpanded(false)} style={{ fontSize: 10, cursor: 'pointer', color: C.muted }}>
-          ◀
-        </span>
+      {/* Title in the gold header area of container-gold */}
+      <div
+        style={{
+          position: 'absolute',
+          top: 6,
+          left: 20,
+          right: 40,
+          textAlign: 'center',
+          fontSize: 12,
+          fontWeight: 900,
+          color: '#fff',
+          letterSpacing: 3,
+          textShadow: '0 0 10px rgba(255,180,0,0.5)',
+          textTransform: 'uppercase',
+        }}
+      >
+        PRODUCTION
+      </div>
+      {/* Collapse button */}
+      <div
+        onClick={() => setExpanded(false)}
+        style={{
+          position: 'absolute',
+          top: 6,
+          right: 10,
+          fontSize: 14,
+          cursor: 'pointer',
+          color: 'rgba(255,200,100,0.6)',
+          lineHeight: 1,
+        }}
+      >
+        ✕
       </div>
 
       {/* Supply bar */}
-      <div style={{ background: '#0a1428', borderRadius: 4, padding: '4px 6px', border: `1px solid ${C.border}` }}>
+      <div style={{ marginBottom: 2 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9, marginBottom: 3 }}>
-          <span style={{ color: C.muted }}>SUPPLY</span>
-          <span style={{ color: res.supply >= res.maxSupply ? '#ff4444' : '#4df', fontWeight: 700 }}>
+          <span
+            style={{
+              backgroundImage: `url(${C.tagBg})`,
+              backgroundSize: '100% 100%',
+              padding: '1px 8px',
+              color: C.muted,
+              fontWeight: 700,
+              fontSize: 8,
+              letterSpacing: 1,
+            }}
+          >
+            SUPPLY
+          </span>
+          <span style={{ color: res.supply >= res.maxSupply ? '#ff4444' : '#ffcc44', fontWeight: 700 }}>
             {Math.floor(res.supply)}/{res.maxSupply}
           </span>
         </div>
-        <div style={{ height: 4, background: '#0a0e18', borderRadius: 2 }}>
-          <div
-            style={{
-              height: '100%',
-              borderRadius: 2,
-              width: `${Math.min(100, (res.supply / Math.max(res.maxSupply, 1)) * 100)}%`,
-              background: res.supply >= res.maxSupply ? '#ff4444' : '#4488ff',
-            }}
-          />
-        </div>
+        <Bar value={res.supply} max={res.maxSupply} color={res.supply >= res.maxSupply ? '#ff4444' : '#ffcc44'} height={8} />
       </div>
 
       {/* Income */}
-      <div style={{ background: '#0a1428', borderRadius: 4, padding: '4px 6px', border: `1px solid ${C.border}` }}>
-        <div style={{ fontSize: 8, color: C.muted, letterSpacing: 1, marginBottom: 3 }}>INCOME / SEC</div>
-        <div style={{ display: 'flex', gap: 8, fontSize: 9 }}>
-          <span style={{ color: '#fc4' }}>+{Math.round(incC)}c</span>
-          <span style={{ color: '#4df' }}>+{Math.round(incE)}e</span>
-          <span style={{ color: '#4f8' }}>+{Math.round(incM)}m</span>
+      <div style={{ marginBottom: 2 }}>
+        <div
+          style={{
+            backgroundImage: `url(${C.tagBg})`,
+            backgroundSize: '100% 100%',
+            padding: '1px 8px',
+            fontSize: 8,
+            color: C.muted,
+            fontWeight: 700,
+            letterSpacing: 1,
+            display: 'inline-block',
+            marginBottom: 4,
+          }}
+        >
+          INCOME / SEC
+        </div>
+        <div style={{ display: 'flex', gap: 6, fontSize: 10 }}>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            <img src={RESOURCE_ITEM_ICONS.credits} alt="" style={{ width: 14, height: 14 }} />
+            <span style={{ color: '#fc4', fontWeight: 700 }}>+{Math.round(incC)}</span>
+          </span>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            <img src={RESOURCE_ITEM_ICONS.energy} alt="" style={{ width: 14, height: 14 }} />
+            <span style={{ color: '#4df', fontWeight: 700 }}>+{Math.round(incE)}</span>
+          </span>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            <img src={RESOURCE_ITEM_ICONS.minerals} alt="" style={{ width: 14, height: 14 }} />
+            <span style={{ color: '#4f8', fontWeight: 700 }}>+{Math.round(incM)}</span>
+          </span>
         </div>
       </div>
 
       {/* Workers */}
-      <div
-        style={{
-          background: '#0a1428',
-          borderRadius: 4,
-          padding: '4px 6px',
-          border: `1px solid ${workerIdle > 0 ? '#ffaa22' : C.border}`,
-        }}
-      >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <span style={{ fontSize: 8, color: C.muted, letterSpacing: 1 }}>WORKERS</span>
-          <span style={{ fontSize: 9, fontWeight: 700, color: workerIdle > 0 ? '#ffaa22' : '#4f8' }}>
+      <div style={{ marginBottom: 2 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 3 }}>
+          <span
+            style={{
+              backgroundImage: `url(${C.tagBg})`,
+              backgroundSize: '100% 100%',
+              padding: '1px 8px',
+              fontSize: 8,
+              color: C.muted,
+              fontWeight: 700,
+              letterSpacing: 1,
+            }}
+          >
+            WORKERS
+          </span>
+          <span style={{ fontSize: 10, fontWeight: 700, color: workerIdle > 0 ? '#ffaa22' : '#4f8' }}>
             {workerTotal}
             {workerIdle > 0 && <span style={{ color: '#ff8844' }}> ({workerIdle} idle)</span>}
           </span>
         </div>
-        {workerIdle > 0 && (
-          <div
-            onClick={selectIdleWorkers}
-            style={{
-              marginTop: 3,
-              padding: '2px 6px',
-              borderRadius: 3,
-              cursor: 'pointer',
-              background: 'rgba(255,170,0,0.15)',
-              border: '1px solid rgba(255,170,0,0.3)',
-              fontSize: 8,
-              color: '#ffaa22',
-              fontWeight: 700,
-              textAlign: 'center',
-            }}
-          >
-            SELECT IDLE
-          </div>
-        )}
+        {workerIdle > 0 && <Btn label="SELECT IDLE" wide active onClick={selectIdleWorkers} style={{ width: '100%', height: 28 }} />}
       </div>
 
       {/* Station build queues */}
@@ -215,30 +260,34 @@ export function ProductionSidebar({ state, renderer }: { state: SpaceGameState; 
           <div
             key={st.id}
             style={{
-              background: '#0a1428',
-              borderRadius: 4,
               padding: '4px 6px',
-              border: `1px solid ${C.border}`,
+              borderBottom: '1px solid rgba(255,200,100,0.1)',
             }}
           >
-            <div style={{ fontSize: 8, color: C.muted, letterSpacing: 1, marginBottom: 2 }}>{planet?.name ?? `STATION ${i + 1}`}</div>
+            <div
+              style={{
+                fontSize: 9,
+                color: C.accent,
+                fontWeight: 700,
+                letterSpacing: 1,
+                marginBottom: 3,
+              }}
+            >
+              {planet?.name ?? `STATION ${i + 1}`}
+            </div>
             {st.buildQueue.length === 0 ? (
-              <div style={{ fontSize: 8, color: 'rgba(100,140,180,0.3)', fontStyle: 'italic' }}>Idle</div>
+              <div style={{ fontSize: 8, color: 'rgba(200,180,120,0.3)', fontStyle: 'italic' }}>Idle</div>
             ) : (
               st.buildQueue.map((item, j) => {
                 const def = getShipDef(item.shipType);
                 const pct = j === 0 ? (1 - item.buildTimeRemaining / item.totalBuildTime) * 100 : 0;
                 return (
-                  <div key={j} style={{ marginBottom: 2 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9 }}>
+                  <div key={j} style={{ marginBottom: 3 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9, alignItems: 'center' }}>
                       <span style={{ color: '#fff', fontWeight: 600 }}>{def?.displayName ?? item.shipType}</span>
-                      <span style={{ color: '#fc4' }}>{item.buildTimeRemaining.toFixed(0)}s</span>
+                      <span style={{ color: '#fc4', fontSize: 8 }}>{item.buildTimeRemaining.toFixed(0)}s</span>
                     </div>
-                    {j === 0 && (
-                      <div style={{ height: 3, background: '#0a0e18', borderRadius: 2, marginTop: 1 }}>
-                        <div style={{ height: '100%', width: `${pct}%`, background: C.accent, borderRadius: 2 }} />
-                      </div>
-                    )}
+                    {j === 0 && <Bar value={pct} max={100} color="#ffcc44" height={5} />}
                   </div>
                 );
               })
@@ -247,37 +296,58 @@ export function ProductionSidebar({ state, renderer }: { state: SpaceGameState; 
         );
       })}
 
-      {/* Quick-build by tier */}
-      <div style={{ fontSize: 8, color: C.muted, letterSpacing: 1, marginTop: 4 }}>QUICK BUILD</div>
+      {/* Quick-build with ship preview slots */}
+      <div
+        style={{
+          backgroundImage: `url(${C.tagBg})`,
+          backgroundSize: '100% 100%',
+          padding: '1px 8px',
+          fontSize: 8,
+          color: C.muted,
+          fontWeight: 700,
+          letterSpacing: 1,
+          display: 'inline-block',
+          marginTop: 4,
+          marginBottom: 4,
+        }}
+      >
+        QUICK BUILD
+      </div>
       {[1, 2, 3].map((tier) => {
         const ships = BUILDABLE_SHIPS[tier] ?? [];
         if (ships.length === 0) return null;
         return (
-          <div key={tier} style={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
+          <div key={tier} style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 2 }}>
             {ships.slice(0, 4).map((key) => {
               const def = getShipDef(key);
               if (!def) return null;
               const s = def.stats;
               const canAfford = res.credits >= s.creditCost && res.energy >= s.energyCost && res.minerals >= s.mineralCost;
+              const preview = SHIP_PREVIEW[key];
               return (
-                <div
+                <Slot
                   key={key}
+                  size={42}
                   onClick={() => canAfford && quickBuild(key)}
-                  title={`${def.displayName} — ${s.creditCost}c/${s.energyCost}e/${s.mineralCost}m`}
-                  style={{
-                    padding: '2px 5px',
-                    borderRadius: 3,
-                    cursor: canAfford ? 'pointer' : 'default',
-                    background: canAfford ? 'rgba(68,136,255,0.1)' : 'transparent',
-                    border: `1px solid ${canAfford ? '#4488ff44' : '#0a1428'}`,
-                    fontSize: 8,
-                    color: canAfford ? '#cde' : 'rgba(100,140,180,0.25)',
-                    fontWeight: 600,
-                    whiteSpace: 'nowrap',
-                  }}
+                  active={canAfford}
+                  style={{ opacity: canAfford ? 1 : 0.35 }}
                 >
-                  {def.displayName}
-                </div>
+                  {preview ? (
+                    <img
+                      src={preview}
+                      alt={def.displayName}
+                      title={`${def.displayName} — ${s.creditCost}c/${s.energyCost}e/${s.mineralCost}m`}
+                      style={{ width: '75%', height: '75%', objectFit: 'contain', imageRendering: 'auto' }}
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).style.display = 'none';
+                      }}
+                    />
+                  ) : (
+                    <span style={{ fontSize: 7, color: canAfford ? '#e0d8c0' : '#444', textAlign: 'center' }}>
+                      {def.displayName.slice(0, 5)}
+                    </span>
+                  )}
+                </Slot>
               );
             })}
           </div>
