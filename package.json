@@ -23,9 +23,11 @@
   "dependencies": {
     "gruda-armada": "file:",
     "howler": "^2.2.4",
+    "pathfinding": "^0.4.18",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
-    "three": "^0.183.2"
+    "three": "^0.183.2",
+    "three.quarks": "^0.17.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",

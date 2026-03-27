@@ -32,6 +32,7 @@ import {
 } from './space-voxel-builder';
 import { loadHeroShip, glbBlobToUrl } from './ship-storage';
 import { getBoosterVisualOffsets, getRigAudit, getRigWorldAnchors } from './space-rig';
+import { VFXSystem } from './space-vfx';
 
 interface ShipMesh3D {
   group: THREE.Group;
@@ -128,6 +129,9 @@ export class SpaceRenderer {
   public controls!: SpaceControls;
   public engine!: SpaceEngine;
   private effectsRenderer!: SpaceEffectsRenderer;
+  private vfx!: VFXSystem;
+  /** Ships for which a death explosion has already been fired */
+  private explosionFired = new Set<number>();
 
   // ── Planet interaction ───────────────────────────────
   public hoveredPlanetId: number | null = null;
@@ -248,6 +252,7 @@ export class SpaceRenderer {
 
     this.controls = new SpaceControls(this.container, this.camera, this.engine.state, this.renderer);
     this.effectsRenderer = new SpaceEffectsRenderer(this.scene);
+    this.vfx = new VFXSystem(this.scene);
 
     // Wire planet click: controls signals → renderer resolves hovered planet
     this.controls.onPlanetClick = (planetId: number | null) => {
@@ -1124,10 +1129,7 @@ export class SpaceRenderer {
     const hullMat = new THREE.MeshStandardMaterial(matOpts);
 
     // Main fuselage: tapered box
-    const fuselage = new THREE.Mesh(
-      new THREE.CylinderGeometry(size * 0.2, size * 0.35, size * 1.2, 6),
-      hullMat,
-    );
+    const fuselage = new THREE.Mesh(new THREE.CylinderGeometry(size * 0.2, size * 0.35, size * 1.2, 6), hullMat);
     fuselage.rotation.x = Math.PI / 2; // point along +Z
     fuselage.renderOrder = 2;
     group.add(fuselage);
@@ -1202,11 +1204,20 @@ export class SpaceRenderer {
 
   // ── Sync Game State to 3D ───────────────────────────────────
   private syncShips(state: SpaceGameState, dt: number) {
-    // Remove dead ships
+    // Remove dead ships — fire explosion VFX on first death frame
     for (const [id, mesh] of this.shipMeshes) {
-      if (!state.ships.has(id) || state.ships.get(id)!.dead) {
+      const ship = state.ships.get(id);
+      if (!ship || ship.dead) {
+        if (ship?.dead && !this.explosionFired.has(id)) {
+          this.explosionFired.add(id);
+          const col = TEAM_COLORS[ship.team] ?? 0xff6622;
+          const sz = SpaceRenderer.shipClassSize(ship.shipClass);
+          this.vfx.spawnExplosion(ship.x, ship.y, ship.z, sz, col);
+          this.vfx.removeEngineTrails(id);
+        }
         this.scene.remove(mesh.group);
         this.shipMeshes.delete(id);
+        this.explosionFired.delete(id);
       }
     }
 
@@ -1228,6 +1239,8 @@ export class SpaceRenderer {
         this.scene.add(group);
         meshData = { group };
         this.shipMeshes.set(id, meshData);
+        // Attach engine trails (three.quarks) immediately
+        this.vfx.attachEngineTrails(id, group, TEAM_COLORS[ship.team] ?? 0x4488ff, ship.shipClass);
 
         // Add selection ring — sized to match the ship class, not tier
         const shipDef = SHIP_DEFINITIONS[ship.shipType];
@@ -1396,6 +1409,9 @@ export class SpaceRenderer {
       // Apply procedural animation
       applyShipAnimation(meshData.group, ship, dt);
 
+      // Engine VFX trails (three.quarks) — active when moving or boosting
+      this.vfx.setEngineActive(id, ship.animState === 'moving' || ship.animState === 'speed_boost', ship.animState === 'speed_boost');
+
       // Thruster glow: layered sprites pulse when moving
       const isMoving = ship.animState === 'moving' || ship.animState === 'speed_boost';
       const boost = ship.animState === 'speed_boost' ? 1.6 : 1.0;
@@ -1497,6 +1513,7 @@ export class SpaceRenderer {
       if (!state.projectiles.has(id)) {
         this.scene.remove(mesh);
         this.projectileMeshes.delete(id);
+        this.vfx.removeProjectileTrail(id);
       }
     }
 
@@ -1530,8 +1547,11 @@ export class SpaceRenderer {
         // Store as Mesh type for compatibility with the map
         this.projectileMeshes.set(id, sprite as unknown as THREE.Mesh);
         mesh = sprite as unknown as THREE.Mesh;
+        // Attach quarks trail for missiles/torpedoes/energy beams
+        this.vfx.attachProjectileTrail(id, proj.trailColor, proj.type);
       }
       mesh.position.set(proj.x * WORLD_SCALE, proj.z * WORLD_SCALE + 5, proj.y * WORLD_SCALE);
+      this.vfx.updateProjectileTrail(id, proj.x, proj.y, proj.z);
     }
   }
 
@@ -1590,6 +1610,12 @@ export class SpaceRenderer {
     this.syncShips(this.engine.state, dt);
     this.syncProjectiles(this.engine.state);
     this.effectsRenderer.update(this.engine.state, dt, this.camera);
+    // Update three.quarks particle systems (engine trails, explosions, trails)
+    this.vfx.update(dt);
+    // Update mine warnings
+    for (const [, mine] of (this.engine.state as any).mines ?? new Map()) {
+      if (!(mine as any).dead) this.vfx.updateMineWarning((mine as any).id, this.twinkleTime);
+    }
     this.updateSelectionBox();
     this.updateCamera();
 
