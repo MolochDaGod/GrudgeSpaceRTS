@@ -20,14 +20,19 @@ export function GroundCombatView({ planetType, planetName, onExit }: GroundComba
   const [loading, setLoading] = useState(true);
   const [ready, setReady] = useState(false);
 
+  // Capture the latest onExit in a ref to avoid re-mounting the renderer on every render
+  const onExitRef = useRef(onExit);
+  useEffect(() => {
+    onExitRef.current = onExit;
+  }, [onExit]);
+
   useEffect(() => {
     if (!containerRef.current) return;
     const r = new GroundRenderer(containerRef.current, planetType);
     rendererRef.current = r;
 
     r.onResult = (result) => {
-      // Small delay so player can see the result screen
-      setTimeout(() => onExit(result), 3000);
+      setTimeout(() => onExitRef.current(result), 3000);
     };
 
     r.init()
@@ -38,7 +43,7 @@ export function GroundCombatView({ planetType, planetName, onExit }: GroundComba
       .catch((err) => {
         console.error('[GROUND] Init failed:', err);
         setLoading(false);
-        onExit('retreat');
+        onExitRef.current('retreat');
       });
 
     return () => {

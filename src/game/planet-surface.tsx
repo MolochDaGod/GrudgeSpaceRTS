@@ -11,7 +11,7 @@
 
 import { useState } from 'react';
 import type { Planet, PlanetBuilding, PlanetBuildingType, PlanetSurface, SpaceGameState } from './space-types';
-import { Panel, Btn, Bar, SmallPanel, Frame } from './ui-lib';
+import { Panel, Btn, Bar, SmallPanel } from './ui-lib';
 import {
   PLANET_BUILDING_DEFS,
   PLANET_LEVEL_XP,
@@ -24,10 +24,8 @@ import {
   BASE_BUILDING_MODELS,
   BUILDING_TO_MODEL,
   PLANET_TYPE_DATA,
-  type PlanetBuildingDef,
 } from './space-types';
 
-const H = '/assets/space/ui/hud';
 const SL = '/assets/space/ui/spaceliner';
 
 type CameraMode = 'orbital' | 'base';
@@ -236,9 +234,9 @@ export function PlanetSurfaceView({ planet, state, onClose, onBuild, onDeploy, o
                   }}
                 >
                   {surface.buildings.map((b, i) => {
-                    const modelKey = BUILDING_TO_MODEL[b.type];
                     const levelKey = b.level >= 3 ? 'level3' : b.level >= 2 ? 'level2' : 'level1';
-                    const model = modelKey ? BASE_BUILDING_MODELS[modelKey[levelKey]] : null;
+                    const modelKey = BUILDING_TO_MODEL[b.type];
+                    void (modelKey ? BASE_BUILDING_MODELS[modelKey[levelKey]] : null); // model data for future use
                     return (
                       <div
                         key={i}
