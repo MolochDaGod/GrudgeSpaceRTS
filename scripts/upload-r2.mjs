@@ -7,7 +7,8 @@
  *
  * Requires env vars:
  *   CF_ACCOUNT_ID  — Cloudflare account ID
- *   CF_R2_TOKEN    — R2 API token with read/write access
+ *   CF_R2_ACCESS_KEY_ID     — R2 Access Key ID (32 chars)
+ *   CF_R2_SECRET_ACCESS_KEY  — R2 Secret Access Key
  *
  * What it does:
  *   1. Walks public/assets/space/ recursively
@@ -27,13 +28,14 @@ import { readdirSync } from 'fs';
 
 // ── Config ────────────────────────────────────────────────────────
 const ACCOUNT_ID = process.env.CF_ACCOUNT_ID ?? 'ee475864561b02d4588180b8b9acf694';
-const R2_TOKEN = process.env.CF_R2_TOKEN;
+const R2_ACCESS_KEY_ID = process.env.CF_R2_ACCESS_KEY_ID ?? process.env.OBJECT_STORAGE_KEY;
+const R2_SECRET_ACCESS_KEY = process.env.CF_R2_SECRET_ACCESS_KEY ?? process.env.OBJECT_STORAGE_SECRET;
 const BUCKET = 'grudge-assets';
 const ASSET_DIR = join(process.cwd(), 'public', 'assets', 'space');
 const MANIFEST_OUT = join(process.cwd(), 'dist', 'r2-manifest.json');
 
-if (!R2_TOKEN) {
-  console.error('CF_R2_TOKEN env var is required.');
+if (!R2_ACCESS_KEY_ID || !R2_SECRET_ACCESS_KEY) {
+  console.error('CF_R2_ACCESS_KEY_ID and CF_R2_SECRET_ACCESS_KEY env vars are required.');
   process.exit(1);
 }
 
@@ -42,8 +44,8 @@ const s3 = new S3Client({
   region: 'auto',
   endpoint: `https://${ACCOUNT_ID}.r2.cloudflarestorage.com`,
   credentials: {
-    accessKeyId: R2_TOKEN,
-    secretAccessKey: R2_TOKEN, // R2 API tokens use the same value for both
+    accessKeyId: R2_ACCESS_KEY_ID,
+    secretAccessKey: R2_SECRET_ACCESS_KEY,
   },
 });
 
