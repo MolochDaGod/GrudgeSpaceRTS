@@ -1,8 +1,4 @@
-﻿import { useEffect, useRef, useState, useCallback, memo } from 'react';
-import { SpaceRenderer } from './game/space-renderer';
-import { SpaceHUD } from './game/space-ui';
-import { StarMapOverlay } from './game/space-starmap';
-import { ShipForgeEditor } from './game/ship-editor';
+import { useEffect, useRef, useState, useCallback, memo, lazy, Suspense } from 'react';
 import { hasHeroShip } from './game/ship-storage';
 import {
   SHIP_DEFINITIONS,
@@ -41,10 +37,15 @@ import { getKey } from './game/hotkeys';
 import { HotkeySettings } from './game/HotkeySettings';
 import { loadRemoteBalance } from './game/space-data-loader';
 import { DevOverlay } from './game/dev-overlay';
-import { ShipCodex3D } from './game/codex-ui';
 
-import { GroundCombatView } from './game/GroundCombatView';
-import { GroundBattleView } from './game/GroundBattleView';
+// ── Lazy-loaded heavy modules (code-split) ────────────────────────
+// These chunks only download when the user navigates to the relevant screen.
+const LazySpaceHUD = lazy(() => import('./game/space-ui').then(m => ({ default: m.SpaceHUD })));
+const LazyStarMapOverlay = lazy(() => import('./game/space-starmap').then(m => ({ default: m.StarMapOverlay })));
+const LazyShipForgeEditor = lazy(() => import('./game/ship-editor').then(m => ({ default: m.ShipForgeEditor })));
+const LazyShipCodex3D = lazy(() => import('./game/codex-ui').then(m => ({ default: m.ShipCodex3D })));
+const LazyGroundCombatView = lazy(() => import('./game/GroundCombatView').then(m => ({ default: m.GroundCombatView })));
+const LazyGroundBattleView = lazy(() => import('./game/GroundBattleView').then(m => ({ default: m.GroundBattleView })));
 import type { PlanetType } from './game/space-types';
 
 type Screen = 'intro' | 'menu' | 'codex' | 'howto' | 'editor' | 'playing' | 'ground_combat' | 'ground_rts';
@@ -345,7 +346,7 @@ const StarfieldCanvas = memo(function StarfieldCanvas() {
 
 export default function App() {
   const containerRef = useRef<HTMLDivElement>(null);
-  const rendererRef = useRef<SpaceRenderer | null>(null);
+  const rendererRef = useRef<import('./game/space-renderer').SpaceRenderer | null>(null);
   // Resolve initial screen from URL — skip intro if deep-linking to a specific route
   const initialPath = window.location.pathname;
   const initialScreen = initialPath === '/' || initialPath === '' ? 'intro' : screenFromPath(initialPath);
@@ -388,7 +389,7 @@ export default function App() {
     }
   }, [screen]);
   const [loading, setLoading] = useState(false);
-  const [renderer, setRenderer] = useState<SpaceRenderer | null>(null);
+  const [renderer, setRenderer] = useState<import('./game/space-renderer').SpaceRenderer | null>(null);
   const [gameMode, setGameMode] = useState<GameMode>('1v1');
   const [starMapOpen, setStarMapOpen] = useState(false);
   const [showCmdModal, setShowCmdModal] = useState(false);
@@ -438,6 +439,7 @@ export default function App() {
       setScreen('playing');
       // Load remote balance overrides before engine init (non-blocking on failure)
       await loadRemoteBalance();
+      const { SpaceRenderer } = await import('./game/space-renderer');
       const r = new SpaceRenderer(containerRef.current, mode);
       rendererRef.current = r;
       r.playerCommanderSpec = spec;
@@ -549,48 +551,53 @@ export default function App() {
           onCancel={() => setShowCampaignBuilder(false)}
         />
       )}
-      {screen === 'codex' && <ShipCodex3D onBack={() => setScreen('menu')} />}
+      {screen === 'codex' && <Suspense fallback={<LoadingScreen />}><LazyShipCodex3D onBack={() => setScreen('menu')} /></Suspense>}
       {screen === 'howto' && <HowToPlay onBack={() => setScreen('menu')} />}
-      {screen === 'editor' && <ShipForgeEditor onBack={() => setScreen('menu')} />}
+      {screen === 'editor' && <Suspense fallback={<LoadingScreen />}><LazyShipForgeEditor onBack={() => setScreen('menu')} /></Suspense>}
       {loading && <LoadingScreen />}
       {screen === 'playing' && !loading && renderer && (
-        <SpaceHUD
-          renderer={renderer}
-          onQuit={backToMenu}
-          onToggleStarMap={() => setStarMapOpen((o) => !o)}
-          onDeployGround={(pType, pName) => {
-            setGroundPlanetType(pType);
-            setGroundPlanetName(pName);
-            setScreen('ground_combat');
-          }}
-          onDeployGroundRts={(pType, pName) => {
-            setGroundPlanetType(pType);
-            setGroundPlanetName(pName);
-            setScreen('ground_rts');
-          }}
-        />
+        <Suspense fallback={null}>
+          <LazySpaceHUD
+            renderer={renderer}
+            onQuit={backToMenu}
+            onToggleStarMap={() => setStarMapOpen((o) => !o)}
+            onDeployGround={(pType, pName) => {
+              setGroundPlanetType(pType);
+              setGroundPlanetName(pName);
+              setScreen('ground_combat');
+            }}
+            onDeployGroundRts={(pType, pName) => {
+              setGroundPlanetType(pType);
+              setGroundPlanetName(pName);
+              setScreen('ground_rts');
+            }}
+          />
+        </Suspense>
       )}
-      {screen === 'playing' && starMapOpen && renderer && <StarMapOverlay renderer={renderer} onClose={() => setStarMapOpen(false)} />}
+      {screen === 'playing' && starMapOpen && renderer && <Suspense fallback={null}><LazyStarMapOverlay renderer={renderer} onClose={() => setStarMapOpen(false)} /></Suspense>}
       {screen === 'ground_combat' && (
-        <GroundCombatView
-          planetType={groundPlanetType}
-          planetName={groundPlanetName}
-          onExit={(result) => {
-            console.log('[GROUND] Mission result:', result);
-            // Return to space if launched from space, otherwise menu
-            setScreen(rendererRef.current ? 'playing' : 'menu');
-          }}
-        />
+        <Suspense fallback={<LoadingScreen />}>
+          <LazyGroundCombatView
+            planetType={groundPlanetType}
+            planetName={groundPlanetName}
+            onExit={(result) => {
+              console.log('[GROUND] Mission result:', result);
+              setScreen(rendererRef.current ? 'playing' : 'menu');
+            }}
+          />
+        </Suspense>
       )}
       {screen === 'ground_rts' && (
-        <GroundBattleView
-          planetType={groundPlanetType}
-          planetName={groundPlanetName}
-          onExit={(result) => {
-            console.log('[GROUND RTS] Battle result:', result);
-            setScreen(rendererRef.current ? 'playing' : 'menu');
-          }}
-        />
+        <Suspense fallback={<LoadingScreen />}>
+          <LazyGroundBattleView
+            planetType={groundPlanetType}
+            planetName={groundPlanetName}
+            onExit={(result) => {
+              console.log('[GROUND RTS] Battle result:', result);
+              setScreen(rendererRef.current ? 'playing' : 'menu');
+            }}
+          />
+        </Suspense>
       )}
       {/* Admin UI overlay — toggle with backtick key */}
       <DevOverlay />
