@@ -6,13 +6,10 @@
  * Completely independent of SpaceRenderer — disposable lifecycle.
  */
 import * as THREE from 'three';
-import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
-import { MTLLoader } from 'three/examples/jsm/loaders/MTLLoader.js';
-import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { getShipPrefab, type SpacePrefab } from './space-prefabs';
 import { TEAM_COLORS } from './space-types';
 import { hasVoxelShip, buildVoxelShip, buildCapitalVoxelFallback } from './space-voxel-builder';
+import { loadByFormat } from './model-loader';
 
 // ── Easing ─────────────────────────────────────────────────────────
 function easeOutBack(t: number): number {
@@ -45,13 +42,6 @@ export class CodexScene {
   private exitDuration = 0.4;
   private exitStartPos = new THREE.Vector3();
   private exitEndPos = new THREE.Vector3(4, -14, 0);
-
-  // Loaders
-  private textureLoader = new THREE.TextureLoader();
-  private objLoader = new OBJLoader();
-  private mtlLoader = new MTLLoader();
-  private fbxLoader = new FBXLoader();
-  private gltfLoader = new GLTFLoader();
 
   // Animation — diagonal fly-in from top-left to center
   private flyInProgress = 0; // 0..1, 1=done
@@ -310,42 +300,18 @@ export class CodexScene {
     this.onLoadEnd?.();
   }
 
-  // ── Model loading (mirrors space-renderer) ──────────────────────
+  // ── Model loading (uses centralized model-loader) ──────────────
   private async loadModel(prefab: SpacePrefab): Promise<THREE.Group> {
     const key = prefab.modelPath;
     if (this.modelCache.has(key)) return this.modelCache.get(key)!.clone();
     if (this.loadingModels.has(key)) return (await this.loadingModels.get(key)!).clone();
 
     const promise = (async () => {
-      let group: THREE.Group;
-      if (prefab.format === 'glb') {
-        const gltf = await this.gltfLoader.loadAsync(prefab.modelPath);
-        group = gltf.scene;
-      } else if (prefab.format === 'fbx') {
-        group = (await this.fbxLoader.loadAsync(prefab.modelPath)) as unknown as THREE.Group;
-        if (prefab.texturePath) {
-          const tex = this.textureLoader.load(prefab.texturePath);
-          group.traverse((c) => {
-            if ((c as THREE.Mesh).isMesh) (c as THREE.Mesh).material = new THREE.MeshStandardMaterial({ map: tex });
-          });
-        }
-      } else {
-        if (prefab.mtlPath) {
-          const mats = await this.mtlLoader.loadAsync(prefab.mtlPath);
-          mats.preload();
-          const loader = new OBJLoader();
-          loader.setMaterials(mats);
-          group = await loader.loadAsync(prefab.modelPath);
-        } else {
-          group = await this.objLoader.loadAsync(prefab.modelPath);
-        }
-        if (prefab.texturePath) {
-          const tex = this.textureLoader.load(prefab.texturePath);
-          group.traverse((c) => {
-            if ((c as THREE.Mesh).isMesh) (c as THREE.Mesh).material = new THREE.MeshStandardMaterial({ map: tex });
-          });
-        }
-      }
+      const loaded = await loadByFormat(prefab.modelPath, prefab.format, {
+        mtlPath: prefab.mtlPath,
+        texturePath: prefab.texturePath,
+      });
+      const group = loaded.scene;
       if (prefab.offset) group.position.add(prefab.offset);
       if (prefab.rotation) group.rotation.copy(prefab.rotation);
       this.modelCache.set(key, group);

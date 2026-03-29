@@ -8,6 +8,7 @@ import * as THREE from 'three';
 import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
 import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
 import { MTLLoader } from 'three/examples/jsm/loaders/MTLLoader.js';
+import { loadAnimationClip as loadAnimClipCentral } from './model-loader';
 import type { PlanetType } from './space-types';
 import {
   type GroundCombatState,
@@ -235,25 +236,18 @@ class AnimationController {
   clips = new Map<string, THREE.AnimationClip>();
   currentAction: THREE.AnimationAction | null = null;
   currentKey = '';
-  private fbxLoader: FBXLoader;
 
-  constructor(root: THREE.Object3D, loader: FBXLoader) {
+  constructor(root: THREE.Object3D) {
     this.mixer = new THREE.AnimationMixer(root);
-    this.fbxLoader = loader;
   }
 
   /** Load an animation clip from an FBX file and register it under `key`. */
   async loadClip(key: string, path: string): Promise<void> {
     if (this.clips.has(key)) return;
-    try {
-      const fbx = await this.fbxLoader.loadAsync(path);
-      if (fbx.animations.length > 0) {
-        const clip = fbx.animations[0];
-        clip.name = key;
-        this.clips.set(key, clip);
-      }
-    } catch {
-      // Clip failed to load — will fall through to idle
+    const clip = await loadAnimClipCentral(path);
+    if (clip) {
+      clip.name = key;
+      this.clips.set(key, clip);
     }
   }
 
@@ -1037,7 +1031,7 @@ export class GroundRenderer {
     }
 
     // Animation controller for player — load the full set for this weapon type
-    this.playerAnim = new AnimationController(this.playerGroup!, this.fbxLoader);
+    this.playerAnim = new AnimationController(this.playerGroup!);
     await this.loadAnimSet(this.playerAnim, this.state.player.weaponType);
   }
 
@@ -1158,7 +1152,7 @@ export class GroundRenderer {
         this.enemyHealthBars.set(enemy.id, { bar, bg });
 
         // Set up animation controller for enemy
-        const enemyAnim = new AnimationController(group, this.fbxLoader);
+        const enemyAnim = new AnimationController(group);
         this.enemyAnims.set(enemy.id, enemyAnim);
         this.loadAnimSet(enemyAnim, enemy.weaponType);
       }
