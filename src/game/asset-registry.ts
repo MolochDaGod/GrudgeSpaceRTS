@@ -15,7 +15,20 @@ const CDN_BASE = import.meta.env.VITE_ASSET_CDN ?? '';
 
 // ── Types ─────────────────────────────────────────────────────────
 export type AssetFormat = 'obj' | 'fbx' | 'glb';
-export type AssetCategory = 'ship' | 'station' | 'turret' | 'planet' | 'effect' | 'prop' | 'vehicle' | 'weapon' | 'sprite' | 'ui';
+export type AssetCategory =
+  | 'ship'
+  | 'station'
+  | 'turret'
+  | 'planet'
+  | 'effect'
+  | 'prop'
+  | 'vehicle'
+  | 'weapon'
+  | 'sprite'
+  | 'ui'
+  | 'enemy'
+  | 'boss'
+  | 'terrain';
 
 export interface AssetEntry {
   uuid: string; // Grudge object storage key (v4 UUID)
@@ -438,6 +451,187 @@ const REGISTRY: AssetEntry[] = [
     colorTintable: true,
     tags: ['weapon', 'railgun'],
   },
+
+  // ── Battle Fleet (FBX) — Destroyers ────────────────────────────
+  {
+    uuid: 'a0020020-ship-fbx-destroyer-01-0000',
+    key: 'cf_destroyer_01',
+    category: 'ship',
+    localPath: '/assets/space/models/battle-ships/Destroyer_01.fbx',
+    format: 'fbx',
+    texturePath: '/assets/space/models/battle-ships/Destroyer_01.png',
+    colorTintable: true,
+    tags: ['destroyer', 'craftpix', 'tier3'],
+  },
+  {
+    uuid: 'a0020021-ship-fbx-destroyer-02-0000',
+    key: 'cf_destroyer_02',
+    category: 'ship',
+    localPath: '/assets/space/models/battle-ships/Destroyer_02.fbx',
+    format: 'fbx',
+    texturePath: '/assets/space/models/battle-ships/Destroyer_02.png',
+    colorTintable: true,
+    tags: ['destroyer', 'craftpix', 'tier3'],
+  },
+  {
+    uuid: 'a0020022-ship-fbx-destroyer-03-0000',
+    key: 'cf_destroyer_03',
+    category: 'ship',
+    localPath: '/assets/space/models/battle-ships/Destroyer_03.fbx',
+    format: 'fbx',
+    texturePath: '/assets/space/models/battle-ships/Destroyer_03.png',
+    colorTintable: true,
+    tags: ['destroyer', 'craftpix', 'tier4'],
+  },
+  {
+    uuid: 'a0020023-ship-fbx-destroyer-04-0000',
+    key: 'cf_destroyer_04',
+    category: 'ship',
+    localPath: '/assets/space/models/battle-ships/Destroyer_04.fbx',
+    format: 'fbx',
+    texturePath: '/assets/space/models/battle-ships/Destroyer_04.png',
+    colorTintable: true,
+    tags: ['destroyer', 'craftpix', 'tier4'],
+  },
+  {
+    uuid: 'a0020024-ship-fbx-destroyer-05-0000',
+    key: 'cf_destroyer_05',
+    category: 'ship',
+    localPath: '/assets/space/models/battle-ships/Destroyer_05.fbx',
+    format: 'fbx',
+    texturePath: '/assets/space/models/battle-ships/Destroyer_05.png',
+    colorTintable: true,
+    tags: ['destroyer', 'craftpix', 'tier4'],
+  },
+
+  // ── Battle Fleet (FBX) — Light Cruisers ────────────────────────
+  {
+    uuid: 'a0020030-ship-fbx-lcruiser-01-0000',
+    key: 'cf_light_cruiser_01',
+    category: 'ship',
+    localPath: '/assets/space/models/battle-ships/Light cruiser_01.fbx',
+    format: 'fbx',
+    texturePath: '/assets/space/models/battle-ships/Light cruiser_01.png',
+    colorTintable: true,
+    tags: ['light_cruiser', 'craftpix', 'tier4'],
+  },
+  {
+    uuid: 'a0020031-ship-fbx-lcruiser-02-0000',
+    key: 'cf_light_cruiser_02',
+    category: 'ship',
+    localPath: '/assets/space/models/battle-ships/Light cruiser_02.fbx',
+    format: 'fbx',
+    texturePath: '/assets/space/models/battle-ships/Light cruiser_02.png',
+    colorTintable: true,
+    tags: ['light_cruiser', 'craftpix', 'tier4'],
+  },
+  {
+    uuid: 'a0020032-ship-fbx-lcruiser-03-0000',
+    key: 'cf_light_cruiser_03',
+    category: 'ship',
+    localPath: '/assets/space/models/battle-ships/Light cruiser_03.fbx',
+    format: 'fbx',
+    texturePath: '/assets/space/models/battle-ships/Light cruiser_03.png',
+    colorTintable: true,
+    tags: ['light_cruiser', 'craftpix', 'tier4'],
+  },
+  {
+    uuid: 'a0020033-ship-fbx-lcruiser-04-0000',
+    key: 'cf_light_cruiser_04',
+    category: 'ship',
+    localPath: '/assets/space/models/battle-ships/Light cruiser_04.fbx',
+    format: 'fbx',
+    texturePath: '/assets/space/models/battle-ships/Light cruiser_04.png',
+    colorTintable: true,
+    tags: ['light_cruiser', 'craftpix', 'tier5'],
+  },
+  {
+    uuid: 'a0020034-ship-fbx-lcruiser-05-0000',
+    key: 'cf_light_cruiser_05',
+    category: 'ship',
+    localPath: '/assets/space/models/battle-ships/Light cruiser_05.fbx',
+    format: 'fbx',
+    texturePath: '/assets/space/models/battle-ships/Light cruiser_05.png',
+    colorTintable: true,
+    tags: ['light_cruiser', 'craftpix', 'tier5'],
+  },
+
+  // ── Flying Ship (glTF) — Space ─────────────────────────────────
+  {
+    uuid: 'a0090001-ship-gltf-flying-ship-0000',
+    key: 'flying_ship',
+    category: 'ship',
+    localPath: '/assets/space/models/flying-ship/scene.gltf',
+    format: 'glb',
+    colorTintable: true,
+    tags: ['ship', 'gltf', 'tier3'],
+  },
+
+  // ── Homeworld (glTF) — Ground base the player escaped from ────
+  {
+    uuid: 'a00a0001-terr-gltf-homeworld-000000',
+    key: 'homeworld_base',
+    category: 'terrain',
+    localPath: '/assets/ground/homeworld/scene.gltf',
+    format: 'glb',
+    colorTintable: false,
+    tags: ['terrain', 'homeworld', 'gltf', 'ground'],
+  },
+
+  // ── Alien City (glTF) — Sci-fi ground terrain / enemy base ────
+  {
+    uuid: 'a00a0002-terr-gltf-alien-city-00000',
+    key: 'alien_city',
+    category: 'terrain',
+    localPath: '/assets/ground/alien-city/scene.gltf',
+    format: 'glb',
+    colorTintable: false,
+    tags: ['terrain', 'alien', 'city', 'gltf', 'ground'],
+  },
+
+  // ── Five-Headed Dragon (glTF) — Raid boss ─────────────────────
+  {
+    uuid: 'a00b0001-boss-gltf-hydra-dragon-000',
+    key: 'boss_hydra_dragon',
+    category: 'boss',
+    localPath: '/assets/ground/bosses/five-headed-dragon/scene.gltf',
+    format: 'glb',
+    colorTintable: false,
+    tags: ['boss', 'dragon', 'raid', 'gltf', 'ground'],
+  },
+
+  // ── Voxel Souls Characters (glTF) — Ground enemies ────────────
+  {
+    uuid: 'a00c0001-enem-gltf-voxel-souls-0000',
+    key: 'enemy_voxel_souls',
+    category: 'enemy',
+    localPath: '/assets/ground/enemies/voxel-souls/scene.gltf',
+    format: 'glb',
+    colorTintable: false,
+    tags: ['enemy', 'voxel', 'souls', 'gltf', 'ground'],
+  },
+
+  // ── Knight Artorias (glTF) — Elite ground boss / mini-boss ────
+  {
+    uuid: 'a00c0002-enem-gltf-knight-artorias0',
+    key: 'enemy_knight_artorias',
+    category: 'enemy',
+    localPath: '/assets/ground/enemies/knight-artorias/scene.gltf',
+    format: 'glb',
+    colorTintable: false,
+    tags: ['enemy', 'knight', 'souls', 'elite', 'gltf', 'ground'],
+  },
+
+  // ── Mars Environment Kit (glTF) — Ground battle terrain ────────
+  {
+    uuid: 'a00a0003-terr-gltf-mars-environ-000',
+    key: 'mars_environment',
+    category: 'terrain',
+    localPath: '/assets/ground/mars-environment/scene.gltf',
+    format: 'glb',
+    colorTintable: false,
+    tags: ['terrain', 'mars', 'battle', 'gltf', 'ground', 'environment'],
+  },
 ];
 
 // ── Lookup indexes ────────────────────────────────────────────────
@@ -465,7 +659,9 @@ export function resolveAssetUrl(key: string): string {
   const entry = _byKey.get(key);
   if (!entry) return '';
   if (CDN_BASE) {
-    return `${CDN_BASE}/models/${entry.cdnPath ?? entry.uuid}`;
+    // Path-based R2 key: /assets/space/models/X → gruda-armada/space/models/X
+    const r2Path = entry.localPath.replace(/^\/assets\//, '');
+    return `${CDN_BASE}/gruda-armada/${r2Path}`;
   }
   return entry.localPath;
 }
@@ -475,9 +671,25 @@ export function resolveTextureUrl(key: string): string | undefined {
   const entry = _byKey.get(key);
   if (!entry?.texturePath) return undefined;
   if (CDN_BASE) {
-    return `${CDN_BASE}/textures/${entry.uuid}`;
+    const r2Path = entry.texturePath.replace(/^\/assets\//, '');
+    return `${CDN_BASE}/gruda-armada/${r2Path}`;
   }
   return entry.texturePath;
+}
+
+/**
+ * Resolve any local asset path to CDN or local.
+ * Use this for paths not in the registry (e.g. animation FBXs, UI images).
+ * Input: '/assets/ground/animations/sword/idle.fbx'
+ * Output: 'https://assets.grudge-studio.com/gruda-armada/ground/animations/sword/idle.fbx' (CDN)
+ *      or '/assets/ground/animations/sword/idle.fbx' (local fallback)
+ */
+export function resolvePathUrl(localPath: string): string {
+  if (CDN_BASE && localPath.startsWith('/assets/')) {
+    const r2Path = localPath.replace(/^\/assets\//, '');
+    return `${CDN_BASE}/gruda-armada/${r2Path}`;
+  }
+  return localPath;
 }
 
 /** Get all assets matching a category. */

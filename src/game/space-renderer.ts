@@ -33,6 +33,7 @@ import {
 import { loadHeroShip, glbBlobToUrl } from './ship-storage';
 import { getBoosterVisualOffsets, getRigAudit, getRigWorldAnchors } from './space-rig';
 import { VFXSystem } from './space-vfx';
+import { resolvePathUrl } from './asset-registry';
 
 interface ShipMesh3D {
   group: THREE.Group;
@@ -987,13 +988,17 @@ export class SpaceRenderer {
 
     const promise = (async () => {
       let group: THREE.Group;
+      // Resolve paths through CDN when VITE_ASSET_CDN is set
+      const modelUrl = resolvePathUrl(prefab.modelPath);
+      const textureUrl = prefab.texturePath ? resolvePathUrl(prefab.texturePath) : undefined;
+      const mtlUrl = prefab.mtlPath ? resolvePathUrl(prefab.mtlPath) : undefined;
       if (prefab.format === 'glb') {
-        const gltf = await this.gltfLoader.loadAsync(prefab.modelPath);
+        const gltf = await this.gltfLoader.loadAsync(modelUrl);
         group = gltf.scene;
       } else if (prefab.format === 'fbx') {
-        group = (await this.fbxLoader.loadAsync(prefab.modelPath)) as unknown as THREE.Group;
-        if (prefab.texturePath) {
-          const tex = this.textureLoader.load(prefab.texturePath);
+        group = (await this.fbxLoader.loadAsync(modelUrl)) as unknown as THREE.Group;
+        if (textureUrl) {
+          const tex = this.textureLoader.load(textureUrl);
           tex.colorSpace = THREE.SRGBColorSpace;
           group.traverse((c) => {
             if ((c as THREE.Mesh).isMesh) {
@@ -1010,17 +1015,17 @@ export class SpaceRenderer {
           });
         }
       } else {
-        if (prefab.mtlPath) {
-          const mats = await this.mtlLoader.loadAsync(prefab.mtlPath);
+        if (mtlUrl) {
+          const mats = await this.mtlLoader.loadAsync(mtlUrl);
           mats.preload();
           const loader = new OBJLoader();
           loader.setMaterials(mats);
-          group = await loader.loadAsync(prefab.modelPath);
+          group = await loader.loadAsync(modelUrl);
         } else {
-          group = await this.objLoader.loadAsync(prefab.modelPath);
+          group = await this.objLoader.loadAsync(modelUrl);
         }
-        if (prefab.texturePath) {
-          const tex = this.textureLoader.load(prefab.texturePath);
+        if (textureUrl) {
+          const tex = this.textureLoader.load(textureUrl);
           tex.colorSpace = THREE.SRGBColorSpace;
           group.traverse((c) => {
             if ((c as THREE.Mesh).isMesh) {
