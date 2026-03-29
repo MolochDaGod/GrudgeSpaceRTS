@@ -49,6 +49,30 @@ import type { PlanetType } from './game/space-types';
 
 type Screen = 'intro' | 'menu' | 'codex' | 'howto' | 'editor' | 'playing' | 'ground_combat' | 'ground_rts';
 
+// ── URL Routing ───────────────────────────────────────────────────
+const ROUTE_TO_SCREEN: Record<string, Screen> = {
+  '/': 'menu',
+  '/codex': 'codex',
+  '/editor': 'editor',
+  '/howto': 'howto',
+  '/game': 'playing',
+  '/ground': 'ground_combat',
+  '/ground-rts': 'ground_rts',
+};
+const SCREEN_TO_ROUTE: Partial<Record<Screen, string>> = {
+  menu: '/',
+  codex: '/codex',
+  editor: '/editor',
+  howto: '/howto',
+  playing: '/game',
+  ground_combat: '/ground',
+  ground_rts: '/ground-rts',
+};
+
+function screenFromPath(path: string): Screen {
+  return ROUTE_TO_SCREEN[path] ?? 'menu';
+}
+
 // ── Space Background: stars + nebulae + comets ────────────────────
 const StarfieldCanvas = memo(function StarfieldCanvas() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -322,8 +346,30 @@ const StarfieldCanvas = memo(function StarfieldCanvas() {
 export default function App() {
   const containerRef = useRef<HTMLDivElement>(null);
   const rendererRef = useRef<SpaceRenderer | null>(null);
-  const [screen, setScreen] = useState<Screen>('intro');
+  // Resolve initial screen from URL — skip intro if deep-linking to a specific route
+  const initialPath = window.location.pathname;
+  const initialScreen = initialPath === '/' || initialPath === '' ? 'intro' : screenFromPath(initialPath);
+  const [screen, setScreenRaw] = useState<Screen>(initialScreen);
   const [authUser, setAuthUser] = useState<GrudgeUser | null>(null);
+
+  // Wrap setScreen to also push URL
+  const setScreen = useCallback((s: Screen) => {
+    setScreenRaw(s);
+    const route = SCREEN_TO_ROUTE[s];
+    if (route && window.location.pathname !== route) {
+      window.history.pushState({ screen: s }, '', route);
+    }
+  }, []);
+
+  // Handle browser back/forward
+  useEffect(() => {
+    const onPop = () => {
+      const s = screenFromPath(window.location.pathname);
+      setScreenRaw(s);
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
 
   // Initialise auth on mount (handles OAuth callback + session restore)
   useEffect(() => {
@@ -452,6 +498,16 @@ export default function App() {
           onCodex={() => setScreen('codex')}
           onHowTo={() => setScreen('howto')}
           onEditor={() => setScreen('editor')}
+          onGroundCombat={() => {
+            setGroundPlanetType('barren');
+            setGroundPlanetName('Training Grounds');
+            setScreen('ground_combat');
+          }}
+          onGroundRts={() => {
+            setGroundPlanetType('barren');
+            setGroundPlanetName('Training Grounds');
+            setScreen('ground_rts');
+          }}
           mode={gameMode}
           setMode={setGameMode}
           user={authUser}
@@ -521,7 +577,8 @@ export default function App() {
           planetName={groundPlanetName}
           onExit={(result) => {
             console.log('[GROUND] Mission result:', result);
-            setScreen('playing');
+            // Return to space if launched from space, otherwise menu
+            setScreen(rendererRef.current ? 'playing' : 'menu');
           }}
         />
       )}
@@ -531,7 +588,7 @@ export default function App() {
           planetName={groundPlanetName}
           onExit={(result) => {
             console.log('[GROUND RTS] Battle result:', result);
-            setScreen('playing');
+            setScreen(rendererRef.current ? 'playing' : 'menu');
           }}
         />
       )}
@@ -859,6 +916,8 @@ function MainMenu({
   onCodex,
   onHowTo,
   onEditor,
+  onGroundCombat,
+  onGroundRts,
   mode,
   setMode,
   user,
@@ -870,6 +929,8 @@ function MainMenu({
   onCodex: () => void;
   onHowTo: () => void;
   onEditor: () => void;
+  onGroundCombat: () => void;
+  onGroundRts: () => void;
   mode: GameMode;
   setMode: (m: GameMode) => void;
   user: GrudgeUser | null;
@@ -1100,6 +1161,55 @@ function MainMenu({
               }}
               style={{ width: '100%', height: 40 }}
             />
+          </div>
+
+          {/* Ground Game Quick Play column */}
+          <div
+            style={{
+              padding: '16px 20px',
+              borderRadius: 10,
+              minWidth: 280,
+              background: 'rgba(6,14,30,0.85)',
+              border: '1px solid rgba(68,220,100,0.2)',
+            }}
+          >
+            <div style={{ fontSize: 10, fontWeight: 700, color: '#44ee88', letterSpacing: 3, marginBottom: 12, textAlign: 'center' }}>
+              🗡️ GROUND OPS
+            </div>
+            <div
+              style={{
+                padding: '12px 16px',
+                borderRadius: 6,
+                border: '1px solid rgba(68,220,100,0.15)',
+                background: 'transparent',
+                marginBottom: 8,
+              }}
+            >
+              <div style={{ fontSize: 14, fontWeight: 700, color: '#44ee88' }}>SOULS COMBAT</div>
+              <div style={{ fontSize: 10, color: 'rgba(160,220,180,0.6)', marginTop: 4, lineHeight: 1.5 }}>
+                Third-person · 6 classes · Combo chains
+                <br />
+                Wave survival · Dodge & parry
+              </div>
+            </div>
+            <Btn label="LAUNCH GROUND COMBAT" wide active onClick={onGroundCombat} style={{ width: '100%', height: 40, marginBottom: 8 }} />
+            <div
+              style={{
+                padding: '12px 16px',
+                borderRadius: 6,
+                border: '1px solid rgba(68,220,100,0.15)',
+                background: 'transparent',
+                marginBottom: 8,
+              }}
+            >
+              <div style={{ fontSize: 14, fontWeight: 700, color: '#88ccaa' }}>TACTICAL RTS</div>
+              <div style={{ fontSize: 10, color: 'rgba(160,220,180,0.6)', marginTop: 4, lineHeight: 1.5 }}>
+                Top-down · Squad command · 4 mission types
+                <br />
+                Flanking & morale · A* pathfinding
+              </div>
+            </div>
+            <Btn label="LAUNCH GROUND RTS" wide onClick={onGroundRts} style={{ width: '100%', height: 40 }} />
           </div>
         </div>
 
