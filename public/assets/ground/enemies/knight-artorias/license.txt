@@ -1,0 +1,11 @@
+Model Information:
+* title:	Knight Artorias - Dark Souls Remastered
+* source:	https://sketchfab.com/3d-models/knight-artorias-dark-souls-remastered-39d5150f92984524be7d4cc6854e34c0
+* author:	Catholomew (https://sketchfab.com/Catholomew)
+
+Model License:
+* license type:	CC-BY-NC-4.0 (http://creativecommons.org/licenses/by-nc/4.0/)
+* requirements:	Author must be credited. No commercial use.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Knight Artorias - Dark Souls Remastered" (https://sketchfab.com/3d-models/knight-artorias-dark-souls-remastered-39d5150f92984524be7d4cc6854e34c0) by Catholomew (https://sketchfab.com/Catholomew) licensed under CC-BY-NC-4.0 (http://creativecommons.org/licenses/by-nc/4.0/)
