@@ -25,6 +25,7 @@ import {
 import type { ShipRoleType, ShipStats, ShipAbility } from './space-types';
 import { SHIP_PREVIEW, ABILITY_IMG, TIER_COLORS } from './space-ui-shared';
 import { FACTION_HERO_DEFINITIONS } from './space-config';
+import { getShipPrefab } from './space-prefabs';
 
 // ── Build ship list from game data ─────────────────────────────────
 interface CodexShip {
@@ -128,6 +129,7 @@ export function ShipCodex3D({ onBack }: { onBack: () => void }) {
   const [search, setSearch] = useState('');
   const [tierFilter, setTierFilter] = useState(0);
   const [factionFilter, setFactionFilter] = useState<SpaceFaction | 'all'>('all');
+  const [shipYawDeg, setShipYawDeg] = useState(0);
 
   // Init Three.js scene
   useEffect(() => {
@@ -135,6 +137,7 @@ export function ShipCodex3D({ onBack }: { onBack: () => void }) {
     const scene = new CodexScene(canvasRef.current);
     scene.onLoadStart = () => setLoading(true);
     scene.onLoadEnd = () => setLoading(false);
+    scene.onYawChange = (yaw) => setShipYawDeg(Math.round(yaw));
     scene.init();
     sceneRef.current = scene;
     return () => {
@@ -421,6 +424,9 @@ export function ShipCodex3D({ onBack }: { onBack: () => void }) {
             <div style={{ fontSize: 10, color: TIER_COLORS[selectedShip.tier] ?? '#cde', fontWeight: 700, letterSpacing: 2, marginTop: 4 }}>
               {selectedShip.isHero ? '★ HERO' : `TIER ${selectedShip.tier}`} · {selectedShip.shipClass.replace(/_/g, ' ').toUpperCase()}
             </div>
+            <div style={{ fontSize: 9, color: 'rgba(160,200,255,0.35)', marginTop: 8, letterSpacing: 1 }}>
+              DRAG TO ROTATE · SET FRONT DIRECTION
+            </div>
           </div>
         )}
       </div>
@@ -504,6 +510,71 @@ export function ShipCodex3D({ onBack }: { onBack: () => void }) {
               </div>
             </div>
 
+            {/* Front Direction */}
+            {(() => {
+              const prefab = getShipPrefab(selectedShip.key);
+              const engineCount = prefab?.enginePoints?.length ?? 0;
+              const weaponCount = prefab?.weaponPoints?.length ?? 0;
+              return (
+                <div
+                  style={{
+                    marginBottom: 16,
+                    padding: '10px 14px',
+                    background: 'rgba(6,30,14,0.5)',
+                    borderRadius: 8,
+                    border: '1px solid rgba(68,220,100,0.15)',
+                  }}
+                >
+                  <div style={{ fontSize: 9, fontWeight: 700, color: '#44ee88', letterSpacing: 1, marginBottom: 6 }}>ORIENTATION</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    {/* Compass mini */}
+                    <div
+                      style={{
+                        width: 40,
+                        height: 40,
+                        borderRadius: '50%',
+                        border: '2px solid rgba(68,220,100,0.3)',
+                        position: 'relative',
+                        flexShrink: 0,
+                      }}
+                    >
+                      <div
+                        style={{
+                          position: 'absolute',
+                          top: '50%',
+                          left: '50%',
+                          width: 2,
+                          height: 14,
+                          background: '#44ee88',
+                          borderRadius: 1,
+                          transformOrigin: 'center bottom',
+                          transform: `translate(-50%, -100%) rotate(${shipYawDeg}deg)`,
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 16, fontWeight: 900, color: '#44ee88' }}>{shipYawDeg}°</div>
+                      <div style={{ fontSize: 8, color: 'rgba(160,220,180,0.5)' }}>Drag model to set front</div>
+                    </div>
+                  </div>
+                  {(engineCount > 0 || weaponCount > 0) && (
+                    <div style={{ display: 'flex', gap: 12, marginTop: 8, fontSize: 10 }}>
+                      {engineCount > 0 && (
+                        <span style={{ color: '#ffaa22' }}>
+                          🔥 {engineCount} engine{engineCount > 1 ? 's' : ''}
+                        </span>
+                      )}
+                      {weaponCount > 0 && (
+                        <span style={{ color: '#ff4444' }}>
+                          🎯 {weaponCount} hardpoint{weaponCount > 1 ? 's' : ''}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
             {/* Stats */}
             <div
               style={{
@@ -523,7 +594,7 @@ export function ShipCodex3D({ onBack }: { onBack: () => void }) {
               <StatBar label="SPEED" value={selectedShip.stats.speed} max={120} color="#ffcc00" icon="»" />
             </div>
 
-            {/* Cost */}
+            {/* Cost + Build Info */}
             <div
               style={{
                 marginBottom: 16,
@@ -534,18 +605,45 @@ export function ShipCodex3D({ onBack }: { onBack: () => void }) {
               }}
             >
               <div style={{ fontSize: 9, fontWeight: 700, color: '#4488ff88', letterSpacing: 1, marginBottom: 6 }}>BUILD COST</div>
-              <div style={{ display: 'flex', gap: 12, fontSize: 12, fontWeight: 700 }}>
-                <span style={{ color: '#fc4' }}>
-                  {selectedShip.stats.creditCost} <span style={{ fontSize: 8, fontWeight: 400, color: '#8ac' }}>credits</span>
-                </span>
-                <span style={{ color: '#4df' }}>
-                  {selectedShip.stats.energyCost} <span style={{ fontSize: 8, fontWeight: 400, color: '#8ac' }}>energy</span>
-                </span>
-                <span style={{ color: '#4f8' }}>
-                  {selectedShip.stats.mineralCost} <span style={{ fontSize: 8, fontWeight: 400, color: '#8ac' }}>minerals</span>
-                </span>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6, marginBottom: 8 }}>
+                <div
+                  style={{
+                    textAlign: 'center',
+                    padding: '6px 0',
+                    borderRadius: 4,
+                    background: 'rgba(255,204,68,0.06)',
+                    border: '1px solid rgba(255,204,68,0.12)',
+                  }}
+                >
+                  <div style={{ fontSize: 14, fontWeight: 900, color: '#fc4' }}>{selectedShip.stats.creditCost}</div>
+                  <div style={{ fontSize: 7, color: '#8a8', letterSpacing: 0.5 }}>CREDITS</div>
+                </div>
+                <div
+                  style={{
+                    textAlign: 'center',
+                    padding: '6px 0',
+                    borderRadius: 4,
+                    background: 'rgba(68,220,255,0.06)',
+                    border: '1px solid rgba(68,220,255,0.12)',
+                  }}
+                >
+                  <div style={{ fontSize: 14, fontWeight: 900, color: '#4df' }}>{selectedShip.stats.energyCost}</div>
+                  <div style={{ fontSize: 7, color: '#8a8', letterSpacing: 0.5 }}>ENERGY</div>
+                </div>
+                <div
+                  style={{
+                    textAlign: 'center',
+                    padding: '6px 0',
+                    borderRadius: 4,
+                    background: 'rgba(68,255,136,0.06)',
+                    border: '1px solid rgba(68,255,136,0.12)',
+                  }}
+                >
+                  <div style={{ fontSize: 14, fontWeight: 900, color: '#4f8' }}>{selectedShip.stats.mineralCost}</div>
+                  <div style={{ fontSize: 7, color: '#8a8', letterSpacing: 0.5 }}>MINERALS</div>
+                </div>
               </div>
-              <div style={{ display: 'flex', gap: 12, marginTop: 6, fontSize: 10, color: '#68a' }}>
+              <div style={{ display: 'flex', gap: 14, fontSize: 10, color: '#68a', justifyContent: 'center' }}>
                 <span>⏱ {selectedShip.stats.buildTime}s</span>
                 <span>📦 {selectedShip.stats.supplyCost} supply</span>
                 <span>💥 {selectedShip.stats.attackType}</span>
