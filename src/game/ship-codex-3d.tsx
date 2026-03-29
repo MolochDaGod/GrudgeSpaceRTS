@@ -20,6 +20,9 @@ function easeOutBack(t: number): number {
   const c3 = c1 + 1;
   return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);
 }
+function easeInQuad(t: number): number {
+  return t * t;
+}
 
 // ── Codex Scene ────────────────────────────────────────────────────
 export class CodexScene {
@@ -36,6 +39,13 @@ export class CodexScene {
   private modelCache = new Map<string, THREE.Group>();
   private loadingModels = new Map<string, Promise<THREE.Group>>();
 
+  // Exiting ship (animates out while new one enters)
+  private exitingShip: THREE.Group | null = null;
+  private exitProgress = 0;
+  private exitDuration = 0.4;
+  private exitStartPos = new THREE.Vector3();
+  private exitEndPos = new THREE.Vector3(4, -14, 0);
+
   // Loaders
   private textureLoader = new THREE.TextureLoader();
   private objLoader = new OBJLoader();
@@ -43,12 +53,25 @@ export class CodexScene {
   private fbxLoader = new FBXLoader();
   private gltfLoader = new GLTFLoader();
 
-  // Animation
+  // Animation — diagonal fly-in from top-left to center
   private flyInProgress = 0; // 0..1, 1=done
-  private flyInDuration = 0.8;
+  private flyInDuration = 0.9;
   private idleTime = 0;
-  private targetY = 0;
-  private startY = -15;
+  private startPos = new THREE.Vector3(-14, 10, 0); // top-left off-screen
+  private targetPos = new THREE.Vector3(0, 0, 0); // center
+
+  // Mouse drag rotation
+  private shipYaw = 0; // current Y rotation (radians)
+  private isDragging = false;
+  private dragStartX = 0;
+  private dragStartY = 0;
+  private yawAtDragStart = 0;
+  private cameraPitch = 0;
+  private pitchAtDragStart = 0;
+  private baseCameraPitch = 0.15; // slight downward tilt
+
+  // Front-direction arrow indicator
+  private frontArrow: THREE.Group | null = null;
 
   // Starfield
   private starField!: THREE.Points;
@@ -56,6 +79,12 @@ export class CodexScene {
   // Callbacks
   public onLoadStart?: () => void;
   public onLoadEnd?: () => void;
+  public onYawChange?: (yaw: number) => void;
+
+  /** Get the current ship yaw in degrees (0-360). */
+  getShipYaw(): number {
+    return ((((this.shipYaw * 180) / Math.PI) % 360) + 360) % 360;
+  }
 
   constructor(private container: HTMLElement) {}
 
@@ -78,6 +107,12 @@ export class CodexScene {
     this.setupLighting();
     this.setupStarfield();
     this.setupNebula();
+    this.setupFrontArrow();
+
+    // Mouse drag events for ship rotation
+    this.renderer.domElement.addEventListener('mousedown', this.onMouseDown);
+    window.addEventListener('mousemove', this.onMouseDrag);
+    window.addEventListener('mouseup', this.onMouseUp);
 
     window.addEventListener('resize', this.onResize);
     this.animate();
@@ -145,18 +180,79 @@ export class CodexScene {
     }
   }
 
+  // ── Front-direction arrow on ground plane ─────────────────────────
+  private setupFrontArrow() {
+    const group = new THREE.Group();
+    // Arrow shaft
+    const shaftGeo = new THREE.CylinderGeometry(0.04, 0.04, 2.5, 8);
+    shaftGeo.rotateX(Math.PI / 2);
+    shaftGeo.translate(0, 0, 1.25);
+    const shaftMat = new THREE.MeshBasicMaterial({ color: 0x44ee88, transparent: true, opacity: 0.6 });
+    group.add(new THREE.Mesh(shaftGeo, shaftMat));
+    // Arrow head
+    const headGeo = new THREE.ConeGeometry(0.15, 0.4, 8);
+    headGeo.rotateX(Math.PI / 2);
+    headGeo.translate(0, 0, 2.7);
+    const headMat = new THREE.MeshBasicMaterial({ color: 0x44ee88, transparent: true, opacity: 0.8 });
+    group.add(new THREE.Mesh(headGeo, headMat));
+    // Ring at base
+    const ringGeo = new THREE.RingGeometry(2.8, 3.0, 48);
+    ringGeo.rotateX(-Math.PI / 2);
+    const ringMat = new THREE.MeshBasicMaterial({ color: 0x44ee88, transparent: true, opacity: 0.15, side: THREE.DoubleSide });
+    group.add(new THREE.Mesh(ringGeo, ringMat));
+    // "FRONT" label direction tick marks at cardinal points
+    for (let i = 0; i < 4; i++) {
+      const tickGeo = new THREE.BoxGeometry(0.06, 0.01, 0.25);
+      const tick = new THREE.Mesh(tickGeo, new THREE.MeshBasicMaterial({ color: 0x44ee88, transparent: true, opacity: 0.3 }));
+      const angle = (i * Math.PI) / 2;
+      tick.position.set(Math.sin(angle) * 2.9, 0, Math.cos(angle) * 2.9);
+      tick.rotation.y = angle;
+      group.add(tick);
+    }
+    group.position.y = -2.8; // below ship
+    group.visible = false;
+    this.scene.add(group);
+    this.frontArrow = group;
+  }
+
+  // ── Mouse drag handlers for rotation ──────────────────────────────
+  private onMouseDown = (e: MouseEvent) => {
+    if (e.button !== 0) return;
+    this.isDragging = true;
+    this.dragStartX = e.clientX;
+    this.dragStartY = e.clientY;
+    this.yawAtDragStart = this.shipYaw;
+    this.pitchAtDragStart = this.cameraPitch;
+  };
+  private onMouseDrag = (e: MouseEvent) => {
+    if (!this.isDragging) return;
+    const dx = e.clientX - this.dragStartX;
+    const dy = e.clientY - this.dragStartY;
+    this.shipYaw = this.yawAtDragStart + dx * 0.008;
+    this.cameraPitch = Math.max(-0.4, Math.min(0.6, this.pitchAtDragStart + dy * 0.003));
+    this.onYawChange?.(this.getShipYaw());
+  };
+  private onMouseUp = () => {
+    this.isDragging = false;
+  };
+
   // ── Show a ship model ───────────────────────────────────────────
   async showShip(shipKey: string) {
     if (shipKey === this.currentKey) return;
     this.currentKey = shipKey;
 
-    // Remove current ship (drop down)
+    // Animate old ship out (exit downward-right)
     if (this.currentShip) {
-      const old = this.currentShip;
+      // If already exiting a ship, remove it instantly
+      if (this.exitingShip) this.scene.remove(this.exitingShip);
+      this.exitingShip = this.currentShip;
+      this.exitStartPos.copy(this.currentShip.position);
+      this.exitProgress = 0;
       this.currentShip = null;
-      // Quick fade-out: just remove
-      this.scene.remove(old);
     }
+
+    // Hide front arrow during transition
+    if (this.frontArrow) this.frontArrow.visible = false;
 
     this.onLoadStart?.();
 
@@ -204,8 +300,9 @@ export class CodexScene {
     // Team tint
     this.tintModel(model, 1);
 
-    // Start fly-in from below
-    model.position.set(0, this.startY, 0);
+    // Start fly-in from top-left (diagonal entry)
+    model.position.copy(this.startPos);
+    model.rotation.y = this.shipYaw; // preserve user's orientation
     this.scene.add(model);
     this.currentShip = model;
     this.flyInProgress = 0;
@@ -287,20 +384,47 @@ export class CodexScene {
     // Slow starfield rotation
     if (this.starField) this.starField.rotation.y += dt * 0.003;
 
-    // Ship animation
+    // ── Exit animation (old ship drops out downward-right) ──────
+    if (this.exitingShip) {
+      this.exitProgress = Math.min(1, this.exitProgress + dt / this.exitDuration);
+      const t = easeInQuad(this.exitProgress);
+      this.exitingShip.position.lerpVectors(this.exitStartPos, this.exitEndPos, t);
+      this.exitingShip.rotation.x = t * 0.4; // slight tumble
+      if (this.exitProgress >= 1) {
+        this.scene.remove(this.exitingShip);
+        this.exitingShip = null;
+      }
+    }
+
+    // ── Fly-in animation (new ship enters from top-left) ────────
     if (this.currentShip) {
       if (this.flyInProgress < 1) {
         this.flyInProgress = Math.min(1, this.flyInProgress + dt / this.flyInDuration);
         const t = easeOutBack(this.flyInProgress);
-        this.currentShip.position.y = this.startY + (this.targetY - this.startY) * t;
+        this.currentShip.position.lerpVectors(this.startPos, this.targetPos, t);
+        // Slight spin during entry
+        this.currentShip.rotation.y = this.shipYaw + (1 - t) * Math.PI * 0.4;
       } else {
         this.idleTime += dt;
-        // Gentle bob
-        this.currentShip.position.y = this.targetY + Math.sin(this.idleTime * 1.2) * 0.15;
+        // Gentle bob at center
+        this.currentShip.position.x = this.targetPos.x;
+        this.currentShip.position.y = this.targetPos.y + Math.sin(this.idleTime * 1.2) * 0.12;
+        this.currentShip.position.z = this.targetPos.z;
+        // Apply user-controlled yaw (no auto-rotate)
+        this.currentShip.rotation.y = this.shipYaw;
+
+        // Show front direction arrow
+        if (this.frontArrow) {
+          this.frontArrow.visible = true;
+          this.frontArrow.rotation.y = this.shipYaw;
+        }
       }
-      // Slow rotation
-      this.currentShip.rotation.y += dt * 0.3;
     }
+
+    // ── Camera: slight pitch control from drag ──────────────────
+    const pitchOffset = this.cameraPitch + this.baseCameraPitch;
+    this.camera.position.set(0, 2 + pitchOffset * 6, 12);
+    this.camera.lookAt(0, pitchOffset * 2, 0);
 
     this.renderer.render(this.scene, this.camera);
   };
@@ -320,6 +444,9 @@ export class CodexScene {
     this.disposed = true;
     cancelAnimationFrame(this.animFrame);
     window.removeEventListener('resize', this.onResize);
+    window.removeEventListener('mousemove', this.onMouseDrag);
+    window.removeEventListener('mouseup', this.onMouseUp);
+    this.renderer.domElement.removeEventListener('mousedown', this.onMouseDown);
     this.renderer.dispose();
     if (this.renderer.domElement.parentElement) {
       this.renderer.domElement.parentElement.removeChild(this.renderer.domElement);
