@@ -1,0 +1,11 @@
+Model Information:
+* title:	Voxel Souls
+* source:	https://sketchfab.com/3d-models/voxel-souls-68c3334daf6e4192a6bf8344ef77a166
+* author:	theiceferret (https://sketchfab.com/theiceferret)
+
+Model License:
+* license type:	CC-BY-NC-SA-4.0 (http://creativecommons.org/licenses/by-nc-sa/4.0/)
+* requirements:	Author must be credited. No commercial use. Modified versions must have the same license.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Voxel Souls" (https://sketchfab.com/3d-models/voxel-souls-68c3334daf6e4192a6bf8344ef77a166) by theiceferret (https://sketchfab.com/theiceferret) licensed under CC-BY-NC-SA-4.0 (http://creativecommons.org/licenses/by-nc-sa/4.0/)

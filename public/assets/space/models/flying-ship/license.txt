@@ -1,0 +1,11 @@
+Model Information:
+* title:	Flying Ship
+* source:	https://sketchfab.com/3d-models/flying-ship-fbf31e27165043ad96fd8dc37d64b565
+* author:	OrangeSauceu (https://sketchfab.com/orangesauceu)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Flying Ship" (https://sketchfab.com/3d-models/flying-ship-fbf31e27165043ad96fd8dc37d64b565) by OrangeSauceu (https://sketchfab.com/orangesauceu) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
