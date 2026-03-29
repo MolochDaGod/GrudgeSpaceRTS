@@ -356,10 +356,13 @@ export class CodexScene {
     return (await promise).clone();
   }
 
-  // ── Team tint ───────────────────────────────────────────────────
+  // ── Team tint (HSL hue-shift) ────────────────────────────────────
   private tintModel(model: THREE.Object3D, team: number) {
     const hex = TEAM_COLORS[team] ?? 0x4488ff;
-    const tintColor = new THREE.Color(hex);
+    const teamColor = new THREE.Color(hex);
+    const teamHSL = { h: 0, s: 0, l: 0 };
+    teamColor.getHSL(teamHSL);
+
     model.traverse((child) => {
       if (!(child as THREE.Mesh).isMesh) return;
       const mesh = child as THREE.Mesh;
@@ -367,9 +370,12 @@ export class CodexScene {
       for (const mat of materials) {
         if (!mat || !(mat as THREE.MeshStandardMaterial).isMeshStandardMaterial) continue;
         const stdMat = (mat as THREE.MeshStandardMaterial).clone();
-        stdMat.emissive.lerp(tintColor, 0.35);
-        stdMat.emissiveIntensity = Math.max(stdMat.emissiveIntensity, 0.2);
-        stdMat.color.lerp(tintColor, 0.1);
+        // HSL hue-shift: replace hue, keep sat/lightness
+        const srcHSL = { h: 0, s: 0, l: 0 };
+        stdMat.color.getHSL(srcHSL);
+        stdMat.color.setHSL(teamHSL.h, Math.max(srcHSL.s, 0.5), Math.min(Math.max(srcHSL.l, 0.25), 0.7));
+        stdMat.emissive.setHSL(teamHSL.h, teamHSL.s, 0.15);
+        stdMat.emissiveIntensity = 0.4;
         mesh.material = stdMat;
       }
     });

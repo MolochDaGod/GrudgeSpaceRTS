@@ -1053,13 +1053,16 @@ export class SpaceRenderer {
   }
 
   /**
-   * Tint a loaded 3D model to a team's colour. Works by traversing all meshes
-   * and blending the team colour into their material (emissive for subtle tint
-   * that doesn't wash out textures, plus slight base-colour shift).
+   * Tint a loaded 3D model to a team's colour using HSL hue-shifting.
+   * Replaces the original hue with the team hue while preserving saturation
+   * and lightness — ships clearly read as their team colour without
+   * destroying texture detail.
    */
   private static tintModelToTeam(model: THREE.Object3D, team: number): void {
     const hex = TEAM_COLORS[team] ?? 0x4488ff;
-    const tintColor = new THREE.Color(hex);
+    const teamColor = new THREE.Color(hex);
+    const teamHSL = { h: 0, s: 0, l: 0 };
+    teamColor.getHSL(teamHSL);
 
     model.traverse((child) => {
       if (!(child as THREE.Mesh).isMesh) return;
@@ -1068,14 +1071,103 @@ export class SpaceRenderer {
       for (const mat of materials) {
         if (!mat || !(mat as THREE.MeshStandardMaterial).isMeshStandardMaterial) continue;
         const stdMat = (mat as THREE.MeshStandardMaterial).clone();
-        // Gentle emissive tint — visible but doesn't destroy original texture
-        stdMat.emissive.lerp(tintColor, 0.45);
-        stdMat.emissiveIntensity = Math.max(stdMat.emissiveIntensity, 0.25);
-        // Subtle base colour shift
-        stdMat.color.lerp(tintColor, 0.15);
+
+        // HSL hue-shift: replace original hue with team hue, keep sat/lightness
+        const srcHSL = { h: 0, s: 0, l: 0 };
+        stdMat.color.getHSL(srcHSL);
+        stdMat.color.setHSL(
+          teamHSL.h,
+          Math.max(srcHSL.s, 0.5), // ensure visible saturation
+          Math.min(Math.max(srcHSL.l, 0.25), 0.7), // clamp lightness
+        );
+
+        // Strong emissive glow in team colour for visibility at all zoom levels
+        stdMat.emissive.setHSL(teamHSL.h, teamHSL.s, 0.15);
+        stdMat.emissiveIntensity = 0.45;
+
+        // If the material has a texture map, tint it via canvas hue-shift
+        if (stdMat.map) {
+          stdMat.map = SpaceRenderer.hueShiftTexture(stdMat.map, teamHSL.h);
+          stdMat.map.needsUpdate = true;
+          if (stdMat.emissiveMap) {
+            stdMat.emissiveMap = stdMat.map; // reuse tinted texture
+          }
+        }
+
         mesh.material = stdMat;
       }
     });
+  }
+
+  /**
+   * Create a hue-shifted copy of a THREE.Texture by drawing it to an
+   * offscreen canvas and rotating hue via HSL manipulation.
+   * Returns a new CanvasTexture with the team's hue.
+   */
+  private static hueShiftTexture(srcTex: THREE.Texture, targetHue: number): THREE.CanvasTexture {
+    const img = srcTex.image as HTMLImageElement | HTMLCanvasElement | ImageBitmap;
+    if (!img || !('width' in img && img.width > 0)) return srcTex as unknown as THREE.CanvasTexture;
+
+    const w = img.width;
+    const h = img.height;
+    const canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d')!;
+    ctx.drawImage(img as CanvasImageSource, 0, 0);
+
+    const imageData = ctx.getImageData(0, 0, w, h);
+    const data = imageData.data;
+
+    for (let i = 0; i < data.length; i += 4) {
+      const r = data[i] / 255;
+      const g = data[i + 1] / 255;
+      const b = data[i + 2] / 255;
+      // RGB to HSL
+      const max = Math.max(r, g, b),
+        min = Math.min(r, g, b);
+      let hue = 0;
+      const light = (max + min) / 2;
+      const sat = max === min ? 0 : light > 0.5 ? (max - min) / (2 - max - min) : (max - min) / (max + min);
+      if (max !== min) {
+        const d = max - min;
+        if (max === r) hue = ((g - b) / d + (g < b ? 6 : 0)) / 6;
+        else if (max === g) hue = ((b - r) / d + 2) / 6;
+        else hue = ((r - g) / d + 4) / 6;
+      }
+      // Replace hue, keep sat boosted, keep lightness
+      void hue; // original hue discarded
+      const nh = targetHue;
+      const ns = Math.max(sat, 0.4);
+      const nl = light;
+      // HSL to RGB
+      const hue2rgb = (p: number, q: number, t: number) => {
+        if (t < 0) t += 1;
+        if (t > 1) t -= 1;
+        if (t < 1 / 6) return p + (q - p) * 6 * t;
+        if (t < 1 / 2) return q;
+        if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
+        return p;
+      };
+      if (ns === 0) {
+        data[i] = data[i + 1] = data[i + 2] = Math.round(nl * 255);
+      } else {
+        const q2 = nl < 0.5 ? nl * (1 + ns) : nl + ns - nl * ns;
+        const p2 = 2 * nl - q2;
+        data[i] = Math.round(hue2rgb(p2, q2, nh + 1 / 3) * 255);
+        data[i + 1] = Math.round(hue2rgb(p2, q2, nh) * 255);
+        data[i + 2] = Math.round(hue2rgb(p2, q2, nh - 1 / 3) * 255);
+      }
+    }
+    ctx.putImageData(imageData, 0, 0);
+
+    const canvasTex = new THREE.CanvasTexture(canvas);
+    canvasTex.colorSpace = srcTex.colorSpace;
+    canvasTex.wrapS = srcTex.wrapS;
+    canvasTex.wrapT = srcTex.wrapT;
+    canvasTex.minFilter = srcTex.minFilter;
+    canvasTex.magFilter = srcTex.magFilter;
+    return canvasTex;
   }
 
   /** Ships float above the ground plane so they render above planet equators. */
