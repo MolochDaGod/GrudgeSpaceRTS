@@ -12,7 +12,10 @@
     "format": "prettier --write src/",
     "test": "vitest run",
     "prepare": "husky",
-    "validate": "tsc --noEmit && eslint src/ && vitest run && vite build"
+    "validate": "tsc --noEmit && eslint src/ && vitest run && vite build",
+    "r2:preview": "node scripts/upload-assets-r2.mjs --dry-run",
+    "r2:upload": "node scripts/upload-assets-r2.mjs",
+    "r2:upload:force": "node scripts/upload-assets-r2.mjs --force"
   },
   "lint-staged": {
     "*.{ts,tsx}": [
@@ -30,6 +33,7 @@
     "three.quarks": "^0.17.0"
   },
   "devDependencies": {
+    "@aws-sdk/client-s3": "^3.1019.0",
     "@eslint/js": "^9.39.4",
     "@heyputer/puter.js": "^2.2.14",
     "@types/howler": "^2.2.12",

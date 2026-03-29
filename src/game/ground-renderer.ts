@@ -18,6 +18,7 @@ import {
   updateGroundCombat,
   spawnWave,
 } from './ground-combat';
+import { resolvePathUrl } from './asset-registry';
 
 // ── Animation system ─────────────────────────────────────────────
 const ANIM_BASE = '/assets/ground/animations';
@@ -945,7 +946,8 @@ export class GroundRenderer {
       return g.clone();
     }
 
-    const promise = this.fbxLoader.loadAsync(path).then((fbx) => {
+    const url = resolvePathUrl(path);
+    const promise = this.fbxLoader.loadAsync(url).then((fbx) => {
       // Normalize scale
       const box = new THREE.Box3().setFromObject(fbx);
       const size = box.getSize(new THREE.Vector3());
@@ -1080,10 +1082,10 @@ export class GroundRenderer {
   /** Load the Ancient Crash Site OBJ as a terrain landmark. */
   private async loadCrashSite(): Promise<void> {
     try {
-      const mtl = await this.mtlLoader.loadAsync('/assets/ground/terrain/AncientCrashSite.mtl');
+      const mtl = await this.mtlLoader.loadAsync(resolvePathUrl('/assets/ground/terrain/AncientCrashSite.mtl'));
       mtl.preload();
       this.objLoader.setMaterials(mtl);
-      const obj = await this.objLoader.loadAsync('/assets/ground/terrain/AncientCrashSite.obj');
+      const obj = await this.objLoader.loadAsync(resolvePathUrl('/assets/ground/terrain/AncientCrashSite.obj'));
       // Scale and place as a landmark
       obj.scale.setScalar(0.02);
       obj.position.set(25, 0, 25);
