@@ -1,9 +1,6 @@
 import * as THREE from 'three';
-import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
-import { MTLLoader } from 'three/examples/jsm/loaders/MTLLoader.js';
-import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { getShipPrefab, BACKGROUND_LAYERS, STATION_PREFABS, EFFECT_PREFABS, type SpacePrefab } from './space-prefabs';
+import { loadByFormat, loadFBX, loadGLB, getTexture } from './model-loader';
 import {
   type SpaceGameState,
   type SpaceShip,
@@ -119,10 +116,6 @@ export class SpaceRenderer {
   private modelCache = new Map<string, THREE.Group>();
   private loadingModels = new Map<string, Promise<THREE.Group>>();
   private textureLoader = new THREE.TextureLoader();
-  private objLoader = new OBJLoader();
-  private mtlLoader = new MTLLoader();
-  private fbxLoader = new FBXLoader();
-  private gltfLoader = new GLTFLoader();
 
   private selectionBoxDiv!: HTMLDivElement;
   private starField!: THREE.Points;
@@ -469,8 +462,8 @@ export class SpaceRenderer {
     if (this.scenePropCache.has(path)) return this.scenePropCache.get(path)!.clone();
     if (this.scenePropLoads.has(path)) return (await this.scenePropLoads.get(path)!).clone();
     const promise = (async () => {
-      const raw = (await this.fbxLoader.loadAsync(path)) as unknown as THREE.Group;
-      const model = this.sanitizeScenePropModel(raw, path);
+      const loaded = await loadFBX(path);
+      const model = this.sanitizeScenePropModel(loaded.scene, path);
       this.scenePropCache.set(path, model);
       this.scenePropLoads.delete(path);
       return model;
@@ -701,11 +694,10 @@ export class SpaceRenderer {
       // Load GLB planet model and size it to match the planet radius
       const glbPath = this.PLANET_GLBS[planet.planetType];
       if (glbPath) {
-        this.gltfLoader
-          .loadAsync(glbPath)
-          .then((gltf) => {
+        loadGLB(glbPath)
+          .then((loaded) => {
             if (this.disposed) return;
-            const model = gltf.scene;
+            const model = loaded.scene;
             // Scale GLB to match planet sphere radius
             const box = new THREE.Box3().setFromObject(model);
             const modelDiam = box.getSize(new THREE.Vector3()).length();
@@ -987,61 +979,30 @@ export class SpaceRenderer {
     }
 
     const promise = (async () => {
-      let group: THREE.Group;
-      // Resolve paths through CDN when VITE_ASSET_CDN is set
-      const modelUrl = resolvePathUrl(prefab.modelPath);
-      const textureUrl = prefab.texturePath ? resolvePathUrl(prefab.texturePath) : undefined;
-      const mtlUrl = prefab.mtlPath ? resolvePathUrl(prefab.mtlPath) : undefined;
-      if (prefab.format === 'glb') {
-        const gltf = await this.gltfLoader.loadAsync(modelUrl);
-        group = gltf.scene;
-      } else if (prefab.format === 'fbx') {
-        group = (await this.fbxLoader.loadAsync(modelUrl)) as unknown as THREE.Group;
-        if (textureUrl) {
-          const tex = this.textureLoader.load(textureUrl);
-          tex.colorSpace = THREE.SRGBColorSpace;
-          group.traverse((c) => {
-            if ((c as THREE.Mesh).isMesh) {
-              (c as THREE.Mesh).material = new THREE.MeshStandardMaterial({
-                map: tex,
-                roughness: 0.4,
-                metalness: 0.5,
-                emissiveMap: tex,
-                emissiveIntensity: 0.15,
-                emissive: new THREE.Color(0x222244),
-                envMapIntensity: 1.0,
-              });
-            }
-          });
-        }
-      } else {
-        if (mtlUrl) {
-          const mats = await this.mtlLoader.loadAsync(mtlUrl);
-          mats.preload();
-          const loader = new OBJLoader();
-          loader.setMaterials(mats);
-          group = await loader.loadAsync(modelUrl);
-        } else {
-          group = await this.objLoader.loadAsync(modelUrl);
-        }
-        if (textureUrl) {
-          const tex = this.textureLoader.load(textureUrl);
-          tex.colorSpace = THREE.SRGBColorSpace;
-          group.traverse((c) => {
-            if ((c as THREE.Mesh).isMesh) {
-              (c as THREE.Mesh).material = new THREE.MeshStandardMaterial({
-                map: tex,
-                roughness: 0.4,
-                metalness: 0.5,
-                emissiveMap: tex,
-                emissiveIntensity: 0.15,
-                emissive: new THREE.Color(0x222244),
-                envMapIntensity: 1.0,
-              });
-            }
-          });
-        }
+      const loaded = await loadByFormat(prefab.modelPath, prefab.format, {
+        mtlPath: prefab.mtlPath,
+        texturePath: prefab.texturePath,
+      });
+      const group = loaded.scene;
+
+      // Apply emissive space-ship look for FBX/OBJ models with textures
+      if (prefab.texturePath && prefab.format !== 'glb' && prefab.format !== 'gltf') {
+        const tex = getTexture(prefab.texturePath);
+        group.traverse((c) => {
+          if ((c as THREE.Mesh).isMesh) {
+            (c as THREE.Mesh).material = new THREE.MeshStandardMaterial({
+              map: tex,
+              roughness: 0.4,
+              metalness: 0.5,
+              emissiveMap: tex,
+              emissiveIntensity: 0.15,
+              emissive: new THREE.Color(0x222244),
+              envMapIntensity: 1.0,
+            });
+          }
+        });
       }
+
       // NOTE: Do NOT apply prefab.scale here — autoFit() in syncShips
       // measures the raw model bounding box and scales to match the
       // target ship class size. Applying scale here would corrupt that.
@@ -2336,12 +2297,12 @@ export class SpaceRenderer {
     if (!this.customHeroUrl) return; // no saved ship — keep placeholder
 
     try {
-      const gltf = await this.gltfLoader.loadAsync(this.customHeroUrl);
+      const loaded = await loadGLB(this.customHeroUrl);
       if (this.disposed) return;
       const ex = this.shipMeshes.get(shipId);
       if (!ex) return;
       const ship = this.engine.state.ships.get(shipId);
-      const model = gltf.scene;
+      const model = loaded.scene;
       // Scale to match dreadnought size (≈24 Three.js units)
       const box = new THREE.Box3().setFromObject(model);
       const modelDiam = box.getSize(new THREE.Vector3()).length();

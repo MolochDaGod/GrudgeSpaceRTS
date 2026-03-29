@@ -4,7 +4,7 @@ export interface SpacePrefab {
   modelPath: string;
   mtlPath?: string;
   texturePath?: string;
-  format: 'obj' | 'fbx' | 'glb';
+  format: 'obj' | 'fbx' | 'glb' | 'gltf';
   scale: number;
   offset: THREE.Vector3;
   rotation?: THREE.Euler;
