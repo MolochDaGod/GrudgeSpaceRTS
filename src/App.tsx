@@ -40,12 +40,13 @@ import { DevOverlay } from './game/dev-overlay';
 
 // ── Lazy-loaded heavy modules (code-split) ────────────────────────
 // These chunks only download when the user navigates to the relevant screen.
-const LazySpaceHUD = lazy(() => import('./game/space-ui').then(m => ({ default: m.SpaceHUD })));
-const LazyStarMapOverlay = lazy(() => import('./game/space-starmap').then(m => ({ default: m.StarMapOverlay })));
-const LazyShipForgeEditor = lazy(() => import('./game/ship-editor').then(m => ({ default: m.ShipForgeEditor })));
-const LazyShipCodex3D = lazy(() => import('./game/codex-ui').then(m => ({ default: m.ShipCodex3D })));
-const LazyGroundCombatView = lazy(() => import('./game/GroundCombatView').then(m => ({ default: m.GroundCombatView })));
-const LazyGroundBattleView = lazy(() => import('./game/GroundBattleView').then(m => ({ default: m.GroundBattleView })));
+const LazySpaceHUD = lazy(() => import('./game/space-ui').then((m) => ({ default: m.SpaceHUD })));
+const LazyStarMapOverlay = lazy(() => import('./game/space-starmap').then((m) => ({ default: m.StarMapOverlay })));
+const LazyShipForgeEditor = lazy(() => import('./game/ship-editor').then((m) => ({ default: m.ShipForgeEditor })));
+const LazyShipCodex3D = lazy(() => import('./game/codex-ui').then((m) => ({ default: m.ShipCodex3D })));
+const LazyGroundCombatView = lazy(() => import('./game/GroundCombatView').then((m) => ({ default: m.GroundCombatView })));
+const LazyGroundBattleView = lazy(() => import('./game/GroundBattleView').then((m) => ({ default: m.GroundBattleView })));
+const LazyGroundRTSView = lazy(() => import('./game/GroundRTSView'));
 import type { PlanetType } from './game/space-types';
 
 type Screen = 'intro' | 'menu' | 'codex' | 'howto' | 'editor' | 'playing' | 'ground_combat' | 'ground_rts';
@@ -551,9 +552,17 @@ export default function App() {
           onCancel={() => setShowCampaignBuilder(false)}
         />
       )}
-      {screen === 'codex' && <Suspense fallback={<LoadingScreen />}><LazyShipCodex3D onBack={() => setScreen('menu')} /></Suspense>}
+      {screen === 'codex' && (
+        <Suspense fallback={<LoadingScreen />}>
+          <LazyShipCodex3D onBack={() => setScreen('menu')} />
+        </Suspense>
+      )}
       {screen === 'howto' && <HowToPlay onBack={() => setScreen('menu')} />}
-      {screen === 'editor' && <Suspense fallback={<LoadingScreen />}><LazyShipForgeEditor onBack={() => setScreen('menu')} /></Suspense>}
+      {screen === 'editor' && (
+        <Suspense fallback={<LoadingScreen />}>
+          <LazyShipForgeEditor onBack={() => setScreen('menu')} />
+        </Suspense>
+      )}
       {loading && <LoadingScreen />}
       {screen === 'playing' && !loading && renderer && (
         <Suspense fallback={null}>
@@ -574,7 +583,11 @@ export default function App() {
           />
         </Suspense>
       )}
-      {screen === 'playing' && starMapOpen && renderer && <Suspense fallback={null}><LazyStarMapOverlay renderer={renderer} onClose={() => setStarMapOpen(false)} /></Suspense>}
+      {screen === 'playing' && starMapOpen && renderer && (
+        <Suspense fallback={null}>
+          <LazyStarMapOverlay renderer={renderer} onClose={() => setStarMapOpen(false)} />
+        </Suspense>
+      )}
       {screen === 'ground_combat' && (
         <Suspense fallback={<LoadingScreen />}>
           <LazyGroundCombatView
@@ -589,14 +602,7 @@ export default function App() {
       )}
       {screen === 'ground_rts' && (
         <Suspense fallback={<LoadingScreen />}>
-          <LazyGroundBattleView
-            planetType={groundPlanetType}
-            planetName={groundPlanetName}
-            onExit={(result) => {
-              console.log('[GROUND RTS] Battle result:', result);
-              setScreen(rendererRef.current ? 'playing' : 'menu');
-            }}
-          />
+          <LazyGroundRTSView />
         </Suspense>
       )}
       {/* Admin UI overlay — toggle with backtick key */}

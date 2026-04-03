@@ -84,6 +84,58 @@ const SHRINK = new PiecewiseBezier([[new Bezier(1, 0.6, 0.2, 0), 0]]);
 // Expand-then-fade for explosions
 const EXPAND_FADE = new PiecewiseBezier([[new Bezier(0.1, 0.8, 1.2, 0), 0]]);
 
+// ── AoE Spell Textures (Matthew Guz Spell Area of Effect pack) ──────
+// Single-frame textures used as ground-plane AoE indicators,
+// shockwave/impact overlays, and particle emitter textures.
+const AOE = '/assets/space/sprites/aoe-effects';
+export const AOE_TEXTURES: Record<string, string> = {
+  // ── Base circles / ground runes ────────────────────────────
+  'aoe-base': `${AOE}/2-Base.png`,
+  'aoe-ankh': `${AOE}/2-Ank.png`,
+  // ── Magic circles (5 unique patterns) ─────────────────────
+  'aoe-magic-1': `${AOE}/magic/Magic1.png`,
+  'aoe-magic-2': `${AOE}/magic/Magic2.png`,
+  'aoe-magic-3': `${AOE}/magic/Magic3.png`,
+  'aoe-magic-4': `${AOE}/magic/Magic4.png`,
+  'aoe-magic-5': `${AOE}/magic/Magic5.png`,
+  'aoe-magic-line': `${AOE}/magic/Line.png`,
+  // ── Impact / shockwave ───────────────────────────────────
+  'aoe-explosion': `${AOE}/2-Explosion.png`,
+  'aoe-shockwave': `${AOE}/2-Shockwave-2.png`,
+  'aoe-crack': `${AOE}/2-Crack.png`,
+  'aoe-crack2': `${AOE}/2-Crack2.png`,
+  'aoe-crack-alt': `${AOE}/2-Cra-alt.png`,
+  // ── Elemental particles ──────────────────────────────────
+  'aoe-spark': `${AOE}/2-Spark.png`,
+  'aoe-shine': `${AOE}/2-Shine.png`,
+  'aoe-point': `${AOE}/2-Point.png`,
+  'aoe-snow': `${AOE}/2-Snow_.png`,
+  'aoe-star': `${AOE}/2-Star_.png`,
+  'aoe-star-2': `${AOE}/2-Star_-2.png`,
+  // ── Themed effects ──────────────────────────────────────
+  'aoe-skull': `${AOE}/2-Skull.png`,
+  'aoe-skull-alt': `${AOE}/2-Skull-alt.png`,
+  'aoe-sword': `${AOE}/2-Sword-alt.png`,
+  'aoe-stone': `${AOE}/2-Stone2.png`,
+  'aoe-crit': `${AOE}/2-Crit_2.png`,
+  // ── Gradients (useful for trails and fade effects) ──────────────
+  'aoe-gradient': `${AOE}/2-Gradient.png`,
+  'aoe-gradient-2': `${AOE}/2-Gradient2.png`,
+  // ── Magic patterns (ability-specific overlays) ────────────────
+  'aoe-magic-circle': `${AOE}/2-Magic.png`,
+  'aoe-magic-circle-2': `${AOE}/2-Magic-2.png`,
+  'aoe-magic-circle-3': `${AOE}/2-Magic-3.png`,
+  'aoe-magic-circle-4': `${AOE}/2-Magic-4.png`,
+};
+
+// ── Faction → AoE texture mapping (which AoE look fits which faction) ──
+export const FACTION_AOE_TEXTURES: Record<string, string[]> = {
+  wisdom: ['aoe-magic-1', 'aoe-snow', 'aoe-magic-2', 'aoe-star'],
+  construct: ['aoe-explosion', 'aoe-crack', 'aoe-crit', 'aoe-magic-3'],
+  void: ['aoe-skull', 'aoe-magic-circle', 'aoe-ankh', 'aoe-magic-4'],
+  legion: ['aoe-shockwave', 'aoe-skull-alt', 'aoe-magic-5', 'aoe-spark'],
+};
+
 // ── VFXSystem ────────────────────────────────────────────────────────
 
 export class VFXSystem {
@@ -366,7 +418,113 @@ export class VFXSystem {
     this.projTrails.delete(projId);
   }
 
-  // ── Mine Warnings ────────────────────────────────────────────────
+  // ── AoE Ground Effects (spell/ability area indicators) ──────────
+
+  /** Active AoE ground meshes: uniqueId → { mesh, light?, ttl } */
+  private aoeEffects = new Map<number, { mesh: THREE.Mesh; light?: THREE.PointLight; ttl: number; elapsed: number }>();
+  private nextAoeId = 1;
+  private aoeTextureCache = new Map<string, THREE.Texture>();
+
+  private getAoeTexture(path: string): THREE.Texture {
+    if (this.aoeTextureCache.has(path)) return this.aoeTextureCache.get(path)!;
+    const tex = new THREE.TextureLoader().load(path);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    this.aoeTextureCache.set(path, tex);
+    return tex;
+  }
+
+  /**
+   * Spawn an AoE ground-plane effect at game coordinates.
+   * Uses the Matthew Guz Spell AoE textures as billboard/ground projections.
+   *
+   * @param gx, gy   Game-space position
+   * @param radius   Effect radius in game units
+   * @param texKey   Key from AOE_TEXTURES registry
+   * @param color    Tint color (hex)
+   * @param duration Lifetime in seconds (0 = 3s default)
+   * @returns Effect ID for later removal
+   */
+  spawnAoEEffect(gx: number, gy: number, radius: number, texKey: string, color = 0xffffff, duration = 3): number {
+    const texPath = AOE_TEXTURES[texKey];
+    if (!texPath) return -1;
+
+    const worldR = radius * WORLD_SCALE;
+    const diamSize = Math.max(worldR * 2, 2);
+
+    const tex = this.getAoeTexture(texPath);
+    const geo = new THREE.PlaneGeometry(diamSize, diamSize);
+    const mat = new THREE.MeshBasicMaterial({
+      map: tex,
+      color,
+      transparent: true,
+      opacity: 0.0, // fade in
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      side: THREE.DoubleSide,
+    });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.rotation.x = -Math.PI / 2; // lay flat on ground
+    mesh.position.set(gx * WORLD_SCALE, 0.3, gy * WORLD_SCALE);
+    mesh.renderOrder = 4;
+    this.scene.add(mesh);
+
+    // Coloured point light for dramatic ground illumination
+    const light = new THREE.PointLight(color, 0, diamSize * 2);
+    light.position.set(gx * WORLD_SCALE, 2, gy * WORLD_SCALE);
+    this.scene.add(light);
+
+    const id = this.nextAoeId++;
+    this.aoeEffects.set(id, { mesh, light, ttl: duration, elapsed: 0 });
+
+    // Spawn particles above the AoE zone using the same texture
+    const rgb = hexToVec3(color);
+    this.spawnBurst(new THREE.Vector3(gx * WORLD_SCALE, 1.5, gy * WORLD_SCALE), color, worldR * 0.15, worldR * 0.5, 15, duration * 0.6);
+
+    return id;
+  }
+
+  /** Remove an AoE effect early. */
+  removeAoEEffect(id: number): void {
+    const fx = this.aoeEffects.get(id);
+    if (!fx) return;
+    this.scene.remove(fx.mesh);
+    fx.mesh.geometry.dispose();
+    (fx.mesh.material as THREE.Material).dispose();
+    if (fx.light) this.scene.remove(fx.light);
+    this.aoeEffects.delete(id);
+  }
+
+  /** Called in update() to animate AoE effects. */
+  private updateAoEEffects(dt: number): void {
+    for (const [id, fx] of this.aoeEffects) {
+      fx.elapsed += dt;
+      const t = fx.elapsed / fx.ttl; // 0ₒ1 normalized lifetime
+
+      // Fade in (0ₒ0.15), hold (0.15ₒ0.7), fade out (0.7ₒ1.0)
+      let alpha: number;
+      if (t < 0.15) alpha = t / 0.15;
+      else if (t < 0.7) alpha = 1.0;
+      else alpha = 1.0 - (t - 0.7) / 0.3;
+      alpha = Math.max(0, Math.min(1, alpha));
+
+      const mat = fx.mesh.material as THREE.MeshBasicMaterial;
+      mat.opacity = alpha * 0.7;
+
+      // Subtle rotation for visual interest
+      fx.mesh.rotation.z += dt * 0.3;
+
+      // Pulse the ground light
+      if (fx.light) {
+        fx.light.intensity = alpha * 1.5 * (0.8 + 0.2 * Math.sin(fx.elapsed * 4));
+      }
+
+      if (fx.elapsed >= fx.ttl) {
+        this.removeAoEEffect(id);
+      }
+    }
+  }
+
+  // ── Mine Warnings ────────────────────────────────────────────
 
   /** Spawn a mine warning marker at game coords. */
   spawnMineWarning(mineId: number, gx: number, gy: number, teamColorHex: number): void {
@@ -430,6 +588,9 @@ export class VFXSystem {
         this.oneShots.splice(i, 1);
       }
     }
+
+    // Animate AoE ground effects
+    this.updateAoEEffects(dt);
   }
 
   dispose(): void {
@@ -446,6 +607,8 @@ export class VFXSystem {
       this.scene.remove(sphere);
       this.scene.remove(light);
     }
+    for (const [id] of this.aoeEffects) this.removeAoEEffect(id);
+    for (const tex of this.aoeTextureCache.values()) tex.dispose();
   }
 }
 

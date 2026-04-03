@@ -80,7 +80,7 @@ function applyTextureToGroup(group: THREE.Group, texturePath: string): void {
   });
 }
 
-// ── GLB / GLTF Loading ────────────────────────────────────────────
+// ── GLB / GLTF Loading ────────────────────────────────────────
 
 export async function loadGLB(path: string): Promise<LoadedModel> {
   const resolved = resolveModelUrl(path);
@@ -94,6 +94,10 @@ export async function loadGLB(path: string): Promise<LoadedModel> {
   }
 
   const promise = gltfLoader.loadAsync(resolved).then((gltf) => {
+    // Enhance PBR materials for a badass space-combat look.
+    // GLTF models come with proper metallic-roughness workflow;
+    // we boost them for deep-space visibility and cinematic impact.
+    enhanceGLTFMaterials(gltf.scene);
     const model: LoadedModel = { scene: gltf.scene, animations: gltf.animations };
     modelCache.set(resolved, model);
     loadingPromises.delete(resolved);
@@ -103,6 +107,45 @@ export async function loadGLB(path: string): Promise<LoadedModel> {
   loadingPromises.set(resolved, promise);
   const result = await promise;
   return { scene: result.scene.clone(), animations: result.animations };
+}
+
+/**
+ * Enhance GLTF PBR materials for deep-space rendering:
+ * - Boost metalness and tweak roughness for sharper reflections
+ * - Add emissive glow from existing emissive maps or as a subtle base
+ * - Preserve normal maps and metallic-roughness maps
+ * - Make ships read clearly against dark space backgrounds
+ */
+function enhanceGLTFMaterials(scene: THREE.Group): void {
+  scene.traverse((child) => {
+    if (!(child as THREE.Mesh).isMesh) return;
+    const mesh = child as THREE.Mesh;
+    const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+    const enhanced = materials.map((mat) => {
+      if (!(mat as THREE.MeshStandardMaterial).isMeshStandardMaterial) return mat;
+      const sm = mat as THREE.MeshStandardMaterial;
+
+      // Boost metalness for that hard sci-fi hull look
+      sm.metalness = Math.max(sm.metalness, 0.6);
+      sm.roughness = Math.min(sm.roughness, 0.55);
+
+      // If the model has an emissive map, crank it up for visibility
+      if (sm.emissiveMap) {
+        sm.emissiveIntensity = Math.max(sm.emissiveIntensity, 0.5);
+      } else if (sm.map) {
+        // No emissive map — use baseColor as subtle emissive for deep-space visibility
+        sm.emissiveMap = sm.map;
+        sm.emissiveIntensity = 0.12;
+        sm.emissive.setHex(0x223344);
+      }
+
+      // Ensure env map influence is strong for specular highlights
+      sm.envMapIntensity = Math.max(sm.envMapIntensity ?? 1.0, 1.2);
+      sm.needsUpdate = true;
+      return sm;
+    });
+    mesh.material = Array.isArray(mesh.material) ? enhanced : enhanced[0];
+  });
 }
 
 // ── FBX Loading ───────────────────────────────────────────────────
@@ -133,11 +176,7 @@ export async function loadFBX(path: string, texturePath?: string): Promise<Loade
 
 // ── OBJ (+MTL) Loading ────────────────────────────────────────────
 
-export async function loadOBJ(
-  objPath: string,
-  mtlPath?: string,
-  texturePath?: string,
-): Promise<LoadedModel> {
+export async function loadOBJ(objPath: string, mtlPath?: string, texturePath?: string): Promise<LoadedModel> {
   const resolved = resolveModelUrl(objPath);
   if (modelCache.has(resolved)) {
     const cached = modelCache.get(resolved)!;
@@ -227,9 +266,7 @@ export async function loadAnimationClip(path: string): Promise<THREE.AnimationCl
 }
 
 /** Batch load animation clips from a name→path map. */
-export async function loadAnimationSet(
-  paths: Record<string, string>,
-): Promise<Map<string, THREE.AnimationClip>> {
+export async function loadAnimationSet(paths: Record<string, string>): Promise<Map<string, THREE.AnimationClip>> {
   const result = new Map<string, THREE.AnimationClip>();
   const promises = Object.entries(paths).map(async ([name, path]) => {
     const clip = await loadAnimationClip(path);

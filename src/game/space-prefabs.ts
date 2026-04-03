@@ -776,6 +776,213 @@ for (let i = 1; i <= 6; i++) {
   };
 }
 
+// ── Bionic Parts Fleet (GLTF — PBR textured modular ships) ──────
+// Source: bionic_spaceships_parts.zip — high-quality PBR with
+// baseColor, metallicRoughness, and specularF0 textures.
+// The scene contains ~35 modular parts arranged as a complete ship.
+const BP = '/assets/space/models/bionic-parts';
+export const BIONIC_PREFABS: Record<string, SpacePrefab> = {
+  bionic_assault: {
+    modelPath: `${BP}/scene.gltf`,
+    format: 'gltf',
+    scale: 0.6,
+    offset: S(0, 0, 0),
+    // Bionic ship: elongated along X in source, we rotate to +Z forward
+    rotation: E(0, Math.PI / 2, 0),
+    enginePoints: [S(-0.8, 0, -1.2), S(0.8, 0, -1.2)],
+    weaponPoints: [S(-0.4, 0.1, 1.8), S(0.4, 0.1, 1.8), S(0, 0.2, 2.2)],
+  },
+  bionic_interceptor: {
+    modelPath: `${BP}/scene.gltf`,
+    format: 'gltf',
+    scale: 0.35,
+    offset: S(0, 0, 0),
+    rotation: E(0, Math.PI / 2, 0),
+    enginePoints: [S(0, 0, -0.8)],
+    weaponPoints: [S(-0.3, 0, 1.2), S(0.3, 0, 1.2)],
+  },
+  bionic_dreadnought: {
+    modelPath: `${BP}/scene.gltf`,
+    format: 'gltf',
+    scale: 1.2,
+    offset: S(0, 0, 0),
+    rotation: E(0, Math.PI / 2, 0),
+    enginePoints: [S(-1.2, 0, -2.0), S(0, 0, -2.0), S(1.2, 0, -2.0)],
+    weaponPoints: [S(-0.8, 0.3, 2.5), S(0, 0.5, 3.0), S(0.8, 0.3, 2.5)],
+  },
+  bionic_bomber: {
+    modelPath: `${BP}/scene.gltf`,
+    format: 'gltf',
+    scale: 0.5,
+    offset: S(0, 0, 0),
+    rotation: E(0, Math.PI / 2, 0),
+    enginePoints: [S(-0.5, 0, -1.0), S(0.5, 0, -1.0)],
+    weaponPoints: [S(0, -0.3, 1.5)],
+  },
+  bionic_carrier: {
+    modelPath: `${BP}/scene.gltf`,
+    format: 'gltf',
+    scale: 1.0,
+    offset: S(0, 0, 0),
+    rotation: E(0, Math.PI / 2, 0),
+    enginePoints: [S(-1.0, 0, -1.8), S(0, 0, -1.8), S(1.0, 0, -1.8)],
+    weaponPoints: [S(-0.6, 0.2, 2.0), S(0.6, 0.2, 2.0)],
+  },
+};
+
+// ── Lowpoly Fleet (GLTF — 5 unique stylized ships) ──────────────
+// Source: lowpoly_spaceships.zip — 5 distinct ships in one scene.
+// Each ship is a separate node group loaded from the same GLTF.
+const LP = '/assets/space/models/lowpoly-fleet';
+export const LOWPOLY_FLEET_PREFABS: Record<string, SpacePrefab> = {
+  lp_striker: {
+    modelPath: `${LP}/scene.gltf`,
+    format: 'gltf',
+    scale: 0.04,
+    offset: S(0, 0, 0),
+    // Lowpoly ships: Y-up, Z-forward after axis conversion
+    enginePoints: [S(-0.4, 0, -0.6), S(0.4, 0, -0.6)],
+    weaponPoints: [S(-0.3, 0.1, 0.8), S(0.3, 0.1, 0.8)],
+  },
+  lp_vanguard: {
+    modelPath: `${LP}/scene.gltf`,
+    format: 'gltf',
+    scale: 0.04,
+    offset: S(0, 0, 0),
+    enginePoints: [S(0, 0, -0.7)],
+    weaponPoints: [S(0, 0, 0.9)],
+  },
+  lp_corvette: {
+    modelPath: `${LP}/scene.gltf`,
+    format: 'gltf',
+    scale: 0.04,
+    offset: S(0, 0, 0),
+    enginePoints: [S(-0.5, 0, -0.8), S(0.5, 0, -0.8)],
+    weaponPoints: [S(0, 0.2, 1.0)],
+  },
+  lp_heavy_cruiser: {
+    modelPath: `${LP}/scene.gltf`,
+    format: 'gltf',
+    scale: 0.035,
+    offset: S(0, 0, 0),
+    enginePoints: [S(-0.6, 0, -1.2), S(0, 0, -1.2), S(0.6, 0, -1.2)],
+    weaponPoints: [S(-0.5, 0.2, 1.4), S(0.5, 0.2, 1.4)],
+  },
+  lp_battlecruiser: {
+    modelPath: `${LP}/scene.gltf`,
+    format: 'gltf',
+    scale: 0.03,
+    offset: S(0, 0, 0),
+    enginePoints: [S(-0.8, 0, -1.5), S(0, 0, -1.5), S(0.8, 0, -1.5)],
+    weaponPoints: [S(-0.6, 0.3, 1.8), S(0, 0.4, 2.0), S(0.6, 0.3, 1.8)],
+  },
+};
+
+// ── Organic Hero Ship (GLTF — PBR with emissive + normal maps) ──
+// Source: spaceship_organic.zip — alien/bio-organic look, 1680 meshes.
+// Perfect for faction hero ships with that living-ship aesthetic.
+const OH = '/assets/space/models/organic-hero';
+export const ORGANIC_HERO_PREFABS: Record<string, SpacePrefab> = {
+  organic_hero: {
+    modelPath: `${OH}/scene.gltf`,
+    format: 'gltf',
+    scale: 0.8,
+    offset: S(0, 0, 0),
+    // Organic ship: tentacle-like legs extend in -Y, main body along X→Z
+    rotation: E(Math.PI / 2, 0, 0),
+    enginePoints: [S(-0.5, 0, -1.0), S(0.5, 0, -1.0)],
+    weaponPoints: [S(-0.3, 0.2, 1.5), S(0.3, 0.2, 1.5), S(0, 0.4, 1.8)],
+  },
+  organic_dreadnought: {
+    modelPath: `${OH}/scene.gltf`,
+    format: 'gltf',
+    scale: 1.5,
+    offset: S(0, 0, 0),
+    rotation: E(Math.PI / 2, 0, 0),
+    enginePoints: [S(-1.0, 0, -1.8), S(0, 0, -1.8), S(1.0, 0, -1.8)],
+    weaponPoints: [S(-0.8, 0.3, 2.5), S(0, 0.5, 3.0), S(0.8, 0.3, 2.5)],
+  },
+  organic_cruiser: {
+    modelPath: `${OH}/scene.gltf`,
+    format: 'gltf',
+    scale: 0.6,
+    offset: S(0, 0, 0),
+    rotation: E(Math.PI / 2, 0, 0),
+    enginePoints: [S(-0.4, 0, -0.9), S(0.4, 0, -0.9)],
+    weaponPoints: [S(0, 0.2, 1.2)],
+  },
+};
+
+// ── Cargo Transport Ship (GLTF — PBR with emissive + normal) ────
+// Source: spaceship_-_cargo.zip — armature-rigged cargo hauler.
+// Used for worker/transport/miner ships.
+const CT = '/assets/space/models/cargo-transport';
+export const CARGO_TRANSPORT_PREFABS: Record<string, SpacePrefab> = {
+  cargo_hauler: {
+    modelPath: `${CT}/scene.gltf`,
+    format: 'gltf',
+    scale: 0.04,
+    offset: S(0, 0, 0),
+    // Cargo ship: tall along Y, forward along -Z in source
+    rotation: E(0, Math.PI, 0),
+    enginePoints: [S(-0.4, 0, -0.8), S(0.4, 0, -0.8)],
+    weaponPoints: [],
+  },
+  cargo_miner: {
+    modelPath: `${CT}/scene.gltf`,
+    format: 'gltf',
+    scale: 0.03,
+    offset: S(0, 0, 0),
+    rotation: E(0, Math.PI, 0),
+    enginePoints: [S(0, 0, -0.5)],
+    weaponPoints: [S(0, 0.2, 0.6)],
+  },
+  cargo_freighter: {
+    modelPath: `${CT}/scene.gltf`,
+    format: 'gltf',
+    scale: 0.06,
+    offset: S(0, 0, 0),
+    rotation: E(0, Math.PI, 0),
+    enginePoints: [S(-0.6, 0, -1.2), S(0.6, 0, -1.2)],
+    weaponPoints: [S(0, 0.1, 0.8)],
+  },
+};
+
+// ── Research Drone (GLTF — Blockbench voxel-style, 6 materials) ──
+// Source: orbixel_mk4_research_drone_blockbench.zip
+// Compact drone with glowing eye, perfect for scouts/recon.
+const RD = '/assets/space/models/research-drone';
+export const DRONE_PREFABS: Record<string, SpacePrefab> = {
+  research_drone: {
+    modelPath: `${RD}/scene.gltf`,
+    format: 'gltf',
+    scale: 0.15,
+    offset: S(0, 0, 0),
+    // Drone: elongated along -Z, Y-up
+    rotation: E(0, Math.PI, 0),
+    enginePoints: [S(0, 0, -0.4)],
+    weaponPoints: [S(0, 0, 0.5)],
+  },
+  recon_probe: {
+    modelPath: `${RD}/scene.gltf`,
+    format: 'gltf',
+    scale: 0.08,
+    offset: S(0, 0, 0),
+    rotation: E(0, Math.PI, 0),
+    enginePoints: [S(0, 0, -0.3)],
+    weaponPoints: [],
+  },
+  scout_drone: {
+    modelPath: `${RD}/scene.gltf`,
+    format: 'gltf',
+    scale: 0.12,
+    offset: S(0, 0, 0),
+    rotation: E(0, Math.PI, 0),
+    enginePoints: [S(-0.2, 0, -0.3), S(0.2, 0, -0.3)],
+    weaponPoints: [S(0, 0, 0.4)],
+  },
+};
+
 // ── Weapons (GLB turrets) ────────────────────────────────────────
 export const WEAPON_PREFABS: Record<string, SpacePrefab> = {
   pistol_turret: {
@@ -1018,6 +1225,27 @@ export function getShipPrefab(shipType: string): SpacePrefab | null {
     FACTION_HERO_PREFABS[shipType] ??
     ENEMY_PREFABS[shipType] ??
     VOXEL_FLEET_PREFABS[shipType] ??
+    BIONIC_PREFABS[shipType] ??
+    LOWPOLY_FLEET_PREFABS[shipType] ??
+    ORGANIC_HERO_PREFABS[shipType] ??
+    CARGO_TRANSPORT_PREFABS[shipType] ??
+    DRONE_PREFABS[shipType] ??
     null
   );
 }
+
+/** All prefab registries for iteration (e.g. ship codex, random selection). */
+export const ALL_PREFAB_REGISTRIES = [
+  SHIP_PREFABS,
+  CAPITAL_PREFABS,
+  BATTLE_SHIP_PREFABS,
+  FORGE_SHIP_PREFABS,
+  FACTION_HERO_PREFABS,
+  ENEMY_PREFABS,
+  VOXEL_FLEET_PREFABS,
+  BIONIC_PREFABS,
+  LOWPOLY_FLEET_PREFABS,
+  ORGANIC_HERO_PREFABS,
+  CARGO_TRANSPORT_PREFABS,
+  DRONE_PREFABS,
+] as const;

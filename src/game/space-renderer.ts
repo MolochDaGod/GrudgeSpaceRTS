@@ -992,22 +992,26 @@ export class SpaceRenderer {
           if ((c as THREE.Mesh).isMesh) {
             (c as THREE.Mesh).material = new THREE.MeshStandardMaterial({
               map: tex,
-              roughness: 0.4,
-              metalness: 0.5,
+              roughness: 0.35,
+              metalness: 0.6,
               emissiveMap: tex,
-              emissiveIntensity: 0.15,
-              emissive: new THREE.Color(0x222244),
-              envMapIntensity: 1.0,
+              emissiveIntensity: 0.2,
+              emissive: new THREE.Color(0x223355),
+              envMapIntensity: 1.2,
             });
           }
         });
       }
 
-      // NOTE: Do NOT apply prefab.scale here — autoFit() in syncShips
-      // measures the raw model bounding box and scales to match the
-      // target ship class size. Applying scale here would corrupt that.
-      if (prefab.offset) group.position.add(prefab.offset);
+      // Apply authored rotation first (e.g. to fix source axis orientation)
       if (prefab.rotation) group.rotation.copy(prefab.rotation);
+
+      // Auto-center: shift the model so its bounding box center sits at origin.
+      // This ensures autoFit() scales symmetrically and the ship pivots from
+      // its visual center rather than an off-center import origin.
+      SpaceRenderer.autoCenterModel(group);
+
+      if (prefab.offset) group.position.add(prefab.offset);
       this.modelCache.set(key, group);
       this.loadingModels.delete(key);
       return group;
@@ -1019,10 +1023,32 @@ export class SpaceRenderer {
   }
 
   /**
-   * Tint a loaded 3D model to a team's colour using HSL hue-shifting.
-   * Replaces the original hue with the team hue while preserving saturation
-   * and lightness — ships clearly read as their team colour without
-   * destroying texture detail.
+   * Center a model's geometry around the origin so it pivots correctly.
+   * Measures bounding box post-rotation and shifts children to compensate.
+   */
+  private static autoCenterModel(group: THREE.Group): void {
+    // Update world matrices so bbox is accurate after rotation
+    group.updateMatrixWorld(true);
+    const box = new THREE.Box3().setFromObject(group);
+    if (box.isEmpty()) return;
+    const center = box.getCenter(new THREE.Vector3());
+    // Only shift X and Z; keep Y centered at 0 (ships float at SHIP_Y)
+    group.traverse((c) => {
+      if (c === group) return;
+      if (c.parent === group) {
+        c.position.x -= center.x;
+        c.position.z -= center.z;
+        // Center Y only if model is significantly off-center vertically
+        if (Math.abs(center.y) > 0.5) c.position.y -= center.y;
+      }
+    });
+  }
+
+  /**
+   * Tint a loaded 3D model to a team's colour.
+   * PBR-aware: preserves metallic-roughness, normal maps, and emissive maps
+   * from GLTF models. Only hue-shifts the baseColor map + color uniform.
+   * Non-PBR models (FBX/OBJ) get full hue-shift as before.
    */
   private static tintModelToTeam(model: THREE.Object3D, team: number): void {
     const hex = TEAM_COLORS[team] ?? 0x4488ff;
@@ -1038,25 +1064,42 @@ export class SpaceRenderer {
         if (!mat || !(mat as THREE.MeshStandardMaterial).isMeshStandardMaterial) continue;
         const stdMat = (mat as THREE.MeshStandardMaterial).clone();
 
-        // HSL hue-shift: replace original hue with team hue, keep sat/lightness
+        // Detect PBR models (GLTF): they have metallicRoughness maps or normal maps
+        const isPBR = !!(stdMat.metalnessMap || stdMat.roughnessMap || stdMat.normalMap);
+
+        // HSL hue-shift the base color
         const srcHSL = { h: 0, s: 0, l: 0 };
         stdMat.color.getHSL(srcHSL);
-        stdMat.color.setHSL(
-          teamHSL.h,
-          Math.max(srcHSL.s, 0.5), // ensure visible saturation
-          Math.min(Math.max(srcHSL.l, 0.25), 0.7), // clamp lightness
-        );
+        stdMat.color.setHSL(teamHSL.h, Math.max(srcHSL.s, 0.5), Math.min(Math.max(srcHSL.l, 0.25), 0.7));
 
-        // Strong emissive glow in team colour for visibility at all zoom levels
-        stdMat.emissive.setHSL(teamHSL.h, teamHSL.s, 0.15);
-        stdMat.emissiveIntensity = 0.45;
-
-        // If the material has a texture map, tint it via canvas hue-shift
-        if (stdMat.map) {
-          stdMat.map = SpaceRenderer.hueShiftTexture(stdMat.map, teamHSL.h);
-          stdMat.map.needsUpdate = true;
-          if (stdMat.emissiveMap) {
-            stdMat.emissiveMap = stdMat.map; // reuse tinted texture
+        if (isPBR) {
+          // PBR path: respect authored metalness/roughness, add team-colored emissive edge glow
+          stdMat.metalness = Math.max(stdMat.metalness, 0.55);
+          stdMat.roughness = Math.min(stdMat.roughness, 0.5);
+          // Subtle team emissive — don't overwrite authored emissive maps
+          if (!stdMat.emissiveMap) {
+            stdMat.emissive.setHSL(teamHSL.h, teamHSL.s * 0.8, 0.12);
+            stdMat.emissiveIntensity = 0.35;
+          } else {
+            // Has emissive map: boost intensity, tint towards team color
+            stdMat.emissive.setHSL(teamHSL.h, 0.6, 0.15);
+            stdMat.emissiveIntensity = Math.max(stdMat.emissiveIntensity, 0.4);
+          }
+          // Only tint baseColor map, preserve all other PBR maps
+          if (stdMat.map) {
+            stdMat.map = SpaceRenderer.hueShiftTexture(stdMat.map, teamHSL.h);
+            stdMat.map.needsUpdate = true;
+          }
+        } else {
+          // Non-PBR path: aggressive team tint for FBX/OBJ models
+          stdMat.emissive.setHSL(teamHSL.h, teamHSL.s, 0.15);
+          stdMat.emissiveIntensity = 0.45;
+          if (stdMat.map) {
+            stdMat.map = SpaceRenderer.hueShiftTexture(stdMat.map, teamHSL.h);
+            stdMat.map.needsUpdate = true;
+            if (stdMat.emissiveMap) {
+              stdMat.emissiveMap = stdMat.map;
+            }
           }
         }
 
