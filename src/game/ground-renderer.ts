@@ -54,7 +54,16 @@ type AnimKey =
   | 'injured_walk'
   | 'injured_run';
 
-/** All available animations per weapon type — uses every extracted FBX */
+/** All available animations per weapon type.
+ * Sources:
+ *   sword — 1hweaponandshield pack (18 FBX)
+ *   greatsword — 2hweapons pack (24 FBX axe models used as greatsword)
+ *   bow — bows pack (96 FBX) + bow-advanced/longbow pack (40 FBX)
+ *   staff/magic — magicmotion pack (15 FBX)
+ *   rifle — rifleandcrossbow pack (17 FBX)
+ *   gun-advanced — advancedgunandcrossbow pack (50 FBX, 8-dir locomotion)
+ *   common — meleemoves pack (48 FBX unarmed/general)
+ */
 const ANIM_SETS: Record<string, Partial<Record<AnimKey, string>>> = {
   sword: {
     idle: `${ANIM_BASE}/sword/idle.fbx`,
@@ -67,74 +76,94 @@ const ANIM_SETS: Record<string, Partial<Record<AnimKey, string>>> = {
     heavy_attack: `${ANIM_BASE}/sword/heavy_attack.fbx`,
     block: `${ANIM_BASE}/sword/block.fbx`,
     block_idle: `${ANIM_BASE}/sword/block_idle.fbx`,
-    kick: `${ANIM_BASE}/sword/kick.fbx`,
-    jump: `${ANIM_BASE}/sword/jump.fbx`,
-    hit: `${ANIM_BASE}/sword/hit.fbx`,
     death: `${ANIM_BASE}/sword/death.fbx`,
   },
   greatsword: {
-    idle: `${ANIM_BASE}/greatsword/idle.fbx`,
-    walk: `${ANIM_BASE}/greatsword/walk.fbx`,
-    run: `${ANIM_BASE}/greatsword/run.fbx`,
-    attack: `${ANIM_BASE}/greatsword/attack.fbx`,
-    combo2: `${ANIM_BASE}/greatsword/combo2.fbx`,
-    combo3: `${ANIM_BASE}/greatsword/combo3.fbx`,
-    heavy_attack: `${ANIM_BASE}/greatsword/heavy_attack.fbx`,
-    jump_attack: `${ANIM_BASE}/greatsword/jump_attack.fbx`,
-    slide_attack: `${ANIM_BASE}/greatsword/slide_attack.fbx`,
-    block: `${ANIM_BASE}/greatsword/block.fbx`,
-    kick: `${ANIM_BASE}/greatsword/kick.fbx`,
-    hit: `${ANIM_BASE}/greatsword/hit.fbx`,
-    death: `${ANIM_BASE}/greatsword/death.fbx`,
+    idle: `${ANIM_BASE}/common/idle.fbx`,
+    walk: `${ANIM_BASE}/common/walk.fbx`,
+    run: `${ANIM_BASE}/common/run.fbx`,
+    attack: `${ANIM_BASE}/common/attack.fbx`,
+    combo2: `${ANIM_BASE}/common/combo2.fbx`,
+    combo3: `${ANIM_BASE}/common/combo3.fbx`,
+    heavy_attack: `${ANIM_BASE}/common/heavy_attack.fbx`,
+    jump_attack: `${ANIM_BASE}/common/jump_attack.fbx`,
+    slide_attack: `${ANIM_BASE}/common/slide_attack.fbx`,
+    kick: `${ANIM_BASE}/common/kick.fbx`,
+    hit: `${ANIM_BASE}/common/hit.fbx`,
+    death: `${ANIM_BASE}/gun-advanced/death.fbx`,
   },
   bow: {
-    idle: `${ANIM_BASE}/bow/idle.fbx`,
-    walk: `${ANIM_BASE}/bow/walk.fbx`,
-    run: `${ANIM_BASE}/bow/run.fbx`,
-    strafe: `${ANIM_BASE}/bow/strafe_left.fbx`,
-    attack: `${ANIM_BASE}/bow/attack.fbx`,
-    shoot: `${ANIM_BASE}/bow/shoot.fbx`,
-    block: `${ANIM_BASE}/bow/block.fbx`,
-    dodge: `${ANIM_BASE}/bow/dodge.fbx`,
-    hit: `${ANIM_BASE}/bow/hit.fbx`,
-    death: `${ANIM_BASE}/bow/death.fbx`,
+    idle: `${ANIM_BASE}/bow-advanced/idle.fbx`,
+    walk: `${ANIM_BASE}/bow-advanced/walk.fbx`,
+    run: `${ANIM_BASE}/bow-advanced/run.fbx`,
+    strafe: `${ANIM_BASE}/bow-advanced/strafe_left.fbx`,
+    attack: `${ANIM_BASE}/bow-advanced/attack.fbx`,
+    shoot: `${ANIM_BASE}/bow-advanced/shoot.fbx`,
+    block: `${ANIM_BASE}/bow-advanced/block.fbx`,
+    dodge: `${ANIM_BASE}/bow-advanced/dodge.fbx`,
+    kick: `${ANIM_BASE}/bow-advanced/kick.fbx`,
+    hit: `${ANIM_BASE}/bow-advanced/hit.fbx`,
+    death: `${ANIM_BASE}/bow-advanced/death.fbx`,
   },
   staff: {
     idle: `${ANIM_BASE}/magic/idle.fbx`,
+    walk: `${ANIM_BASE}/magic/walk.fbx`,
+    run: `${ANIM_BASE}/magic/run.fbx`,
     attack: `${ANIM_BASE}/magic/attack.fbx`,
-    combo2: `${ANIM_BASE}/magic/combo2.fbx`,
-    combo3: `${ANIM_BASE}/magic/combo3.fbx`,
-    heavy_attack: `${ANIM_BASE}/magic/heavy_attack.fbx`,
     cast: `${ANIM_BASE}/magic/cast.fbx`,
+    jump: `${ANIM_BASE}/magic/jump.fbx`,
+    hit: `${ANIM_BASE}/magic/hit.fbx`,
+    death: `${ANIM_BASE}/magic/death.fbx`,
   },
   spear: {
-    idle: `${ANIM_BASE}/greatsword/idle.fbx`,
-    walk: `${ANIM_BASE}/greatsword/walk.fbx`,
-    run: `${ANIM_BASE}/greatsword/run.fbx`,
-    attack: `${ANIM_BASE}/greatsword/attack.fbx`,
-    combo2: `${ANIM_BASE}/greatsword/combo2.fbx`,
-    heavy_attack: `${ANIM_BASE}/greatsword/heavy_attack.fbx`,
-    jump_attack: `${ANIM_BASE}/greatsword/jump_attack.fbx`,
-    hit: `${ANIM_BASE}/greatsword/hit.fbx`,
-    death: `${ANIM_BASE}/greatsword/death.fbx`,
+    idle: `${ANIM_BASE}/common/idle.fbx`,
+    walk: `${ANIM_BASE}/common/walk.fbx`,
+    run: `${ANIM_BASE}/common/run.fbx`,
+    attack: `${ANIM_BASE}/common/attack.fbx`,
+    combo2: `${ANIM_BASE}/common/melee_combo1.fbx`,
+    combo3: `${ANIM_BASE}/common/melee_combo2.fbx`,
+    heavy_attack: `${ANIM_BASE}/common/heavy_attack.fbx`,
+    jump_attack: `${ANIM_BASE}/common/jump_attack.fbx`,
+    kick: `${ANIM_BASE}/common/kick.fbx`,
+    hit: `${ANIM_BASE}/common/hit.fbx`,
+    death: `${ANIM_BASE}/gun-advanced/death.fbx`,
   },
   rifle: {
     idle: `${ANIM_BASE}/rifle/idle.fbx`,
     walk: `${ANIM_BASE}/rifle/walk.fbx`,
     run: `${ANIM_BASE}/rifle/run.fbx`,
     strafe: `${ANIM_BASE}/rifle/strafe_left.fbx`,
-    shoot: `${ANIM_BASE}/rifle/idle.fbx`, // fire from idle stance
-    attack: `${ANIM_BASE}/rifle/walk.fbx`, // shooting while advancing
-    death: `${ANIM_BASE}/rifle/death.fbx`,
+    shoot: `${ANIM_BASE}/rifle/shoot.fbx`,
+    attack: `${ANIM_BASE}/rifle/shoot.fbx`,
+    hit: `${ANIM_BASE}/rifle/hit.fbx`,
+    jump: `${ANIM_BASE}/rifle/jump.fbx`,
+    death: `${ANIM_BASE}/gun-advanced/death.fbx`,
+  },
+  // 8-directional gun locomotion (gunslinger class)
+  gun: {
+    idle: `${ANIM_BASE}/gun-advanced/idle.fbx`,
+    walk: `${ANIM_BASE}/gun-advanced/walk.fbx`,
+    run: `${ANIM_BASE}/gun-advanced/run.fbx`,
+    strafe: `${ANIM_BASE}/gun-advanced/walk_left.fbx`,
+    shoot: `${ANIM_BASE}/gun-advanced/idle_aim.fbx`,
+    attack: `${ANIM_BASE}/gun-advanced/idle_aim.fbx`,
+    dodge: `${ANIM_BASE}/gun-advanced/sprint.fbx`,
+    jump: `${ANIM_BASE}/gun-advanced/jump.fbx`,
+    death: `${ANIM_BASE}/gun-advanced/death.fbx`,
   },
 };
 
 /** Common fallback clips — used when weapon set is missing a key */
 const COMMON_ANIMS: Partial<Record<AnimKey, string>> = {
-  dodge: `${ANIM_BASE}/common/stand_to_roll.fbx`,
-  hit: `${ANIM_BASE}/common/getting_hit_backwards.fbx`,
-  death: `${ANIM_BASE}/common/flying_back_death.fbx`,
-  jump: `${ANIM_BASE}/common/front_twist_flip.fbx`,
+  idle: `${ANIM_BASE}/common/idle.fbx`,
+  walk: `${ANIM_BASE}/common/walk.fbx`,
+  run: `${ANIM_BASE}/common/run.fbx`,
+  dodge: `${ANIM_BASE}/bow-advanced/dodge.fbx`,
+  hit: `${ANIM_BASE}/common/hit.fbx`,
+  death: `${ANIM_BASE}/gun-advanced/death.fbx`,
+  jump: `${ANIM_BASE}/common/jump.fbx`,
+  kick: `${ANIM_BASE}/common/kick.fbx`,
+  block: `${ANIM_BASE}/common/block_idle.fbx`,
 };
 
 /** Injured overrides — switched in below INJURED_HP_THRESHOLD */
