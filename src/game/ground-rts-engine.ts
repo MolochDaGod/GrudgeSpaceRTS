@@ -191,7 +191,8 @@ export function tickGroundRTS(state: GroundRTSState, dt: number): void {
     if (unit.state === 'dead') continue;
     if (unit.state === 'dying') {
       tickDying(unit, dt);
-      if (unit.state === 'dead' && unit.team === 1) {
+      // tickDying may transition state to 'dead' — cast to bypass TS narrowing
+      if ((unit.state as string) === 'dead' && unit.team === 1) {
         state.enemiesAlive = Math.max(0, state.enemiesAlive - 1);
         state.kills++;
       }
