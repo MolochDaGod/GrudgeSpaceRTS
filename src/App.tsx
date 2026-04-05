@@ -575,11 +575,6 @@ export default function App() {
               setGroundPlanetName(pName);
               setScreen('ground_combat');
             }}
-            onDeployGroundRts={(pType, pName) => {
-              setGroundPlanetType(pType);
-              setGroundPlanetName(pName);
-              setScreen('ground_rts');
-            }}
           />
         </Suspense>
       )}
