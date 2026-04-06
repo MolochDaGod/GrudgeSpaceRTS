@@ -683,8 +683,7 @@ export function updateGroundCombat(state: GroundCombatState, input: GroundInput,
     const sin = Math.sin(input.cameraYaw),
       cos = Math.cos(input.cameraYaw);
     if (mx !== 0 || mz !== 0) {
-      // Same camera-relative formula as movement (see comment above)
-      p.dodgeDir = v3norm({ x: mx * cos + mz * sin, y: 0, z: -mx * sin + mz * cos });
+      p.dodgeDir = v3norm({ x: mx * cos - mz * sin, y: 0, z: mx * sin + mz * cos });
     } else {
       p.dodgeDir = { x: Math.sin(p.facing), y: 0, z: Math.cos(p.facing) };
     }

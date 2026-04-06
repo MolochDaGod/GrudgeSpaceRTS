@@ -1,101 +1,7 @@
 /**
- * ground-renderer.ts — Three.js ground-combat renderer for GrudgeSpaceRTS.
- *
- * ════════════════════════════════════════════════════════════════════
- *  RENDER PIPELINE OVERVIEW
- * ════════════════════════════════════════════════════════════════════
- *
- *  WebGLRenderer  →  EffectComposer
- *    ├─ RenderPass          (scene + camera — lit geometry)
- *    ├─ UnrealBloomPass     (emissive glow, weapon sparks, hit flashes)
- *    └─ ShaderPass          (VignetteShader — darken screen edges)
- *
- *  BEST PRACTICES for this pipeline:
- *  • Keep emissiveIntensity ≤ 0.8 for most meshes; reserve >1 for FX.
- *  • The bloom threshold (0.35) means only surfaces with luminance > 0.35
- *    bloom. Set emissive to a visible colour + emissiveIntensity ≥ 0.4 for
- *    intentional glow (weapons, hit sparks, enemy eyes).
- *  • Never use THREE.LinearSRGBColorSpace mid-frame; all textures must have
- *    colorSpace = THREE.SRGBColorSpace before being added to the scene.
- *  • Shadow maps: renderer uses PCFSoftShadowMap at 1024 px — raising the
- *    map size improves quality at a GPU cost; keep characters castShadow=true.
- *
- * ════════════════════════════════════════════════════════════════════
- *  CHARACTER MODEL PIPELINE
- * ════════════════════════════════════════════════════════════════════
- *
- *  Source: "Ultimate Modular Men – Feb 2022" GLTF pack
- *  Path:   public/assets/ground/characters/gltf/
- *
- *  Loading flow per character:
- *    1. loadGLTF(path)
- *       ├─ GLTFLoader.loadAsync → raw GLTF scene + AnimationClip[]
- *       ├─ Measure Box3 height (Y axis) → scale scene to exactly 2.0 m
- *       ├─ Cache canonical scene (with scale)
- *       └─ Return SkeletonUtils.clone(scene) — each entity gets its own
- *          bone hierarchy so mixers don't share state.
- *    2. applyCharacterMaterial(group, classColor)
- *       Replaces all mesh materials with MeshStandardMaterial in the class
- *       tint colour.  Every 3rd mesh gets a darker secondary shade for
- *       simple armour-zone banding.  Emissive glow ensures visibility.
- *    3. AnimationController.registerClip(key, clip)
- *       Registers each embedded GLTF clip under an AnimKey name using
- *       GLTF_ANIM_MAP.  For weapon-action keys, also builds an upper-body-
- *       only copy (makeUpperBodyClip) for the overlay layer.
- *
- *  Adding a new character model:
- *    a. Copy .gltf (self-contained with embedded buffers) into
- *       public/assets/ground/characters/gltf/
- *    b. Add an entry to CHARACTER_GLTF_MAP or ENEMY_GLTF_MAP.
- *    c. Inspect animation names: open the .gltf in Blender or run
- *         node -e "const g=require('./YourModel.gltf'); g.animations.forEach(a=>console.log(a.name))"
- *       then map them in GLTF_ANIM_MAP.
- *
- * ════════════════════════════════════════════════════════════════════
- *  ANIMATION SYSTEM — TWO LAYERS
- * ════════════════════════════════════════════════════════════════════
- *
- *  AnimationController manages a single THREE.AnimationMixer with two
- *  conceptual layers:
- *
- *  Layer 0 — BASE (looping):
- *    idle / walk / run / strafe / block_idle / injured_*
- *    Plays on all bones.  Updated every frame.  Replaced by crossfade
- *    when the locomotion state changes.
- *
- *  Layer 1 — OVERLAY (one-shot):
- *    attack / combo2-3 / heavy_attack / dodge / shoot / cast / death / hit
- *    Plays an upper-body-filtered clip (bones: spine, chest, shoulder,
- *    arm, forearm, hand, head, neck) so the legs keep the base animation
- *    while the arms perform the weapon action.
- *    The overlay is NEVER interrupted; it plays to completion, then fires
- *    the mixer 'finished' event which auto-returns to the base layer.
- *
- *  One-shot guarantee (roll, dodge, death):
- *    isOneShotPlaying blocks any new one-shot until 'finished' fires.
- *    combat-engine animKey changes during that time are recorded in the
- *    base layer but don't interrupt the overlay.
- *
- * ════════════════════════════════════════════════════════════════════
- *  CAMERA SYSTEM
- * ════════════════════════════════════════════════════════════════════
- *
- *  Follow mode (default):
- *    Third-person over-shoulder.  Camera orbits the player at CAM_DISTANCE
- *    (8 u) and CAM_HEIGHT (4 u) with a slight shoulder offset (CAM_SHOULDER).
- *    Mouse drag (pointer-locked) rotates cameraYaw / cameraPitch.
- *    cameraYaw is passed to ground-combat.ts each frame so movement is
- *    always camera-relative (W = into screen, not world +Z).
- *
- *  Free mode (P key):
- *    Editor fly-cam.  WASD = translate in look direction, E/Q = up/down,
- *    RMB drag = orbit.  Game is PAUSED while in free mode.
- *
- *  Camera-relative movement formula (ground-combat.ts):
- *    cameraForward = (sin(yaw), 0,  cos(yaw))   ← direction camera looks
- *    cameraRight   = (cos(yaw), 0, -sin(yaw))   ← camera's local right
- *    moveDir = mz * cameraForward + mx * cameraRight
- *            = { x: mx*cos + mz*sin, z: -mx*sin + mz*cos }
+ * ground-renderer.ts — Three.js renderer for on-planet ground combat.
+ * Manages scene, camera, FBX model loading, terrain, damage numbers.
+ * Reads from GroundCombatState each frame and drives the combat engine.
  */
 
 import * as THREE from 'three';
@@ -489,53 +395,15 @@ const VEHICLE_MODELS: Record<string, { obj: string; mtl: string; tex: string; sc
   },
 };
 
-// ── AnimationController — per-entity mixer + two-layer animation ──
-/**
- * Two-layer animation controller:
- *
- *  Layer 0 — BASE (locomotion): idle / walk / run / strafe.
- *    Always looping. Drives the full body skeleton.
- *
- *  Layer 1 — OVERLAY (weapon/combat): attack / combo / dodge / roll.
- *    Plays once (one-shot). Drives upper-body bones only via a
- *    filtered clip so legs continue with the base locomotion.
- *    The overlay is NEVER interrupted mid-play; only after the
- *    mixer fires the 'finished' event does control return to the base.
- *
- * Usage:
- *   ctrl.play('walk')              // base layer, loops
- *   ctrl.play('attack', false)     // overlay layer, plays to completion
- */
+// ── AnimationController — per-entity mixer + clip management ──────
 class AnimationController {
   mixer: THREE.AnimationMixer;
-
-  /** Full clips (all bones). */
-  private clips = new Map<string, THREE.AnimationClip>();
-  /** Upper-body-only variants for weapon overlays. */
-  private upperClips = new Map<string, THREE.AnimationClip>();
-
-  /** Currently active base (locomotion) action. */
-  private baseAction: THREE.AnimationAction | null = null;
-  private baseKey = '';
-
-  /** Currently active one-shot overlay action. */
-  private overlayAction: THREE.AnimationAction | null = null;
-
-  /** True while a one-shot is playing — blocks any new one-shot from interrupting. */
-  isOneShotPlaying = false;
+  clips = new Map<string, THREE.AnimationClip>();
+  currentAction: THREE.AnimationAction | null = null;
+  currentKey = '';
 
   constructor(root: THREE.Object3D) {
     this.mixer = new THREE.AnimationMixer(root);
-    // When a one-shot finishes naturally, clear the overlay and return to base.
-    this.mixer.addEventListener('finished', (e) => {
-      if (this.overlayAction === (e as THREE.Event & { action: THREE.AnimationAction }).action) {
-        this.overlayAction?.fadeOut(0.25);
-        this.overlayAction = null;
-        this.isOneShotPlaying = false;
-        // Re-play the current base clip to blend back smoothly
-        if (this.baseKey) this._playBase(this.baseKey, 0.25);
-      }
-    });
   }
 
   /** Load an animation clip from an FBX file and register it under `key`. */
@@ -545,7 +413,6 @@ class AnimationController {
     if (clip) {
       clip.name = key;
       this.clips.set(key, clip);
-      this._buildUpperVariant(key, clip);
     }
   }
 
@@ -555,64 +422,22 @@ class AnimationController {
     const c = clip.clone();
     c.name = key;
     this.clips.set(key, c);
-    this._buildUpperVariant(key, c);
   }
 
-  /** Build and cache an upper-body-only variant of the clip if it's a weapon key. */
-  private _buildUpperVariant(key: string, clip: THREE.AnimationClip): void {
-    if (!WEAPON_ANIM_KEYS_SET.has(key)) return;
-    const upper = makeUpperBodyClip(clip);
-    if (upper) this.upperClips.set(key, upper);
-  }
-
-  /** Internal: crossfade the base layer to `key`. */
-  private _playBase(key: string, fadeDuration: number): void {
+  /** Crossfade to animation `key`. If not loaded, stays on current. */
+  play(key: string, loop = true, fadeDuration = 0.2): void {
+    if (key === this.currentKey && this.currentAction?.isRunning()) return;
     const clip = this.clips.get(key);
     if (!clip) return;
     const action = this.mixer.clipAction(clip);
-    action.setLoop(THREE.LoopRepeat, Infinity);
-    action.clampWhenFinished = false;
-    if (this.baseAction && this.baseAction !== action) {
-      this.baseAction.fadeOut(fadeDuration);
+    action.setLoop(loop ? THREE.LoopRepeat : THREE.LoopOnce, loop ? Infinity : 1);
+    action.clampWhenFinished = !loop;
+    if (this.currentAction && this.currentAction !== action) {
+      this.currentAction.fadeOut(fadeDuration);
     }
     action.reset().fadeIn(fadeDuration).play();
-    this.baseAction = action;
-    this.baseKey = key;
-  }
-
-  /**
-   * Play an animation.
-   *
-   * @param key         AnimKey to play.
-   * @param loop        true = looping base layer; false = one-shot overlay.
-   * @param fadeDuration Crossfade seconds.
-   */
-  play(key: string, loop = true, fadeDuration = 0.2): void {
-    if (loop) {
-      // ── Base layer (locomotion) ────────────────────────────
-      // Update base even while an overlay is playing so it smoothly
-      // resumes the right locomotion clip when the overlay finishes.
-      if (key === this.baseKey) return;
-      this._playBase(key, fadeDuration);
-    } else {
-      // ── Overlay layer (weapon / combat) ───────────────────
-      // Never interrupt a currently playing one-shot.
-      if (this.isOneShotPlaying) return;
-
-      // Prefer upper-body-only clip for weapon overlays so legs keep moving.
-      const clip = (WEAPON_ANIM_KEYS_SET.has(key) ? this.upperClips.get(key) : undefined) ?? this.clips.get(key);
-      if (!clip) return;
-
-      if (this.overlayAction) this.overlayAction.fadeOut(fadeDuration);
-
-      const action = this.mixer.clipAction(clip);
-      action.setLoop(THREE.LoopOnce, 1);
-      action.clampWhenFinished = true;
-      // Start from the very beginning — guarantees roll/dodge play in full.
-      action.reset().fadeIn(fadeDuration).play();
-      this.overlayAction = action;
-      this.isOneShotPlaying = true;
-    }
+    this.currentAction = action;
+    this.currentKey = key;
   }
 
   update(dt: number): void {
@@ -1977,11 +1802,7 @@ export class GroundRenderer {
       this.spawnProjectile(p.pos, p.facing, p.weaponType === 'rifle');
     }
 
-    // Drive player animation from combat engine animKey.
-    // AnimationController handles the two-layer logic:
-    //   • loop=true  → base layer (locomotion, full body)
-    //   • loop=false → overlay layer (weapon/combat, upper body only)
-    // ONE_SHOT_KEYS_SET is defined at module level and shared with the controller.
+    // Drive player animation from combat engine animKey
     if (this.playerAnim) {
       const injured = p.hp > 0 && p.hp / p.maxHp < INJURED_HP_THRESHOLD;
       let animKey = p.animKey as AnimKey;
@@ -1989,7 +1810,23 @@ export class GroundRenderer {
       if (injured && (animKey === 'idle' || animKey === 'walk' || animKey === 'run')) {
         animKey = `injured_${animKey}` as AnimKey;
       }
-      const isOneShot = ONE_SHOT_KEYS_SET.has(animKey);
+      // Full one-shot list — includes all non-looping combat animations
+      const ONE_SHOT_ANIMS: AnimKey[] = [
+        'attack',
+        'combo2',
+        'combo3',
+        'heavy_attack',
+        'jump_attack',
+        'slide_attack',
+        'dodge',
+        'death',
+        'hit',
+        'kick',
+        'jump',
+        'shoot',
+        'cast',
+      ];
+      const isOneShot = ONE_SHOT_ANIMS.includes(animKey);
       this.playerAnim.play(animKey, !isOneShot);
       this.playerAnim.update(dt);
     }
