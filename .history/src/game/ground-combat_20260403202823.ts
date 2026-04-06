@@ -635,11 +635,7 @@ export function updateGroundCombat(state: GroundCombatState, input: GroundInput,
     if (mx !== 0 || mz !== 0) {
       const sin = Math.sin(input.cameraYaw);
       const cos = Math.cos(input.cameraYaw);
-      // Camera-relative movement: project input (mx=strafe, mz=forward) into world space.
-      // Camera forward in world space = (sin(yaw), 0, cos(yaw)).
-      // Camera right in world space  = (cos(yaw), 0, -sin(yaw)).
-      // dir = mz * cameraForward + mx * cameraRight
-      const dir = v3norm({ x: mx * cos + mz * sin, y: 0, z: -mx * sin + mz * cos });
+      const dir = v3norm({ x: mx * cos - mz * sin, y: 0, z: mx * sin + mz * cos });
       const spd = input.sprint && p.stamina > 0 ? cls.sprintSpeed : cls.baseSpeed;
       p.pos.x += dir.x * spd * dt;
       p.pos.z += dir.z * spd * dt;
@@ -683,8 +679,7 @@ export function updateGroundCombat(state: GroundCombatState, input: GroundInput,
     const sin = Math.sin(input.cameraYaw),
       cos = Math.cos(input.cameraYaw);
     if (mx !== 0 || mz !== 0) {
-      // Same camera-relative formula as movement (see comment above)
-      p.dodgeDir = v3norm({ x: mx * cos + mz * sin, y: 0, z: -mx * sin + mz * cos });
+      p.dodgeDir = v3norm({ x: mx * cos - mz * sin, y: 0, z: mx * sin + mz * cos });
     } else {
       p.dodgeDir = { x: Math.sin(p.facing), y: 0, z: Math.cos(p.facing) };
     }
