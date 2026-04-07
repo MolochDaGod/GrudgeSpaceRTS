@@ -429,32 +429,114 @@ export function tickGroundRTS(state: GroundRTSState, dt: number): void {
   }
 }
 
-// ── Unit AI (enemy auto-targeting) ───────────────────────────────────
-function tickUnitAI(state: GroundRTSState, unit: RTSUnit, all: RTSUnit[], _dt: number): void {
-  // Player units only auto-acquire if attack-moving or idle with no orders
-  if (unit.team === 0 && !unit.attackMove && unit.moveTarget) return;
+// ── Enemy AI System ──────────────────────────────────────────
+// Behaviors:
+//  - Focus fire: multiple enemies attack the same target to kill it fast
+//  - Target priority: low-HP targets first (finish them off)
+//  - Flank: approach from different angles, not a straight blob
+//  - Surround: melee spread around the target, don't stack
+//  - Patrol: idle enemies wander toward player zone
+//  - Wall avoidance: reroute around impassable tiles
 
-  // Already have a valid target?
-  if (unit.attackTargetId != null) {
-    const target = state.units.get(unit.attackTargetId);
-    if (target && target.state !== 'dead' && target.state !== 'dying') return;
-    unit.attackTargetId = null; // target dead, find new
+const AI_RETARGET_INTERVAL = 0.8; // seconds between target re-evaluation
+const AI_FLANK_SPREAD = 80; // pixels offset for flanking positions
+const AI_PATROL_SPEED = 0.4; // multiplier for patrol movement
+
+/** Score a potential target: lower = higher priority. */
+function scoreTarget(attacker: RTSUnit, target: RTSUnit): number {
+  const d = dist(attacker, target);
+  const hpPct = target.hp / target.maxHp;
+  // Prefer: closer targets, lower HP%, ranged units (kill threats first)
+  let score = d;
+  score *= (0.3 + hpPct * 0.7); // low HP = much lower score (higher priority)
+  if (target.def.attackType === 'ranged' || target.def.attackType === 'flame') {
+    score *= 0.7; // prioritize ranged threats
+  }
+  return score;
+}
+
+/** Count how many allies are already targeting this unit. */
+function countAttackersOn(all: RTSUnit[], targetId: number, myTeam: number): number {
+  let count = 0;
+  for (const u of all) {
+    if (u.team === myTeam && u.attackTargetId === targetId && u.state !== 'dead' && u.state !== 'dying') count++;
+  }
+  return count;
+}
+
+/** Get a flanking offset so enemies approach from different sides. */
+function getFlankOffset(attackerId: number, targetX: number, targetY: number): Vec2 {
+  // Use attacker ID to deterministically pick a flank angle
+  const flankAngle = ((attackerId * 2.618) % (Math.PI * 2)); // golden ratio spread
+  return {
+    x: targetX + Math.cos(flankAngle) * AI_FLANK_SPREAD,
+    y: targetY + Math.sin(flankAngle) * AI_FLANK_SPREAD,
+  };
+}
+
+function tickUnitAI(state: GroundRTSState, unit: RTSUnit, all: RTSUnit[], dt: number): void {
+  // Player units: only auto-acquire if attack-moving or idle with no orders
+  if (unit.team === 0) {
+    if (!unit.attackMove && unit.moveTarget) return;
+    // Player idle auto-acquire: find closest enemy
+    if (unit.attackTargetId == null || !isTargetValid(state, unit.attackTargetId)) {
+      unit.attackTargetId = null;
+      let closest: RTSUnit | null = null;
+      let closestDist = unit.def.aggroRange;
+      for (const other of all) {
+        if (other.team === unit.team || other.state === 'dead' || other.state === 'dying') continue;
+        const d = dist(unit, other);
+        if (d < closestDist) { closestDist = d; closest = other; }
+      }
+      if (closest) unit.attackTargetId = closest.id;
+    }
+    return;
   }
 
-  // Find closest enemy in aggro range
-  let closest: RTSUnit | null = null;
-  let closestDist = unit.def.aggroRange;
-  for (const other of all) {
-    if (other.team === unit.team || other.state === 'dead' || other.state === 'dying') continue;
-    const d = dist(unit, other);
-    if (d < closestDist) {
-      closestDist = d;
-      closest = other;
+  // ── ENEMY AI ────────────────────────────────────────────────────
+
+  // Periodically re-evaluate target (not every frame — use attack timer as proxy)
+  const shouldRetarget = unit.attackTargetId == null ||
+    !isTargetValid(state, unit.attackTargetId) ||
+    (unit.attackTimer <= 0 && Math.random() < dt / AI_RETARGET_INTERVAL);
+
+  if (shouldRetarget) {
+    // Smart target selection: score all enemies, pick best
+    let bestTarget: RTSUnit | null = null;
+    let bestScore = Infinity;
+    for (const other of all) {
+      if (other.team === unit.team || other.state === 'dead' || other.state === 'dying') continue;
+      const d = dist(unit, other);
+      if (d > unit.def.aggroRange * 1.5) continue; // extended search range
+      let score = scoreTarget(unit, other);
+      // Focus fire bonus: prefer targets already being attacked by 1-2 allies
+      const attackers = countAttackersOn(all, other.id, unit.team);
+      if (attackers >= 1 && attackers <= 3) score *= 0.6; // focus fire
+      if (attackers > 4) score *= 1.5; // too many, spread out
+      if (score < bestScore) { bestScore = score; bestTarget = other; }
+    }
+    if (bestTarget) {
+      unit.attackTargetId = bestTarget.id;
     }
   }
-  if (closest) {
-    unit.attackTargetId = closest.id;
+
+  // Patrol behavior: if no target, move toward player zone (bottom of map)
+  if (unit.attackTargetId == null && unit.moveTarget == null) {
+    // Wander toward the bottom half of the map where players are
+    const patrolX = unit.x + (Math.random() - 0.5) * 300;
+    const patrolY = unit.y + 100 + Math.random() * 200;
+    // Clamp to map and ensure walkable
+    const px = Math.max(50, Math.min(state.mapWidth - 50, patrolX));
+    const py = Math.max(50, Math.min(state.mapHeight - 50, patrolY));
+    if (isWalkable(state, px, py)) {
+      unit.moveTarget = { x: px, y: py };
+    }
   }
+}
+
+function isTargetValid(state: GroundRTSState, targetId: number): boolean {
+  const t = state.units.get(targetId);
+  return !!t && t.state !== 'dead' && t.state !== 'dying';
 }
 
 // ── Unit Movement ────────────────────────────────────────────────────
@@ -464,14 +546,27 @@ function tickUnitMovement(state: GroundRTSState, unit: RTSUnit, all: RTSUnit[], 
   let tx: number | null = null;
   let ty: number | null = null;
 
-  // Chase attack target
+  // Chase attack target — with flanking for enemies
   if (unit.attackTargetId != null) {
     const target = state.units.get(unit.attackTargetId);
     if (target && target.state !== 'dead' && target.state !== 'dying') {
       const d = dist(unit, target);
       if (d > unit.def.attackRange) {
-        tx = target.x;
-        ty = target.y;
+        if (unit.team === 1 && unit.def.attackType === 'melee') {
+          // Enemy melee: flank — approach from a spread angle, not straight at target
+          const flank = getFlankOffset(unit.id, target.x, target.y);
+          // If close enough to flank point, go straight for target
+          if (dist(unit, flank) < 40 || d < unit.def.attackRange * 2) {
+            tx = target.x;
+            ty = target.y;
+          } else {
+            tx = flank.x;
+            ty = flank.y;
+          }
+        } else {
+          tx = target.x;
+          ty = target.y;
+        }
       }
     }
   }
