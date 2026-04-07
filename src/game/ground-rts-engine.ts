@@ -13,6 +13,7 @@ import {
   type Vec2,
   type Team,
   type UnitClass,
+  type TileWalkability,
   PLAYER_UNITS,
   ENEMY_UNITS,
   TILE_PATHS,
@@ -21,12 +22,14 @@ import {
   type MapObject,
 } from './ground-rts-types';
 
-// ── Constants ────────────────────────────────────────────────────────
+// ── Constants ──────────────────────────────────────────────────────
 const SEPARATION_RADIUS = 28;
 const SEPARATION_FORCE = 60;
-const DEAD_BODY_TTL = 3.0; // seconds to keep dead bodies before removal
+const DEAD_BODY_TTL = 3.0;
 const PROJECTILE_SPEED = 400;
 const FLOAT_TEXT_DURATION = 1.2;
+const FACING_LERP_SPEED = 12; // radians/sec for smooth rotation
+const SLOW_TILE_MULTIPLIER = 0.5; // speed on stones tiles
 
 // ── Helpers ──────────────────────────────────────────────────────────
 function dist(a: Vec2, b: Vec2): number {
@@ -37,29 +40,200 @@ function angle(from: Vec2, to: Vec2): number {
   return Math.atan2(to.y - from.y, to.x - from.x);
 }
 
+/** Shortest-path angle lerp (handles wrapping around ±π). */
+function lerpAngle(current: number, target: number, speed: number, dt: number): number {
+  let diff = target - current;
+  // Normalize to [-PI, PI]
+  while (diff > Math.PI) diff -= Math.PI * 2;
+  while (diff < -Math.PI) diff += Math.PI * 2;
+  if (Math.abs(diff) < 0.01) return target;
+  return current + Math.sign(diff) * Math.min(Math.abs(diff), speed * dt);
+}
+
+/** Check if a world position is walkable on the tile grid. */
+function isWalkable(state: GroundRTSState, wx: number, wy: number): boolean {
+  const c = Math.floor(wx / state.tileSize);
+  const r = Math.floor(wy / state.tileSize);
+  if (c < 0 || c >= state.tileCols || r < 0 || r >= state.tileRows) return false;
+  return state.walkGrid[r][c] !== 2;
+}
+
+/** Get speed multiplier for the tile at a world position. */
+function tileSpeedMult(state: GroundRTSState, wx: number, wy: number): number {
+  const c = Math.floor(wx / state.tileSize);
+  const r = Math.floor(wy / state.tileSize);
+  if (c < 0 || c >= state.tileCols || r < 0 || r >= state.tileRows) return 0;
+  return state.walkGrid[r][c] === 1 ? SLOW_TILE_MULTIPLIER : state.walkGrid[r][c] === 2 ? 0 : 1;
+}
+
 function findEnemyDef(unitClass: UnitClass): UnitDef | undefined {
   return ENEMY_UNITS.find((d) => d.unitClass === unitClass);
 }
 
-// ── State Initialization ─────────────────────────────────────────────
-export function createGroundRTSState(roster: UnitClass[]): GroundRTSState {
-  const TILE_SIZE = 128;
+// ── Designed Level Layouts ────────────────────────────────────────
+// Each level is a 20x15 grid. Values:
+//   S = sand (walkable, fast)
+//   G = ground (walkable, fast)
+//   T = stones (walkable, slow — rubble/rough terrain)
+//   W = water (impassable — rendered dark)
+// Player spawns at bottom, enemies at top.
+
+type TileChar = 'S' | 'G' | 'T' | 'W';
+
+// Level layouts: 20x15 grid.
+// KEY RULES:
+//   - Only use full-floor tiles (index 0 or 3) — no transition/edge tiles
+//   - At least 2 walkable tiles (SS, GG, etc.) between any W tile and the next W tile
+//   - Wide corridors (minimum 3 tiles wide) so units can maneuver
+//   - Clear spawn zones at top (enemies) and bottom (player)
+const LEVEL_MAPS: string[][] = [
+  // Level 1: Desert Outpost — open arena, water only at corners
+  [
+    'WWSSSSSSSSSSSSSSSSSS',
+    'SSSSSSGGGGGGGGSSSSSS',
+    'SSSSGGGGGGGGGGGGSSSS',
+    'SSSGGGGSSSSSSGGGGSSS',
+    'SSSGGSSSSSSSSSSGGSS',
+    'SSSSSSSTTTTTSSSSSSS',
+    'SSSSSSSSSSSSSSSSSSSS',
+    'SSSSSSSSSSSSSSSSSSS',
+    'SSSSSSSSSSSSSSSSSSSS',
+    'SSSSSSSTTTTTSSSSSSS',
+    'SSSGGSSSSSSSSSSGGSS',
+    'SSSGGGGSSSSSSGGGGSSS',
+    'SSSSGGGGGGGGGGGGSSSS',
+    'SSSSSSGGGGGGGGSSSSSS',
+    'SSSSSSSSSSSSSSSSSWWW',
+  ],
+  // Level 2: River Crossing — wide river with 3-tile bridges
+  [
+    'SSSSSSSSGGGGSSSSSSSS',
+    'SSGGGGGGGGGGGGGGGGSS',
+    'SSGGSSSSSSSSSSSSGGSS',
+    'SSSSSSSSSSSSSSSSSSSS',
+    'SSSSSSSSSSSSSSSSSSSS',
+    'WWWWWSSSTTTSSSWWWWWW',
+    'WWWWWSSSSSSSSSSWWWWW',
+    'WWWWWSSSTTTSSSWWWWWW',
+    'WWWWWSSSSSSSSSSWWWWW',
+    'WWWWWSSSTTTSSSWWWWWW',
+    'SSSSSSSSSSSSSSSSSSSS',
+    'SSSSSSSSSSSSSSSSSSSS',
+    'SSGGSSSSSSSSSSSSGGSS',
+    'SSGGGGGGGGGGGGGGGGSS',
+    'SSSSSSSSGGGGSSSSSSSS',
+  ],
+  // Level 3: Fortress — thick walls with wide gates
+  [
+    'SSSSSSSSSSSSSSSSSSSS',
+    'SSSSGGGGGGGGGGGGSSSS',
+    'SSSSWWWWWWWWWWWWSSSS',
+    'SSSSWSSSSSSSSSWSSSS',
+    'SSSSWSSSSSSSSSWSSSS',
+    'SSSSSSSSSSSSSSSSSSS',
+    'SSSSWSSSSSSSSSWSSSS',
+    'SSSSWSSSTTTSSSWSSSS',
+    'SSSSWSSSSSSSSSWSSSS',
+    'SSSSSSSSSSSSSSSSSSS',
+    'SSSSWSSSSSSSSSWSSSS',
+    'SSSSWSSSSSSSSSWSSSS',
+    'SSSSWWWWWWWWWWWWSSSS',
+    'SSSSGGGGGGGGGGGGSSSS',
+    'SSSSSSSSSSSSSSSSSSSS',
+  ],
+  // Level 4: Canyon — wide paths, water walls with 3+ gap
+  [
+    'WWWSSSSSSSSSSSSSSWWW',
+    'WWSSSSSSSSSSSSSSSSSS',
+    'SSSSSSTTTSSSTTTSSSSS',
+    'SSSSSWWWSSSSWWWSSSSS',
+    'SSSSSWWWSSSSWWWSSSSS',
+    'SSSSSSSSSSSSSSSSSSSS',
+    'SSSSSSSSSSSSSSSSSSSS',
+    'SSSTTTTTTTTTTTTTTTSSS',
+    'SSSSSSSSSSSSSSSSSSSS',
+    'SSSSSSSSSSSSSSSSSSSS',
+    'SSSSSWWWSSSSWWWSSSSS',
+    'SSSSSWWWSSSSWWWSSSSS',
+    'SSSSSSTTTSSSTTTSSSSS',
+    'WWSSSSSSSSSSSSSSSSSS',
+    'WWWSSSSSSSSSSSSSSWWW',
+  ],
+  // Level 5: Arena — round pit, thick water border
+  [
+    'WWWWWWSSSSSSSSSWWWWW',
+    'WWWWSSSSSSSSSSSSWWWW',
+    'WWWSSSSSGGGGSSSSSSWW',
+    'WWSSSSGGGGGGGGSSSSWW',
+    'WSSSSSGGTTTGGSSSSSW',
+    'WSSSSGTTTTTTTGSSSSW',
+    'WSSSSGTTTTTTTGSSSSW',
+    'WSSSSGTTTTTTTGSSSSW',
+    'WSSSSGTTTTTTTGSSSSW',
+    'WSSSSSGGTTTGGSSSSSW',
+    'WWSSSSGGGGGGGGSSSSWW',
+    'WWWSSSSSGGGGSSSSSSWW',
+    'WWWWSSSSSSSSSSSSWWWW',
+    'WWWWWWSSSSSSSSSWWWWW',
+    'WWWWWWWWWWWWWWWWWWWW',
+  ],
+];
+
+// Full-floor tile indices (no transparent edges/dead zones).
+// From the tileset image: index 0 and 3 in each type are complete solid fills.
+const FULL_FLOOR_INDICES = [0, 3];
+function pickFullFloor(): number {
+  return FULL_FLOOR_INDICES[Math.floor(Math.random() * FULL_FLOOR_INDICES.length)];
+}
+
+/** Map tile character to tile type + walkability + visual tile index. */
+function parseTileChar(ch: TileChar): { type: 'sand' | 'ground' | 'stones' | 'water'; walk: TileWalkability; tileIdx: number } {
+  switch (ch) {
+    case 'S':
+      return { type: 'sand', walk: 0, tileIdx: pickFullFloor() };
+    case 'G':
+      return { type: 'ground', walk: 0, tileIdx: pickFullFloor() };
+    case 'T':
+      return { type: 'stones', walk: 1, tileIdx: pickFullFloor() };
+    case 'W':
+      return { type: 'water', walk: 2, tileIdx: pickFullFloor() };
+  }
+}
+
+// ── State Initialization ─────────────────────────────────────────
+export function createGroundRTSState(roster: UnitClass[], level = 0): GroundRTSState {
+  const TILE_SIZE = 192; // Larger tiles for better readability
   const COLS = 20;
   const ROWS = 15;
   const mapW = COLS * TILE_SIZE;
   const mapH = ROWS * TILE_SIZE;
 
-  // Generate random tile grid (mostly sand with some ground patches)
+  // Parse designed level layout
+  const levelIdx = level % LEVEL_MAPS.length;
+  const layout = LEVEL_MAPS[levelIdx];
   const tileGrid: number[][] = [];
+  const walkGrid: TileWalkability[][] = [];
+  // Track which tile types are used per cell for mixed rendering
+  const tileTypeGrid: string[][] = [];
+
   for (let r = 0; r < ROWS; r++) {
-    const row: number[] = [];
+    const tileRow: number[] = [];
+    const walkRow: TileWalkability[] = [];
+    const typeRow: string[] = [];
+    const layoutRow = layout[r] ?? 'SSSSSSSSSSSSSSSSSSSS';
     for (let c = 0; c < COLS; c++) {
-      row.push(Math.floor(Math.random() * 13));
+      const ch = (layoutRow[c] ?? 'S') as TileChar;
+      const parsed = parseTileChar(ch);
+      tileRow.push(parsed.tileIdx);
+      walkRow.push(parsed.walk);
+      typeRow.push(parsed.type);
     }
-    tileGrid.push(row);
+    tileGrid.push(tileRow);
+    walkGrid.push(walkRow);
+    tileTypeGrid.push(typeRow);
   }
 
-  // Generate map objects (scattered obstacles)
+  // Place map objects only on walkable tiles
   const mapObjects: MapObject[] = [];
   let objId = 10000;
   const objDefs: Array<{ key: string; w: number; h: number; blocking: boolean }> = [
@@ -71,21 +245,28 @@ export function createGroundRTSState(roster: UnitClass[]): GroundRTSState {
     { key: 'box1', w: 40, h: 40, blocking: true },
     { key: 'box2', w: 40, h: 40, blocking: true },
   ];
-  for (let i = 0; i < 15; i++) {
-    const od = objDefs[i % objDefs.length];
+  let placed = 0;
+  for (let attempt = 0; attempt < 100 && placed < 12; attempt++) {
+    const od = objDefs[placed % objDefs.length];
     const ox = 100 + Math.random() * (mapW - 200);
     const oy = 100 + Math.random() * (mapH - 200);
-    mapObjects.push({
-      id: objId++,
-      x: ox,
-      y: oy,
-      width: od.w,
-      height: od.h,
-      spritePath: (OBJECT_PATHS as Record<string, string>)[od.key],
-      blocking: od.blocking,
-      destructible: od.key.startsWith('box'),
-      hp: 50,
-    });
+    // Only place on walkable tiles (not water)
+    const tc = Math.floor(ox / TILE_SIZE);
+    const tr = Math.floor(oy / TILE_SIZE);
+    if (tc >= 0 && tc < COLS && tr >= 0 && tr < ROWS && walkGrid[tr][tc] !== 2) {
+      mapObjects.push({
+        id: objId++,
+        x: ox,
+        y: oy,
+        width: od.w,
+        height: od.h,
+        spritePath: (OBJECT_PATHS as Record<string, string>)[od.key],
+        blocking: od.blocking,
+        destructible: od.key.startsWith('box'),
+        hp: 50,
+      });
+      placed++;
+    }
   }
 
   const state: GroundRTSState = {
@@ -94,14 +275,15 @@ export function createGroundRTSState(roster: UnitClass[]): GroundRTSState {
     floatTexts: [],
     mapObjects,
     tileGrid,
-    tileType: 'sand',
+    tileType: 'sand', // base type — renderer uses tileTypeGrid for per-cell type
     tileCols: COLS,
     tileRows: ROWS,
     tileSize: TILE_SIZE,
     mapWidth: mapW,
     mapHeight: mapH,
+    walkGrid,
     wave: 0,
-    waveTimer: 3, // first wave in 3s
+    waveTimer: 3,
     waveInterval: 12,
     waveActive: false,
     enemiesAlive: 0,
@@ -110,12 +292,23 @@ export function createGroundRTSState(roster: UnitClass[]): GroundRTSState {
     gameOver: false,
     victory: false,
     nextId: 1,
+    level: levelIdx,
   };
 
-  // Spawn player units from roster (bottom center of map)
+  // Store tileTypeGrid on state for renderer access
+  (state as any)._tileTypeGrid = tileTypeGrid;
+
+  // Spawn player units on walkable tiles at bottom
   const spacing = 60;
   const startX = mapW / 2 - ((roster.length - 1) * spacing) / 2;
-  const startY = mapH - 150;
+  let startY = mapH - 150;
+  // Find walkable row near bottom
+  for (let r = ROWS - 2; r >= ROWS - 5; r--) {
+    if (walkGrid[r][Math.floor(COLS / 2)] !== 2) {
+      startY = r * TILE_SIZE + TILE_SIZE / 2;
+      break;
+    }
+  }
   for (let i = 0; i < roster.length; i++) {
     const def = PLAYER_UNITS.find((d) => d.unitClass === roster[i]);
     if (!def) continue;
@@ -127,13 +320,15 @@ export function createGroundRTSState(roster: UnitClass[]): GroundRTSState {
 
 // ── Unit Spawning ────────────────────────────────────────────────────
 export function spawnUnit(state: GroundRTSState, def: UnitDef, x: number, y: number, team: Team): RTSUnit {
+  const initFacing = team === 0 ? -Math.PI / 2 : Math.PI / 2;
   const unit: RTSUnit = {
     id: state.nextId++,
     def,
     team,
     x,
     y,
-    facing: team === 0 ? -Math.PI / 2 : Math.PI / 2, // player faces up, enemy faces down
+    facing: initFacing,
+    facingTarget: initFacing,
     hp: def.hp,
     maxHp: def.hp,
     state: 'idle',
@@ -154,15 +349,20 @@ export function spawnUnit(state: GroundRTSState, def: UnitDef, x: number, y: num
 function spawnWave(state: GroundRTSState): void {
   state.wave++;
   const cfg = getWaveConfig(state.wave);
-  const margin = 80;
 
   for (const entry of cfg.enemies) {
     if (entry.count <= 0) continue;
     const def = findEnemyDef(entry.unitClass);
     if (!def) continue;
     for (let i = 0; i < entry.count; i++) {
-      const x = margin + Math.random() * (state.mapWidth - margin * 2);
-      const y = margin + Math.random() * 200; // spawn near top
+      // Find a walkable spawn point near the top of the map
+      let x = 0,
+        y = 0;
+      for (let attempt = 0; attempt < 50; attempt++) {
+        x = 80 + Math.random() * (state.mapWidth - 160);
+        y = 80 + Math.random() * 250;
+        if (isWalkable(state, x, y)) break;
+      }
       spawnUnit(state, def, x, y, 1);
       state.enemiesAlive++;
     }
@@ -294,9 +494,10 @@ function tickUnitMovement(state: GroundRTSState, unit: RTSUnit, all: RTSUnit[], 
     }
 
     unit.state = 'walking';
-    unit.facing = angle(unit, { x: tx, y: ty });
+    // Set facing TARGET (smooth lerp happens below)
+    unit.facingTarget = angle(unit, { x: tx, y: ty });
 
-    // Separation force (avoid overlap with nearby same-team units)
+    // Separation force (avoid overlap with nearby units)
     let sepX = 0,
       sepY = 0;
     for (const other of all) {
@@ -314,10 +515,26 @@ function tickUnitMovement(state: GroundRTSState, unit: RTSUnit, all: RTSUnit[], 
       sepY = (sepY / sepMag) * SEPARATION_FORCE;
     }
 
-    const moveX = Math.cos(unit.facing) * unit.def.speed + sepX;
-    const moveY = Math.sin(unit.facing) * unit.def.speed + sepY;
-    unit.x += moveX * dt;
-    unit.y += moveY * dt;
+    // Smooth facing lerp
+    unit.facing = lerpAngle(unit.facing, unit.facingTarget, FACING_LERP_SPEED, dt);
+
+    // Speed modified by tile type
+    const speedMult = tileSpeedMult(state, unit.x, unit.y);
+    const moveX = Math.cos(unit.facing) * unit.def.speed * speedMult + sepX;
+    const moveY = Math.sin(unit.facing) * unit.def.speed * speedMult + sepY;
+    const newX = unit.x + moveX * dt;
+    const newY = unit.y + moveY * dt;
+
+    // Collision check: only move if destination is walkable
+    if (isWalkable(state, newX, newY)) {
+      unit.x = newX;
+      unit.y = newY;
+    } else {
+      // Try sliding along axes
+      if (isWalkable(state, newX, unit.y)) unit.x = newX;
+      else if (isWalkable(state, unit.x, newY)) unit.y = newY;
+      // else: stuck, don't move
+    }
 
     // Clamp to map
     unit.x = Math.max(10, Math.min(state.mapWidth - 10, unit.x));
@@ -342,8 +559,9 @@ function tickUnitCombat(state: GroundRTSState, unit: RTSUnit, _all: RTSUnit[], d
   if (d > unit.def.attackRange) return; // not in range yet
   if (unit.attackTimer > 0) return; // on cooldown
 
-  // Face target
-  unit.facing = angle(unit, target);
+  // Face target (smooth)
+  unit.facingTarget = angle(unit, target);
+  unit.facing = lerpAngle(unit.facing, unit.facingTarget, FACING_LERP_SPEED, dt);
 
   // Execute attack
   unit.state = 'attacking';
