@@ -490,7 +490,8 @@ export interface RTSUnit {
   team: Team;
   x: number;
   y: number;
-  facing: number; // radians
+  facing: number; // current visual facing (radians) — lerps toward facingTarget
+  facingTarget: number; // desired facing (radians) — set by movement/attack
   hp: number;
   maxHp: number;
   state: UnitState;
@@ -560,6 +561,10 @@ export const EXPLOSION_PATHS = {
   base: `${CHARS}/Explosion/PNG`,
 };
 
+// ── Tile walkability ─────────────────────────────────────────────────
+// 0 = walkable full speed, 1 = slow (stones/rubble), 2 = impassable (water/walls)
+export type TileWalkability = 0 | 1 | 2;
+
 // ── Game State ───────────────────────────────────────────────────────
 export interface GroundRTSState {
   units: Map<number, RTSUnit>;
@@ -574,6 +579,8 @@ export interface GroundRTSState {
   tileSize: number; // pixels per tile
   mapWidth: number; // total pixels
   mapHeight: number;
+  // Walkability grid (same dimensions as tileGrid)
+  walkGrid: TileWalkability[][];
   // Wave system
   wave: number;
   waveTimer: number;
@@ -587,6 +594,8 @@ export interface GroundRTSState {
   victory: boolean;
   // IDs
   nextId: number;
+  // Current level
+  level: number;
 }
 
 // ── Wave Configuration ───────────────────────────────────────────────

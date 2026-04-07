@@ -92,26 +92,44 @@ function getViewport(camera: Camera, canvasW: number, canvasH: number): { x1: nu
 // Store viewport for culling during world-space rendering
 let _vp = { x1: 0, y1: 0, x2: 9999, y2: 9999 };
 
-// ── Tilemap (with viewport culling) ──────────────────────────────
+// ── Tilemap (per-cell type, viewport culled, impassable overlay) ────
 function renderTilemap(ctx: CanvasRenderingContext2D, state: GroundRTSState): void {
-  const paths = TILE_PATHS[state.tileType];
   const ts = state.tileSize;
-  // Only render tiles visible in the viewport
+  const typeGrid: string[][] | undefined = (state as any)._tileTypeGrid;
   const cStart = Math.max(0, Math.floor(_vp.x1 / ts));
   const cEnd = Math.min(state.tileCols - 1, Math.ceil(_vp.x2 / ts));
   const rStart = Math.max(0, Math.floor(_vp.y1 / ts));
   const rEnd = Math.min(state.tileRows - 1, Math.ceil(_vp.y2 / ts));
+
   for (let r = rStart; r <= rEnd; r++) {
     for (let c = cStart; c <= cEnd; c++) {
       const tileIdx = state.tileGrid[r][c];
+      const walkVal = state.walkGrid[r]?.[c] ?? 0;
+      // Determine which tileset to use per cell
+      const cellType = (typeGrid?.[r]?.[c] ?? state.tileType) as 'sand' | 'ground' | 'stones' | 'water';
+      const paths = TILE_PATHS[cellType];
       const path = paths[tileIdx % paths.length];
       const img = getImage(path);
       const x = c * ts;
       const y = r * ts;
+
       if (img) {
         ctx.drawImage(img, x, y, ts, ts);
       } else {
-        ctx.fillStyle = '#c4a86a';
+        // Placeholder color per type
+        const placeholders: Record<string, string> = { sand: '#c4a86a', ground: '#8a7a5a', stones: '#6a6a6a', water: '#1a2a4a' };
+        ctx.fillStyle = placeholders[cellType] ?? '#c4a86a';
+        ctx.fillRect(x, y, ts, ts);
+      }
+
+      // Darken impassable tiles (water = black/dark overlay)
+      if (walkVal === 2) {
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
+        ctx.fillRect(x, y, ts, ts);
+      }
+      // Slight tint on slow tiles
+      else if (walkVal === 1) {
+        ctx.fillStyle = 'rgba(80, 60, 20, 0.15)';
         ctx.fillRect(x, y, ts, ts);
       }
     }
@@ -323,6 +341,26 @@ function renderMinimap(ctx: CanvasRenderingContext2D, state: GroundRTSState, cam
   // Background
   ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
   ctx.fillRect(mmX, mmY, mmW, mmH);
+
+  // Walk grid overlay on minimap
+  const cellW = mmW / state.tileCols;
+  const cellH = mmH / state.tileRows;
+  for (let r = 0; r < state.tileRows; r++) {
+    for (let c = 0; c < state.tileCols; c++) {
+      const walk = state.walkGrid[r]?.[c] ?? 0;
+      if (walk === 2) {
+        ctx.fillStyle = 'rgba(10, 20, 40, 0.9)';
+        ctx.fillRect(mmX + c * cellW, mmY + r * cellH, cellW, cellH);
+      } else if (walk === 1) {
+        ctx.fillStyle = 'rgba(80, 70, 40, 0.4)';
+        ctx.fillRect(mmX + c * cellW, mmY + r * cellH, cellW, cellH);
+      } else {
+        ctx.fillStyle = 'rgba(120, 100, 60, 0.3)';
+        ctx.fillRect(mmX + c * cellW, mmY + r * cellH, cellW, cellH);
+      }
+    }
+  }
+
   ctx.strokeStyle = '#555';
   ctx.lineWidth = 1;
   ctx.strokeRect(mmX, mmY, mmW, mmH);
