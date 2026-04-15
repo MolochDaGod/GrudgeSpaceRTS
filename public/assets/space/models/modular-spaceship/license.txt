@@ -1,0 +1,11 @@
+Model Information:
+* title:	Modular Spacership by Jungle Jim (animated)
+* source:	https://sketchfab.com/3d-models/modular-spacership-by-jungle-jim-animated-0d9ae174b77144728d545f77a1dd9303
+* author:	Jungle Jim (https://sketchfab.com/jungle_jim)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Modular Spacership by Jungle Jim (animated)" (https://sketchfab.com/3d-models/modular-spacership-by-jungle-jim-animated-0d9ae174b77144728d545f77a1dd9303) by Jungle Jim (https://sketchfab.com/jungle_jim) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)

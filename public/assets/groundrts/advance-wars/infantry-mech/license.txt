@@ -1,0 +1,11 @@
+Model Information:
+* title:	Advance Wars Infantry & Mech Units
+* source:	https://sketchfab.com/3d-models/advance-wars-infantry-mech-units-82c2bc4d266945cf8896204932a50a9c
+* author:	Nova Odos (https://sketchfab.com/novaodos)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Advance Wars Infantry & Mech Units" (https://sketchfab.com/3d-models/advance-wars-infantry-mech-units-82c2bc4d266945cf8896204932a50a9c) by Nova Odos (https://sketchfab.com/novaodos) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)

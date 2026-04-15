@@ -1,0 +1,479 @@
+/**
+ * ground-rts-3d-renderer.ts — Three.js 3D renderer for Ground RTS Micro Wars.
+ *
+ * Replaces the 2D canvas renderer with a full 3D scene using:
+ * - Advance Wars GLTF models (infantry, mech, land, air/naval)
+ * - Sci-fi soldier + catfish mech models for special units
+ * - Postprocessing pipeline (Bloom + ToneMapping + SMAA)
+ * - Top-down orbital camera with RTS controls
+ * - Selection rings, health bars, projectile trails in 3D
+ *
+ * The game engine (ground-rts-engine.ts) stays unchanged —
+ * this renderer reads GroundRTSState and syncs 3D meshes.
+ */
+
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import {
+  EffectComposer,
+  EffectPass,
+  RenderPass,
+  BloomEffect,
+  ToneMappingEffect,
+  SMAAEffect,
+  SMAAPreset,
+  ToneMappingMode,
+} from 'postprocessing';
+import type { GroundRTSState, RTSUnit, Team, Vec2, Projectile } from './ground-rts-types';
+
+// ── Asset Paths ──────────────────────────────────────────────────────
+const AW = '/assets/groundrts/advance-wars';
+const GLTF_PATHS = {
+  infantry_mech: `${AW}/infantry-mech/scene.gltf`,
+  land_units: `${AW}/land-units/scene.gltf`,
+  air_naval: `${AW}/air-naval/scene.gltf`,
+  soldier: '/assets/space/models/soldier/scene.gltf',
+  mech: '/assets/space/models/mech/scene.gltf',
+};
+
+const TEAM_HEX: Record<number, number> = { 0: 0x4488ff, 1: 0xff4444 };
+const WORLD_SCALE = 0.01; // game pixels → Three.js units (1 game pixel = 0.01 units)
+
+// ── Unit mesh cache ──────────────────────────────────────────────────
+interface UnitMesh3D {
+  group: THREE.Group;
+  healthBar: THREE.Mesh;
+  healthBg: THREE.Mesh;
+  selectionRing: THREE.Mesh;
+}
+
+// ── Main Renderer Class ──────────────────────────────────────────────
+export class GroundRTS3DRenderer {
+  private renderer!: THREE.WebGLRenderer;
+  private scene!: THREE.Scene;
+  private camera!: THREE.PerspectiveCamera;
+  private composer!: EffectComposer;
+  private container: HTMLElement;
+  private clock = new THREE.Clock();
+  private disposed = false;
+  private animFrame = 0;
+
+  // Scene objects
+  private unitMeshes = new Map<number, UnitMesh3D>();
+  private projectileMeshes = new Map<number, THREE.Mesh>();
+  private groundPlane!: THREE.Mesh;
+  private gridHelper!: THREE.GridHelper;
+
+  // Model templates (cloned per unit)
+  private modelTemplates = new Map<string, THREE.Group>();
+  private modelLoading = new Map<string, Promise<THREE.Group>>();
+  private gltfLoader = new GLTFLoader();
+
+  // Camera state (mirrors space-renderer orbital pattern)
+  public cameraX = 0;
+  public cameraZ = 0;
+  public cameraZoom = 120;
+  private cameraAngle = 65; // pitch degrees
+
+  // Raycaster for click-to-world
+  public raycaster = new THREE.Raycaster();
+  public mouseNdc = new THREE.Vector2();
+
+  constructor(container: HTMLElement) {
+    this.container = container;
+  }
+
+  // ── Init ──────────────────────────────────────────────────────────
+  async init(state: GroundRTSState): Promise<void> {
+    const w = this.container.clientWidth;
+    const h = this.container.clientHeight;
+
+    // Renderer
+    this.renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance' });
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    this.renderer.setSize(w, h);
+    this.renderer.shadowMap.enabled = true;
+    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    this.renderer.toneMapping = THREE.NoToneMapping; // postprocessing handles it
+    this.renderer.outputColorSpace = THREE.SRGBColorSpace;
+    this.container.appendChild(this.renderer.domElement);
+
+    // Scene
+    this.scene = new THREE.Scene();
+    this.scene.background = new THREE.Color(0x1a2030);
+    this.scene.fog = new THREE.FogExp2(0x1a2030, 0.003);
+
+    // Camera — top-down orbital (same pattern as space-renderer)
+    this.camera = new THREE.PerspectiveCamera(50, w / h, 0.5, 2000);
+    this.cameraX = (state.mapWidth * WORLD_SCALE) / 2;
+    this.cameraZ = state.mapHeight * WORLD_SCALE - 4; // start near player spawn
+    this.updateCamera();
+
+    // Lighting
+    this.setupLighting();
+
+    // Terrain
+    this.buildTerrain(state);
+
+    // Postprocessing
+    this.setupPostProcessing();
+
+    // Preload Advance Wars models
+    await this.preloadModels();
+
+    // Resize handler
+    window.addEventListener('resize', this.onResize);
+  }
+
+  // ── Lighting (warm military) ──────────────────────────────────────
+  private setupLighting(): void {
+    const ambient = new THREE.AmbientLight(0x556688, 1.2);
+    this.scene.add(ambient);
+
+    const sun = new THREE.DirectionalLight(0xffeedd, 1.8);
+    sun.position.set(30, 50, 20);
+    sun.castShadow = true;
+    sun.shadow.mapSize.set(2048, 2048);
+    sun.shadow.camera.near = 0.5;
+    sun.shadow.camera.far = 200;
+    sun.shadow.camera.left = -60;
+    sun.shadow.camera.right = 60;
+    sun.shadow.camera.top = 60;
+    sun.shadow.camera.bottom = -60;
+    this.scene.add(sun);
+
+    const fill = new THREE.DirectionalLight(0x6688cc, 0.6);
+    fill.position.set(-20, 30, -30);
+    this.scene.add(fill);
+
+    const hemi = new THREE.HemisphereLight(0x88aacc, 0x334422, 0.4);
+    this.scene.add(hemi);
+  }
+
+  // ── Terrain (flat plane with grid) ────────────────────────────────
+  private buildTerrain(state: GroundRTSState): void {
+    const mapW = state.mapWidth * WORLD_SCALE;
+    const mapH = state.mapHeight * WORLD_SCALE;
+
+    // Ground plane
+    const geo = new THREE.PlaneGeometry(mapW, mapH);
+    const mat = new THREE.MeshStandardMaterial({
+      color: 0x3a4a2a,
+      roughness: 0.9,
+      metalness: 0.05,
+    });
+    this.groundPlane = new THREE.Mesh(geo, mat);
+    this.groundPlane.rotation.x = -Math.PI / 2;
+    this.groundPlane.position.set(mapW / 2, 0, mapH / 2);
+    this.groundPlane.receiveShadow = true;
+    this.scene.add(this.groundPlane);
+
+    // Grid overlay
+    const gridSize = Math.max(mapW, mapH);
+    this.gridHelper = new THREE.GridHelper(gridSize, 40, 0x2a3a1a, 0x2a3a1a);
+    this.gridHelper.position.set(mapW / 2, 0.01, mapH / 2);
+    this.gridHelper.material.opacity = 0.3;
+    this.gridHelper.material.transparent = true;
+    this.scene.add(this.gridHelper);
+  }
+
+  // ── Postprocessing ────────────────────────────────────────────────
+  private setupPostProcessing(): void {
+    this.composer = new EffectComposer(this.renderer, {
+      frameBufferType: THREE.HalfFloatType,
+    });
+    this.composer.addPass(new RenderPass(this.scene, this.camera));
+
+    const bloom = new BloomEffect({
+      intensity: 0.5,
+      luminanceThreshold: 0.5,
+      luminanceSmoothing: 0.3,
+      mipmapBlur: true,
+    });
+    const toneMapping = new ToneMappingEffect({ mode: ToneMappingMode.ACES_FILMIC });
+    const smaa = new SMAAEffect({ preset: SMAAPreset.MEDIUM });
+
+    this.composer.addPass(new EffectPass(this.camera, bloom, toneMapping, smaa));
+  }
+
+  // ── Model Preloading ──────────────────────────────────────────────
+  private async preloadModels(): Promise<void> {
+    const keys = Object.entries(GLTF_PATHS);
+    const results = await Promise.allSettled(
+      keys.map(async ([key, path]) => {
+        try {
+          const gltf = await this.gltfLoader.loadAsync(path);
+          this.modelTemplates.set(key, gltf.scene);
+        } catch (err) {
+          console.warn(`[GroundRTS3D] Failed to load ${key}:`, err);
+        }
+      }),
+    );
+    void results; // all settled, failures logged
+  }
+
+  // ── Get unit model clone ──────────────────────────────────────────
+  private getUnitModel(unit: RTSUnit): THREE.Group {
+    const cls = unit.def.unitClass;
+
+    // Map unit classes to model templates
+    let templateKey = 'infantry_mech'; // default
+    if (cls.includes('monster') || cls.includes('boss') || cls === 'megaboss') {
+      templateKey = 'mech'; // big enemies use catfish mech
+    } else if (cls.includes('zombie')) {
+      templateKey = 'land_units'; // zombies replaced by land vehicles
+    } else if (cls.includes('girl') || cls.includes('man')) {
+      templateKey = 'infantry_mech'; // player units use infantry/mech
+    }
+
+    const template = this.modelTemplates.get(templateKey);
+    if (template) {
+      const clone = template.clone();
+      // Auto-fit to unit size
+      const box = new THREE.Box3().setFromObject(clone);
+      const diam = box.getSize(new THREE.Vector3()).length();
+      const targetSize = unit.def.spriteSize * WORLD_SCALE * 1.5;
+      if (diam > 0) clone.scale.setScalar(targetSize / diam);
+      // Team tint
+      this.tintModel(clone, unit.team);
+      return clone;
+    }
+
+    // Fallback: colored box
+    return this.buildPlaceholderUnit(unit);
+  }
+
+  private buildPlaceholderUnit(unit: RTSUnit): THREE.Group {
+    const group = new THREE.Group();
+    const size = unit.def.spriteSize * WORLD_SCALE;
+    const geo = new THREE.BoxGeometry(size, size * 1.5, size);
+    const mat = new THREE.MeshStandardMaterial({
+      color: TEAM_HEX[unit.team] ?? 0x888888,
+      emissive: TEAM_HEX[unit.team] ?? 0x888888,
+      emissiveIntensity: 0.3,
+      metalness: 0.5,
+      roughness: 0.4,
+    });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.y = size * 0.75;
+    mesh.castShadow = true;
+    group.add(mesh);
+    return group;
+  }
+
+  private tintModel(group: THREE.Group, team: Team): void {
+    const color = new THREE.Color(TEAM_HEX[team] ?? 0x888888);
+    group.traverse((child) => {
+      if (!(child as THREE.Mesh).isMesh) return;
+      const mesh = child as THREE.Mesh;
+      const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+      for (const m of mats) {
+        if ((m as THREE.MeshStandardMaterial).isMeshStandardMaterial) {
+          const sm = m as THREE.MeshStandardMaterial;
+          sm.emissive.copy(color);
+          sm.emissiveIntensity = 0.15;
+        }
+      }
+    });
+  }
+
+  // ── Sync Units ────────────────────────────────────────────────────
+  private syncUnits(state: GroundRTSState): void {
+    // Remove deleted units
+    for (const [id, mesh] of this.unitMeshes) {
+      if (!state.units.has(id)) {
+        this.scene.remove(mesh.group);
+        this.unitMeshes.delete(id);
+      }
+    }
+
+    // Update / create units
+    for (const [id, unit] of state.units) {
+      if (unit.state === 'dead') {
+        const existing = this.unitMeshes.get(id);
+        if (existing) {
+          // Fade dead units
+          existing.group.traverse((c) => {
+            if ((c as THREE.Mesh).isMesh) {
+              const mat = (c as THREE.Mesh).material as THREE.Material;
+              if (mat) {
+                mat.transparent = true;
+                mat.opacity = 0.3;
+              }
+            }
+          });
+          existing.healthBar.visible = false;
+          existing.healthBg.visible = false;
+          existing.selectionRing.visible = false;
+        }
+        continue;
+      }
+
+      let mesh = this.unitMeshes.get(id);
+      if (!mesh) {
+        mesh = this.createUnitMesh(unit);
+        this.unitMeshes.set(id, mesh);
+      }
+
+      // Position (game 2D x,y → Three.js x,z)
+      const wx = unit.x * WORLD_SCALE;
+      const wz = unit.y * WORLD_SCALE;
+      mesh.group.position.set(wx, 0, wz);
+
+      // Facing
+      mesh.group.rotation.y = -unit.facing + Math.PI / 2;
+
+      // Selection ring
+      mesh.selectionRing.visible = unit.selected;
+
+      // Health bar
+      const hpPct = unit.hp / unit.maxHp;
+      if (hpPct < 1) {
+        mesh.healthBar.visible = true;
+        mesh.healthBg.visible = true;
+        mesh.healthBar.scale.x = Math.max(0.01, hpPct);
+        const barMat = mesh.healthBar.material as THREE.MeshBasicMaterial;
+        barMat.color.setHex(hpPct > 0.5 ? 0x44ff44 : hpPct > 0.25 ? 0xffaa00 : 0xff4444);
+      } else {
+        mesh.healthBar.visible = false;
+        mesh.healthBg.visible = false;
+      }
+    }
+  }
+
+  private createUnitMesh(unit: RTSUnit): UnitMesh3D {
+    const group = new THREE.Group();
+    const model = this.getUnitModel(unit);
+    group.add(model);
+
+    const size = unit.def.spriteSize * WORLD_SCALE;
+
+    // Selection ring (ground decal)
+    const ringGeo = new THREE.RingGeometry(size * 0.6, size * 0.7, 24);
+    ringGeo.rotateX(-Math.PI / 2);
+    const ringMat = new THREE.MeshBasicMaterial({
+      color: 0x44ff44,
+      transparent: true,
+      opacity: 0.6,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+    });
+    const selectionRing = new THREE.Mesh(ringGeo, ringMat);
+    selectionRing.position.y = 0.02;
+    selectionRing.visible = false;
+    group.add(selectionRing);
+
+    // Health bar background
+    const barW = size * 1.2;
+    const barH = size * 0.1;
+    const bgGeo = new THREE.PlaneGeometry(barW, barH);
+    const bgMat = new THREE.MeshBasicMaterial({ color: 0x222222, transparent: true, opacity: 0.7, depthWrite: false });
+    const healthBg = new THREE.Mesh(bgGeo, bgMat);
+    healthBg.position.set(0, size * 2.2, 0);
+    healthBg.visible = false;
+    group.add(healthBg);
+
+    // Health bar fill
+    const barGeo = new THREE.PlaneGeometry(barW, barH);
+    const barMat = new THREE.MeshBasicMaterial({ color: 0x44ff44, transparent: true, opacity: 0.9, depthWrite: false });
+    const healthBar = new THREE.Mesh(barGeo, barMat);
+    healthBar.position.set(0, size * 2.2, 0.001);
+    healthBar.visible = false;
+    group.add(healthBar);
+
+    this.scene.add(group);
+    return { group, healthBar, healthBg, selectionRing };
+  }
+
+  // ── Sync Projectiles ──────────────────────────────────────────────
+  private syncProjectiles(state: GroundRTSState): void {
+    // Remove finished
+    for (const [id] of this.projectileMeshes) {
+      if (!state.projectiles.has(id)) {
+        const m = this.projectileMeshes.get(id)!;
+        this.scene.remove(m);
+        this.projectileMeshes.delete(id);
+      }
+    }
+
+    // Update / create
+    for (const [id, proj] of state.projectiles) {
+      let mesh = this.projectileMeshes.get(id);
+      if (!mesh) {
+        const geo = new THREE.SphereGeometry(proj.radius * WORLD_SCALE * 2, 6, 6);
+        const mat = new THREE.MeshBasicMaterial({
+          color: new THREE.Color(proj.color),
+          transparent: true,
+          opacity: 0.9,
+        });
+        mesh = new THREE.Mesh(geo, mat);
+        this.scene.add(mesh);
+        this.projectileMeshes.set(id, mesh);
+      }
+      mesh.position.set(proj.x * WORLD_SCALE, 0.3, proj.y * WORLD_SCALE);
+    }
+  }
+
+  // ── Camera ────────────────────────────────────────────────────────
+  updateCamera(): void {
+    const dist = this.cameraZoom * WORLD_SCALE * 10;
+    const pitch = (this.cameraAngle * Math.PI) / 180;
+    this.camera.position.set(this.cameraX, dist * Math.sin(pitch), this.cameraZ + dist * Math.cos(pitch));
+    this.camera.lookAt(this.cameraX, 0, this.cameraZ);
+  }
+
+  /** Convert screen coords to world ground position. */
+  screenToWorld(screenX: number, screenY: number): Vec2 | null {
+    const rect = this.container.getBoundingClientRect();
+    this.mouseNdc.x = ((screenX - rect.left) / rect.width) * 2 - 1;
+    this.mouseNdc.y = -((screenY - rect.top) / rect.height) * 2 + 1;
+    this.raycaster.setFromCamera(this.mouseNdc, this.camera);
+
+    const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+    const target = new THREE.Vector3();
+    if (this.raycaster.ray.intersectPlane(plane, target)) {
+      return { x: target.x / WORLD_SCALE, y: target.z / WORLD_SCALE };
+    }
+    return null;
+  }
+
+  // ── Render Loop ───────────────────────────────────────────────────
+  render(state: GroundRTSState, dt: number): void {
+    if (this.disposed) return;
+
+    this.syncUnits(state);
+    this.syncProjectiles(state);
+    this.updateCamera();
+
+    // Billboard health bars toward camera
+    for (const [, mesh] of this.unitMeshes) {
+      if (mesh.healthBar.visible) {
+        mesh.healthBar.lookAt(this.camera.position);
+        mesh.healthBg.lookAt(this.camera.position);
+      }
+    }
+
+    this.composer.render(dt);
+  }
+
+  // ── Resize ────────────────────────────────────────────────────────
+  private onResize = () => {
+    const w = this.container.clientWidth;
+    const h = this.container.clientHeight;
+    this.camera.aspect = w / h;
+    this.camera.updateProjectionMatrix();
+    this.renderer.setSize(w, h);
+    this.composer?.setSize(w, h);
+  };
+
+  // ── Dispose ───────────────────────────────────────────────────────
+  dispose(): void {
+    this.disposed = true;
+    window.removeEventListener('resize', this.onResize);
+    this.composer?.dispose();
+    this.renderer?.dispose();
+    if (this.renderer?.domElement.parentNode) {
+      this.renderer.domElement.parentNode.removeChild(this.renderer.domElement);
+    }
+  }
+}

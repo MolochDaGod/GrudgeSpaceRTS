@@ -13,6 +13,8 @@
  */
 
 const CDN_BASE = import.meta.env.VITE_ASSET_CDN ?? '';
+const CDN_PREFIX = import.meta.env.VITE_ASSET_CDN_PREFIX ?? 'gruda-armada';
+const ASSET_VERSION = import.meta.env.VITE_ASSET_VERSION ?? '';
 const MAX_CONCURRENT = 6; // browser limit per origin is typically 6
 
 // ── Types ─────────────────────────────────────────────────────────
@@ -57,13 +59,14 @@ export function resolveUrl(localPath: string, isTexture = false): string {
 
   // CDN path: strip leading /assets/ prefix and map to CDN structure
   const cdnPath = localPath.replace(/^\/assets\//, '');
+  const versionSuffix = ASSET_VERSION ? `?v=${ASSET_VERSION}` : '';
 
   if (isTexture && _webpSupported) {
     // Try WebP version first (uploaded by R2 script with .webp extension)
-    return `${CDN_BASE}/${cdnPath.replace(/\.png$/i, '.webp')}`;
+    return `${CDN_BASE}/${CDN_PREFIX}/${cdnPath.replace(/\.png$/i, '.webp')}${versionSuffix}`;
   }
 
-  return `${CDN_BASE}/${cdnPath}`;
+  return `${CDN_BASE}/${CDN_PREFIX}/${cdnPath}${versionSuffix}`;
 }
 
 /**

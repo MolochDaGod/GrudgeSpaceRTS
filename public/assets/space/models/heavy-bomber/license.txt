@@ -1,0 +1,11 @@
+Model Information:
+* title:	DBG 88 Garont Heavy Bomber
+* source:	https://sketchfab.com/3d-models/dbg-88-garont-heavy-bomber-44ebb4a77e674798ae851f8dc0b34d6e
+* author:	gavinpgamer1 (https://sketchfab.com/gavinpgamer1)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "DBG 88 Garont Heavy Bomber" (https://sketchfab.com/3d-models/dbg-88-garont-heavy-bomber-44ebb4a77e674798ae851f8dc0b34d6e) by gavinpgamer1 (https://sketchfab.com/gavinpgamer1) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)

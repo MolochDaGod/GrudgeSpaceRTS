@@ -1,0 +1,55 @@
+{
+  "name": "gruda-armada",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview",
+    "check": "tsc --noEmit",
+    "lint": "eslint src/",
+    "format": "prettier --write src/",
+    "test": "vitest run",
+    "prepare": "husky",
+    "validate": "tsc --noEmit && eslint src/ && vitest run && vite build",
+    "r2:preview": "node scripts/upload-assets-r2.mjs --dry-run",
+    "r2:upload": "node scripts/upload-assets-r2.mjs",
+    "r2:upload:force": "node scripts/upload-assets-r2.mjs --force"
+  },
+  "lint-staged": {
+    "*.{ts,tsx}": [
+      "eslint --fix",
+      "prettier --write"
+    ]
+  },
+  "dependencies": {
+    "howler": "^2.2.4",
+    "pathfinding": "^0.4.18",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "three": "^0.183.2",
+    "three.quarks": "^0.17.0"
+  },
+  "devDependencies": {
+    "@aws-sdk/client-s3": "^3.1019.0",
+    "@eslint/js": "^9.39.4",
+    "@heyputer/puter.js": "^2.2.14",
+    "@types/howler": "^2.2.12",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@types/three": "^0.183.1",
+    "@vitejs/plugin-react": "^4.7.0",
+    "eslint": "^10.1.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.4.0",
+    "prettier": "^3.8.1",
+    "sharp": "^0.34.5",
+    "typescript": "~5.8.3",
+    "typescript-eslint": "^8.57.1",
+    "vite": "^6.4.1",
+    "vitest": "^4.1.0"
+  }
+}

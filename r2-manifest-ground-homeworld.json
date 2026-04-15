@@ -1,0 +1,32 @@
+[
+  {
+    "key": "gruda-armada/ground/homeworld/scene.bin",
+    "localPath": "/assets/ground/homeworld/scene.bin",
+    "size": 72732712,
+    "contentType": "application/octet-stream"
+  },
+  {
+    "key": "gruda-armada/ground/homeworld/scene.gltf",
+    "localPath": "/assets/ground/homeworld/scene.gltf",
+    "size": 4267915,
+    "contentType": "model/gltf+json"
+  },
+  {
+    "key": "gruda-armada/ground/homeworld/textures/Color_normal.jpeg",
+    "localPath": "/assets/ground/homeworld/textures/Color_normal.jpeg",
+    "size": 47756,
+    "contentType": "image/jpeg"
+  },
+  {
+    "key": "gruda-armada/ground/homeworld/textures/material_5_metallicRoughness.png",
+    "localPath": "/assets/ground/homeworld/textures/material_5_metallicRoughness.png",
+    "size": 57164,
+    "contentType": "image/png"
+  },
+  {
+    "key": "gruda-armada/ground/homeworld/textures/Metal_baseColor.png",
+    "localPath": "/assets/ground/homeworld/textures/Metal_baseColor.png",
+    "size": 208295,
+    "contentType": "image/png"
+  }
+]

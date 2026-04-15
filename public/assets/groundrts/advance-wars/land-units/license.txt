@@ -1,0 +1,11 @@
+Model Information:
+* title:	Advance Wars Land Units
+* source:	https://sketchfab.com/3d-models/advance-wars-land-units-8b046f214f8a4f93b6242f48a1d592c2
+* author:	Nova Odos (https://sketchfab.com/novaodos)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Advance Wars Land Units" (https://sketchfab.com/3d-models/advance-wars-land-units-8b046f214f8a4f93b6242f48a1d592c2) by Nova Odos (https://sketchfab.com/novaodos) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)

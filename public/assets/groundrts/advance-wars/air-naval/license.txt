@@ -1,0 +1,11 @@
+Model Information:
+* title:	Advance Wars Air & Naval Units
+* source:	https://sketchfab.com/3d-models/advance-wars-air-naval-units-0ae371e0e8e04cb1a01cd5a22cc3cf76
+* author:	Nova Odos (https://sketchfab.com/novaodos)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Advance Wars Air & Naval Units" (https://sketchfab.com/3d-models/advance-wars-air-naval-units-0ae371e0e8e04cb1a01cd5a22cc3cf76) by Nova Odos (https://sketchfab.com/novaodos) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)

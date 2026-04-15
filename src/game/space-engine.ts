@@ -327,21 +327,23 @@ export class SpaceEngine {
       const station = this.buildStation(start, team);
       const sign = team % 2 === 1 ? -1 : 1;
 
-      // Spawn faction-appropriate starting ships (not hardcoded pyramid_ship)
+      // Spawn faction-appropriate starting ships:
+      // Index 0 = pyramid_ship flagship, Index 1 = faction scout, Index 2 = worker type
       const ss = this.state.sparkState.get(team);
-      const starters = ss ? (FACTION_STARTER_SHIPS[ss.faction] ?? ['red_fighter', 'mining_drone']) : ['red_fighter', 'mining_drone'];
+      const starters = ss
+        ? (FACTION_STARTER_SHIPS[ss.faction] ?? ['pyramid_ship', 'red_fighter', 'mining_drone'])
+        : ['pyramid_ship', 'red_fighter', 'mining_drone'];
 
-      // Spawn combat starters (first 2 entries in faction starter list)
-      for (let si = 0; si < Math.min(2, starters.length); si++) {
-        const shipType = starters[si];
-        if (getShipDef(shipType)) {
-          this.spawnShip(shipType, team, start.x + sign * (60 + si * 80), start.y + 50, station.id);
-        }
+      // Spawn homeworld flagship (pyramid_ship) — always first in starters
+      const flagshipType = starters[0] ?? 'pyramid_ship';
+      if (getShipDef(flagshipType)) {
+        this.spawnShip(flagshipType, team, start.x + sign * 60, start.y + 50, station.id);
       }
-      // Spawn workers (last entry in faction starter list, or mining_drone)
+
+      // Spawn 2 miners alongside the flagship
       const workerType = starters.length >= 3 ? starters[2] : 'mining_drone';
-      for (let wi = 0; wi < 3; wi++) {
-        const w = this.spawnShip(workerType, team, start.x + sign * (200 + wi * 60), start.y + 60 + wi * 40, station.id);
+      for (let wi = 0; wi < 2; wi++) {
+        const w = this.spawnShip(workerType, team, start.x + sign * (200 + wi * 80), start.y + 60 + wi * 50, station.id);
         w.workerState = 'idle';
       }
 

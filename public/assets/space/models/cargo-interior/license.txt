@@ -1,0 +1,11 @@
+Model Information:
+* title:	Cargo Ship with Interiors
+* source:	https://sketchfab.com/3d-models/cargo-ship-with-interiors-64ca6cb4f1d24a4895bd3cf6239cace3
+* author:	WideFoot (https://sketchfab.com/WideFoot)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Cargo Ship with Interiors" (https://sketchfab.com/3d-models/cargo-ship-with-interiors-64ca6cb4f1d24a4895bd3cf6239cace3) by WideFoot (https://sketchfab.com/WideFoot) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)

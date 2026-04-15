@@ -1,0 +1,11 @@
+Model Information:
+* title:	A space ship server room (PBR)
+* source:	https://sketchfab.com/3d-models/a-space-ship-server-room-pbr-baa1ec3f3c0b48738f503a3af8b75f02
+* author:	AGUNG.IHACKSTUFF@GMAIL.COM (https://sketchfab.com/agung.ihackstuff)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "A space ship server room (PBR)" (https://sketchfab.com/3d-models/a-space-ship-server-room-pbr-baa1ec3f3c0b48738f503a3af8b75f02) by AGUNG.IHACKSTUFF@GMAIL.COM (https://sketchfab.com/agung.ihackstuff) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)

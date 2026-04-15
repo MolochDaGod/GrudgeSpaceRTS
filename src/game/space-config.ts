@@ -504,12 +504,16 @@ export const QUICK_START_SPARK = 15;
 /** Campaign starting planet level (L1), quick game starting planet = L2 for faster progression. */
 export const CAMPAIGN_START_PLANET_LEVEL = 1;
 export const QUICK_START_PLANET_LEVEL = 2;
-/** Ships each faction starts with (buildable without any Spark). */
+/** Ships each faction starts with (buildable without any Spark).
+ * Index 0 = homeworld flagship (always pyramid_ship).
+ * Index 1 = faction scout / fighter.
+ * Index 2 = worker type (mining_drone or energy_skimmer).
+ */
 export const FACTION_STARTER_SHIPS: Record<SpaceFaction, string[]> = {
-  wisdom: ['micro_recon', 'galactix_racer', 'energy_skimmer'],
-  construct: ['cf_corvette_01', 'dual_striker', 'mining_drone'],
-  void: ['cf_corvette_05', 'camo_stellar_jet', 'energy_skimmer'],
-  legion: ['red_fighter', 'cf_corvette_01', 'mining_drone'],
+  wisdom: ['pyramid_ship', 'micro_recon', 'energy_skimmer'],
+  construct: ['pyramid_ship', 'cf_corvette_01', 'mining_drone'],
+  void: ['pyramid_ship', 'camo_stellar_jet', 'energy_skimmer'],
+  legion: ['pyramid_ship', 'red_fighter', 'mining_drone'],
 };
 /** 12 faction commanders ΓÇö 3 per faction (caster / tank / strategist). All bonuses under 7%. */
 export const FACTION_COMMANDERS: FactionCommander[] = [

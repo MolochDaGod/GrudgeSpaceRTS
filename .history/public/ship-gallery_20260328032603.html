@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Gruda Armada — Ship Gallery</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:#000; color:#cde; font-family:'Segoe UI',system-ui,sans-serif; overflow:hidden; }
+  #ui { position:fixed; top:0; left:0; right:0; z-index:10; padding:10px 20px;
+    background:linear-gradient(180deg,rgba(0,6,20,0.95),transparent); display:flex; align-items:center; gap:16px; }
+  #ui h1 { font-size:18px; letter-spacing:3px; color:#4ff; text-shadow:0 0 12px #0aa; }
+  #ui .info { font-size:12px; opacity:0.6; }
+  button { background:rgba(68,136,255,0.2); border:1px solid #4488ff; color:#cde; padding:6px 16px;
+    border-radius:4px; cursor:pointer; font-size:12px; letter-spacing:1px; }
+  button:hover { background:rgba(68,136,255,0.4); }
+  #status { position:fixed; bottom:20px; left:20px; z-index:10; font-size:11px; opacity:0.6; }
+  #labels { position:fixed; top:0; left:0; width:100%; height:100%; pointer-events:none; z-index:5; }
+  .label { position:absolute; text-align:center; font-size:10px; font-weight:700; color:#fff;
+    text-shadow:0 0 6px #000,0 0 3px #000; white-space:nowrap; transform:translate(-50%,0); pointer-events:none; }
+  .label .tier { font-size:8px; opacity:0.6; display:block; }
+</style>
+</head>
+<body>
+<div id="ui">
+  <h1>SHIP GALLERY</h1>
+  <span class="info" id="count">Loading...</span>
+  <button onclick="captureAll()">📷 Screenshot All</button>
+  <button onclick="resetCamera()">🎯 Reset View</button>
+</div>
+<div id="labels"></div>
+<div id="status">Scroll to zoom · Drag to orbit</div>
+<canvas id="c"></canvas>
+
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.162.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.162.0/examples/jsm/"
+}}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
+import { MTLLoader } from 'three/addons/loaders/MTLLoader.js';
+import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+// ── All ships ordered biggest → smallest (by HP as proxy for size) ──
+const SHIPS = [
+  // Dreadnoughts / Boss
+  { key:'boss_ship_02', name:'Apex Dreadnought', tier:5, hp:2400, model:'/assets/space/models/new-ships/Ship_Boss_02_Hull.fbx', fmt:'fbx', s:0.045 },
+  { key:'boss_ship_01', name:'Command Dreadnought', tier:5, hp:1600, model:'/assets/space/models/new-ships/Ship_Boos_01_Hull.fbx', fmt:'fbx', s:0.045 },
+  // Battleship
+  { key:'battleship', name:'Battleship', tier:5, hp:800, model:'/assets/space/models/capital/Battleships/Battleship.fbx', fmt:'fbx', s:0.024, tex:'/assets/space/models/capital/Battleships/Battleship.png' },
+  // Cruiser
+  { key:'cruiser', name:'Cruiser', tier:4, hp:400, model:'/assets/space/models/capital/Cruiser/Cruiser.fbx', fmt:'fbx', s:0.027, tex:'/assets/space/models/capital/Cruiser/Cruiser.png' },
+  // Light Cruisers
+  { key:'cf_light_cruiser_01', name:'Prism Cruiser', tier:4, hp:320, model:'/assets/space/models/battle-ships/Light cruiser_01.fbx', fmt:'fbx', s:0.024 },
+  { key:'cf_light_cruiser_02', name:'Leviathan', tier:4, hp:380, model:'/assets/space/models/battle-ships/Light cruiser_02.fbx', fmt:'fbx', s:0.024 },
+  { key:'cf_light_cruiser_03', name:'Cruiser Mk.III', tier:4, hp:350, model:'/assets/space/models/battle-ships/Light cruiser_03.fbx', fmt:'fbx', s:0.024 },
+  { key:'cf_light_cruiser_04', name:'Forge Cruiser', tier:4, hp:340, model:'/assets/space/models/battle-ships/Light cruiser_04.fbx', fmt:'fbx', s:0.024 },
+  { key:'cf_light_cruiser_05', name:'Cruiser Mk.V', tier:4, hp:400, model:'/assets/space/models/battle-ships/Light cruiser_05.fbx', fmt:'fbx', s:0.024 },
+  // Destroyers
+  { key:'destroyer', name:'Destroyer', tier:4, hp:250, model:'/assets/space/models/capital/Destroyer/Destroyer.fbx', fmt:'fbx', s:0.03, tex:'/assets/space/models/capital/Destroyer/Destroyer.png' },
+  { key:'cf_destroyer_01', name:'Destroyer Mk.I', tier:4, hp:270, model:'/assets/space/models/battle-ships/Destroyer_01.fbx', fmt:'fbx', s:0.027 },
+  { key:'cf_destroyer_02', name:'Destroyer Mk.II', tier:4, hp:290, model:'/assets/space/models/battle-ships/Destroyer_02.fbx', fmt:'fbx', s:0.027 },
+  { key:'cf_destroyer_03', name:'Storm Destroyer', tier:4, hp:260, model:'/assets/space/models/battle-ships/Destroyer_03.fbx', fmt:'fbx', s:0.027 },
+  { key:'cf_destroyer_04', name:'Destroyer Mk.IV', tier:4, hp:310, model:'/assets/space/models/battle-ships/Destroyer_04.fbx', fmt:'fbx', s:0.027 },
+  { key:'cf_destroyer_05', name:'Tempest Destroyer', tier:4, hp:300, model:'/assets/space/models/battle-ships/Destroyer_05.fbx', fmt:'fbx', s:0.027 },
+  // Bomber
+  { key:'bomber', name:'Bomber', tier:4, hp:200, model:'/assets/space/models/capital/Bomber/Bomber.fbx', fmt:'fbx', s:0.036, tex:'/assets/space/models/capital/Bomber/Bomber.png' },
+  // Frigates
+  { key:'cf_frigate_01', name:'Frigate Mk.I', tier:2, hp:120, model:'/assets/space/models/battle-ships/Frigate_01.fbx', fmt:'fbx', s:0.027, tex:'/assets/space/models/battle-ships/T_Spase_64.png' },
+  { key:'cf_frigate_02', name:'Frigate Mk.II', tier:3, hp:135, model:'/assets/space/models/battle-ships/Frigate_02.fbx', fmt:'fbx', s:0.027, tex:'/assets/space/models/battle-ships/T_Spase_64.png' },
+  { key:'cf_frigate_03', name:'Siege Frigate', tier:3, hp:150, model:'/assets/space/models/battle-ships/Frigate_03.fbx', fmt:'fbx', s:0.027, tex:'/assets/space/models/battle-ships/T_Spase_64.png' },
+  { key:'cf_frigate_04', name:'Frigate Mk.IV', tier:3, hp:140, model:'/assets/space/models/battle-ships/Frigate_04.fbx', fmt:'fbx', s:0.027, tex:'/assets/space/models/battle-ships/T_Spase_blue.png' },
+  { key:'cf_frigate_05', name:'Frigate Mk.V', tier:3, hp:160, model:'/assets/space/models/battle-ships/Frigate_05.fbx', fmt:'fbx', s:0.027, tex:'/assets/space/models/battle-ships/T_Spase_blue.png' },
+  // Assault Frigates (OBJ voxel)
+  { key:'warship', name:'Warship', tier:3, hp:150, model:'/assets/space/models/ships/Warship/Warship.obj', mtl:'/assets/space/models/ships/Warship/Warship.mtl', tex:'/assets/space/models/ships/Warship/Warship.png', fmt:'obj', s:0.045 },
+  { key:'pyramid_ship', name:'PyramidShip', tier:3, hp:140, model:'/assets/space/models/ships/PyramidShip/PyramidShips.obj', mtl:'/assets/space/models/ships/PyramidShip/PyramidShips.mtl', tex:'/assets/space/models/ships/PyramidShip/PyramidShips.png', fmt:'obj', s:0.054 },
+  // Transports
+  { key:'star_marine_trooper', name:'StarMarineTrooper', tier:3, hp:120, model:'/assets/space/models/ships/StarMarineTrooper/StarMarineTrooper.obj', mtl:'/assets/space/models/ships/StarMarineTrooper/StarMarineTrooper.mtl', tex:'/assets/space/models/ships/StarMarineTrooper/StarMarineTrooper.png', fmt:'obj', s:0.042 },
+  { key:'transtellar', name:'Transtellar', tier:2, hp:110, model:'/assets/space/models/ships/Transtellar/Transtellar.obj', mtl:'/assets/space/models/ships/Transtellar/Transtellar.mtl', tex:'/assets/space/models/ships/Transtellar/Transtellar.png', fmt:'obj', s:0.06 },
+  { key:'interstellar_runner', name:'InterstellarRunner', tier:2, hp:100, model:'/assets/space/models/ships/InterstellarRunner/InterstellarRunner.obj', mtl:'/assets/space/models/ships/InterstellarRunner/InterstellarRunner.mtl', tex:'/assets/space/models/ships/InterstellarRunner/InterstellarRunner.png', fmt:'obj', s:0.075 },
+  // Corvettes
+  { key:'cf_corvette_01', name:'Corvette Mk.I', tier:1, hp:55, model:'/assets/space/models/battle-ships/Corvette_01.fbx', fmt:'fbx', s:0.030, tex:'/assets/space/models/battle-ships/T_Spase_64.png' },
+  { key:'cf_corvette_02', name:'Corvette Mk.II', tier:2, hp:65, model:'/assets/space/models/battle-ships/Corvette_02.fbx', fmt:'fbx', s:0.030, tex:'/assets/space/models/battle-ships/T_Spase_64.png' },
+  { key:'cf_corvette_03', name:'Corvette Mk.III', tier:2, hp:75, model:'/assets/space/models/battle-ships/Corvette_03.fbx', fmt:'fbx', s:0.030, tex:'/assets/space/models/battle-ships/T_Spase_64.png' },
+  { key:'cf_corvette_04', name:'Tide Corvette', tier:2, hp:80, model:'/assets/space/models/battle-ships/Corvette_04.fbx', fmt:'fbx', s:0.030, tex:'/assets/space/models/battle-ships/T_Spase_blue.png' },
+  { key:'cf_corvette_05', name:'Phantom Corvette', tier:2, hp:60, model:'/assets/space/models/battle-ships/Corvette_05.fbx', fmt:'fbx', s:0.030, tex:'/assets/space/models/battle-ships/T_Spase_blue.png' },
+  // Heavy fighters
+  { key:'ultraviolet_intruder', name:'UltravioletIntruder', tier:3, hp:90, model:'/assets/space/models/ships/UltravioletIntruder/UltravioletIntruder.obj', mtl:'/assets/space/models/ships/UltravioletIntruder/UltravioletIntruder.mtl', tex:'/assets/space/models/ships/UltravioletIntruder/UltravioletIntruder.png', fmt:'obj', s:0.042 },
+  { key:'dual_striker', name:'DualStriker', tier:2, hp:80, model:'/assets/space/models/ships/DualStriker/DualStriker.obj', mtl:'/assets/space/models/ships/DualStriker/DualStriker.mtl', tex:'/assets/space/models/ships/DualStriker/DualStriker.png', fmt:'obj', s:0.036 },
+  // Fighters
+  { key:'meteor_slicer', name:'MeteorSlicer', tier:2, hp:70, model:'/assets/space/models/ships/MeteorSlicer/MeteorSlicer.obj', mtl:'/assets/space/models/ships/MeteorSlicer/MeteorSlicer.mtl', tex:'/assets/space/models/ships/MeteorSlicer/MeteorSlicer.png', fmt:'obj', s:0.054 },
+  { key:'red_fighter', name:'RedFighter', tier:1, hp:60, model:'/assets/space/models/ships/RedFighter/RedFighter.obj', mtl:'/assets/space/models/ships/RedFighter/RedFighter.mtl', tex:'/assets/space/models/ships/RedFighter/RedFighter.png', fmt:'obj', s:0.045 },
+  // Stealth
+  { key:'infrared_furtive', name:'InfraredFurtive', tier:2, hp:55, model:'/assets/space/models/ships/InfraredFurtive/InfraredFurtive.obj', mtl:'/assets/space/models/ships/InfraredFurtive/InfraredFurtive.mtl', tex:'/assets/space/models/ships/InfraredFurtive/InfraredFurtive.png', fmt:'obj', s:0.075 },
+  { key:'camo_stellar_jet', name:'CamoStellarJet', tier:2, hp:50, model:'/assets/space/models/ships/CamoStellarJet/CamoStellarJet.obj', mtl:'/assets/space/models/ships/CamoStellarJet/CamoStellarJet.mtl', tex:'/assets/space/models/ships/CamoStellarJet/CamoStellarJet.png', fmt:'obj', s:0.06 },
+  // Interceptor
+  { key:'galactix_racer', name:'GalactixRacer', tier:1, hp:45, model:'/assets/space/models/ships/GalactixRacer/GalactixRacer.obj', mtl:'/assets/space/models/ships/GalactixRacer/GalactixRacer.mtl', tex:'/assets/space/models/ships/GalactixRacer/GalactixRacer.png', fmt:'obj', s:0.06 },
+  // Scout
+  { key:'micro_recon', name:'MicroRecon', tier:1, hp:30, model:'/assets/space/models/ships/MicroRecon/MicroRecon.obj', mtl:'/assets/space/models/ships/MicroRecon/MicroRecon.mtl', tex:'/assets/space/models/ships/MicroRecon/MicroRecon.png', fmt:'obj', s:0.06 },
+  // Voxel fleet
+  { key:'voxel_ship_1', name:'Voxel Ship 1', tier:1, hp:50, model:'/assets/space/models/voxel-fleet/Spaceship1.obj', mtl:'/assets/space/models/voxel-fleet/Spaceship1.mtl', fmt:'obj', s:0.009 },
+  { key:'voxel_ship_2', name:'Voxel Ship 2', tier:1, hp:50, model:'/assets/space/models/voxel-fleet/Spaceship2.obj', mtl:'/assets/space/models/voxel-fleet/Spaceship2.mtl', fmt:'obj', s:0.009 },
+  { key:'voxel_ship_3', name:'Voxel Ship 3', tier:1, hp:50, model:'/assets/space/models/voxel-fleet/Spaceship3.obj', mtl:'/assets/space/models/voxel-fleet/Spaceship3.mtl', fmt:'obj', s:0.009 },
+  { key:'voxel_ship_4', name:'Voxel Ship 4', tier:2, hp:60, model:'/assets/space/models/voxel-fleet/Spaceship4.obj', mtl:'/assets/space/models/voxel-fleet/Spaceship4.mtl', fmt:'obj', s:0.009 },
+  { key:'voxel_ship_5', name:'Voxel Ship 5', tier:2, hp:70, model:'/assets/space/models/voxel-fleet/Spaceship5.obj', mtl:'/assets/space/models/voxel-fleet/Spaceship5.mtl', fmt:'obj', s:0.009 },
+  { key:'voxel_ship_6', name:'Voxel Ship 6', tier:3, hp:80, model:'/assets/space/models/voxel-fleet/Spaceship6.obj', mtl:'/assets/space/models/voxel-fleet/Spaceship6.mtl', fmt:'obj', s:0.009 },
+  // Workers / Vehicles
+  { key:'mining_drone', name:'Mining Drone', tier:1, hp:25, model:'/assets/space/models/vehicles/Tracer/Tracer-0-Tracer.obj', mtl:'/assets/space/models/vehicles/Tracer/Tracer-0-Tracer.mtl', fmt:'obj', s:0.03 },
+  { key:'energy_skimmer', name:'Energy Skimmer', tier:1, hp:20, model:'/assets/space/models/vehicles/Scooter/Scooter-0-Scooter.obj', mtl:'/assets/space/models/vehicles/Scooter/Scooter-0-Scooter.mtl', fmt:'obj', s:0.03 },
+  // Enemies
+  { key:'enemy_mega_boss', name:'Enemy Mega Boss', tier:5, hp:3000, model:'/assets/space/models/enemies/Enemies/EnemyHuge2.fbx', fmt:'fbx', s:0.012 },
+  { key:'enemy_huge', name:'Enemy Huge', tier:4, hp:1500, model:'/assets/space/models/enemies/Enemies/EnemyHuge.fbx', fmt:'fbx', s:0.015 },
+  { key:'enemy_cruiser', name:'Enemy Cruiser', tier:3, hp:400, model:'/assets/space/models/enemies/Enemies/Enemy Cruiser.fbx', fmt:'fbx', s:0.024 },
+  { key:'enemy_destroyer', name:'Enemy Destroyer', tier:3, hp:250, model:'/assets/space/models/enemies/Enemies/Enemy destroyer.fbx', fmt:'fbx', s:0.027 },
+  { key:'enemy_fighter', name:'Enemy Fighter', tier:1, hp:60, model:'/assets/space/models/enemies/Enemies/Fighter/Fighter.fbx', fmt:'fbx', s:0.045 },
+  // Stations
+  { key:'station', name:'Station', tier:3, hp:500, model:'/assets/space/models/stations/Station/Station.fbx', fmt:'fbx', s:0.045 },
+  { key:'energy_ship', name:'EnergyShip', tier:2, hp:200, model:'/assets/space/models/stations/EnergyShip/EnergyShip.fbx', fmt:'fbx', s:0.03 },
+  { key:'minador', name:'Minador', tier:2, hp:150, model:'/assets/space/models/stations/Minador/Minador.fbx', fmt:'fbx', s:0.024 },
+];
+
+// Sort biggest first
+SHIPS.sort((a,b) => b.hp - a.hp);
+
+const TIER_COL = { 1:'#44cc88', 2:'#4488ff', 3:'#aa44ff', 4:'#ff8822', 5:'#ffcc00' };
+
+// ── Setup Three.js ──────────────────────────────────────────────
+const canvas = document.getElementById('c');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias:true, preserveDrawingBuffer:true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setClearColor(0x020610);
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+
+const scene = new THREE.Scene();
+scene.fog = new THREE.FogExp2(0x020610, 0.003);
+
+const camera = new THREE.PerspectiveCamera(50, window.innerWidth/window.innerHeight, 0.1, 2000);
+camera.position.set(0, 30, 80);
+
+const controls = new OrbitControls(camera, canvas);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.target.set(0, 0, 0);
+
+// Lights
+scene.add(new THREE.AmbientLight(0x334466, 1.5));
+const dLight = new THREE.DirectionalLight(0xffffff, 2.0);
+dLight.position.set(20, 40, 30);
+scene.add(dLight);
+const dLight2 = new THREE.DirectionalLight(0x4488ff, 0.8);
+dLight2.position.set(-20, 10, -20);
+scene.add(dLight2);
+const pLight = new THREE.PointLight(0x44ffcc, 1.0, 200);
+pLight.position.set(0, 20, 0);
+scene.add(pLight);
+
+// Grid floor
+const grid = new THREE.GridHelper(400, 80, 0x112233, 0x0a1520);
+grid.position.y = -2;
+scene.add(grid);
+
+// Stars
+const starGeo = new THREE.BufferGeometry();
+const starVerts = [];
+for(let i=0; i<3000; i++) {
+  starVerts.push((Math.random()-0.5)*800, Math.random()*200+20, (Math.random()-0.5)*800);
+}
+starGeo.setAttribute('position', new THREE.Float32BufferAttribute(starVerts, 3));
+scene.add(new THREE.Points(starGeo, new THREE.PointsMaterial({ size:0.3, color:0x668899 })));
+
+// ── Loaders ─────────────────────────────────────────────────────
+const objLoader = new OBJLoader();
+const mtlLoader = new MTLLoader();
+const fbxLoader = new FBXLoader();
+const gltfLoader = new GLTFLoader();
+const texLoader = new THREE.TextureLoader();
+
+const shipMeshes = []; // { mesh, worldPos, ship }
+
+async function loadShip(ship, xPos) {
+  return new Promise((resolve) => {
+    const onLoad = (obj) => {
+      // Normalize scale: scale to fit a uniform bounding box, then multiply by tier-based size
+      const box = new THREE.Box3().setFromObject(obj);
+      const size = new THREE.Vector3();
+      box.getSize(size);
+      const maxDim = Math.max(size.x, size.y, size.z) || 1;
+      // Target display size scales with HP (logarithmic so big ships don't overwhelm)
+      const targetSize = 2 + Math.log2(Math.max(ship.hp, 10)) * 1.5;
+      const uniformScale = targetSize / maxDim;
+      obj.scale.setScalar(uniformScale);
+
+      // Center vertically
+      const box2 = new THREE.Box3().setFromObject(obj);
+      const center = new THREE.Vector3();
+      box2.getCenter(center);
+      obj.position.set(xPos, -center.y + 2, 0);
+
+      // Apply texture if provided
+      if (ship.tex) {
+        const texture = texLoader.load(ship.tex);
+        texture.colorSpace = THREE.SRGBColorSpace;
+        obj.traverse(c => {
+          if (c.isMesh) {
+            c.material = new THREE.MeshStandardMaterial({ map: texture, metalness:0.4, roughness:0.6 });
+          }
+        });
+      } else {
+        obj.traverse(c => {
+          if (c.isMesh && c.material) {
+            if (Array.isArray(c.material)) {
+              c.material.forEach(m => { m.metalness = 0.3; m.roughness = 0.6; });
+            } else {
+              c.material.metalness = 0.3;
+              c.material.roughness = 0.6;
+            }
+          }
+        });
+      }
+
+      scene.add(obj);
+      shipMeshes.push({ mesh: obj, worldPos: new THREE.Vector3(xPos, 4, 0), ship });
+      resolve(obj);
+    };
+
+    const onError = (err) => {
+      console.warn(`Failed to load ${ship.name}:`, err);
+      // Place a placeholder cube
+      const geo = new THREE.BoxGeometry(2,2,2);
+      const mat = new THREE.MeshStandardMaterial({ color: 0xff4444, wireframe:true });
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.position.set(xPos, 2, 0);
+      scene.add(mesh);
+      shipMeshes.push({ mesh, worldPos: new THREE.Vector3(xPos, 4, 0), ship });
+      resolve(mesh);
+    };
+
+    try {
+      if (ship.fmt === 'fbx') {
+        fbxLoader.load(ship.model, onLoad, undefined, onError);
+      } else if (ship.fmt === 'glb') {
+        gltfLoader.load(ship.model, (gltf) => onLoad(gltf.scene), undefined, onError);
+      } else if (ship.fmt === 'obj' && ship.mtl) {
+        mtlLoader.load(ship.mtl, (materials) => {
+          materials.preload();
+          const loader = new OBJLoader();
+          loader.setMaterials(materials);
+          loader.load(ship.model, onLoad, undefined, onError);
+        }, undefined, () => {
+          // MTL failed, try OBJ alone with texture
+          objLoader.load(ship.model, onLoad, undefined, onError);
+        });
+      } else {
+        objLoader.load(ship.model, onLoad, undefined, onError);
+      }
+    } catch(e) { onError(e); }
+  });
+}
+
+// ── Load all ships ──────────────────────────────────────────────
+let loaded = 0;
+const SPACING = 12;
+const startX = -(SHIPS.length * SPACING) / 2;
+
+async function loadAll() {
+  for (let i = 0; i < SHIPS.length; i++) {
+    const x = startX + i * SPACING;
+    await loadShip(SHIPS[i], x);
+    loaded++;
+    document.getElementById('count').textContent = `${loaded}/${SHIPS.length} loaded`;
+  }
+  document.getElementById('count').textContent = `${SHIPS.length} ships loaded — orbit to explore`;
+  controls.target.set(0, 4, 0);
+}
+
+loadAll();
+
+// ── Labels ──────────────────────────────────────────────────────
+const labelsDiv = document.getElementById('labels');
+function updateLabels() {
+  labelsDiv.innerHTML = '';
+  for (const { worldPos, ship } of shipMeshes) {
+    const v = worldPos.clone().add(new THREE.Vector3(0, -4, 0));
+    v.project(camera);
+    if (v.z > 1) continue;
+    const x = (v.x * 0.5 + 0.5) * window.innerWidth;
+    const y = (-v.y * 0.5 + 0.5) * window.innerHeight;
+    if (x < -100 || x > window.innerWidth+100 || y < -50 || y > window.innerHeight+50) continue;
+    const el = document.createElement('div');
+    el.className = 'label';
+    el.style.left = x + 'px';
+    el.style.top = y + 'px';
+    el.style.color = TIER_COL[ship.tier] || '#fff';
+    el.innerHTML = `${ship.name}<span class="tier">T${ship.tier} · ${ship.hp}HP</span>`;
+    labelsDiv.appendChild(el);
+  }
+}
+
+// ── Render loop ─────────────────────────────────────────────────
+function animate() {
+  requestAnimationFrame(animate);
+  controls.update();
+  renderer.render(scene, camera);
+  updateLabels();
+}
+animate();
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+// ── Screenshot ──────────────────────────────────────────────────
+window.captureAll = () => {
+  renderer.render(scene, camera);
+  const link = document.createElement('a');
+  link.download = 'gruda-armada-fleet.png';
+  link.href = renderer.domElement.toDataURL('image/png');
+  link.click();
+};
+
+window.resetCamera = () => {
+  camera.position.set(0, 30, 80);
+  controls.target.set(0, 4, 0);
+};
+</script>
+</body>
+</html>
