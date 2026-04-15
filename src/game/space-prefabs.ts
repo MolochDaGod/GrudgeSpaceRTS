@@ -1771,7 +1771,7 @@ export const ALL_PREFAB_REGISTRIES = [
 
 /** Non-ship prefab registries (interiors, ground units, characters, stations). */
 export const SCENE_PREFAB_REGISTRIES = [
-  INTERIOR_PREFABS,
+  STATION_PREFABS,
   GROUND_UNIT_PREFABS,
   CHARACTER_PREFABS,
   TERRAIN_ENV_PREFABS,
