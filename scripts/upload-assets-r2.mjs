@@ -28,7 +28,8 @@ const __dirname = dirname(__filename);
 const ASSETS_DIR = join(__dirname, '..', 'public', 'assets');
 const R2_PREFIX = 'gruda-armada';
 const BUCKET = process.env.R2_BUCKET ?? 'grudge-assets';
-const CONCURRENCY = Math.max(1, Number(process.env.R2_UPLOAD_CONCURRENCY ?? 10));
+const parsedConcurrency = Number(process.env.R2_UPLOAD_CONCURRENCY ?? 10);
+const CONCURRENCY = Number.isFinite(parsedConcurrency) ? Math.max(1, parsedConcurrency) : 10;
 const MAX_RETRIES = Math.max(0, Number(process.env.R2_UPLOAD_RETRIES ?? 4));
 
 const DRY_RUN = process.argv.includes('--dry-run');
