@@ -232,8 +232,7 @@ async function normalizeSize(glbPath, targetSize) {
     for (const node of root.listNodes()) {
       const s = node.getScale();
       if (s[0] !== 1 || s[1] !== 1 || s[2] !== 1) {
-        // Bake node scale into children if needed — for simplicity, reset to 1
-        // (the vertex positions already carry the correct scale)
+        node.setScale([1, 1, 1]);
       }
     }
 
