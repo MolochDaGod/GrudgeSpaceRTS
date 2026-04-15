@@ -1,0 +1,39 @@
+{
+  "_doc": "Maps source directory patterns to categories and target sizes (game units). 1 unit ≈ 1 meter. The conversion script matches each file's path against these patterns (first match wins).",
+  "rules": [
+    { "pattern": "ground/animations/",    "category": "animation",    "targetSize": null },
+    { "pattern": "ground/characters/",     "category": "character",    "targetSize": 2.0 },
+    { "pattern": "ground/weapons/kaykit/", "category": "weapon",       "targetSize": 0.8 },
+    { "pattern": "ground/weapons/scifi/",  "category": "weapon",       "targetSize": 0.8 },
+    { "pattern": "ground/weapons/guns/",   "category": "weapon",       "targetSize": 0.8 },
+    { "pattern": "ground/weapons/shields/","category": "weapon",       "targetSize": 0.6 },
+    { "pattern": "ground/enemies/",        "category": "character",    "targetSize": 2.0 },
+    { "pattern": "ground/bosses/",         "category": "character",    "targetSize": 4.0 },
+    { "pattern": "ground/rts-buildings/",  "category": "building",     "targetSize": 5.0 },
+    { "pattern": "ground/terrain/",        "category": "terrain_prop", "targetSize": 3.0 },
+    { "pattern": "ground/alien-city/",     "category": "terrain_prop", "targetSize": null },
+    { "pattern": "ground/homeworld/",      "category": "terrain_prop", "targetSize": null },
+    { "pattern": "ground/mars-environment/","category": "terrain_prop","targetSize": null },
+    { "pattern": "groundrts/",             "category": "building",     "targetSize": null },
+    { "pattern": "space/models/ships/",    "category": "ship_t1",      "targetSize": 2.5 },
+    { "pattern": "space/models/battle-ships/Corvette", "category": "ship_t1", "targetSize": 2.5 },
+    { "pattern": "space/models/battle-ships/Frigate",  "category": "ship_t2", "targetSize": 4.0 },
+    { "pattern": "space/models/battle-ships/Destroyer", "category": "ship_t3", "targetSize": 6.0 },
+    { "pattern": "space/models/battle-ships/Light cruiser", "category": "ship_t4", "targetSize": 10.0 },
+    { "pattern": "space/models/capital/",  "category": "ship_t4",      "targetSize": 10.0 },
+    { "pattern": "space/models/enemies/",  "category": "ship_t2",      "targetSize": 4.0 },
+    { "pattern": "space/models/stations/", "category": "station",      "targetSize": 8.0 },
+    { "pattern": "space/models/turrets/",  "category": "turret",       "targetSize": 1.5 },
+    { "pattern": "space/models/vehicles/", "category": "ship_t1",      "targetSize": 1.5 },
+    { "pattern": "space/models/weapons/",  "category": "turret",       "targetSize": 1.5 },
+    { "pattern": "space/models/planets/",  "category": "planet",       "targetSize": null },
+    { "pattern": "space/models/new-ships/","category": "ship_t2",      "targetSize": 4.0 },
+    { "pattern": "space/models/craftpix-lowpoly", "category": "ship_t2", "targetSize": 4.0 },
+    { "pattern": "space/models/lowpoly/",  "category": "ship_t2",      "targetSize": 4.0 },
+    { "pattern": "space/models/",          "category": "ship_t2",      "targetSize": 4.0 }
+  ],
+  "defaults": {
+    "category": "prop",
+    "targetSize": 3.0
+  }
+}

@@ -10,6 +10,7 @@ import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
 import { MTLLoader } from 'three/examples/jsm/loaders/MTLLoader.js';
 import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { loadModel as loadModelCentral } from './model-loader';
 import { getShipPrefab, type SpacePrefab } from './space-prefabs';
 import { TEAM_COLORS } from './space-types';
 import { hasVoxelShip, buildVoxelShip, buildCapitalVoxelFallback } from './space-voxel-builder';
@@ -213,7 +214,7 @@ export class CodexScene {
     this.onLoadEnd?.();
   }
 
-  // ΓöÇΓöÇ Model loading (mirrors space-renderer) ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+  // ── Model loading (GLB-primary via central loader) ───────────────
   private async loadModel(prefab: SpacePrefab): Promise<THREE.Group> {
     const key = prefab.modelPath;
     if (this.modelCache.has(key)) return this.modelCache.get(key)!.clone();
@@ -221,10 +222,13 @@ export class CodexScene {
 
     const promise = (async () => {
       let group: THREE.Group;
-      if (prefab.format === 'glb') {
-        const gltf = await this.gltfLoader.loadAsync(prefab.modelPath);
-        group = gltf.scene;
+
+      if (prefab.format === 'glb' || prefab.format === 'gltf') {
+        // Primary GLB path — uses central loader with DRACO + PBR enhancement
+        const result = await loadModelCentral(prefab.modelPath);
+        group = result.scene;
       } else if (prefab.format === 'fbx') {
+        // Legacy FBX path
         group = (await this.fbxLoader.loadAsync(prefab.modelPath)) as unknown as THREE.Group;
         if (prefab.texturePath) {
           const tex = this.textureLoader.load(prefab.texturePath);
@@ -233,6 +237,7 @@ export class CodexScene {
           });
         }
       } else {
+        // Legacy OBJ path
         if (prefab.mtlPath) {
           const mats = await this.mtlLoader.loadAsync(prefab.mtlPath);
           mats.preload();
@@ -249,6 +254,7 @@ export class CodexScene {
           });
         }
       }
+
       if (prefab.offset) group.position.add(prefab.offset);
       if (prefab.rotation) group.rotation.copy(prefab.rotation);
       this.modelCache.set(key, group);

@@ -12,6 +12,8 @@
  */
 
 const CDN_BASE = import.meta.env.VITE_ASSET_CDN ?? '';
+/** Cache-busting version. Bump when assets are re-uploaded to R2 after optimization. */
+const ASSET_VERSION = import.meta.env.VITE_ASSET_VERSION ?? '';
 
 // ── Types ─────────────────────────────────────────────────────────
 export type AssetFormat = 'obj' | 'fbx' | 'glb';
@@ -632,6 +634,40 @@ const REGISTRY: AssetEntry[] = [
     colorTintable: false,
     tags: ['terrain', 'mars', 'battle', 'gltf', 'ground', 'environment'],
   },
+
+  // ── Lowpoly FBX Fleet — color-variant ships ──────────────────
+  ...(['Blue', 'Green', 'Orange', 'Purple'] as const).flatMap((color, _i) => [
+    {
+      uuid: `a00d0001-ship-fbx-lp-spaceship-${color.toLowerCase()}`,
+      key: `lp_spaceship_${color.toLowerCase()}`,
+      category: 'ship' as const,
+      localPath: `/assets/space/models/lowpoly/SpaceShip - ${color}.fbx`,
+      format: 'fbx' as const,
+      texturePath: '/assets/space/models/lowpoly/Pallette.png',
+      colorTintable: true,
+      tags: ['ship', 'fbx', 'lowpoly', color.toLowerCase(), 'tier2'],
+    },
+    {
+      uuid: `a00d0002-ship-fbx-lp-fighter-${color.toLowerCase()}`,
+      key: `lp_fighter_${color.toLowerCase()}`,
+      category: 'ship' as const,
+      localPath: `/assets/space/models/lowpoly/SpaceShip2 - ${color}.fbx`,
+      format: 'fbx' as const,
+      texturePath: '/assets/space/models/lowpoly/Pallette.png',
+      colorTintable: true,
+      tags: ['ship', 'fbx', 'lowpoly', color.toLowerCase(), 'tier1'],
+    },
+    {
+      uuid: `a00d0003-ship-fbx-lp-cruiser-${color.toLowerCase()}`,
+      key: `lp_cruiser_${color.toLowerCase()}`,
+      category: 'ship' as const,
+      localPath: `/assets/space/models/lowpoly/Cruiser - ${color}.fbx`,
+      format: 'fbx' as const,
+      texturePath: '/assets/space/models/lowpoly/Pallette.png',
+      colorTintable: true,
+      tags: ['ship', 'fbx', 'lowpoly', color.toLowerCase(), 'tier3'],
+    },
+  ]),
 ];
 
 // ── Lookup indexes ────────────────────────────────────────────────
@@ -661,7 +697,10 @@ export function resolveAssetUrl(key: string): string {
   if (CDN_BASE) {
     // Path-based R2 key: /assets/space/models/X → gruda-armada/space/models/X
     const r2Path = entry.localPath.replace(/^\/assets\//, '');
-    return `${CDN_BASE}/gruda-armada/${r2Path}`;
+    const versionSuffix = ASSET_VERSION
+      ? `${r2Path.includes('?') ? '&' : '?'}v=${ASSET_VERSION}`
+      : '';
+    return `${CDN_BASE}/gruda-armada/${r2Path}${versionSuffix}`;
   }
   return entry.localPath;
 }
@@ -687,7 +726,8 @@ export function resolveTextureUrl(key: string): string | undefined {
 export function resolvePathUrl(localPath: string): string {
   if (CDN_BASE && localPath.startsWith('/assets/')) {
     const r2Path = localPath.replace(/^\/assets\//, '');
-    return `${CDN_BASE}/gruda-armada/${r2Path}`;
+    const versionSuffix = ASSET_VERSION ? `?v=${ASSET_VERSION}` : '';
+    return `${CDN_BASE}/gruda-armada/${r2Path}${versionSuffix}`;
   }
   return localPath;
 }

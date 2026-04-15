@@ -32,6 +32,25 @@ import { getBoosterVisualOffsets, getRigAudit, getRigWorldAnchors } from './spac
 import { VFXSystem } from './space-vfx';
 import { resolvePathUrl } from './asset-registry';
 
+// ── Postprocessing (pmndrs/postprocessing) ─────────────────────────
+import {
+  EffectComposer,
+  EffectPass,
+  RenderPass,
+  BloomEffect,
+  ToneMappingEffect,
+  SMAAEffect,
+  SMAAPreset,
+  ToneMappingMode,
+  BlendFunction,
+} from 'postprocessing';
+
+// ── Tween.js for smooth transitions ────────────────────────────────
+import * as TWEEN from '@tweenjs/tween.js';
+
+// ── Stats-GL for dev-mode performance overlay ──────────────────────
+import Stats from 'stats-gl';
+
 interface ShipMesh3D {
   group: THREE.Group;
   healthBar?: THREE.Mesh;
@@ -105,6 +124,14 @@ export class SpaceRenderer {
   private camera!: THREE.PerspectiveCamera;
   private container: HTMLElement;
   private clock = new THREE.Clock();
+
+  // ── Postprocessing pipeline ──────────────────────────────────
+  private composer!: EffectComposer;
+  private bloomEffect!: BloomEffect;
+
+  // ── Dev stats overlay (F8 toggle) ────────────────────────────
+  private stats: Stats | null = null;
+  private statsVisible = false;
 
   private shipMeshes = new Map<number, ShipMesh3D>();
   private stationMeshes = new Map<number, THREE.Group>();
@@ -208,12 +235,12 @@ export class SpaceRenderer {
   }
 
   async init() {
-    this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'high-performance' });
+    this.renderer = new THREE.WebGLRenderer({ antialias: false, alpha: false, powerPreference: 'high-performance' });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.setSize(this.container.clientWidth, this.container.clientHeight);
     this.renderer.shadowMap.enabled = false;
-    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.2;
+    // Tone mapping handled by postprocessing pipeline — disable built-in
+    this.renderer.toneMapping = THREE.NoToneMapping;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.container.appendChild(this.renderer.domElement);
 
@@ -247,6 +274,17 @@ export class SpaceRenderer {
     this.controls = new SpaceControls(this.container, this.camera, this.engine.state, this.renderer);
     this.effectsRenderer = new SpaceEffectsRenderer(this.scene);
     this.vfx = new VFXSystem(this.scene);
+
+    // ── Postprocessing: Bloom + ToneMapping + SMAA ──────────────
+    this.setupPostProcessing();
+
+    // ── Dev stats (toggle with F8) ─────────────────────────────
+    if (import.meta.env.DEV) {
+      this.stats = new Stats({ minimal: true });
+      this.stats.dom.style.cssText = 'position:absolute;top:4px;right:4px;z-index:100;';
+      this.stats.dom.style.display = 'none';
+      this.container.appendChild(this.stats.dom);
+    }
 
     // Wire planet click: controls signals → renderer resolves hovered planet
     this.controls.onPlanetClick = (planetId: number | null) => {
@@ -286,7 +324,37 @@ export class SpaceRenderer {
 
     window.addEventListener('resize', this.onResize);
     window.addEventListener('keydown', this.onRigDebugKeyDown);
+    window.addEventListener('keydown', this.onDevKeyDown);
     this.animate();
+  }
+
+  private setupPostProcessing() {
+    // HalfFloat render target for HDR bloom pipeline
+    this.composer = new EffectComposer(this.renderer, {
+      frameBufferType: THREE.HalfFloatType,
+    });
+    this.composer.addPass(new RenderPass(this.scene, this.camera));
+
+    // Bloom: engine trails, shield bubbles, explosions, emissive materials glow
+    this.bloomEffect = new BloomEffect({
+      intensity: 0.8,
+      luminanceThreshold: 0.4,
+      luminanceSmoothing: 0.3,
+      mipmapBlur: true,
+    });
+
+    // ACES Filmic tone mapping (replaces renderer.toneMapping)
+    const toneMappingEffect = new ToneMappingEffect({
+      mode: ToneMappingMode.ACES_FILMIC,
+    });
+
+    // SMAA anti-aliasing (replaces renderer antialias: true for better quality)
+    const smaaEffect = new SMAAEffect({
+      preset: SMAAPreset.MEDIUM,
+    });
+
+    // Merge all effects into one pass for performance
+    this.composer.addPass(new EffectPass(this.camera, this.bloomEffect, toneMappingEffect, smaaEffect));
   }
 
   private setupLighting() {
@@ -483,6 +551,7 @@ export class SpaceRenderer {
   /**
    * Removes suspect backdrop/plane meshes from imported FBX props and normalizes
    * materials so decoration assets can't occlude the entire camera view.
+   * Disposes geometry/material of removed meshes to prevent GPU memory leaks.
    */
   private sanitizeScenePropModel(model: THREE.Group, path: string): THREE.Group {
     const toRemove: THREE.Object3D[] = [];
@@ -544,7 +613,16 @@ export class SpaceRenderer {
       mesh.material = Array.isArray(mesh.material) ? cleaned : cleaned[0];
     });
 
-    for (const obj of toRemove) obj.parent?.remove(obj);
+    for (const obj of toRemove) {
+      obj.parent?.remove(obj);
+      // Dispose GPU resources from removed meshes
+      if ((obj as THREE.Mesh).isMesh) {
+        const m = obj as THREE.Mesh;
+        m.geometry?.dispose();
+        const mats = Array.isArray(m.material) ? m.material : [m.material];
+        for (const mat of mats) (mat as THREE.Material)?.dispose?.();
+      }
+    }
     return model;
   }
 
@@ -1584,6 +1662,7 @@ export class SpaceRenderer {
           });
           const bubble = new THREE.Mesh(shieldGeo, shieldMat);
           bubble.renderOrder = 5;
+          bubble.frustumCulled = false; // Shield bubbles must never pop when camera pans
           meshData.group.add(bubble);
           meshData.shieldBubble = bubble;
         }
@@ -1788,7 +1867,14 @@ export class SpaceRenderer {
     // Optional rig debug overlay for selected ships (F9)
     this.updateRigDebugOverlay(this.engine.state);
 
-    this.renderer.render(this.scene, this.camera);
+    // Tick all active tweens
+    TWEEN.update();
+
+    // Dev stats
+    this.stats?.update();
+
+    // Render through postprocessing pipeline (bloom + tone mapping + SMAA)
+    this.composer.render(dt);
   };
 
   // ── Mine VFX Sync ──────────────────────────────────────────────
@@ -2274,6 +2360,7 @@ export class SpaceRenderer {
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(w, h);
+    this.composer?.setSize(w, h);
   };
 
   /** Activate the ability that has .key === keyLetter (Q/W/E/R) across selected ships */
@@ -2387,15 +2474,27 @@ export class SpaceRenderer {
     }
   }
 
+  // ── Dev hotkeys (F8 = stats toggle) ──────────────────────────
+  private onDevKeyDown = (e: KeyboardEvent) => {
+    if (e.key === 'F8' && this.stats) {
+      e.preventDefault();
+      this.statsVisible = !this.statsVisible;
+      this.stats.dom.style.display = this.statsVisible ? 'block' : 'none';
+    }
+  };
+
   dispose() {
     this.disposed = true;
     cancelAnimationFrame(this.animFrame);
     window.removeEventListener('resize', this.onResize);
     window.removeEventListener('keydown', this.onRigDebugKeyDown);
+    window.removeEventListener('keydown', this.onDevKeyDown);
     this.clearRigDebugOverlay();
+    this.composer?.dispose();
     this.vfx?.dispose();
     this.controls.dispose();
     this.renderer.dispose();
+    if (this.stats?.dom.parentNode) this.stats.dom.parentNode.removeChild(this.stats.dom);
     if (this.customHeroUrl) {
       URL.revokeObjectURL(this.customHeroUrl);
       this.customHeroUrl = null;
