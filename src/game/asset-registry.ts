@@ -697,7 +697,9 @@ export function resolveAssetUrl(key: string): string {
   if (CDN_BASE) {
     // Path-based R2 key: /assets/space/models/X → gruda-armada/space/models/X
     const r2Path = entry.localPath.replace(/^\/assets\//, '');
-    const versionSuffix = ASSET_VERSION ? `?v=${ASSET_VERSION}` : '';
+    const versionSuffix = ASSET_VERSION
+      ? `${r2Path.includes('?') ? '&' : '?'}v=${ASSET_VERSION}`
+      : '';
     return `${CDN_BASE}/gruda-armada/${r2Path}${versionSuffix}`;
   }
   return entry.localPath;
