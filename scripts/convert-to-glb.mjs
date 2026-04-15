@@ -140,14 +140,19 @@ async function copyGLTF(srcPath, outPath) {
     // Copy the entire directory contents to preserve references
     const srcDir = path.dirname(srcPath);
     const outDir = path.dirname(outPath);
-    const files = fs.readdirSync(srcDir);
-    for (const f of files) {
-      const src = path.join(srcDir, f);
-      const dst = path.join(outDir, f);
-      if (fs.statSync(src).isFile()) {
-        fs.copyFileSync(src, dst);
+    const copyRecursive = (fromDir, toDir) => {
+      fs.mkdirSync(toDir, { recursive: true });
+      for (const entry of fs.readdirSync(fromDir, { withFileTypes: true })) {
+        const src = path.join(fromDir, entry.name);
+        const dst = path.join(toDir, entry.name);
+        if (entry.isDirectory()) {
+          copyRecursive(src, dst);
+        } else if (entry.isFile()) {
+          fs.copyFileSync(src, dst);
+        }
       }
-    }
+    };
+    copyRecursive(srcDir, outDir);
     // Rename .gltf → .glb is not straightforward; keep as-is for now
     // The manifest will track the actual format
     return 'gltf'; // signal it's still gltf (not converted to binary)
