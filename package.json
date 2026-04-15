@@ -29,7 +29,9 @@
   "dependencies": {
     "@tweenjs/tween.js": "^25.0.0",
     "camera-controls": "^3.1.0",
+    "framer-motion": "^12.38.0",
     "howler": "^2.2.4",
+    "immer": "^11.1.4",
     "lil-gui": "^0.21.0",
     "pathfinding": "^0.4.18",
     "postprocessing": "^6.39.0",
@@ -39,7 +41,8 @@
     "three": "^0.183.2",
     "three-mesh-bvh": "^0.9.9",
     "three.quarks": "^0.17.0",
-    "troika-three-text": "^0.52.4"
+    "troika-three-text": "^0.52.4",
+    "zustand": "^5.0.12"
   },
   "devDependencies": {
     "@aws-sdk/client-s3": "^3.1019.0",

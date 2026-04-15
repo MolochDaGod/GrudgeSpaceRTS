@@ -966,7 +966,34 @@ function MainMenu({
       }}
     >
       <StarfieldCanvas />
+      {/* Menu background art — LevelSelect from HUD pack */}
+      <img
+        src="/assets/space/ui/hud/LevelSelect_Background.webp"
+        alt=""
+        style={{
+          position: 'absolute',
+          inset: 0,
+          width: '100%',
+          height: '100%',
+          objectFit: 'cover',
+          opacity: 0.12,
+          pointerEvents: 'none',
+          zIndex: 0,
+        }}
+        onError={(e) => {
+          (e.target as HTMLImageElement).style.display = 'none';
+        }}
+      />
       <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+        {/* Top element decoration */}
+        <img
+          src="/assets/space/ui/scifi-gui/elements/3.png"
+          alt=""
+          style={{ width: 160, opacity: 0.25, marginBottom: 4 }}
+          onError={(e) => {
+            (e.target as HTMLImageElement).style.display = 'none';
+          }}
+        />
         {/* Logo */}
         <img
           src="/assets/space/ui/logo.webp"
@@ -976,7 +1003,7 @@ function MainMenu({
             maxWidth: '88vw',
             display: 'block',
             imageRendering: 'auto',
-            marginBottom: 16,
+            marginBottom: 8,
             mixBlendMode: 'screen' as any,
             filter: 'drop-shadow(0 0 40px rgba(68,136,255,0.45)) drop-shadow(0 0 18px rgba(200,30,30,0.3))',
           }}
@@ -986,10 +1013,29 @@ function MainMenu({
             else t.style.display = 'none';
           }}
         />
-        <div style={{ fontSize: 11, opacity: 0.35, marginBottom: 18, letterSpacing: 4, textTransform: 'uppercase' }}>
-          Tactical Space RTS · by Racalvin The Pirate King
+        {/* Subtitle with gem accents */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+          <img
+            src="/assets/space/ui/scifi-gui/sliced/gem-dia.png"
+            alt=""
+            style={{ width: 10, height: 10, opacity: 0.5 }}
+            onError={(e) => {
+              (e.target as HTMLImageElement).style.display = 'none';
+            }}
+          />
+          <span style={{ fontSize: 11, opacity: 0.35, letterSpacing: 4, textTransform: 'uppercase' as const }}>
+            Tactical Space RTS · by Racalvin The Pirate King
+          </span>
+          <img
+            src="/assets/space/ui/scifi-gui/sliced/gem-dia.png"
+            alt=""
+            style={{ width: 10, height: 10, opacity: 0.5 }}
+            onError={(e) => {
+              (e.target as HTMLImageElement).style.display = 'none';
+            }}
+          />
         </div>
-        {/* ── Auth bar ─────────────────────────────── */}
+        {/* ── Auth bar — using tag-sm sliced asset bg ── */}
         <div
           style={{
             display: 'flex',
@@ -998,8 +1044,10 @@ function MainMenu({
             marginBottom: 28,
             padding: '6px 16px',
             borderRadius: 6,
-            background: 'rgba(6,14,32,0.7)',
-            border: '1px solid rgba(68,136,255,0.15)',
+            backgroundImage: 'url(/assets/space/ui/scifi-gui/sliced/panel-wide.png)',
+            backgroundSize: '100% 100%',
+            backgroundRepeat: 'no-repeat',
+            position: 'relative',
           }}
         >
           {user ? (
@@ -1075,20 +1123,107 @@ function MainMenu({
             </>
           )}
         </div>
-        {/* ── Two-column mode selection ── */}
+        {/* ── Three-column mode selection with SciFi panels ── */}
         <div style={{ display: 'flex', gap: 20, marginBottom: 24, flexWrap: 'wrap', justifyContent: 'center' }}>
-          {/* Quick Game column */}
+          {/* Quick Game column — using panel-sq sliced asset */}
           <div
             style={{
               padding: '16px 20px',
-              borderRadius: 10,
               minWidth: 280,
-              background: 'rgba(6,14,30,0.85)',
-              border: '1px solid #1a3050',
+              position: 'relative',
+              backgroundImage: 'url(/assets/space/ui/scifi-gui/sliced/panel-sq.png)',
+              backgroundSize: '100% 100%',
+              backgroundRepeat: 'no-repeat',
+              filter: 'drop-shadow(0 4px 16px rgba(0,0,0,0.5)) drop-shadow(0 0 8px rgba(68,136,255,0.15))',
             }}
           >
-            <div style={{ fontSize: 10, fontWeight: 700, color: '#4488ff', letterSpacing: 3, marginBottom: 12, textAlign: 'center' }}>
-              ⚡ QUICK GAME
+            {/* Corner decorations */}
+            <img
+              src="/assets/space/ui/scifi-gui/sliced/corner.png"
+              alt=""
+              style={{ position: 'absolute', top: -2, left: -2, width: 20, height: 20, pointerEvents: 'none', opacity: 0.6 }}
+              onError={(e) => {
+                (e.target as HTMLImageElement).style.display = 'none';
+              }}
+            />
+            <img
+              src="/assets/space/ui/scifi-gui/sliced/corner.png"
+              alt=""
+              style={{
+                position: 'absolute',
+                top: -2,
+                right: -2,
+                width: 20,
+                height: 20,
+                pointerEvents: 'none',
+                opacity: 0.6,
+                transform: 'rotate(90deg)',
+              }}
+              onError={(e) => {
+                (e.target as HTMLImageElement).style.display = 'none';
+              }}
+            />
+            <img
+              src="/assets/space/ui/scifi-gui/sliced/corner.png"
+              alt=""
+              style={{
+                position: 'absolute',
+                bottom: -2,
+                right: -2,
+                width: 20,
+                height: 20,
+                pointerEvents: 'none',
+                opacity: 0.6,
+                transform: 'rotate(180deg)',
+              }}
+              onError={(e) => {
+                (e.target as HTMLImageElement).style.display = 'none';
+              }}
+            />
+            <img
+              src="/assets/space/ui/scifi-gui/sliced/corner.png"
+              alt=""
+              style={{
+                position: 'absolute',
+                bottom: -2,
+                left: -2,
+                width: 20,
+                height: 20,
+                pointerEvents: 'none',
+                opacity: 0.6,
+                transform: 'rotate(270deg)',
+              }}
+              onError={(e) => {
+                (e.target as HTMLImageElement).style.display = 'none';
+              }}
+            />
+            {/* Title chevron */}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundImage: 'url(/assets/space/ui/scifi-gui/sliced/title-chevron.png)',
+                backgroundSize: '100% 100%',
+                backgroundRepeat: 'no-repeat',
+                padding: '4px 20px',
+                marginBottom: 12,
+                minHeight: 24,
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <img
+                  src="/assets/space/ui/space-icons/PNG/5.png"
+                  alt=""
+                  style={{ width: 16, height: 16 }}
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).style.display = 'none';
+                  }}
+                />
+                <span style={{ fontSize: 10, fontWeight: 800, color: '#fff', letterSpacing: 3, textTransform: 'uppercase' as const }}>
+                  QUICK GAME
+                </span>
+              </div>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {quickModes.map((m) => {
@@ -1121,19 +1256,109 @@ function MainMenu({
             />
           </div>
 
-          {/* Campaign column */}
+          {/* Campaign column — using panel-sq-alt gold sliced asset */}
           <div
             style={{
               padding: '16px 20px',
-              borderRadius: 10,
               minWidth: 280,
-              background: mode === 'campaign' ? 'rgba(255,140,0,0.08)' : 'rgba(6,14,30,0.85)',
-              border: mode === 'campaign' ? '2px solid #ff882266' : '1px solid #1a3050',
-              transition: 'all 0.2s',
+              position: 'relative',
+              backgroundImage:
+                mode === 'campaign'
+                  ? 'url(/assets/space/ui/scifi-gui/sliced/panel-sq-alt-gold.png)'
+                  : 'url(/assets/space/ui/scifi-gui/sliced/panel-sq-alt.png)',
+              backgroundSize: '100% 100%',
+              backgroundRepeat: 'no-repeat',
+              filter: `drop-shadow(0 4px 16px rgba(0,0,0,0.5)) drop-shadow(0 0 8px ${mode === 'campaign' ? 'rgba(255,180,0,0.2)' : 'rgba(68,255,200,0.1)'})`,
+              transition: 'filter 0.2s',
             }}
           >
-            <div style={{ fontSize: 10, fontWeight: 700, color: '#ff8822', letterSpacing: 3, marginBottom: 12, textAlign: 'center' }}>
-              🌌 CAPTAIN'S CAMPAIGN
+            {/* Corner decorations — gold variant */}
+            <img
+              src="/assets/space/ui/scifi-gui/sliced/corner-gold.png"
+              alt=""
+              style={{ position: 'absolute', top: -2, left: -2, width: 20, height: 20, pointerEvents: 'none', opacity: 0.6 }}
+              onError={(e) => {
+                (e.target as HTMLImageElement).style.display = 'none';
+              }}
+            />
+            <img
+              src="/assets/space/ui/scifi-gui/sliced/corner-gold.png"
+              alt=""
+              style={{
+                position: 'absolute',
+                top: -2,
+                right: -2,
+                width: 20,
+                height: 20,
+                pointerEvents: 'none',
+                opacity: 0.6,
+                transform: 'rotate(90deg)',
+              }}
+              onError={(e) => {
+                (e.target as HTMLImageElement).style.display = 'none';
+              }}
+            />
+            <img
+              src="/assets/space/ui/scifi-gui/sliced/corner-gold.png"
+              alt=""
+              style={{
+                position: 'absolute',
+                bottom: -2,
+                right: -2,
+                width: 20,
+                height: 20,
+                pointerEvents: 'none',
+                opacity: 0.6,
+                transform: 'rotate(180deg)',
+              }}
+              onError={(e) => {
+                (e.target as HTMLImageElement).style.display = 'none';
+              }}
+            />
+            <img
+              src="/assets/space/ui/scifi-gui/sliced/corner-gold.png"
+              alt=""
+              style={{
+                position: 'absolute',
+                bottom: -2,
+                left: -2,
+                width: 20,
+                height: 20,
+                pointerEvents: 'none',
+                opacity: 0.6,
+                transform: 'rotate(270deg)',
+              }}
+              onError={(e) => {
+                (e.target as HTMLImageElement).style.display = 'none';
+              }}
+            />
+            {/* Title chevron — gold */}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundImage: 'url(/assets/space/ui/scifi-gui/sliced/title-chevron-gold.png)',
+                backgroundSize: '100% 100%',
+                backgroundRepeat: 'no-repeat',
+                padding: '4px 20px',
+                marginBottom: 12,
+                minHeight: 24,
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <img
+                  src="/assets/space/ui/space-icons/PNG/9.png"
+                  alt=""
+                  style={{ width: 16, height: 16 }}
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).style.display = 'none';
+                  }}
+                />
+                <span style={{ fontSize: 10, fontWeight: 800, color: '#fff', letterSpacing: 3, textTransform: 'uppercase' as const }}>
+                  CAPTAIN'S CAMPAIGN
+                </span>
+              </div>
             </div>
             <div
               onClick={() => setMode('campaign')}
@@ -1171,18 +1396,105 @@ function MainMenu({
             />
           </div>
 
-          {/* Ground Game Quick Play column */}
+          {/* Ground Game Quick Play column — using panel-sq purple sliced asset */}
           <div
             style={{
               padding: '16px 20px',
-              borderRadius: 10,
               minWidth: 280,
-              background: 'rgba(6,14,30,0.85)',
-              border: '1px solid rgba(68,220,100,0.2)',
+              position: 'relative',
+              backgroundImage: 'url(/assets/space/ui/scifi-gui/sliced/panel-sq-purple.png)',
+              backgroundSize: '100% 100%',
+              backgroundRepeat: 'no-repeat',
+              filter: 'drop-shadow(0 4px 16px rgba(0,0,0,0.5)) drop-shadow(0 0 8px rgba(160,60,255,0.15))',
             }}
           >
-            <div style={{ fontSize: 10, fontWeight: 700, color: '#44ee88', letterSpacing: 3, marginBottom: 12, textAlign: 'center' }}>
-              🗡️ GROUND OPS
+            {/* Corner decorations — purple variant */}
+            <img
+              src="/assets/space/ui/scifi-gui/sliced/corner-purple.png"
+              alt=""
+              style={{ position: 'absolute', top: -2, left: -2, width: 20, height: 20, pointerEvents: 'none', opacity: 0.6 }}
+              onError={(e) => {
+                (e.target as HTMLImageElement).style.display = 'none';
+              }}
+            />
+            <img
+              src="/assets/space/ui/scifi-gui/sliced/corner-purple.png"
+              alt=""
+              style={{
+                position: 'absolute',
+                top: -2,
+                right: -2,
+                width: 20,
+                height: 20,
+                pointerEvents: 'none',
+                opacity: 0.6,
+                transform: 'rotate(90deg)',
+              }}
+              onError={(e) => {
+                (e.target as HTMLImageElement).style.display = 'none';
+              }}
+            />
+            <img
+              src="/assets/space/ui/scifi-gui/sliced/corner-purple.png"
+              alt=""
+              style={{
+                position: 'absolute',
+                bottom: -2,
+                right: -2,
+                width: 20,
+                height: 20,
+                pointerEvents: 'none',
+                opacity: 0.6,
+                transform: 'rotate(180deg)',
+              }}
+              onError={(e) => {
+                (e.target as HTMLImageElement).style.display = 'none';
+              }}
+            />
+            <img
+              src="/assets/space/ui/scifi-gui/sliced/corner-purple.png"
+              alt=""
+              style={{
+                position: 'absolute',
+                bottom: -2,
+                left: -2,
+                width: 20,
+                height: 20,
+                pointerEvents: 'none',
+                opacity: 0.6,
+                transform: 'rotate(270deg)',
+              }}
+              onError={(e) => {
+                (e.target as HTMLImageElement).style.display = 'none';
+              }}
+            />
+            {/* Title chevron — purple */}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundImage: 'url(/assets/space/ui/scifi-gui/sliced/title-chevron-purple.png)',
+                backgroundSize: '100% 100%',
+                backgroundRepeat: 'no-repeat',
+                padding: '4px 20px',
+                marginBottom: 12,
+                minHeight: 24,
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <img
+                  src="/assets/space/ui/space-icons/PNG/11.png"
+                  alt=""
+                  style={{ width: 16, height: 16 }}
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).style.display = 'none';
+                  }}
+                />
+                <span style={{ fontSize: 10, fontWeight: 800, color: '#fff', letterSpacing: 3, textTransform: 'uppercase' as const }}>
+                  GROUND OPS
+                </span>
+              </div>
             </div>
             <div
               style={{
@@ -1221,12 +1533,91 @@ function MainMenu({
           </div>
         </div>
 
-        <div style={{ display: 'flex', gap: 12 }}>
-          <Btn label="SHIP FORGE" onClick={onEditor} style={{ minWidth: 100 }} />
-          <Btn label="CODEX" onClick={onCodex} style={{ minWidth: 80 }} />
-          <Btn label="HOW TO PLAY" onClick={onHowTo} style={{ minWidth: 100 }} />
-          <Btn label="⚙️ HOTKEYS" onClick={() => setHotkeysOpen(true)} style={{ minWidth: 100 }} />
-          <Btn label="ADMIN" onClick={() => window.open('/admin.html', '_blank')} style={{ minWidth: 70 }} />
+        {/* Section divider with gems */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '4px 0 12px', width: 400, maxWidth: '90vw' }}>
+          <img
+            src="/assets/space/ui/scifi-gui/sliced/gem-dia.png"
+            alt=""
+            style={{ width: 10, height: 10 }}
+            onError={(e) => {
+              (e.target as HTMLImageElement).style.display = 'none';
+            }}
+          />
+          <div style={{ flex: 1, height: 1, background: 'linear-gradient(90deg, rgba(68,255,200,0.3), transparent)' }} />
+          <img
+            src="/assets/space/ui/scifi-gui/sliced/gem-tri.png"
+            alt=""
+            style={{ width: 8, height: 8 }}
+            onError={(e) => {
+              (e.target as HTMLImageElement).style.display = 'none';
+            }}
+          />
+          <div style={{ flex: 1, height: 1, background: 'linear-gradient(270deg, rgba(68,255,200,0.3), transparent)' }} />
+          <img
+            src="/assets/space/ui/scifi-gui/sliced/gem-dia.png"
+            alt=""
+            style={{ width: 10, height: 10 }}
+            onError={(e) => {
+              (e.target as HTMLImageElement).style.display = 'none';
+            }}
+          />
+        </div>
+        {/* Bottom menu buttons — using sliced btn-med assets */}
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
+          {[
+            { label: 'SHIP FORGE', onClick: onEditor, icon: '/assets/space/ui/space-icons/PNG/4.png' },
+            { label: 'CODEX', onClick: onCodex, icon: '/assets/space/ui/space-icons/PNG/10.png' },
+            { label: 'HOW TO PLAY', onClick: onHowTo, icon: '/assets/space/ui/space-icons/PNG/14.png' },
+            { label: 'HOTKEYS', onClick: () => setHotkeysOpen(true), icon: '/assets/space/ui/space-icons/PNG/6.png' },
+            { label: 'ADMIN', onClick: () => window.open('/admin.html', '_blank'), icon: '/assets/space/ui/space-icons/PNG/16.png' },
+          ].map((btn) => (
+            <div
+              key={btn.label}
+              onClick={btn.onClick}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 5,
+                minWidth: 90,
+                height: 34,
+                padding: '0 12px',
+                backgroundImage: 'url(/assets/space/ui/scifi-gui/sliced/btn-med.png)',
+                backgroundSize: '100% 100%',
+                backgroundRepeat: 'no-repeat',
+                cursor: 'pointer',
+                userSelect: 'none' as const,
+                transition: 'filter 0.15s',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.filter = 'brightness(1.25) drop-shadow(0 0 6px rgba(68,255,200,0.4))';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.filter = 'brightness(1)';
+              }}
+            >
+              <img
+                src={btn.icon}
+                alt=""
+                style={{ width: 14, height: 14, objectFit: 'contain' }}
+                onError={(e) => {
+                  (e.target as HTMLImageElement).style.display = 'none';
+                }}
+              />
+              <span
+                style={{
+                  fontSize: 9,
+                  fontWeight: 700,
+                  color: '#c8e8dc',
+                  letterSpacing: 1,
+                  textShadow: '0 1px 2px rgba(0,0,0,0.8)',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {btn.label}
+              </span>
+            </div>
+          ))}
         </div>
         {hotkeysOpen && <HotkeySettings onClose={() => setHotkeysOpen(false)} />}
 
@@ -2550,7 +2941,7 @@ function IntroScreen({ onFinish }: { onFinish: () => void }) {
   );
 }
 
-// ── Loading Screen (with video background) ────────────────────────
+// ── Loading Screen (with video background + game-art UI) ──────────
 function LoadingScreen() {
   return (
     <div
@@ -2558,11 +2949,12 @@ function LoadingScreen() {
         position: 'absolute',
         inset: 0,
         display: 'flex',
+        flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
         zIndex: 100,
         color: '#4488ff',
-        fontFamily: 'monospace',
+        fontFamily: "'Segoe UI', monospace",
         background: '#000',
       }}
     >
@@ -2579,11 +2971,13 @@ function LoadingScreen() {
           width: '100%',
           height: '100%',
           objectFit: 'cover',
-          opacity: 0.3,
+          opacity: 0.25,
         }}
       />
-      <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)', pointerEvents: 'none' }} />
-      <div style={{ position: 'relative', zIndex: 1, textAlign: 'center' }}>
+      <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.55)', pointerEvents: 'none' }} />
+
+      {/* Logo */}
+      <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
         <img
           src="/assets/space/ui/logo.webp"
           alt="GRUDA ARMADA"
@@ -2599,8 +2993,105 @@ function LoadingScreen() {
             (e.target as HTMLImageElement).style.display = 'none';
           }}
         />
-        <div style={{ opacity: 0.55, letterSpacing: 3, fontSize: 13 }}>LOADING ASSETS...</div>
+
+        {/* Title chevron from sliced assets */}
+        <div
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            backgroundImage: 'url(/assets/space/ui/scifi-gui/sliced/title-chevron.png)',
+            backgroundSize: '100% 100%',
+            backgroundRepeat: 'no-repeat',
+            padding: '6px 36px',
+            minWidth: 180,
+            minHeight: 28,
+            marginBottom: 12,
+          }}
+        >
+          <span
+            style={{
+              fontSize: 12,
+              fontWeight: 800,
+              color: '#fff',
+              letterSpacing: 3,
+              textShadow: '0 0 8px rgba(68,255,200,0.5)',
+              textTransform: 'uppercase' as const,
+            }}
+          >
+            LOADING ASSETS
+          </span>
+        </div>
+
+        {/* Progress bar using sliced bar-progress asset */}
+        <div style={{ position: 'relative', width: 320, maxWidth: '80vw', height: 20, marginBottom: 12 }}>
+          <img
+            src="/assets/space/ui/scifi-gui/sliced/bar-progress.png"
+            alt=""
+            style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'fill' }}
+            onError={(e) => {
+              (e.target as HTMLImageElement).style.display = 'none';
+            }}
+          />
+          <div
+            style={{
+              position: 'absolute',
+              left: '4%',
+              top: '15%',
+              bottom: '15%',
+              width: '30%',
+              background: 'linear-gradient(90deg, transparent, #44ff88, transparent)',
+              borderRadius: 2,
+              animation: 'loading-slide 1.2s ease-in-out infinite',
+            }}
+          />
+        </div>
+
+        {/* Gem indicator row */}
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 8 }}>
+          <img
+            src="/assets/space/ui/scifi-gui/sliced/gem-dia.png"
+            alt=""
+            style={{ width: 12, height: 12 }}
+            onError={(e) => {
+              (e.target as HTMLImageElement).style.display = 'none';
+            }}
+          />
+          <img
+            src="/assets/space/ui/scifi-gui/sliced/gem-indicator.png"
+            alt=""
+            style={{ width: 16, height: 16, filter: 'drop-shadow(0 0 6px rgba(68,255,200,0.6))' }}
+            onError={(e) => {
+              (e.target as HTMLImageElement).style.display = 'none';
+            }}
+          />
+          <img
+            src="/assets/space/ui/scifi-gui/sliced/gem-dia.png"
+            alt=""
+            style={{ width: 12, height: 12 }}
+            onError={(e) => {
+              (e.target as HTMLImageElement).style.display = 'none';
+            }}
+          />
+        </div>
+
+        {/* Decorative element */}
+        <img
+          src="/assets/space/ui/scifi-gui/elements/1.png"
+          alt=""
+          style={{ width: 100, opacity: 0.25, marginTop: 8 }}
+          onError={(e) => {
+            (e.target as HTMLImageElement).style.display = 'none';
+          }}
+        />
       </div>
+
+      <style>{`
+        @keyframes loading-slide {
+          0% { transform: translateX(-100%); }
+          100% { transform: translateX(400%); }
+        }
+      `}</style>
     </div>
   );
 }
