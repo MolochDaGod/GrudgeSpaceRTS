@@ -2565,7 +2565,7 @@ export class GroundRenderer {
     if (!gltfPath) return;
 
     try {
-      const gltf = await this.gltfLoader.loadAsync(gltfPath);
+      const gltf = await this.gltfLoader.loadAsync(resolvePathUrl(gltfPath));
       const envScene = gltf.scene;
 
       // Auto-fit: scale the environment to cover ~80% of the play area
