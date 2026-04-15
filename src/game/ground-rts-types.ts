@@ -25,12 +25,18 @@ export interface SpriteAnim {
   basePath: string;
   /** File prefix before the number, e.g. "Attack_" or "walk_" */
   prefix: string;
+  /** File suffix after the number (e.g. "_Man" for death anims), empty string if none */
+  suffix: string;
   /** Number of frames */
   frames: number;
   /** Seconds per frame */
   frameDuration: number;
   /** Loop or play-once */
   loop: boolean;
+  /** Zero-padding width for frame numbers (3 = "000", 4 = "0000") */
+  pad: number;
+  /** Starting frame index (usually 0, but death anims may start at different indices) */
+  startFrame: number;
 }
 
 export interface UnitAnimSet {
@@ -94,9 +100,26 @@ function charAnim(gender: 'Man' | 'Girl', folder: string, prefix: string, frames
   return {
     basePath: `${CHARS}/Characters/PNG_Bodyparts&Animations/PNG Animations/${gender}/${folder}`,
     prefix,
+    suffix: '',
     frames,
     frameDuration: dur,
     loop,
+    pad: 3,
+    startFrame: 0,
+  };
+}
+
+/** Player death anims use 4-digit padding and a gender suffix: death_0000_Man.png */
+function charDeathAnim(gender: 'Man' | 'Girl'): SpriteAnim {
+  return {
+    basePath: `${CHARS}/Characters/PNG_Bodyparts&Animations/PNG Animations/${gender}/Death`,
+    prefix: 'death_',
+    suffix: `_${gender}`,
+    frames: 6,
+    frameDuration: 0.1,
+    loop: false,
+    pad: 4,
+    startFrame: 0,
   };
 }
 
@@ -109,7 +132,16 @@ function zombieAnim(
   dur: number,
   loop: boolean,
 ): SpriteAnim {
-  return { basePath: `${ZOMBIES}/Zombies/PNG Animations/${level}/${variant}/${action}`, prefix, frames, frameDuration: dur, loop };
+  return {
+    basePath: `${ZOMBIES}/Zombies/PNG Animations/${level}/${variant}/${action}`,
+    prefix,
+    suffix: '',
+    frames,
+    frameDuration: dur,
+    loop,
+    pad: 3,
+    startFrame: 0,
+  };
 }
 
 function monsterAnim(
@@ -121,10 +153,28 @@ function monsterAnim(
   dur: number,
   loop: boolean,
 ): SpriteAnim {
-  return { basePath: `${MONSTERS}/Monsters/PNG Animations/${level}/${variant}/${action}`, prefix, frames, frameDuration: dur, loop };
+  return {
+    basePath: `${MONSTERS}/Monsters/PNG Animations/${level}/${variant}/${action}`,
+    prefix,
+    suffix: '',
+    frames,
+    frameDuration: dur,
+    loop,
+    pad: 3,
+    startFrame: 0,
+  };
 }
 
 // ── Player Unit Definitions ──────────────────────────────────────────
+/** Frame counts per weapon attack anim (from actual asset inspection) */
+const WEAPON_FRAMES: Record<string, { idle: number; walk: number; attack: number }> = {
+  Gun_Shot: { idle: 8, walk: 6, attack: 5 },
+  Riffle: { idle: 8, walk: 6, attack: 9 },
+  Bat: { idle: 8, walk: 6, attack: 12 },
+  Knife: { idle: 8, walk: 6, attack: 8 },
+  FlameThrower: { idle: 8, walk: 6, attack: 9 },
+};
+
 function playerUnit(
   unitClass: UnitClass,
   name: string,
@@ -140,8 +190,13 @@ function playerUnit(
   range: number,
   cooldown: number,
 ): UnitDef {
-  const walkPrefix = weapon === 'Gun_Shot' ? 'Gun_Shot_' : 'Walk_';
-  const atkPrefix = weapon === 'Gun_Shot' ? 'Gun_Shot_' : `${weapon}_`;
+  const wf = WEAPON_FRAMES[weapon] ?? { idle: 8, walk: 6, attack: 9 };
+  // Walk folders use weapon-specific prefix: Walk_gun_000.png
+  const walkPrefix = `Walk_${walkFolder.replace('Walk_', '')}_`;
+  // Idle folders use weapon-specific prefix: Idle_gun_000.png
+  const idlePrefix = `Idle_${idleFolder.replace('Idle_', '')}_`;
+  // Attack prefix matches the weapon name: Bat_000.png, Knife_000.png, Gun_Shot_000.png
+  const atkPrefix = `${weapon}_`;
   return {
     unitClass,
     displayName: name,
@@ -152,14 +207,14 @@ function playerUnit(
     attackRange: range,
     attackCooldown: cooldown,
     attackType,
-    aggroRange: range * 1.5,
+    aggroRange: Math.max(range * 1.5, 200),
     spriteSize: 64,
     tier: 0,
     anims: {
-      idle: charAnim(gender, idleFolder, 'Idle_', 9, 0.12, true),
-      walk: charAnim(gender, walkFolder, walkPrefix.replace(/_$/, '_'), 9, 0.08, true),
-      attack: charAnim(gender, attackFolder, atkPrefix.replace(/_$/, '_'), 9, 0.07, false),
-      death: charAnim(gender, 'Death', 'Death_', 6, 0.1, false),
+      idle: charAnim(gender, idleFolder, idlePrefix, wf.idle, 0.12, true),
+      walk: charAnim(gender, walkFolder, walkPrefix, wf.walk, 0.08, true),
+      attack: charAnim(gender, attackFolder, atkPrefix, wf.attack, 0.07, false),
+      death: charDeathAnim(gender),
     },
     icon: `${CHARS}/Icons/PNG/zombie1 icon_no_bg.png`,
   };
@@ -435,7 +490,8 @@ export interface RTSUnit {
   team: Team;
   x: number;
   y: number;
-  facing: number; // radians
+  facing: number; // current visual facing (radians) — lerps toward facingTarget
+  facingTarget: number; // desired facing (radians) — set by movement/attack
   hp: number;
   maxHp: number;
   state: UnitState;
@@ -505,6 +561,10 @@ export const EXPLOSION_PATHS = {
   base: `${CHARS}/Explosion/PNG`,
 };
 
+// ── Tile walkability ─────────────────────────────────────────────────
+// 0 = walkable full speed, 1 = slow (stones/rubble), 2 = impassable (water/walls)
+export type TileWalkability = 0 | 1 | 2;
+
 // ── Game State ───────────────────────────────────────────────────────
 export interface GroundRTSState {
   units: Map<number, RTSUnit>;
@@ -519,6 +579,8 @@ export interface GroundRTSState {
   tileSize: number; // pixels per tile
   mapWidth: number; // total pixels
   mapHeight: number;
+  // Walkability grid (same dimensions as tileGrid)
+  walkGrid: TileWalkability[][];
   // Wave system
   wave: number;
   waveTimer: number;
@@ -532,6 +594,8 @@ export interface GroundRTSState {
   victory: boolean;
   // IDs
   nextId: number;
+  // Current level
+  level: number;
 }
 
 // ── Wave Configuration ───────────────────────────────────────────────

@@ -1,0 +1,16 @@
+node_modules
+dist
+*.log
+.DS_Store
+.vercel
+tsconfig.tsbuildinfo
+.env
+.env.local
+.env\ -\ Copy*
+
+# Large asset source files (AI/EPS/PSD/TIFF/SCML) — not needed at runtime
+*.ai
+*.eps
+*.psd
+*.tiff
+*.scml

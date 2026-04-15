@@ -1,0 +1,19 @@
+node_modules
+dist
+*.log
+.DS_Store
+.vercel
+tsconfig.tsbuildinfo
+.env
+.env.local
+.env\ -\ Copy*
+
+# Large asset source files (AI/EPS/PSD/TIFF/SCML) — not needed at runtime
+*.ai
+*.eps
+*.psd
+*.tiff
+*.scml
+
+# Large zip archives — exceed GitHub's 100 MB file limit
+assets/animationsweapons.zip

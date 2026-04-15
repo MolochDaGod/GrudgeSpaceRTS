@@ -1,15 +1,116 @@
 /**
- * ground-renderer.ts — Three.js renderer for on-planet ground combat.
- * Manages scene, camera, FBX model loading, terrain, damage numbers.
- * Reads from GroundCombatState each frame and drives the combat engine.
+ * ground-renderer.ts — Three.js ground-combat renderer for GrudgeSpaceRTS.
+ *
+ * ════════════════════════════════════════════════════════════════════
+ *  RENDER PIPELINE OVERVIEW
+ * ════════════════════════════════════════════════════════════════════
+ *
+ *  WebGLRenderer  →  EffectComposer
+ *    ├─ RenderPass          (scene + camera — lit geometry)
+ *    ├─ UnrealBloomPass     (emissive glow, weapon sparks, hit flashes)
+ *    └─ ShaderPass          (VignetteShader — darken screen edges)
+ *
+ *  BEST PRACTICES for this pipeline:
+ *  • Keep emissiveIntensity ≤ 0.8 for most meshes; reserve >1 for FX.
+ *  • The bloom threshold (0.35) means only surfaces with luminance > 0.35
+ *    bloom. Set emissive to a visible colour + emissiveIntensity ≥ 0.4 for
+ *    intentional glow (weapons, hit sparks, enemy eyes).
+ *  • Never use THREE.LinearSRGBColorSpace mid-frame; all textures must have
+ *    colorSpace = THREE.SRGBColorSpace before being added to the scene.
+ *  • Shadow maps: renderer uses PCFSoftShadowMap at 1024 px — raising the
+ *    map size improves quality at a GPU cost; keep characters castShadow=true.
+ *
+ * ════════════════════════════════════════════════════════════════════
+ *  CHARACTER MODEL PIPELINE
+ * ════════════════════════════════════════════════════════════════════
+ *
+ *  Source: "Ultimate Modular Men – Feb 2022" GLTF pack
+ *  Path:   public/assets/ground/characters/gltf/
+ *
+ *  Loading flow per character:
+ *    1. loadGLTF(path)
+ *       ├─ GLTFLoader.loadAsync → raw GLTF scene + AnimationClip[]
+ *       ├─ Measure Box3 height (Y axis) → scale scene to exactly 2.0 m
+ *       ├─ Cache canonical scene (with scale)
+ *       └─ Return SkeletonUtils.clone(scene) — each entity gets its own
+ *          bone hierarchy so mixers don't share state.
+ *    2. applyCharacterMaterial(group, classColor)
+ *       Replaces all mesh materials with MeshStandardMaterial in the class
+ *       tint colour.  Every 3rd mesh gets a darker secondary shade for
+ *       simple armour-zone banding.  Emissive glow ensures visibility.
+ *    3. AnimationController.registerClip(key, clip)
+ *       Registers each embedded GLTF clip under an AnimKey name using
+ *       GLTF_ANIM_MAP.  For weapon-action keys, also builds an upper-body-
+ *       only copy (makeUpperBodyClip) for the overlay layer.
+ *
+ *  Adding a new character model:
+ *    a. Copy .gltf (self-contained with embedded buffers) into
+ *       public/assets/ground/characters/gltf/
+ *    b. Add an entry to CHARACTER_GLTF_MAP or ENEMY_GLTF_MAP.
+ *    c. Inspect animation names: open the .gltf in Blender or run
+ *         node -e "const g=require('./YourModel.gltf'); g.animations.forEach(a=>console.log(a.name))"
+ *       then map them in GLTF_ANIM_MAP.
+ *
+ * ════════════════════════════════════════════════════════════════════
+ *  ANIMATION SYSTEM — TWO LAYERS
+ * ════════════════════════════════════════════════════════════════════
+ *
+ *  AnimationController manages a single THREE.AnimationMixer with two
+ *  conceptual layers:
+ *
+ *  Layer 0 — BASE (looping):
+ *    idle / walk / run / strafe / block_idle / injured_*
+ *    Plays on all bones.  Updated every frame.  Replaced by crossfade
+ *    when the locomotion state changes.
+ *
+ *  Layer 1 — OVERLAY (one-shot):
+ *    attack / combo2-3 / heavy_attack / dodge / shoot / cast / death / hit
+ *    Plays an upper-body-filtered clip (bones: spine, chest, shoulder,
+ *    arm, forearm, hand, head, neck) so the legs keep the base animation
+ *    while the arms perform the weapon action.
+ *    The overlay is NEVER interrupted; it plays to completion, then fires
+ *    the mixer 'finished' event which auto-returns to the base layer.
+ *
+ *  One-shot guarantee (roll, dodge, death):
+ *    isOneShotPlaying blocks any new one-shot until 'finished' fires.
+ *    combat-engine animKey changes during that time are recorded in the
+ *    base layer but don't interrupt the overlay.
+ *
+ * ════════════════════════════════════════════════════════════════════
+ *  CAMERA SYSTEM
+ * ════════════════════════════════════════════════════════════════════
+ *
+ *  Follow mode (default):
+ *    Third-person over-shoulder.  Camera orbits the player at CAM_DISTANCE
+ *    (8 u) and CAM_HEIGHT (4 u) with a slight shoulder offset (CAM_SHOULDER).
+ *    Mouse drag (pointer-locked) rotates cameraYaw / cameraPitch.
+ *    cameraYaw is passed to ground-combat.ts each frame so movement is
+ *    always camera-relative (W = into screen, not world +Z).
+ *
+ *  Free mode (P key):
+ *    Editor fly-cam.  WASD = translate in look direction, E/Q = up/down,
+ *    RMB drag = orbit.  Game is PAUSED while in free mode.
+ *
+ *  Camera-relative movement formula (ground-combat.ts):
+ *    cameraForward = (sin(yaw), 0,  cos(yaw))   ← direction camera looks
+ *    cameraRight   = (cos(yaw), 0, -sin(yaw))   ← camera's local right
+ *    moveDir = mz * cameraForward + mx * cameraRight
+ *            = { x: mx*cos + mz*sin, z: -mx*sin + mz*cos }
  */
 
 import * as THREE from 'three';
 import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
 import { MTLLoader } from 'three/examples/jsm/loaders/MTLLoader.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { loadAnimationClip as loadAnimClipCentral, loadModel as loadModelCentral, loadPrefabGLB } from './model-loader';
+import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
+import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
+import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
+import { loadAnimationClip as loadAnimClipCentral } from './model-loader';
 import type { PlanetType } from './space-types';
 import {
   EffectComposer,
@@ -33,8 +134,106 @@ import {
 import { resolvePathUrl } from './asset-registry';
 import { getShipPrefab, type SpacePrefab } from './space-prefabs';
 
+// ── Vignette shader (fullscreen post pass) ────────────────────────
+const VignetteShader = {
+  uniforms: {
+    tDiffuse: { value: null as THREE.Texture | null },
+    offset: { value: 0.85 },
+    darkness: { value: 0.6 },
+  },
+  vertexShader: `
+    varying vec2 vUv;
+    void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }
+  `,
+  fragmentShader: `
+    uniform sampler2D tDiffuse;
+    uniform float offset;
+    uniform float darkness;
+    varying vec2 vUv;
+    void main() {
+      vec4 color = texture2D(tDiffuse, vUv);
+      vec2 uv = (vUv - vec2(0.5)) * vec2(offset);
+      float vig = clamp(pow(dot(uv, uv), darkness), 0.0, 1.0);
+      color.rgb *= (1.0 - vig);
+      gl_FragColor = color;
+    }
+  `,
+};
+
 // ── Animation system ─────────────────────────────────────────────
 const ANIM_BASE = '/assets/ground/animations';
+
+// ── Upper-body bone name fragments (lowercase) ───────────────────
+// Used to filter animation tracks so weapon actions only drive the
+// upper body while locomotion continues on the lower body.
+const UPPER_BODY_BONE_FRAGMENTS = [
+  'spine',
+  'chest',
+  'shoulder',
+  'arm',
+  'forearm',
+  'hand',
+  'head',
+  'neck',
+  'clavicle',
+  'finger',
+  'thumb',
+  'index',
+  'middle',
+  'ring',
+  'pinky',
+];
+
+/** AnimKey values that are weapon/combat actions (overlay on upper body). */
+const WEAPON_ANIM_KEYS_SET = new Set([
+  'attack',
+  'combo2',
+  'combo3',
+  'heavy_attack',
+  'jump_attack',
+  'slide_attack',
+  'shoot',
+  'cast',
+  'kick',
+  'block',
+]);
+
+/** ONE_SHOT_ANIM_KEYS — these play from start to finish, never interrupted. */
+const ONE_SHOT_KEYS_SET = new Set([
+  'attack',
+  'combo2',
+  'combo3',
+  'heavy_attack',
+  'jump_attack',
+  'slide_attack',
+  'dodge',
+  'death',
+  'hit',
+  'kick',
+  'jump',
+  'shoot',
+  'cast',
+]);
+
+/**
+ * Build an upper-body-only copy of a clip by filtering out tracks
+ * whose bone names belong to the lower body (hips, legs, feet).
+ * Returns null if no upper-body tracks exist (e.g. a root-motion-only clip).
+ */
+function makeUpperBodyClip(clip: THREE.AnimationClip): THREE.AnimationClip | null {
+  const upperTracks = clip.tracks.filter((track) => {
+    // Track name format: "BoneName.property"
+    const boneName = track.name.split('.')[0].toLowerCase();
+    // Keep root/hips position (needed for root motion continuity) but skip
+    // rotation/scale of lower-body bones
+    const isUpper = UPPER_BODY_BONE_FRAGMENTS.some((frag) => boneName.includes(frag));
+    // Also keep armature-level tracks
+    const isRoot = boneName === 'armature' || boneName === '' || boneName === 'root';
+    return isUpper || isRoot;
+  });
+  if (upperTracks.length === 0) return null;
+  return new THREE.AnimationClip(clip.name + '_upper', clip.duration, upperTracks);
+}
 
 /**
  * Full animation key set.
@@ -66,7 +265,16 @@ type AnimKey =
   | 'injured_walk'
   | 'injured_run';
 
-/** All available animations per weapon type — uses every extracted FBX */
+/** All available animations per weapon type.
+ * Sources:
+ *   sword — 1hweaponandshield pack (18 FBX)
+ *   greatsword — 2hweapons pack (24 FBX axe models used as greatsword)
+ *   bow — bows pack (96 FBX) + bow-advanced/longbow pack (40 FBX)
+ *   staff/magic — magicmotion pack (15 FBX)
+ *   rifle — rifleandcrossbow pack (17 FBX)
+ *   gun-advanced — advancedgunandcrossbow pack (50 FBX, 8-dir locomotion)
+ *   common — meleemoves pack (48 FBX unarmed/general)
+ */
 const ANIM_SETS: Record<string, Partial<Record<AnimKey, string>>> = {
   sword: {
     idle: `${ANIM_BASE}/sword/idle.fbx`,
@@ -79,74 +287,94 @@ const ANIM_SETS: Record<string, Partial<Record<AnimKey, string>>> = {
     heavy_attack: `${ANIM_BASE}/sword/heavy_attack.fbx`,
     block: `${ANIM_BASE}/sword/block.fbx`,
     block_idle: `${ANIM_BASE}/sword/block_idle.fbx`,
-    kick: `${ANIM_BASE}/sword/kick.fbx`,
-    jump: `${ANIM_BASE}/sword/jump.fbx`,
-    hit: `${ANIM_BASE}/sword/hit.fbx`,
     death: `${ANIM_BASE}/sword/death.fbx`,
   },
   greatsword: {
-    idle: `${ANIM_BASE}/greatsword/idle.fbx`,
-    walk: `${ANIM_BASE}/greatsword/walk.fbx`,
-    run: `${ANIM_BASE}/greatsword/run.fbx`,
-    attack: `${ANIM_BASE}/greatsword/attack.fbx`,
-    combo2: `${ANIM_BASE}/greatsword/combo2.fbx`,
-    combo3: `${ANIM_BASE}/greatsword/combo3.fbx`,
-    heavy_attack: `${ANIM_BASE}/greatsword/heavy_attack.fbx`,
-    jump_attack: `${ANIM_BASE}/greatsword/jump_attack.fbx`,
-    slide_attack: `${ANIM_BASE}/greatsword/slide_attack.fbx`,
-    block: `${ANIM_BASE}/greatsword/block.fbx`,
-    kick: `${ANIM_BASE}/greatsword/kick.fbx`,
-    hit: `${ANIM_BASE}/greatsword/hit.fbx`,
-    death: `${ANIM_BASE}/greatsword/death.fbx`,
+    idle: `${ANIM_BASE}/common/idle.fbx`,
+    walk: `${ANIM_BASE}/common/walk.fbx`,
+    run: `${ANIM_BASE}/common/run.fbx`,
+    attack: `${ANIM_BASE}/common/attack.fbx`,
+    combo2: `${ANIM_BASE}/common/combo2.fbx`,
+    combo3: `${ANIM_BASE}/common/combo3.fbx`,
+    heavy_attack: `${ANIM_BASE}/common/heavy_attack.fbx`,
+    jump_attack: `${ANIM_BASE}/common/jump_attack.fbx`,
+    slide_attack: `${ANIM_BASE}/common/slide_attack.fbx`,
+    kick: `${ANIM_BASE}/common/kick.fbx`,
+    hit: `${ANIM_BASE}/common/hit.fbx`,
+    death: `${ANIM_BASE}/gun-advanced/death.fbx`,
   },
   bow: {
-    idle: `${ANIM_BASE}/bow/idle.fbx`,
-    walk: `${ANIM_BASE}/bow/walk.fbx`,
-    run: `${ANIM_BASE}/bow/run.fbx`,
-    strafe: `${ANIM_BASE}/bow/strafe_left.fbx`,
-    attack: `${ANIM_BASE}/bow/attack.fbx`,
-    shoot: `${ANIM_BASE}/bow/shoot.fbx`,
-    block: `${ANIM_BASE}/bow/block.fbx`,
-    dodge: `${ANIM_BASE}/bow/dodge.fbx`,
-    hit: `${ANIM_BASE}/bow/hit.fbx`,
-    death: `${ANIM_BASE}/bow/death.fbx`,
+    idle: `${ANIM_BASE}/bow-advanced/idle.fbx`,
+    walk: `${ANIM_BASE}/bow-advanced/walk.fbx`,
+    run: `${ANIM_BASE}/bow-advanced/run.fbx`,
+    strafe: `${ANIM_BASE}/bow-advanced/strafe_left.fbx`,
+    attack: `${ANIM_BASE}/bow-advanced/attack.fbx`,
+    shoot: `${ANIM_BASE}/bow-advanced/shoot.fbx`,
+    block: `${ANIM_BASE}/bow-advanced/block.fbx`,
+    dodge: `${ANIM_BASE}/bow-advanced/dodge.fbx`,
+    kick: `${ANIM_BASE}/bow-advanced/kick.fbx`,
+    hit: `${ANIM_BASE}/bow-advanced/hit.fbx`,
+    death: `${ANIM_BASE}/bow-advanced/death.fbx`,
   },
   staff: {
     idle: `${ANIM_BASE}/magic/idle.fbx`,
+    walk: `${ANIM_BASE}/magic/walk.fbx`,
+    run: `${ANIM_BASE}/magic/run.fbx`,
     attack: `${ANIM_BASE}/magic/attack.fbx`,
-    combo2: `${ANIM_BASE}/magic/combo2.fbx`,
-    combo3: `${ANIM_BASE}/magic/combo3.fbx`,
-    heavy_attack: `${ANIM_BASE}/magic/heavy_attack.fbx`,
     cast: `${ANIM_BASE}/magic/cast.fbx`,
+    jump: `${ANIM_BASE}/magic/jump.fbx`,
+    hit: `${ANIM_BASE}/magic/hit.fbx`,
+    death: `${ANIM_BASE}/magic/death.fbx`,
   },
   spear: {
-    idle: `${ANIM_BASE}/greatsword/idle.fbx`,
-    walk: `${ANIM_BASE}/greatsword/walk.fbx`,
-    run: `${ANIM_BASE}/greatsword/run.fbx`,
-    attack: `${ANIM_BASE}/greatsword/attack.fbx`,
-    combo2: `${ANIM_BASE}/greatsword/combo2.fbx`,
-    heavy_attack: `${ANIM_BASE}/greatsword/heavy_attack.fbx`,
-    jump_attack: `${ANIM_BASE}/greatsword/jump_attack.fbx`,
-    hit: `${ANIM_BASE}/greatsword/hit.fbx`,
-    death: `${ANIM_BASE}/greatsword/death.fbx`,
+    idle: `${ANIM_BASE}/common/idle.fbx`,
+    walk: `${ANIM_BASE}/common/walk.fbx`,
+    run: `${ANIM_BASE}/common/run.fbx`,
+    attack: `${ANIM_BASE}/common/attack.fbx`,
+    combo2: `${ANIM_BASE}/common/melee_combo1.fbx`,
+    combo3: `${ANIM_BASE}/common/melee_combo2.fbx`,
+    heavy_attack: `${ANIM_BASE}/common/heavy_attack.fbx`,
+    jump_attack: `${ANIM_BASE}/common/jump_attack.fbx`,
+    kick: `${ANIM_BASE}/common/kick.fbx`,
+    hit: `${ANIM_BASE}/common/hit.fbx`,
+    death: `${ANIM_BASE}/gun-advanced/death.fbx`,
   },
   rifle: {
     idle: `${ANIM_BASE}/rifle/idle.fbx`,
     walk: `${ANIM_BASE}/rifle/walk.fbx`,
     run: `${ANIM_BASE}/rifle/run.fbx`,
     strafe: `${ANIM_BASE}/rifle/strafe_left.fbx`,
-    shoot: `${ANIM_BASE}/rifle/idle.fbx`, // fire from idle stance
-    attack: `${ANIM_BASE}/rifle/walk.fbx`, // shooting while advancing
-    death: `${ANIM_BASE}/rifle/death.fbx`,
+    shoot: `${ANIM_BASE}/rifle/shoot.fbx`,
+    attack: `${ANIM_BASE}/rifle/shoot.fbx`,
+    hit: `${ANIM_BASE}/rifle/hit.fbx`,
+    jump: `${ANIM_BASE}/rifle/jump.fbx`,
+    death: `${ANIM_BASE}/gun-advanced/death.fbx`,
+  },
+  // 8-directional gun locomotion (gunslinger class)
+  gun: {
+    idle: `${ANIM_BASE}/gun-advanced/idle.fbx`,
+    walk: `${ANIM_BASE}/gun-advanced/walk.fbx`,
+    run: `${ANIM_BASE}/gun-advanced/run.fbx`,
+    strafe: `${ANIM_BASE}/gun-advanced/walk_left.fbx`,
+    shoot: `${ANIM_BASE}/gun-advanced/idle_aim.fbx`,
+    attack: `${ANIM_BASE}/gun-advanced/idle_aim.fbx`,
+    dodge: `${ANIM_BASE}/gun-advanced/sprint.fbx`,
+    jump: `${ANIM_BASE}/gun-advanced/jump.fbx`,
+    death: `${ANIM_BASE}/gun-advanced/death.fbx`,
   },
 };
 
 /** Common fallback clips — used when weapon set is missing a key */
 const COMMON_ANIMS: Partial<Record<AnimKey, string>> = {
-  dodge: `${ANIM_BASE}/common/stand_to_roll.fbx`,
-  hit: `${ANIM_BASE}/common/getting_hit_backwards.fbx`,
-  death: `${ANIM_BASE}/common/flying_back_death.fbx`,
-  jump: `${ANIM_BASE}/common/front_twist_flip.fbx`,
+  idle: `${ANIM_BASE}/common/idle.fbx`,
+  walk: `${ANIM_BASE}/common/walk.fbx`,
+  run: `${ANIM_BASE}/common/run.fbx`,
+  dodge: `${ANIM_BASE}/bow-advanced/dodge.fbx`,
+  hit: `${ANIM_BASE}/common/hit.fbx`,
+  death: `${ANIM_BASE}/gun-advanced/death.fbx`,
+  jump: `${ANIM_BASE}/common/jump.fbx`,
+  kick: `${ANIM_BASE}/common/kick.fbx`,
+  block: `${ANIM_BASE}/common/block_idle.fbx`,
 };
 
 /** Injured overrides — switched in below INJURED_HP_THRESHOLD */
@@ -242,15 +470,85 @@ const ENEMY_MODEL_MAP: Record<string, { modelIdx: number; tint: number }> = {
 
 const CORSAIR_KING_PATH = '/assets/ground/characters/CorsairKing.fbx';
 
-// ── AnimationController — per-entity mixer + clip management ──────
+// ── Vehicle model paths (OBJ + MTL + PNG) ─────────────────────────
+const VEHICLE_MODELS: Record<string, { obj: string; mtl: string; tex: string; scale: number; tint: number }> = {
+  gunbike: {
+    obj: '/assets/space/models/vehicles/GunBike/GunBike-0-GunBike.obj',
+    mtl: '/assets/space/models/vehicles/GunBike/GunBike-0-GunBike.mtl',
+    tex: '/assets/space/models/vehicles/GunBike/GunBike-0-GunBike.png',
+    scale: 0.012,
+    tint: 0xff3300,
+  },
+  scooter: {
+    obj: '/assets/space/models/vehicles/Scooter/Scooter-0-Scooter.obj',
+    mtl: '/assets/space/models/vehicles/Scooter/Scooter-0-Scooter.mtl',
+    tex: '/assets/space/models/vehicles/Scooter/Scooter-0-Scooter.png',
+    scale: 0.01,
+    tint: 0xff6600,
+  },
+  chopper: {
+    obj: '/assets/space/models/vehicles/Chopper/Chopper-0-Chopper.obj',
+    mtl: '/assets/space/models/vehicles/Chopper/Chopper-0-Chopper.mtl',
+    tex: '/assets/space/models/vehicles/Chopper/Chopper-0-Chopper.png',
+    scale: 0.014,
+    tint: 0xaa2200,
+  },
+  tracer: {
+    obj: '/assets/space/models/vehicles/Tracer/Tracer-0-Tracer.obj',
+    mtl: '/assets/space/models/vehicles/Tracer/Tracer-0-Tracer.mtl',
+    tex: '/assets/space/models/vehicles/Tracer/Tracer-0-Tracer.png',
+    scale: 0.011,
+    tint: 0xff8800,
+  },
+};
+
+// ── AnimationController — per-entity mixer + two-layer animation ──
+/**
+ * Two-layer animation controller:
+ *
+ *  Layer 0 — BASE (locomotion): idle / walk / run / strafe.
+ *    Always looping. Drives the full body skeleton.
+ *
+ *  Layer 1 — OVERLAY (weapon/combat): attack / combo / dodge / roll.
+ *    Plays once (one-shot). Drives upper-body bones only via a
+ *    filtered clip so legs continue with the base locomotion.
+ *    The overlay is NEVER interrupted mid-play; only after the
+ *    mixer fires the 'finished' event does control return to the base.
+ *
+ * Usage:
+ *   ctrl.play('walk')              // base layer, loops
+ *   ctrl.play('attack', false)     // overlay layer, plays to completion
+ */
 class AnimationController {
   mixer: THREE.AnimationMixer;
-  clips = new Map<string, THREE.AnimationClip>();
-  currentAction: THREE.AnimationAction | null = null;
-  currentKey = '';
+
+  /** Full clips (all bones). */
+  private clips = new Map<string, THREE.AnimationClip>();
+  /** Upper-body-only variants for weapon overlays. */
+  private upperClips = new Map<string, THREE.AnimationClip>();
+
+  /** Currently active base (locomotion) action. */
+  private baseAction: THREE.AnimationAction | null = null;
+  private baseKey = '';
+
+  /** Currently active one-shot overlay action. */
+  private overlayAction: THREE.AnimationAction | null = null;
+
+  /** True while a one-shot is playing — blocks any new one-shot from interrupting. */
+  isOneShotPlaying = false;
 
   constructor(root: THREE.Object3D) {
     this.mixer = new THREE.AnimationMixer(root);
+    // When a one-shot finishes naturally, clear the overlay and return to base.
+    this.mixer.addEventListener('finished', (e) => {
+      if (this.overlayAction === (e as THREE.Event & { action: THREE.AnimationAction }).action) {
+        this.overlayAction?.fadeOut(0.25);
+        this.overlayAction = null;
+        this.isOneShotPlaying = false;
+        // Re-play the current base clip to blend back smoothly
+        if (this.baseKey) this._playBase(this.baseKey, 0.25);
+      }
+    });
   }
 
   /** Load an animation clip from an FBX file and register it under `key`. */
@@ -260,23 +558,74 @@ class AnimationController {
     if (clip) {
       clip.name = key;
       this.clips.set(key, clip);
+      this._buildUpperVariant(key, clip);
     }
   }
 
-  /** Crossfade to animation `key`. If not loaded, stays on current. */
-  play(key: string, loop = true, fadeDuration = 0.2): void {
-    if (key === this.currentKey && this.currentAction?.isRunning()) return;
+  /** Register a pre-loaded clip (e.g. from a GLTF's embedded animations). */
+  registerClip(key: string, clip: THREE.AnimationClip): void {
+    if (this.clips.has(key)) return;
+    const c = clip.clone();
+    c.name = key;
+    this.clips.set(key, c);
+    this._buildUpperVariant(key, c);
+  }
+
+  /** Build and cache an upper-body-only variant of the clip if it's a weapon key. */
+  private _buildUpperVariant(key: string, clip: THREE.AnimationClip): void {
+    if (!WEAPON_ANIM_KEYS_SET.has(key)) return;
+    const upper = makeUpperBodyClip(clip);
+    if (upper) this.upperClips.set(key, upper);
+  }
+
+  /** Internal: crossfade the base layer to `key`. */
+  private _playBase(key: string, fadeDuration: number): void {
     const clip = this.clips.get(key);
     if (!clip) return;
     const action = this.mixer.clipAction(clip);
-    action.setLoop(loop ? THREE.LoopRepeat : THREE.LoopOnce, loop ? Infinity : 1);
-    action.clampWhenFinished = !loop;
-    if (this.currentAction && this.currentAction !== action) {
-      this.currentAction.fadeOut(fadeDuration);
+    action.setLoop(THREE.LoopRepeat, Infinity);
+    action.clampWhenFinished = false;
+    if (this.baseAction && this.baseAction !== action) {
+      this.baseAction.fadeOut(fadeDuration);
     }
     action.reset().fadeIn(fadeDuration).play();
-    this.currentAction = action;
-    this.currentKey = key;
+    this.baseAction = action;
+    this.baseKey = key;
+  }
+
+  /**
+   * Play an animation.
+   *
+   * @param key         AnimKey to play.
+   * @param loop        true = looping base layer; false = one-shot overlay.
+   * @param fadeDuration Crossfade seconds.
+   */
+  play(key: string, loop = true, fadeDuration = 0.2): void {
+    if (loop) {
+      // ── Base layer (locomotion) ────────────────────────────
+      // Update base even while an overlay is playing so it smoothly
+      // resumes the right locomotion clip when the overlay finishes.
+      if (key === this.baseKey) return;
+      this._playBase(key, fadeDuration);
+    } else {
+      // ── Overlay layer (weapon / combat) ───────────────────
+      // Never interrupt a currently playing one-shot.
+      if (this.isOneShotPlaying) return;
+
+      // Prefer upper-body-only clip for weapon overlays so legs keep moving.
+      const clip = (WEAPON_ANIM_KEYS_SET.has(key) ? this.upperClips.get(key) : undefined) ?? this.clips.get(key);
+      if (!clip) return;
+
+      if (this.overlayAction) this.overlayAction.fadeOut(fadeDuration);
+
+      const action = this.mixer.clipAction(clip);
+      action.setLoop(THREE.LoopOnce, 1);
+      action.clampWhenFinished = true;
+      // Start from the very beginning — guarantees roll/dodge play in full.
+      action.reset().fadeIn(fadeDuration).play();
+      this.overlayAction = action;
+      this.isOneShotPlaying = true;
+    }
   }
 
   update(dt: number): void {
@@ -389,6 +738,59 @@ const CHARACTER_FBXS = Array.from({ length: 12 }, (_, i) =>
 );
 const CHARACTER_TEXTURE = '/assets/ground/characters/DungeonCrawler_Character.png';
 
+// ── GLTF character models (Ultimate Modular Men pack) ─────────────
+const GLTF_BASE = '/assets/ground/characters/gltf';
+
+/** Character class → GLTF model file */
+const CHARACTER_GLTF_MAP: Record<string, string> = {
+  warrior: `${GLTF_BASE}/Suit.gltf`,
+  berserker: `${GLTF_BASE}/Punk.gltf`,
+  ranger: `${GLTF_BASE}/Swat.gltf`,
+  mage: `${GLTF_BASE}/Worker.gltf`,
+  rogue: `${GLTF_BASE}/Punk.gltf`,
+  gunslinger: `${GLTF_BASE}/Spacesuit.gltf`,
+};
+
+/** Enemy type → GLTF model file */
+const ENEMY_GLTF_MAP: Record<string, string> = {
+  melee: `${GLTF_BASE}/Punk.gltf`,
+  ranged: `${GLTF_BASE}/Swat.gltf`,
+  heavy: `${GLTF_BASE}/Suit.gltf`,
+  stalker: `${GLTF_BASE}/Worker.gltf`,
+  titan: `${GLTF_BASE}/Spacesuit.gltf`,
+  boss: `${GLTF_BASE}/Spacesuit.gltf`,
+};
+
+/**
+ * Maps our internal AnimKey names to the animation clip names embedded
+ * inside the Ultimate Modular Men GLTF files.
+ * Clips not listed fall back to 'idle' gracefully.
+ */
+const GLTF_ANIM_MAP: Record<string, string> = {
+  idle: 'Idle_Neutral',
+  walk: 'Walk',
+  run: 'Run',
+  strafe: 'Run_Left',
+  attack: 'Sword_Slash',
+  combo2: 'Punch_Right',
+  combo3: 'Punch_Left',
+  heavy_attack: 'Kick_Right',
+  jump_attack: 'Kick_Left',
+  slide_attack: 'Roll',
+  block: 'Idle_Sword',
+  block_idle: 'Idle_Sword',
+  dodge: 'Roll',
+  shoot: 'Idle_Gun_Shoot',
+  cast: 'Idle_Gun_Pointing',
+  kick: 'Kick_Left',
+  jump: 'Roll',
+  hit: 'HitRecieve',
+  death: 'Death',
+  injured_idle: 'Idle',
+  injured_walk: 'Walk',
+  injured_run: 'Run_Back',
+};
+
 /**
  * Weapon FBX per weapon type — uses the full weapon pack in public/assets/ground/weapons/
  * Richer assignments: axes for berserker, longbow for ranger, daggers for rogue, etc.
@@ -458,6 +860,9 @@ export class GroundRenderer {
     cameraYaw: 0,
   };
 
+  // ── Post-processing ────────────────────────────────────────
+  private composer!: EffectComposer;
+
   // ── Camera ───────────────────────────────────────────────
   private cameraYaw = 0;
   private cameraPitch = 0.3;
@@ -471,6 +876,22 @@ export class GroundRenderer {
   private freeCamPitch = -0.4;
   private freeCamRMB = false; // right-mouse held in free mode
   private freeCamOverlay: HTMLDivElement | null = null;
+
+  // ── Camera feel ────────────────────────────────────────────
+  /** Current camera shake magnitude (decrements to 0). */
+  private cameraShake = 0;
+  /** Target FOV — lerped toward each frame (sprint pulse). */
+  private targetFov = 55;
+  /** Tracks last player HP so we can detect hits for camera shake. */
+  private lastPlayerHp = -1;
+
+  // ── Projectile visuals ────────────────────────────────────
+  private projectilePool: Array<{
+    mesh: THREE.Mesh;
+    vel: THREE.Vector3;
+    life: number;
+    maxLife: number;
+  }> = [];
 
   // ── Nav mesh ───────────────────────────────────────────────
   /** Blocked navigation zones from solid terrain props. */
@@ -489,6 +910,8 @@ export class GroundRenderer {
   private modelCache = new Map<string, THREE.Group>();
   private loadingModels = new Map<string, Promise<THREE.Group>>();
   private charTexture: THREE.Texture | null = null;
+  /** GLTF cache: path → { canonical scene, embedded animation clips } */
+  private gltfCache = new Map<string, { scene: THREE.Group; animations: THREE.AnimationClip[] }>();
 
   // ── Scene objects ─────────────────────────────────────────────
   private playerGroup: THREE.Group | null = null;
@@ -534,6 +957,7 @@ export class GroundRenderer {
     // Camera
     this.camera = new THREE.PerspectiveCamera(55, w / h, 0.1, 500);
     this.camera.position.set(0, CAM_HEIGHT, -CAM_DISTANCE);
+    this.targetFov = 55;
 
     // Scene
     this.scene = new THREE.Scene();
@@ -557,6 +981,14 @@ export class GroundRenderer {
     this.scene.add(sun);
     const hemi = new THREE.HemisphereLight(0x88aacc, palette.ground, 0.3);
     this.scene.add(hemi);
+
+    // ── Post-processing: bloom + vignette ─────────────────────────
+    this.composer = new EffectComposer(this.renderer);
+    this.composer.addPass(new RenderPass(this.scene, this.camera));
+    const bloomPass = new UnrealBloomPass(new THREE.Vector2(w, h), 0.55, 0.4, 0.35);
+    this.composer.addPass(bloomPass);
+    const vigPass = new ShaderPass(VignetteShader);
+    this.composer.addPass(vigPass);
 
     // Heightmap terrain — high-res subdivided plane with per-vertex displacement
     this.buildTerrain(palette);
@@ -1046,30 +1478,20 @@ export class GroundRenderer {
 
     const url = resolvePathUrl(path);
     const promise = this.fbxLoader.loadAsync(url).then((fbx) => {
-      // Normalize scale
+      // Normalize scale to a standard 2-unit height
       const box = new THREE.Box3().setFromObject(fbx);
       const size = box.getSize(new THREE.Vector3());
       const maxDim = Math.max(size.x, size.y, size.z);
-      const targetHeight = 2.0;
-      const scale = targetHeight / maxDim;
-      fbx.scale.setScalar(scale);
+      if (maxDim > 0) fbx.scale.setScalar(2.0 / maxDim);
 
-      // Apply character texture if available
-      if (this.charTexture) {
-        fbx.traverse((child) => {
-          if ((child as THREE.Mesh).isMesh) {
-            const mesh = child as THREE.Mesh;
-            const mat = new THREE.MeshStandardMaterial({
-              map: this.charTexture,
-              roughness: 0.6,
-              metalness: 0.2,
-            });
-            mesh.material = mat;
-            mesh.castShadow = true;
-            mesh.receiveShadow = true;
-          }
-        });
-      }
+      // Enable shadows on all meshes; leave materials untouched here —
+      // callers apply their own material (color tint or metallic weapon).
+      fbx.traverse((child) => {
+        if ((child as THREE.Mesh).isMesh) {
+          (child as THREE.Mesh).castShadow = true;
+          (child as THREE.Mesh).receiveShadow = true;
+        }
+      });
 
       this.modelCache.set(path, fbx);
       return fbx;
@@ -1079,6 +1501,43 @@ export class GroundRenderer {
     const g = await promise;
     this.loadingModels.delete(path);
     return g.clone();
+  }
+
+  /**
+   * Load a GLTF character model and return a properly-cloned instance
+   * alongside the embedded animation clips. Uses SkeletonUtils.clone()
+   * to preserve the skinned-mesh bone hierarchy across clones.
+   */
+  private async loadGLTF(path: string): Promise<{ group: THREE.Group; animations: THREE.AnimationClip[] }> {
+    const cached = this.gltfCache.get(path);
+    if (cached) {
+      const cloned = SkeletonUtils.clone(cached.scene) as THREE.Group;
+      return { group: cloned, animations: cached.animations };
+    }
+
+    const url = resolvePathUrl(path);
+    const gltf = await this.gltfLoader.loadAsync(url);
+    const scene = gltf.scene as THREE.Group;
+
+    // Normalize to exactly 2 metres tall (Y axis = character height).
+    // Using size.y specifically guarantees 2m regardless of model width/depth.
+    // If the GLTF is stored sideways (size.y ≈ 0), fall back to maxDim.
+    const box = new THREE.Box3().setFromObject(scene);
+    const size = box.getSize(new THREE.Vector3());
+    const heightDim = size.y > 0.1 ? size.y : Math.max(size.x, size.y, size.z);
+    if (heightDim > 0) scene.scale.setScalar(2.0 / heightDim);
+
+    // Enable shadows; materials are assigned by callers
+    scene.traverse((child) => {
+      if ((child as THREE.Mesh).isMesh) {
+        (child as THREE.Mesh).castShadow = true;
+        (child as THREE.Mesh).receiveShadow = true;
+      }
+    });
+
+    this.gltfCache.set(path, { scene, animations: gltf.animations });
+    const cloned = SkeletonUtils.clone(scene) as THREE.Group;
+    return { group: cloned, animations: gltf.animations };
   }
 
   private createPlaceholder(color: number, height: number = 2): THREE.Group {
@@ -1098,34 +1557,75 @@ export class GroundRenderer {
     return group;
   }
 
+  /** Apply a solid class-coloured MeshStandard material to every mesh in a group. */
+  private applyCharacterMaterial(group: THREE.Group, color: number, emissiveBoost = 0.12): void {
+    const col = new THREE.Color(color);
+    // Derive a darker secondary colour for visual variety (pants/boots zones)
+    const colDark = col.clone().multiplyScalar(0.55);
+    let meshIdx = 0;
+    group.traverse((child) => {
+      if (!(child as THREE.Mesh).isMesh) return;
+      const mesh = child as THREE.Mesh;
+      // Alternate between primary and secondary colour for simple banding
+      const useSecondary = meshIdx % 3 === 2;
+      mesh.material = new THREE.MeshStandardMaterial({
+        color: useSecondary ? colDark : col,
+        emissive: col.clone().multiplyScalar(emissiveBoost),
+        emissiveIntensity: 0.6,
+        roughness: 0.55,
+        metalness: 0.25,
+      });
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      meshIdx++;
+    });
+  }
+
+  /** Apply a metallic silver-gold material to every mesh (used for weapons). */
+  private applyWeaponMaterial(group: THREE.Group): void {
+    group.traverse((child) => {
+      if (!(child as THREE.Mesh).isMesh) return;
+      (child as THREE.Mesh).material = new THREE.MeshStandardMaterial({
+        color: 0xccccaa,
+        emissive: 0x443300,
+        emissiveIntensity: 0.3,
+        roughness: 0.25,
+        metalness: 0.85,
+      });
+      (child as THREE.Mesh).castShadow = true;
+    });
+  }
+
   private async loadPlayerModel(): Promise<void> {
-    // Use character roster to pick the correct model and color
     const cls = this.state.player.characterClass;
     const cfg = CHARACTER_ROSTER[cls];
-    const modelPath = CHARACTER_FBXS[cfg?.modelIdx ?? 0];
-    const tint = cfg ? new THREE.Color(cfg.color) : new THREE.Color(0x4488ff);
+    const tintHex = cfg?.color ?? 0x4488ff;
+    const gltfPath = CHARACTER_GLTF_MAP[cls] ?? `${GLTF_BASE}/Suit.gltf`;
 
     try {
-      const model = await this.loadFBX(modelPath);
-      // Tint model to character class color
-      model.traverse((child) => {
-        if ((child as THREE.Mesh).isMesh) {
-          const m = (child as THREE.Mesh).material as THREE.MeshStandardMaterial;
-          if (m.color) m.color.lerp(tint, 0.25);
-          if (m.emissive) m.emissive.set(tint.clone().multiplyScalar(0.05));
-        }
-      });
-      this.playerGroup = model;
-      this.scene.add(model);
+      const { group, animations } = await this.loadGLTF(gltfPath);
+      this.applyCharacterMaterial(group, tintHex);
+      this.playerGroup = group;
+      this.scene.add(group);
+
+      // Wire embedded GLTF animations via registerClip (no FBX loading needed)
+      this.playerAnim = new AnimationController(group);
+      for (const [animKey, gltfName] of Object.entries(GLTF_ANIM_MAP)) {
+        const clip = animations.find((a) => a.name === gltfName);
+        if (clip) this.playerAnim.registerClip(animKey, clip);
+      }
+      this.playerAnim.play('idle');
     } catch {
-      this.playerGroup = this.createPlaceholder(cfg?.color ?? 0x4488ff);
+      this.playerGroup = this.createPlaceholder(tintHex);
       this.scene.add(this.playerGroup);
+      this.playerAnim = new AnimationController(this.playerGroup);
     }
 
-    // Load weapon matching the character class (prefer class-specific override)
+    // Load weapon — class-specific first, then generic weapon type fallback
     const weaponPath = CLASS_WEAPON_MAP[this.state.player.characterClass] ?? WEAPON_MAP[this.state.player.weaponType] ?? WEAPON_MAP.sword;
     try {
       const weapon = await this.loadFBX(weaponPath);
+      this.applyWeaponMaterial(weapon);
       weapon.scale.setScalar(0.5);
       this.playerWeapon = weapon;
       weapon.position.set(0.6, 1.2, 0.2);
@@ -1133,10 +1633,6 @@ export class GroundRenderer {
     } catch {
       // No weapon visual — OK
     }
-
-    // Animation controller for player — load the full set for this weapon type
-    this.playerAnim = new AnimationController(this.playerGroup!);
-    await this.loadAnimSet(this.playerAnim, this.state.player.weaponType);
   }
 
   /** Load animation clips for a weapon type into a controller. */
@@ -1336,15 +1832,77 @@ export class GroundRenderer {
     const path = enemy.enemyType === 'boss' || enemy.maxHp >= 400 ? CORSAIR_KING_PATH : CHARACTER_FBXS[idx];
     const tint = new THREE.Color(cfg.tint);
     try {
-      const model = await this.loadFBX(path);
-      model.traverse((child) => {
+      const tex = await this.textureLoader.loadAsync(resolvePathUrl(cfg.tex)).catch(() => null);
+      let mtlMaterials = null;
+      try {
+        mtlMaterials = await this.mtlLoader.loadAsync(resolvePathUrl(cfg.mtl));
+        mtlMaterials.preload();
+      } catch {
+        /* no mtl — use basic */
+      }
+
+      const loader = new OBJLoader();
+      if (mtlMaterials) loader.setMaterials(mtlMaterials);
+      const obj = await loader.loadAsync(resolvePathUrl(cfg.obj));
+      obj.scale.setScalar(cfg.scale);
+
+      const tintColor = new THREE.Color(cfg.tint);
+      obj.traverse((child) => {
         if ((child as THREE.Mesh).isMesh) {
-          const m = (child as THREE.Mesh).material as THREE.MeshStandardMaterial;
-          if (m.color) m.color.lerp(tint, 0.35);
-          if (m.emissive) m.emissive.set(new THREE.Color(cfg.tint).multiplyScalar(0.15));
+          const mesh = child as THREE.Mesh;
+          mesh.castShadow = true;
+          mesh.receiveShadow = true;
+          // Convert to MeshStandard + tint + optional texture
+          const stdMat = new THREE.MeshStandardMaterial({
+            color: tintColor,
+            emissive: tintColor.clone().multiplyScalar(0.12),
+            emissiveIntensity: 0.6,
+            roughness: 0.45,
+            metalness: 0.7,
+          });
+          if (tex) {
+            stdMat.map = tex;
+            stdMat.color.set(0xffffff);
+          }
+          mesh.material = stdMat;
         }
       });
-      return model;
+
+      this.modelCache.set(cacheKey, obj);
+      return obj.clone();
+    } catch {
+      return this.createPlaceholder(cfg.tint);
+    }
+  }
+
+  private async loadEnemyModel(enemy: GroundEnemy): Promise<THREE.Group> {
+    // Vehicle enemy types use OBJ vehicle models (no skeleton → no GLTF)
+    if (enemy.enemyType === 'stalker') return this.loadVehicleModel('scooter');
+    if (enemy.enemyType === 'ranged') {
+      const keys = ['gunbike', 'tracer'] as const;
+      return this.loadVehicleModel(keys[enemy.id % keys.length]);
+    }
+
+    // Very large bosses keep the CorsairKing FBX (visually distinct)
+    if (enemy.maxHp >= 400) {
+      try {
+        const model = await this.loadFBX(CORSAIR_KING_PATH);
+        this.applyCharacterMaterial(model, 0xffaa00, 0.18);
+        return model;
+      } catch {
+        return this.createPlaceholder(0xffaa00);
+      }
+    }
+
+    // All other enemy types → GLTF character model
+    const cfg = ENEMY_MODEL_MAP[enemy.enemyType] ?? { modelIdx: 6, tint: 0xff4444 };
+    const gltfPath = ENEMY_GLTF_MAP[enemy.enemyType] ?? `${GLTF_BASE}/Punk.gltf`;
+    try {
+      const { group, animations } = await this.loadGLTF(gltfPath);
+      this.applyCharacterMaterial(group, cfg.tint, 0.18);
+      // Tag the group so syncEnemyVisuals can register the embedded anims
+      (group as any).__gltfClips = animations;
+      return group;
     } catch {
       return this.createPlaceholder(cfg.tint);
     }
@@ -1358,10 +1916,11 @@ export class GroundRenderer {
         this.enemyGroups.set(enemy.id, group);
         this.scene.add(group);
 
-        // Load weapon for enemy
+        // Load weapon for enemy and apply metallic material
         const wPath = WEAPON_MAP[enemy.weaponType] ?? WEAPON_MAP.sword;
         try {
           const w = await this.loadFBX(wPath);
+          this.applyWeaponMaterial(w);
           w.scale.setScalar(0.5);
           w.position.set(0.6, 1.2, 0.2);
           group.add(w);
@@ -1387,7 +1946,18 @@ export class GroundRenderer {
         // Set up animation controller for enemy
         const enemyAnim = new AnimationController(group);
         this.enemyAnims.set(enemy.id, enemyAnim);
-        this.loadAnimSet(enemyAnim, enemy.weaponType);
+        const gltfClips: THREE.AnimationClip[] | undefined = (group as any).__gltfClips;
+        if (gltfClips) {
+          // GLTF model — use embedded animations (no FBX load)
+          for (const [animKey, gltfName] of Object.entries(GLTF_ANIM_MAP)) {
+            const clip = gltfClips.find((a) => a.name === gltfName);
+            if (clip) enemyAnim.registerClip(animKey, clip);
+          }
+          enemyAnim.play('idle');
+        } else {
+          // FBX model (boss/vehicle fallback) — load external animation set
+          this.loadAnimSet(enemyAnim, enemy.weaponType);
+        }
       }
     }
   }
@@ -1542,6 +2112,7 @@ export class GroundRenderer {
       this.syncDamageNumbers();
       this.syncLockOn();
       this.updateCamera(dt);
+      this.updateProjectiles(dt);
       if (this.state.result !== 'none') this.onResult?.(this.state.result);
     }
 
@@ -1617,7 +2188,30 @@ export class GroundRenderer {
     this.playerGroup.position.set(p.pos.x, p.pos.y, p.pos.z);
     this.playerGroup.rotation.y = p.facing;
 
-    // Drive player animation from combat engine animKey
+    // ── Sprint FOV pulse ──────────────────────────────────────
+    const isSprinting = this.input.sprint && (this.input.forward || this.input.back || this.input.left || this.input.right);
+    const isDodging = p.combatState === 'dodging';
+    this.targetFov = isSprinting || isDodging ? 68 : 55;
+    this.camera.fov += (this.targetFov - this.camera.fov) * 7 * dt;
+    this.camera.updateProjectionMatrix();
+
+    // ── Camera shake on player hit ────────────────────────────
+    if (this.lastPlayerHp >= 0 && p.hp < this.lastPlayerHp && p.hp > 0) {
+      this.cameraShake = Math.min(0.35, (this.lastPlayerHp - p.hp) * 0.012);
+    }
+    this.lastPlayerHp = p.hp;
+
+    // ── Spawn projectile when ranged attack fires ─────────────
+    const isRanged = p.weaponType === 'bow' || p.weaponType === 'rifle';
+    if (isRanged && (p.animKey === 'attack' || p.animKey === 'shoot') && p.combatState === 'attacking') {
+      this.spawnProjectile(p.pos, p.facing, p.weaponType === 'rifle');
+    }
+
+    // Drive player animation from combat engine animKey.
+    // AnimationController handles the two-layer logic:
+    //   • loop=true  → base layer (locomotion, full body)
+    //   • loop=false → overlay layer (weapon/combat, upper body only)
+    // ONE_SHOT_KEYS_SET is defined at module level and shared with the controller.
     if (this.playerAnim) {
       const injured = p.hp > 0 && p.hp / p.maxHp < INJURED_HP_THRESHOLD;
       let animKey = p.animKey as AnimKey;
@@ -1625,8 +2219,7 @@ export class GroundRenderer {
       if (injured && (animKey === 'idle' || animKey === 'walk' || animKey === 'run')) {
         animKey = `injured_${animKey}` as AnimKey;
       }
-      const isOneShot =
-        animKey === 'attack' || animKey === 'heavy_attack' || animKey === 'dodge' || animKey === 'death' || animKey === 'hit';
+      const isOneShot = ONE_SHOT_KEYS_SET.has(animKey);
       this.playerAnim.play(animKey, !isOneShot);
       this.playerAnim.update(dt);
     }
@@ -1680,7 +2273,8 @@ export class GroundRenderer {
       const eAnim = this.enemyAnims.get(enemy.id);
       if (eAnim) {
         const animKey = enemy.animKey as AnimKey;
-        const isOneShot = animKey === 'attack' || animKey === 'death' || animKey === 'hit';
+        const isOneShot =
+          animKey === 'attack' || animKey === 'heavy_attack' || animKey === 'death' || animKey === 'hit' || animKey === 'shoot';
         eAnim.play(animKey, !isOneShot);
         eAnim.update(dt);
       }
@@ -1812,6 +2406,15 @@ export class GroundRenderer {
 
     const targetPos = new THREE.Vector3(p.pos.x - offX + shX, p.pos.y + CAM_HEIGHT + this.cameraPitch * 3, p.pos.z - offZ + shZ);
     this.camera.position.lerp(targetPos, CAM_LERP * dt);
+
+    // ── Camera shake ──────────────────────────────────────────
+    if (this.cameraShake > 0.001) {
+      const s = this.cameraShake;
+      this.camera.position.x += (Math.random() - 0.5) * s;
+      this.camera.position.y += (Math.random() - 0.5) * s * 0.5;
+      this.cameraShake = Math.max(0, this.cameraShake - dt * 9);
+    }
+
     this.camera.lookAt(lookAt);
   }
 
@@ -1824,6 +2427,55 @@ export class GroundRenderer {
     this.renderer.setSize(w, h);
     this.composer?.setSize(w, h);
   };
+
+  // ── Projectile system ─────────────────────────────────────────
+  private _lastProjAnimKey = '';
+  /** Spawn a glowing projectile sphere from player position toward facing. */
+  private spawnProjectile(pos: { x: number; y: number; z: number }, facing: number, isRifle: boolean): void {
+    // Rate-limit: one per attack animation trigger (guard by animKey change)
+    const key = this.state.player.animKey + this.state.player.stateTimer.toFixed(1);
+    if (key === this._lastProjAnimKey) return;
+    this._lastProjAnimKey = key;
+
+    const color = isRifle ? 0xffdd44 : 0x44ffaa;
+    const geo = new THREE.SphereGeometry(isRifle ? 0.08 : 0.14, 6, 6);
+    const mat = new THREE.MeshStandardMaterial({
+      color,
+      emissive: new THREE.Color(color),
+      emissiveIntensity: 2.2,
+      roughness: 0.2,
+      metalness: 0.0,
+    });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set(pos.x + Math.sin(facing) * 0.6, pos.y + 1.3, pos.z + Math.cos(facing) * 0.6);
+    this.scene.add(mesh);
+
+    const speed = isRifle ? 28 : 18;
+    const vel = new THREE.Vector3(Math.sin(facing) * speed, 0, Math.cos(facing) * speed);
+    this.projectilePool.push({ mesh, vel, life: 0, maxLife: isRifle ? 0.8 : 1.2 });
+  }
+
+  /** Advance all active projectiles; remove expired ones. */
+  private updateProjectiles(dt: number): void {
+    for (let i = this.projectilePool.length - 1; i >= 0; i--) {
+      const proj = this.projectilePool[i];
+      proj.life += dt;
+      proj.mesh.position.addScaledVector(proj.vel, dt);
+      // Slight gravity arc
+      proj.vel.y -= 4 * dt;
+      // Fade out
+      const t = proj.life / proj.maxLife;
+      (proj.mesh.material as THREE.MeshStandardMaterial).opacity = 1 - t;
+      (proj.mesh.material as THREE.MeshStandardMaterial).transparent = true;
+
+      if (proj.life >= proj.maxLife) {
+        this.scene.remove(proj.mesh);
+        proj.mesh.geometry.dispose();
+        (proj.mesh.material as THREE.Material).dispose();
+        this.projectilePool.splice(i, 1);
+      }
+    }
+  }
 
   // ── Cleanup ───────────────────────────────────────────────────
   dispose(): void {
@@ -1838,6 +2490,14 @@ export class GroundRenderer {
     this.renderer.domElement.removeEventListener('mousedown', this.onMouseDown);
     this.renderer.domElement.removeEventListener('mouseup', this.onMouseUp);
     this.renderer.domElement.removeEventListener('mousemove', this.onMouseMove);
+
+    // Clean up projectiles
+    for (const proj of this.projectilePool) {
+      this.scene.remove(proj.mesh);
+      proj.mesh.geometry.dispose();
+      (proj.mesh.material as THREE.Material).dispose();
+    }
+    this.projectilePool = [];
 
     this.scene.traverse((obj) => {
       if ((obj as THREE.Mesh).geometry) (obj as THREE.Mesh).geometry.dispose();

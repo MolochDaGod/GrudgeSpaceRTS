@@ -268,17 +268,41 @@ export class CodexScene {
   // ΓöÇΓöÇ Team tint ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
   private tintModel(model: THREE.Object3D, team: number) {
     const hex = TEAM_COLORS[team] ?? 0x4488ff;
-    const tintColor = new THREE.Color(hex);
+    const teamColor = new THREE.Color(hex);
+    const teamHSL = { h: 0, s: 0, l: 0 };
+    teamColor.getHSL(teamHSL);
+
     model.traverse((child) => {
       if (!(child as THREE.Mesh).isMesh) return;
       const mesh = child as THREE.Mesh;
       const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
       for (const mat of materials) {
-        if (!mat || !(mat as THREE.MeshStandardMaterial).isMeshStandardMaterial) continue;
-        const stdMat = (mat as THREE.MeshStandardMaterial).clone();
-        stdMat.emissive.lerp(tintColor, 0.35);
-        stdMat.emissiveIntensity = Math.max(stdMat.emissiveIntensity, 0.2);
-        stdMat.color.lerp(tintColor, 0.1);
+        if (!mat) continue;
+        const isStd = (mat as THREE.MeshStandardMaterial).isMeshStandardMaterial;
+        const isPhong = (mat as THREE.MeshPhongMaterial).isMeshPhongMaterial;
+        if (!isStd && !isPhong) continue;
+
+        // Convert Phong → Standard for uniform hue-shift tinting
+        let stdMat: THREE.MeshStandardMaterial;
+        if (isStd) {
+          stdMat = (mat as THREE.MeshStandardMaterial).clone();
+        } else {
+          const phong = mat as THREE.MeshPhongMaterial;
+          stdMat = new THREE.MeshStandardMaterial({
+            color: phong.color.clone(),
+            map: phong.map,
+            emissive: new THREE.Color(0x000000),
+            roughness: 0.45,
+            metalness: 0.55,
+          });
+        }
+
+        // HSL hue-shift: replace hue → team hue, preserve sat/lightness
+        const srcHSL = { h: 0, s: 0, l: 0 };
+        stdMat.color.getHSL(srcHSL);
+        stdMat.color.setHSL(teamHSL.h, Math.max(srcHSL.s, 0.5), Math.min(Math.max(srcHSL.l, 0.25), 0.7));
+        stdMat.emissive.setHSL(teamHSL.h, teamHSL.s, 0.15);
+        stdMat.emissiveIntensity = 0.4;
         mesh.material = stdMat;
       }
     });

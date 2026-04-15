@@ -1139,11 +1139,28 @@ export class SpaceRenderer {
       const mesh = child as THREE.Mesh;
       const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
       for (const mat of materials) {
-        if (!mat || !(mat as THREE.MeshStandardMaterial).isMeshStandardMaterial) continue;
-        const stdMat = (mat as THREE.MeshStandardMaterial).clone();
+        if (!mat) continue;
+        const isStd = (mat as THREE.MeshStandardMaterial).isMeshStandardMaterial;
+        const isPhong = (mat as THREE.MeshPhongMaterial).isMeshPhongMaterial;
+        if (!isStd && !isPhong) continue;
+
+        // Convert Phong → Standard so we have a single tinting path
+        let stdMat: THREE.MeshStandardMaterial;
+        if (isStd) {
+          stdMat = (mat as THREE.MeshStandardMaterial).clone();
+        } else {
+          const phong = mat as THREE.MeshPhongMaterial;
+          stdMat = new THREE.MeshStandardMaterial({
+            color: phong.color.clone(),
+            map: phong.map,
+            emissive: phong.emissive.clone(),
+            roughness: 0.5,
+            metalness: 0.55,
+          });
+        }
 
         // Detect PBR models (GLTF): they have metallicRoughness maps or normal maps
-        const isPBR = !!(stdMat.metalnessMap || stdMat.roughnessMap || stdMat.normalMap);
+        const isPBR = isStd && !!(stdMat.metalnessMap || stdMat.roughnessMap || stdMat.normalMap);
 
         // HSL hue-shift the base color
         const srcHSL = { h: 0, s: 0, l: 0 };
