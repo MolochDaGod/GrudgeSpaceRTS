@@ -30,7 +30,8 @@ const R2_PREFIX = 'gruda-armada';
 const BUCKET = process.env.R2_BUCKET ?? 'grudge-assets';
 const parsedConcurrency = Number(process.env.R2_UPLOAD_CONCURRENCY ?? 10);
 const CONCURRENCY = Number.isFinite(parsedConcurrency) ? Math.max(1, parsedConcurrency) : 10;
-const MAX_RETRIES = Math.max(0, Number(process.env.R2_UPLOAD_RETRIES ?? 4));
+const parsedRetries = Number(process.env.R2_UPLOAD_RETRIES ?? 4);
+const MAX_RETRIES = Number.isFinite(parsedRetries) ? Math.max(0, parsedRetries) : 4;
 
 const DRY_RUN = process.argv.includes('--dry-run');
 const FORCE = process.argv.includes('--force');
