@@ -2,11 +2,12 @@
  * model-loader.ts — Centralized 3D model + animation loading.
  *
  * Single source of truth for all loaders, caches, and format handling.
- * Ported from 3dmotion's model-loader pattern with DRACOLoader added.
+ * Primary path is GLB via GLTFLoader + DRACO. Legacy FBX/OBJ loaders
+ * are kept for backward compatibility but should be migrated away.
  *
  * Usage:
- *   import { loadGLB, loadFBX, loadOBJ, loadAnimationClip } from './model-loader';
- *   const ship = await loadGLB('/assets/space/models/planets/planet_1.glb');
+ *   import { loadModel, loadAnimationClip } from './model-loader';
+ *   const ship = await loadModel('/assets-glb/space/models/ships/RedFighter.glb');
  *   scene.add(ship.scene);
  */
 
@@ -235,24 +236,78 @@ export async function loadByFormat(
   }
 }
 
+// ── Unified GLB loader (preferred entry point) ────────────────────
+
+/**
+ * Primary model loading function — GLB only.
+ * After the GLTF unification pipeline runs, ALL models are .glb.
+ * Handles caching, DRACO decoding, and PBR material enhancement.
+ * Use this instead of loadGLB/loadFBX/loadOBJ for new code.
+ */
+export async function loadModel(glbPath: string): Promise<LoadedModel> {
+  return loadGLB(glbPath);
+}
+
+/**
+ * Load a model from a SpacePrefab (post-migration: always GLB).
+ * Auto-normalizes to targetSize if provided.
+ */
+export async function loadPrefabGLB(modelPath: string, targetSize?: number): Promise<LoadedModel> {
+  const result = await loadGLB(modelPath);
+  if (targetSize && targetSize > 0) {
+    const box = new THREE.Box3().setFromObject(result.scene);
+    const size = box.getSize(new THREE.Vector3());
+    const maxDim = Math.max(size.x, size.y, size.z);
+    if (maxDim > 0.001) {
+      result.scene.scale.setScalar(targetSize / maxDim);
+    }
+  }
+  return result;
+}
+
 // ── Animation Clip Loading ────────────────────────────────────────
 
-/** Load a single animation clip from an FBX file. Returns null on failure. */
+/**
+ * Load a single animation clip. Supports both GLB and FBX sources.
+ * GLB: extracts animations[0] from the GLTF.
+ * FBX: legacy path, loads via FBXLoader.
+ * Returns null on failure.
+ */
 export async function loadAnimationClip(path: string): Promise<THREE.AnimationClip | null> {
   const resolved = resolveModelUrl(path);
   if (animClipCache.has(resolved)) return animClipCache.get(resolved)!;
   if (animLoadingPromises.has(resolved)) return animLoadingPromises.get(resolved)!;
 
+  const isGLB = /\.glb$/i.test(path) || /\.gltf$/i.test(path);
+
   const promise = (async (): Promise<THREE.AnimationClip | null> => {
     try {
-      const fbx = (await fbxLoader.loadAsync(resolved)) as THREE.Group;
-      if (fbx.animations.length > 0) {
-        const clip = fbx.animations[0];
-        const name = path.split('/').pop()?.replace('.fbx', '').toLowerCase() ?? 'unknown';
-        clip.name = name;
-        animClipCache.set(resolved, clip);
-        animLoadingPromises.delete(resolved);
-        return clip;
+      if (isGLB) {
+        const gltf = await gltfLoader.loadAsync(resolved);
+        if (gltf.animations.length > 0) {
+          const clip = gltf.animations[0];
+          const name =
+            path
+              .split('/')
+              .pop()
+              ?.replace(/\.(glb|gltf)$/i, '')
+              .toLowerCase() ?? 'unknown';
+          clip.name = name;
+          animClipCache.set(resolved, clip);
+          animLoadingPromises.delete(resolved);
+          return clip;
+        }
+      } else {
+        // Legacy FBX animation path
+        const fbx = (await fbxLoader.loadAsync(resolved)) as THREE.Group;
+        if (fbx.animations.length > 0) {
+          const clip = fbx.animations[0];
+          const name = path.split('/').pop()?.replace('.fbx', '').toLowerCase() ?? 'unknown';
+          clip.name = name;
+          animClipCache.set(resolved, clip);
+          animLoadingPromises.delete(resolved);
+          return clip;
+        }
       }
     } catch {
       // Clip failed to load

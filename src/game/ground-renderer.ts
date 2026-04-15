@@ -8,8 +8,19 @@ import * as THREE from 'three';
 import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
 import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
 import { MTLLoader } from 'three/examples/jsm/loaders/MTLLoader.js';
-import { loadAnimationClip as loadAnimClipCentral } from './model-loader';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { loadAnimationClip as loadAnimClipCentral, loadModel as loadModelCentral, loadPrefabGLB } from './model-loader';
 import type { PlanetType } from './space-types';
+import {
+  EffectComposer,
+  EffectPass,
+  RenderPass,
+  BloomEffect,
+  ToneMappingEffect,
+  SMAAEffect,
+  SMAAPreset,
+  ToneMappingMode,
+} from 'postprocessing';
 import {
   type GroundCombatState,
   type GroundInput,
@@ -20,6 +31,7 @@ import {
   spawnWave,
 } from './ground-combat';
 import { resolvePathUrl } from './asset-registry';
+import { getShipPrefab, type SpacePrefab } from './space-prefabs';
 
 // ── Animation system ─────────────────────────────────────────────
 const ANIM_BASE = '/assets/ground/animations';
@@ -290,6 +302,87 @@ const TERRAIN_PALETTE: Record<PlanetType, { ground: number; accent: number; fog:
   dark_matter: { ground: 0x0a0a1a, accent: 0x8844ff, fog: 0x040410, sky: 0x020208, ambient: 0x222244, sun: 0x6644cc },
 };
 
+// ── Biome dressing: per-planet 3D asset prop placement ───────────
+interface BiomeDressingEntry {
+  /** Prefab key from any space-prefabs registry (resolved via getShipPrefab). */
+  key: string;
+  /** Number of instances to place on the terrain. */
+  count: number;
+  /** Target auto-normalized height in meters (before scaleVar). */
+  size: number;
+  /** Random scale variance: ±fraction of size (0.3 = 70%–130%). */
+  scaleVar: number;
+  /** Nav-mesh blocked radius around prop (0 = walkable). */
+  navR: number;
+  /** Extra Y offset above terrain surface. */
+  yOff: number;
+  /** Max radius from world origin for placement. */
+  range: number;
+}
+
+const BIOME_DRESSING: Record<PlanetType, BiomeDressingEntry[]> = {
+  volcanic: [
+    { key: 'ancient_relic_column_ruin', count: 3, size: 4, scaleVar: 0.3, navR: 1.5, yOff: 0, range: 70 },
+    { key: 'shs_laser_turret', count: 2, size: 3, scaleVar: 0.2, navR: 2.0, yOff: 0, range: 60 },
+    { key: 'env_pillar_a', count: 4, size: 2.5, scaleVar: 0.3, navR: 1.0, yOff: 0, range: 65 },
+  ],
+  oceanic: [
+    { key: 'ancient_relic_alien_statue', count: 1, size: 5, scaleVar: 0.2, navR: 3.0, yOff: 0, range: 55 },
+    { key: 'ancient_relic_column', count: 3, size: 3, scaleVar: 0.3, navR: 1.0, yOff: 0, range: 65 },
+    { key: 'shs_rock_001', count: 4, size: 2, scaleVar: 0.4, navR: 1.5, yOff: 0, range: 75 },
+  ],
+  barren: [
+    { key: 'ancient_relic_head_totem', count: 2, size: 4, scaleVar: 0.2, navR: 2.0, yOff: 0, range: 60 },
+    { key: 'ancient_relic_column_ruin', count: 3, size: 3, scaleVar: 0.3, navR: 1.5, yOff: 0, range: 65 },
+    { key: 'env_wall_basic', count: 2, size: 3, scaleVar: 0.2, navR: 2.0, yOff: 0, range: 55 },
+    { key: 'shs_rock_002', count: 3, size: 2, scaleVar: 0.4, navR: 1.5, yOff: 0, range: 70 },
+  ],
+  crystalline: [
+    { key: 'ancient_portal_stairs', count: 1, size: 5, scaleVar: 0.1, navR: 3.5, yOff: 0, range: 50 },
+    { key: 'ancient_portal_arch', count: 1, size: 6, scaleVar: 0.1, navR: 3.0, yOff: 0, range: 50 },
+    { key: 'ancient_relic_giant_hand_a', count: 2, size: 5, scaleVar: 0.2, navR: 3.0, yOff: 0, range: 65 },
+    { key: 'ancient_treasure', count: 4, size: 2, scaleVar: 0.3, navR: 1.5, yOff: 0, range: 60 },
+  ],
+  gas_giant: [
+    { key: 'shs_eco_hub', count: 1, size: 5, scaleVar: 0.1, navR: 3.0, yOff: 0.5, range: 50 },
+    { key: 'shs_power_plant', count: 1, size: 4, scaleVar: 0.1, navR: 3.0, yOff: 0.5, range: 55 },
+    { key: 'shs_satellite_dish', count: 3, size: 3, scaleVar: 0.2, navR: 2.0, yOff: 0, range: 60 },
+    { key: 'env_button_console', count: 3, size: 1.5, scaleVar: 0.3, navR: 0.8, yOff: 0, range: 50 },
+  ],
+  frozen: [
+    { key: 'ancient_relic_giant_hand_a', count: 1, size: 6, scaleVar: 0.2, navR: 3.0, yOff: 0, range: 60 },
+    { key: 'ancient_relic_giant_hand_b', count: 1, size: 6, scaleVar: 0.2, navR: 3.0, yOff: 0, range: 60 },
+    { key: 'ancient_relic_column', count: 3, size: 3, scaleVar: 0.3, navR: 1.5, yOff: 0, range: 65 },
+    { key: 'shs_rock_003', count: 5, size: 2, scaleVar: 0.4, navR: 1.5, yOff: 0, range: 75 },
+  ],
+  plasma: [
+    { key: 'ancient_portal_arch', count: 1, size: 6, scaleVar: 0.1, navR: 3.5, yOff: 0, range: 45 },
+    { key: 'ancient_treasure', count: 2, size: 2, scaleVar: 0.3, navR: 1.5, yOff: 0, range: 55 },
+    { key: 'shs_shield_generator', count: 2, size: 3, scaleVar: 0.2, navR: 2.5, yOff: 0, range: 55 },
+    { key: 'shs_teleporter', count: 2, size: 3, scaleVar: 0.2, navR: 2.5, yOff: 0, range: 55 },
+  ],
+  fungal: [
+    { key: 'ancient_relic_alien_statue', count: 1, size: 4, scaleVar: 0.2, navR: 2.5, yOff: 0, range: 55 },
+    { key: 'ancient_relic_head_totem', count: 2, size: 3, scaleVar: 0.3, navR: 2.0, yOff: 0, range: 60 },
+    { key: 'ancient_treasure', count: 3, size: 2, scaleVar: 0.3, navR: 1.5, yOff: 0, range: 65 },
+    { key: 'shs_drone_drill', count: 2, size: 2.5, scaleVar: 0.2, navR: 2.0, yOff: 0, range: 55 },
+  ],
+  metallic: [
+    { key: 'env_wall_basic', count: 3, size: 3, scaleVar: 0.3, navR: 2.0, yOff: 0, range: 55 },
+    { key: 'env_pillar_a', count: 3, size: 2.5, scaleVar: 0.3, navR: 1.0, yOff: 0, range: 60 },
+    { key: 'shs_barracks', count: 1, size: 5, scaleVar: 0.1, navR: 3.0, yOff: 0, range: 50 },
+    { key: 'shs_laser_turret', count: 2, size: 3, scaleVar: 0.2, navR: 2.0, yOff: 0, range: 55 },
+    { key: 'shs_power_plant', count: 2, size: 4, scaleVar: 0.1, navR: 3.0, yOff: 0, range: 55 },
+  ],
+  dark_matter: [
+    { key: 'ancient_portal_stairs', count: 1, size: 6, scaleVar: 0.1, navR: 4.0, yOff: 0, range: 45 },
+    { key: 'ancient_portal_rings', count: 1, size: 6, scaleVar: 0.1, navR: 3.5, yOff: 2.0, range: 45 },
+    { key: 'ancient_relic_alien_statue', count: 2, size: 5, scaleVar: 0.2, navR: 3.0, yOff: 0, range: 60 },
+    { key: 'ancient_treasure', count: 3, size: 2, scaleVar: 0.3, navR: 1.5, yOff: 0, range: 60 },
+    { key: 'shs_teleporter', count: 2, size: 3, scaleVar: 0.2, navR: 2.5, yOff: 0, range: 55 },
+  ],
+};
+
 // ── Character / weapon asset paths ────────────────────────────────
 const CHARACTER_FBXS = Array.from({ length: 12 }, (_, i) =>
   i === 0 ? '/assets/ground/characters/DungeonCrawler_Character.fbx' : `/assets/ground/characters/DungeonCrawler_Character${i}.fbx`,
@@ -386,8 +479,12 @@ export class GroundRenderer {
   private heightData: Float32Array = new Float32Array(0);
   private heightRes = 0; // grid resolution (vertices per side)
 
-  // ── Model cache ───────────────────────────────────────────────
+  // ── Postprocessing ───────────────────────────────────────
+  private composer!: EffectComposer;
+
+  // ── Model cache ───────────────────────────────────────────
   private fbxLoader = new FBXLoader();
+  private gltfLoader = new GLTFLoader();
   private textureLoader = new THREE.TextureLoader();
   private modelCache = new Map<string, THREE.Group>();
   private loadingModels = new Map<string, Promise<THREE.Group>>();
@@ -409,6 +506,7 @@ export class GroundRenderer {
   private enemyAnims = new Map<number, AnimationController>();
   private objLoader = new OBJLoader();
   private mtlLoader = new MTLLoader();
+  private prefabCache = new Map<string, THREE.Group>();
 
   // ── Callbacks ─────────────────────────────────────────────────
   public onResult?: (result: 'win' | 'lose') => void;
@@ -430,8 +528,7 @@ export class GroundRenderer {
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
-    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.1;
+    this.renderer.toneMapping = THREE.NoToneMapping; // postprocessing handles tone mapping
     this.container.appendChild(this.renderer.domElement);
 
     // Camera
@@ -463,6 +560,10 @@ export class GroundRenderer {
 
     // Heightmap terrain — high-res subdivided plane with per-vertex displacement
     this.buildTerrain(palette);
+    // Load GLTF terrain environment if planet type has one
+    this.loadTerrainEnvironment();
+    // Postprocessing pipeline (Bloom + ToneMapping + SMAA)
+    this.setupPostProcessing();
     // Free-camera overlay badge (hidden until P pressed)
     this.buildFreeCamOverlay();
 
@@ -487,6 +588,9 @@ export class GroundRenderer {
 
     // Load crash site terrain prop
     this.loadCrashSite();
+
+    // Load biome-specific 3D asset dressing (portals, relics, buildings, etc.)
+    this.loadBiomeDressing();
 
     // Spawn some enemies for initial encounter
     this.spawnInitialEnemies();
@@ -1096,6 +1200,135 @@ export class GroundRenderer {
     }
   }
 
+  // ── Universal prefab model loader (GLB-primary) ────────────────
+  /**
+   * Load any SpacePrefab model with auto-normalization to `targetSize` meters.
+   * Results are cached by modelPath — subsequent loads of the same model clone.
+   *
+   * Post-migration: all models are GLB; uses the central loadPrefabGLB which
+   * handles DRACO decoding, PBR enhancement, and caching.
+   * Legacy OBJ/FBX paths kept for backward compatibility during migration.
+   */
+  private async loadPrefabModel(prefab: SpacePrefab, targetSize = 3.0): Promise<THREE.Group> {
+    const cacheKey = prefab.modelPath;
+    const cached = this.prefabCache.get(cacheKey);
+    if (cached) return cached.clone();
+
+    let group: THREE.Group;
+
+    if (prefab.format === 'glb' || prefab.format === 'gltf') {
+      // ── Primary GLB path (post-migration) ─────────────────────
+      const result = await loadPrefabGLB(prefab.modelPath, targetSize);
+      group = result.scene;
+    } else if (prefab.format === 'fbx') {
+      // ── Legacy FBX path (pre-migration) ───────────────────────
+      const url = resolvePathUrl(prefab.modelPath);
+      group = await this.fbxLoader.loadAsync(url);
+      const box = new THREE.Box3().setFromObject(group);
+      const size = box.getSize(new THREE.Vector3());
+      const maxDim = Math.max(size.x, size.y, size.z);
+      if (maxDim > 0.001) group.scale.multiplyScalar(targetSize / maxDim);
+    } else {
+      // ── Legacy OBJ path (pre-migration) ───────────────────────
+      const url = resolvePathUrl(prefab.modelPath);
+      const loader = new OBJLoader();
+      if (prefab.mtlPath) {
+        try {
+          const mtl = await this.mtlLoader.loadAsync(resolvePathUrl(prefab.mtlPath));
+          mtl.preload();
+          loader.setMaterials(mtl);
+        } catch {
+          /* proceed without materials */
+        }
+      }
+      group = await loader.loadAsync(url);
+      if (prefab.texturePath) {
+        try {
+          const tex = await this.textureLoader.loadAsync(resolvePathUrl(prefab.texturePath));
+          tex.colorSpace = THREE.SRGBColorSpace;
+          group.traverse((c) => {
+            if ((c as THREE.Mesh).isMesh) {
+              const mesh = c as THREE.Mesh;
+              const mat = mesh.material as THREE.MeshStandardMaterial;
+              if (!mat?.map) {
+                mesh.material = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.7, metalness: 0.2 });
+              }
+            }
+          });
+        } catch {
+          /* no texture — proceed */
+        }
+      }
+      const box = new THREE.Box3().setFromObject(group);
+      const size = box.getSize(new THREE.Vector3());
+      const maxDim = Math.max(size.x, size.y, size.z);
+      if (maxDim > 0.001) group.scale.multiplyScalar(targetSize / maxDim);
+    }
+
+    this.prefabCache.set(cacheKey, group);
+    return group.clone();
+  }
+
+  // ── Biome dressing loader ──────────────────────────────────────
+  /**
+   * Loads and places unique 3D props per planet type from BIOME_DRESSING config.
+   * Runs async fire-and-forget — props appear progressively as models load.
+   * Each unique model is cached; clones are cheap.
+   */
+  private async loadBiomeDressing(): Promise<void> {
+    const entries = BIOME_DRESSING[this.state.planetType];
+    if (!entries?.length) return;
+
+    for (const entry of entries) {
+      const prefab = getShipPrefab(entry.key);
+      if (!prefab) continue;
+
+      for (let i = 0; i < entry.count; i++) {
+        try {
+          const model = await this.loadPrefabModel(prefab, entry.size);
+
+          // Variance: random scale multiplier within ±scaleVar
+          const varMult = 1 + (Math.random() * 2 - 1) * entry.scaleVar;
+          model.scale.multiplyScalar(varMult);
+
+          // Position: safe random location outside the spawn zone
+          const [px, pz] = this.safeDressingPos(entry.range);
+          const py = this.sampleHeight(px, pz) + entry.yOff;
+          model.position.set(px, py, pz);
+
+          // Random Y rotation for visual variety
+          model.rotation.y = Math.random() * Math.PI * 2;
+
+          // Enable shadows on every mesh
+          model.traverse((c) => {
+            if ((c as THREE.Mesh).isMesh) {
+              (c as THREE.Mesh).castShadow = true;
+              (c as THREE.Mesh).receiveShadow = true;
+            }
+          });
+
+          this.scene.add(model);
+          this.terrainObjects.push(model);
+          if (entry.navR > 0) {
+            this.blockedZones.push({ x: px, z: pz, radius: entry.navR });
+          }
+        } catch {
+          // Model load failed — skip this instance
+        }
+      }
+    }
+  }
+
+  /** Generate a random position for biome dressing (avoids the 16m spawn area). */
+  private safeDressingPos(range: number): [number, number] {
+    let x: number, z: number;
+    do {
+      x = (Math.random() - 0.5) * range;
+      z = (Math.random() - 0.5) * range;
+    } while (Math.sqrt(x * x + z * z) < 16);
+    return [x, z];
+  }
+
   private async loadEnemyModel(enemy: GroundEnemy): Promise<THREE.Group> {
     const cfg = ENEMY_MODEL_MAP[enemy.enemyType] ?? { modelIdx: 6, tint: 0xff4444 };
     const idx = cfg.modelIdx % CHARACTER_FBXS.length;
@@ -1312,7 +1545,7 @@ export class GroundRenderer {
       if (this.state.result !== 'none') this.onResult?.(this.state.result);
     }
 
-    this.renderer.render(this.scene, this.camera);
+    this.composer.render(dt);
   };
 
   // ── Nav mesh: push player and enemies out of BlockedZones ──────────
@@ -1589,6 +1822,7 @@ export class GroundRenderer {
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(w, h);
+    this.composer?.setSize(w, h);
   };
 
   // ── Cleanup ───────────────────────────────────────────────────
@@ -1616,10 +1850,90 @@ export class GroundRenderer {
     // Dispose animation controllers
     this.playerAnim?.dispose();
     for (const [, ctrl] of this.enemyAnims) ctrl.dispose();
+    this.prefabCache.clear();
 
+    this.composer?.dispose();
     this.renderer.dispose();
     if (this.renderer.domElement.parentNode) {
       this.renderer.domElement.parentNode.removeChild(this.renderer.domElement);
+    }
+  }
+
+  // ── Postprocessing setup ──────────────────────────────────────
+  private setupPostProcessing(): void {
+    this.composer = new EffectComposer(this.renderer, {
+      frameBufferType: THREE.HalfFloatType,
+    });
+    this.composer.addPass(new RenderPass(this.scene, this.camera));
+
+    const bloom = new BloomEffect({
+      intensity: 0.35,
+      luminanceThreshold: 0.6,
+      luminanceSmoothing: 0.3,
+      mipmapBlur: true,
+    });
+    const toneMapping = new ToneMappingEffect({ mode: ToneMappingMode.ACES_FILMIC });
+    const smaa = new SMAAEffect({ preset: SMAAPreset.MEDIUM });
+
+    this.composer.addPass(new EffectPass(this.camera, bloom, toneMapping, smaa));
+  }
+
+  // ── GLTF terrain environment loader ───────────────────────────
+  /**
+   * Loads an optional GLTF terrain environment for specific planet types:
+   * - crystalline / dark_matter → alien-city
+   * - volcanic / barren → mars-environment
+   * The GLTF scene is placed at the world origin, scaled to fit the play area,
+   * and layered beneath the procedural heightmap terrain.
+   */
+  private async loadTerrainEnvironment(): Promise<void> {
+    const pt = this.state.planetType;
+    let gltfPath: string | null = null;
+    let envScale = 1.0;
+
+    if (pt === 'crystalline' || pt === 'dark_matter' || pt === 'metallic') {
+      gltfPath = '/assets/ground/alien-city/scene.gltf';
+      envScale = pt === 'metallic' ? 0.12 : 0.15;
+    } else if (pt === 'volcanic' || pt === 'barren' || pt === 'plasma') {
+      gltfPath = '/assets/ground/mars-environment/scene.gltf';
+      envScale = pt === 'plasma' ? 1.2 : 1.5;
+    } else if (pt === 'frozen' || pt === 'oceanic' || pt === 'fungal') {
+      gltfPath = '/assets/ground/homeworld/scene.gltf';
+      envScale = pt === 'fungal' ? 0.25 : 0.3;
+    }
+
+    if (!gltfPath) return;
+
+    try {
+      const gltf = await this.gltfLoader.loadAsync(gltfPath);
+      const envScene = gltf.scene;
+
+      // Auto-fit: scale the environment to cover ~80% of the play area
+      const box = new THREE.Box3().setFromObject(envScene);
+      const size = box.getSize(new THREE.Vector3());
+      const maxDim = Math.max(size.x, size.y, size.z);
+      const targetCoverage = 120; // cover 120 of the 200-unit terrain
+      const autoScale = maxDim > 0 ? (targetCoverage / maxDim) * envScale : envScale;
+      envScene.scale.setScalar(autoScale);
+
+      // Center on the ground plane and sink slightly so it integrates with heightmap
+      const centeredBox = new THREE.Box3().setFromObject(envScene);
+      const center = centeredBox.getCenter(new THREE.Vector3());
+      envScene.position.sub(center);
+      envScene.position.y = -1; // sit just below the surface
+
+      // Enable shadows on all meshes
+      envScene.traverse((child) => {
+        if ((child as THREE.Mesh).isMesh) {
+          (child as THREE.Mesh).castShadow = true;
+          (child as THREE.Mesh).receiveShadow = true;
+        }
+      });
+
+      this.scene.add(envScene);
+      this.terrainObjects.push(envScene);
+    } catch (err) {
+      console.warn(`[GroundRenderer] Failed to load terrain env: ${gltfPath}`, err);
     }
   }
 }

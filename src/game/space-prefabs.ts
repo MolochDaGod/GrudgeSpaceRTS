@@ -491,6 +491,221 @@ export const STATION_PREFABS: Record<string, SpacePrefab> = {
   },
 };
 
+// ── Ancient Planet Props (OBJ) ───────────────────────────────────
+export const ANCIENT_PROP_PREFABS: Record<string, SpacePrefab> = {
+  ancient_portal_stairs: {
+    modelPath: '/assets/ground/terrain/ancient-portal/Package/AncientCosmicPortal-0-Portal_Stairs.obj',
+    mtlPath: '/assets/ground/terrain/ancient-portal/Package/AncientCosmicPortal-0-Portal_Stairs.mtl',
+    texturePath: '/assets/ground/terrain/ancient-portal/Package/AncientCosmicPortal-0-Portal_Stairs.png',
+    format: 'obj',
+    scale: 1.0,
+    offset: S(0, 0, 0),
+  },
+  ancient_portal_rings: {
+    modelPath: '/assets/ground/terrain/ancient-portal/Package/AncientCosmicPortal-1-Portal_Rings.obj',
+    mtlPath: '/assets/ground/terrain/ancient-portal/Package/AncientCosmicPortal-1-Portal_Rings.mtl',
+    texturePath: '/assets/ground/terrain/ancient-portal/Package/AncientCosmicPortal-1-Portal_Rings.png',
+    format: 'obj',
+    scale: 1.0,
+    offset: S(0, 0, 0),
+  },
+  ancient_portal_arch: {
+    modelPath: '/assets/ground/terrain/ancient-portal/Package/AncientCosmicPortal-2-Portal_Arch.obj',
+    mtlPath: '/assets/ground/terrain/ancient-portal/Package/AncientCosmicPortal-2-Portal_Arch.mtl',
+    texturePath: '/assets/ground/terrain/ancient-portal/Package/AncientCosmicPortal-2-Portal_Arch.png',
+    format: 'obj',
+    scale: 1.0,
+    offset: S(0, 0, 0),
+  },
+  ancient_relic_alien_statue: {
+    modelPath: '/assets/ground/terrain/ancient-reliques/Package/AncientReliques-0-Alient_Statue.obj',
+    mtlPath: '/assets/ground/terrain/ancient-reliques/Package/AncientReliques-0-Alient_Statue.mtl',
+    texturePath: '/assets/ground/terrain/ancient-reliques/Package/AncientReliques-0-Alient_Statue.png',
+    format: 'obj',
+    scale: 1.0,
+    offset: S(0, 0, 0),
+  },
+  ancient_relic_giant_hand_a: {
+    modelPath: '/assets/ground/terrain/ancient-reliques/Package/AncientReliques-1-GiantStatue_Hand.obj',
+    mtlPath: '/assets/ground/terrain/ancient-reliques/Package/AncientReliques-1-GiantStatue_Hand.mtl',
+    texturePath: '/assets/ground/terrain/ancient-reliques/Package/AncientReliques-1-GiantStatue_Hand.png',
+    format: 'obj',
+    scale: 1.0,
+    offset: S(0, 0, 0),
+  },
+  ancient_relic_giant_hand_b: {
+    modelPath: '/assets/ground/terrain/ancient-reliques/Package/AncientReliques-2-GiantStatue_Hand.obj',
+    mtlPath: '/assets/ground/terrain/ancient-reliques/Package/AncientReliques-2-GiantStatue_Hand.mtl',
+    texturePath: '/assets/ground/terrain/ancient-reliques/Package/AncientReliques-2-GiantStatue_Hand.png',
+    format: 'obj',
+    scale: 1.0,
+    offset: S(0, 0, 0),
+  },
+  ancient_relic_head_totem: {
+    modelPath: '/assets/ground/terrain/ancient-reliques/Package/AncientReliques-3-Head_Totem.obj',
+    mtlPath: '/assets/ground/terrain/ancient-reliques/Package/AncientReliques-3-Head_Totem.mtl',
+    texturePath: '/assets/ground/terrain/ancient-reliques/Package/AncientReliques-3-Head_Totem.png',
+    format: 'obj',
+    scale: 1.0,
+    offset: S(0, 0, 0),
+  },
+  ancient_relic_column_ruin: {
+    modelPath: '/assets/ground/terrain/ancient-reliques/Package/AncientReliques-4-Collumn_Ruin.obj',
+    mtlPath: '/assets/ground/terrain/ancient-reliques/Package/AncientReliques-4-Collumn_Ruin.mtl',
+    texturePath: '/assets/ground/terrain/ancient-reliques/Package/AncientReliques-4-Collumn_Ruin.png',
+    format: 'obj',
+    scale: 1.0,
+    offset: S(0, 0, 0),
+  },
+  ancient_relic_column: {
+    modelPath: '/assets/ground/terrain/ancient-reliques/Package/AncientReliques-5-Collumn.obj',
+    mtlPath: '/assets/ground/terrain/ancient-reliques/Package/AncientReliques-5-Collumn.mtl',
+    texturePath: '/assets/ground/terrain/ancient-reliques/Package/AncientReliques-5-Collumn.png',
+    format: 'obj',
+    scale: 1.0,
+    offset: S(0, 0, 0),
+  },
+  ancient_treasure: {
+    modelPath: '/assets/ground/terrain/ancient-treasure/Package/AncientTreasure.obj',
+    mtlPath: '/assets/ground/terrain/ancient-treasure/Package/AncientTreasure.mtl',
+    texturePath: '/assets/ground/terrain/ancient-treasure/Package/AncientTreasure.png',
+    format: 'obj',
+    scale: 1.0,
+    offset: S(0, 0, 0),
+  },
+};
+
+// ── Ground Enemy Props / Alt Combatants ──────────────────────────
+export const GROUND_ENEMY_PREFABS: Record<string, SpacePrefab> = {
+  dictator_0: {
+    modelPath: '/assets/ground/enemies/dictators/Package/Dictators-0.obj',
+    mtlPath: '/assets/ground/enemies/dictators/Package/Dictators-0.mtl',
+    texturePath: '/assets/ground/enemies/dictators/Package/Dictators-0.png',
+    format: 'obj',
+    scale: 1.0,
+    offset: S(0, 0, 0),
+  },
+  dictator_1: {
+    modelPath: '/assets/ground/enemies/dictators/Package/Dictators-1.obj',
+    mtlPath: '/assets/ground/enemies/dictators/Package/Dictators-1.mtl',
+    texturePath: '/assets/ground/enemies/dictators/Package/Dictators-1.png',
+    format: 'obj',
+    scale: 1.0,
+    offset: S(0, 0, 0),
+  },
+  dictator_2: {
+    modelPath: '/assets/ground/enemies/dictators/Package/Dictators-2.obj',
+    mtlPath: '/assets/ground/enemies/dictators/Package/Dictators-2.mtl',
+    texturePath: '/assets/ground/enemies/dictators/Package/Dictators-2.png',
+    format: 'obj',
+    scale: 1.0,
+    offset: S(0, 0, 0),
+  },
+  enemy_frog: {
+    modelPath: '/assets/ground/enemies/animated-creatures/Easy Animated Enemy Pack - Jan 2019/FBX/Frog.fbx',
+    format: 'fbx',
+    scale: 1.0,
+    offset: S(0, 0, 0),
+  },
+  enemy_rat: {
+    modelPath: '/assets/ground/enemies/animated-creatures/Easy Animated Enemy Pack - Jan 2019/FBX/Rat.fbx',
+    format: 'fbx',
+    scale: 1.0,
+    offset: S(0, 0, 0),
+  },
+  enemy_snake: {
+    modelPath: '/assets/ground/enemies/animated-creatures/Easy Animated Enemy Pack - Jan 2019/FBX/Snake.fbx',
+    format: 'fbx',
+    scale: 1.0,
+    offset: S(0, 0, 0),
+  },
+  enemy_snake_angry: {
+    modelPath: '/assets/ground/enemies/animated-creatures/Easy Animated Enemy Pack - Jan 2019/FBX/Snake_angry.fbx',
+    format: 'fbx',
+    scale: 1.0,
+    offset: S(0, 0, 0),
+  },
+  enemy_spider: {
+    modelPath: '/assets/ground/enemies/animated-creatures/Easy Animated Enemy Pack - Jan 2019/FBX/Spider.fbx',
+    format: 'fbx',
+    scale: 1.0,
+    offset: S(0, 0, 0),
+  },
+  enemy_wasp: {
+    modelPath: '/assets/ground/enemies/animated-creatures/Easy Animated Enemy Pack - Jan 2019/FBX/Wasp.fbx',
+    format: 'fbx',
+    scale: 1.0,
+    offset: S(0, 0, 0),
+  },
+};
+
+// ── Ground Weapon Props (FBX) ────────────────────────────────────
+const GWP = '/assets/ground/weapons/guns/FreeSample';
+const GWT = `${GWP}/T_Weapons.png`;
+export const GROUND_GUN_PREFABS: Record<string, SpacePrefab> = {
+  assault_rifle_a: { modelPath: `${GWP}/AssaultRiffle_A.fbx`, texturePath: GWT, format: 'fbx', scale: 1.0, offset: S(0, 0, 0) },
+  assault_rifle_g: { modelPath: `${GWP}/AssaultRiffle_G.fbx`, texturePath: GWT, format: 'fbx', scale: 1.0, offset: S(0, 0, 0) },
+  pistol_gun_a: { modelPath: `${GWP}/Gun_A.fbx`, texturePath: GWT, format: 'fbx', scale: 1.0, offset: S(0, 0, 0) },
+  pistol_gun_b: { modelPath: `${GWP}/Gun_B.fbx`, texturePath: GWT, format: 'fbx', scale: 1.0, offset: S(0, 0, 0) },
+  heavy_weapon_f: { modelPath: `${GWP}/HeavyWeapon_F.fbx`, texturePath: GWT, format: 'fbx', scale: 1.0, offset: S(0, 0, 0) },
+  rifle_a: { modelPath: `${GWP}/Riffle_A.fbx`, texturePath: GWT, format: 'fbx', scale: 1.0, offset: S(0, 0, 0) },
+  shotgun_i: { modelPath: `${GWP}/Shotgun_I.fbx`, texturePath: GWT, format: 'fbx', scale: 1.0, offset: S(0, 0, 0) },
+  uzi_c: { modelPath: `${GWP}/Uzi_C.fbx`, texturePath: GWT, format: 'fbx', scale: 1.0, offset: S(0, 0, 0) },
+};
+
+// ── Ground Shields (FBX) ─────────────────────────────────────────
+const GSP = '/assets/ground/weapons/shields';
+const GST = `${GSP}/texture/Texture_MAp_shields.png`;
+export const GROUND_SHIELD_PREFABS: Record<string, SpacePrefab> = {};
+for (let i = 1; i <= 20; i++) {
+  GROUND_SHIELD_PREFABS[`shield_${i}`] = {
+    modelPath: `${GSP}/fbx/_shield_${i}.fbx`,
+    texturePath: GST,
+    format: 'fbx',
+    scale: 1.0,
+    offset: S(0, 0, 0),
+  };
+}
+
+// ── Env_00 Sci-Fi Terrain Kit (FBX modular) ──────────────────────
+const ENV0 = '/assets/ground/terrain/env-scifi/Env_00';
+export const ENV_SCIFI_PREFABS: Record<string, SpacePrefab> = {
+  env_mech_hero: { modelPath: `${ENV0}/Mech_Anim/Mech_00_Anim.fbx`, format: 'fbx', scale: 1.0, offset: S(0, 0, 0) },
+  env_floor_tile_1: { modelPath: `${ENV0}/FloorTiles/Tile_1-0.fbx`, format: 'fbx', scale: 1.0, offset: S(0, 0, 0) },
+  env_floor_tile_2: { modelPath: `${ENV0}/FloorTiles/Tile_1-2.fbx`, format: 'fbx', scale: 1.0, offset: S(0, 0, 0) },
+  env_floor_tile_3: { modelPath: `${ENV0}/FloorTiles/Tile_3-0.fbx`, format: 'fbx', scale: 1.0, offset: S(0, 0, 0) },
+  env_wall_basic: { modelPath: `${ENV0}/Walls/Wall_1-0.fbx`, format: 'fbx', scale: 1.0, offset: S(0, 0, 0) },
+  env_wall_tall: { modelPath: `${ENV0}/Walls/Wall_1-4.fbx`, format: 'fbx', scale: 1.0, offset: S(0, 0, 0) },
+  env_wall_open_door: { modelPath: `${ENV0}/Walls/Wall_OpenDoor.fbx`, format: 'fbx', scale: 1.0, offset: S(0, 0, 0) },
+  env_door_rig: { modelPath: `${ENV0}/Extras/Door_Rig.fbx`, format: 'fbx', scale: 1.0, offset: S(0, 0, 0) },
+  env_pillar_a: { modelPath: `${ENV0}/Extras/Pilar_0A.fbx`, format: 'fbx', scale: 1.0, offset: S(0, 0, 0) },
+  env_pillar_b: { modelPath: `${ENV0}/Extras/Pilar_1B.fbx`, format: 'fbx', scale: 1.0, offset: S(0, 0, 0) },
+  env_light_1: { modelPath: `${ENV0}/Extras/Light_1.fbx`, format: 'fbx', scale: 1.0, offset: S(0, 0, 0) },
+  env_button_console: { modelPath: `${ENV0}/Extras/Rig_Button_0.fbx`, format: 'fbx', scale: 1.0, offset: S(0, 0, 0) },
+};
+
+// ── SHS Sci-Fi RTS Buildings / Surface Structures ────────────────
+const SHS = '/assets/ground/rts-buildings/SHS_Sci-Fi RTS pack/Assets/Fbx';
+const SHS_METAL = `${SHS}/Gradient Pallete Metal.png`;
+const SHS_BASE = `${SHS}/Gradient Pallete.png`;
+export const RTS_BUILDING_PREFABS: Record<string, SpacePrefab> = {
+  shs_barracks: { modelPath: `${SHS}/Barracks.fbx`, texturePath: SHS_METAL, format: 'fbx', scale: 1.0, offset: S(0, 0, 0) },
+  shs_beacon_drone: { modelPath: `${SHS}/Beacon_Drone.fbx`, texturePath: SHS_BASE, format: 'fbx', scale: 1.0, offset: S(0, 0, 0) },
+  shs_drone_drill: { modelPath: `${SHS}/Drone_Drill.fbx`, texturePath: SHS_BASE, format: 'fbx', scale: 1.0, offset: S(0, 0, 0) },
+  shs_drone_saw_full: { modelPath: `${SHS}/Drone_Saw_Full.fbx`, texturePath: SHS_BASE, format: 'fbx', scale: 1.0, offset: S(0, 0, 0) },
+  shs_drone_truck: { modelPath: `${SHS}/Drone_truck.fbx`, texturePath: SHS_BASE, format: 'fbx', scale: 1.0, offset: S(0, 0, 0) },
+  shs_eco_hub: { modelPath: `${SHS}/Eco_hub.fbx`, texturePath: SHS_METAL, format: 'fbx', scale: 1.0, offset: S(0, 0, 0) },
+  shs_rock_001: { modelPath: `${SHS}/Landscape_rock_001.fbx`, texturePath: SHS_BASE, format: 'fbx', scale: 1.0, offset: S(0, 0, 0) },
+  shs_rock_002: { modelPath: `${SHS}/Landscape_rock_002.fbx`, texturePath: SHS_BASE, format: 'fbx', scale: 1.0, offset: S(0, 0, 0) },
+  shs_rock_003: { modelPath: `${SHS}/Landscape_rock_003.fbx`, texturePath: SHS_BASE, format: 'fbx', scale: 1.0, offset: S(0, 0, 0) },
+  shs_laser_turret: { modelPath: `${SHS}/Laser_Turret.fbx`, texturePath: SHS_METAL, format: 'fbx', scale: 1.0, offset: S(0, 0, 0) },
+  shs_power_plant: { modelPath: `${SHS}/Power_plant.fbx`, texturePath: SHS_METAL, format: 'fbx', scale: 1.0, offset: S(0, 0, 0) },
+  shs_satellite: { modelPath: `${SHS}/Satellite.fbx`, texturePath: SHS_METAL, format: 'fbx', scale: 1.0, offset: S(0, 0, 0) },
+  shs_satellite_dish: { modelPath: `${SHS}/SatelliteDish.fbx`, texturePath: SHS_METAL, format: 'fbx', scale: 1.0, offset: S(0, 0, 0) },
+  shs_shield_generator: { modelPath: `${SHS}/ShieldGenerator.fbx`, texturePath: SHS_METAL, format: 'fbx', scale: 1.0, offset: S(0, 0, 0) },
+  shs_teleporter: { modelPath: `${SHS}/Teleporter.fbx`, texturePath: SHS_METAL, format: 'fbx', scale: 1.0, offset: S(0, 0, 0) },
+};
+
 // ── Enemy Ships (FBX) ───────────────────────────────────────────
 export const ENEMY_PREFABS: Record<string, SpacePrefab> = {
   enemy_fighter: {
@@ -983,6 +1198,290 @@ export const DRONE_PREFABS: Record<string, SpacePrefab> = {
   },
 };
 
+// ── Ship Interiors (GLTF — PBR walkable interiors) ──────────────
+const CR = '/assets/space/models/control-room';
+const CI = '/assets/space/models/cargo-interior';
+export const INTERIOR_PREFABS: Record<string, SpacePrefab> = {
+  /** Capital ship bridge / control room — 30 PBR textures, detailed sci-fi bridge. */
+  control_room: {
+    modelPath: `${CR}/scene.gltf`,
+    format: 'gltf',
+    scale: 0.5,
+    offset: S(0, 0, 0),
+  },
+  /** Cargo ship with walkable interior — compact transport interior. */
+  cargo_interior: {
+    modelPath: `${CI}/scene.gltf`,
+    format: 'gltf',
+    scale: 0.8,
+    offset: S(0, 0, 0),
+  },
+};
+
+// ── Ground Units (GLTF — animated characters & mechs) ────────────
+const SLD = '/assets/space/models/soldier';
+const MCH = '/assets/space/models/mech';
+export const GROUND_UNIT_PREFABS: Record<string, SpacePrefab> = {
+  /** Stylized sci-fi soldier — animated, PBR (helmet, torso, legs, arms). */
+  scifi_soldier: {
+    modelPath: `${SLD}/scene.gltf`,
+    format: 'gltf',
+    scale: 1.0,
+    offset: S(0, 0, 0),
+  },
+  /** Catfish mech — low-poly animated, full PBR (6 material sets). */
+  catfish_mech: {
+    modelPath: `${MCH}/scene.gltf`,
+    format: 'gltf',
+    scale: 0.8,
+    offset: S(0, 0, 0),
+  },
+};
+
+// ── Sci-Fi Hull Materials (GLTF — 8 PBR material sets) ───────────
+// Source: sci-fi_materials_pack_x8 — baseColor + metallicRoughness + normal per hull.
+// Load this scene to extract material references for ship editor / procedural ships.
+const SFM = '/assets/space/models/scifi-materials';
+export const SCIFI_MATERIAL_PREFAB: SpacePrefab = {
+  modelPath: `${SFM}/scene.gltf`,
+  format: 'gltf',
+  scale: 1.0,
+  offset: S(0, 0, 0),
+};
+
+// ── Flying Ship (GLTF — previously unused) ───────────────────────
+const FS = '/assets/space/models/flying-ship';
+export const FLYING_SHIP_PREFABS: Record<string, SpacePrefab> = {
+  flying_corvette: {
+    modelPath: `${FS}/scene.gltf`,
+    format: 'gltf',
+    scale: 0.03,
+    offset: S(0, 0, 0),
+    enginePoints: [S(-0.4, 0, -0.7), S(0.4, 0, -0.7)],
+    weaponPoints: [S(0, 0, 0.8)],
+  },
+};
+
+// ── Lowpoly FBX Fleet (color-variant ships + cruisers) ────────────
+// Source: lowpoly_spaceships FBX pack — 4 color variants per hull type.
+// Palette.png shared across all models.
+const LPF = '/assets/space/models/lowpoly';
+const LP_TEX = `${LPF}/Pallette.png`;
+const LP_COLORS = ['Blue', 'Green', 'Orange', 'Purple'] as const;
+
+export const LOWPOLY_FBX_PREFABS: Record<string, SpacePrefab> = {};
+for (const color of LP_COLORS) {
+  // SpaceShip — main hull (large)
+  LOWPOLY_FBX_PREFABS[`lp_spaceship_${color.toLowerCase()}`] = {
+    modelPath: `${LPF}/SpaceShip - ${color}.fbx`,
+    texturePath: LP_TEX,
+    format: 'fbx',
+    scale: 0.002,
+    offset: S(0, 0, 0),
+    enginePoints: [S(-0.6, 0, -1.2), S(0.6, 0, -1.2)],
+    weaponPoints: [S(-0.4, 0.1, 1.0), S(0.4, 0.1, 1.0)],
+  };
+  // SpaceShip2 — lighter variant (small)
+  LOWPOLY_FBX_PREFABS[`lp_fighter_${color.toLowerCase()}`] = {
+    modelPath: `${LPF}/SpaceShip2 - ${color}.fbx`,
+    texturePath: LP_TEX,
+    format: 'fbx',
+    scale: 0.004,
+    offset: S(0, 0, 0),
+    enginePoints: [S(0, 0, -0.5)],
+    weaponPoints: [S(0, 0, 0.6)],
+  };
+  // Cruiser — medium hull
+  LOWPOLY_FBX_PREFABS[`lp_cruiser_${color.toLowerCase()}`] = {
+    modelPath: `${LPF}/Cruiser - ${color}.fbx`,
+    texturePath: LP_TEX,
+    format: 'fbx',
+    scale: 0.002,
+    offset: S(0, 0, 0),
+    enginePoints: [S(-0.5, 0, -1.5), S(0.5, 0, -1.5)],
+    weaponPoints: [S(-0.3, 0.2, 1.2), S(0.3, 0.2, 1.2)],
+  };
+  // AttachedShip — escort / docked variant
+  const colorIdx = LP_COLORS.indexOf(color);
+  const attachSuffix = colorIdx === 0 ? '' : `.00${colorIdx}`;
+  LOWPOLY_FBX_PREFABS[`lp_escort_${color.toLowerCase()}`] = {
+    modelPath: `${LPF}/AttachedShip${attachSuffix}.fbx`,
+    texturePath: LP_TEX,
+    format: 'fbx',
+    scale: 0.002,
+    offset: S(0, 0, 0),
+    enginePoints: [S(0, 0, -0.8)],
+    weaponPoints: [S(0, 0, 0.6)],
+  };
+}
+
+// ── Ground Terrain Environments (GLTF scenes) ────────────────────
+export const TERRAIN_ENV_PREFABS: Record<string, SpacePrefab> = {
+  /** Alien city environment — crystalline/dark_matter planet terrain. */
+  alien_city: {
+    modelPath: '/assets/ground/alien-city/scene.gltf',
+    format: 'gltf',
+    scale: 0.15,
+    offset: S(0, 0, 0),
+  },
+  /** Mars surface environment — volcanic/barren planet terrain. */
+  mars_environment: {
+    modelPath: '/assets/ground/mars-environment/scene.gltf',
+    format: 'gltf',
+    scale: 1.5,
+    offset: S(0, 0, 0),
+  },
+};
+
+// ── Heavy Bomber (GLTF — DBG-88 Garont) ───────────────────────
+const HB = '/assets/space/models/heavy-bomber';
+export const HEAVY_BOMBER_PREFABS: Record<string, SpacePrefab> = {
+  garont_bomber: {
+    modelPath: `${HB}/scene.gltf`,
+    format: 'gltf',
+    scale: 0.03,
+    offset: S(0, 0, 0),
+    enginePoints: [S(-0.6, 0, -1.2), S(0.6, 0, -1.2)],
+    weaponPoints: [S(-0.4, -0.2, 0.8), S(0.4, -0.2, 0.8)],
+  },
+};
+
+// ── Cyborg Characters (GLTF — animated ground units) ───────────
+const CYS = '/assets/space/models/cyborg-soldier';
+const CYB = '/assets/space/models/cyborg';
+const AMT = '/assets/space/models/amaterasu';
+export const CHARACTER_PREFABS: Record<string, SpacePrefab> = {
+  /** Cyborg soldier — PBR textured sci-fi character. Ground combat, boarding. */
+  cyborg_soldier: {
+    modelPath: `${CYS}/scene.gltf`,
+    format: 'gltf',
+    scale: 1.0,
+    offset: S(0, 0, 0),
+  },
+  /** Cyborg — robotic enemy/ally character. */
+  cyborg: {
+    modelPath: `${CYB}/scene.gltf`,
+    format: 'gltf',
+    scale: 1.0,
+    offset: S(0, 0, 0),
+  },
+  /** Amaterasu — special hero/boss character. Campaign reward. */
+  amaterasu: {
+    modelPath: `${AMT}/scene.gltf`,
+    format: 'gltf',
+    scale: 1.0,
+    offset: S(0, 0, 0),
+  },
+};
+
+// ── Space Station Modular (GLTF — 45 files, modular station pieces) ──
+const SSM = '/assets/space/models/space-station-modular';
+export const MODULAR_STATION_PREFAB: SpacePrefab = {
+  modelPath: `${SSM}/scene.gltf`,
+  format: 'gltf',
+  scale: 0.05,
+  offset: S(0, 0, 0),
+};
+
+// ── Modular Spaceship (GLTF — animated, 20 textures) ─────────────
+const MSS = '/assets/space/models/modular-spaceship';
+export const MODULAR_SHIP_PREFABS: Record<string, SpacePrefab> = {
+  modular_cruiser: {
+    modelPath: `${MSS}/scene.gltf`,
+    format: 'gltf',
+    scale: 0.02,
+    offset: S(0, 0, 0),
+    enginePoints: [S(-0.5, 0, -1.5), S(0.5, 0, -1.5)],
+    weaponPoints: [S(0, 0.2, 1.0)],
+  },
+};
+
+// ── Server Room Interior (GLTF — PBR, 75 files) ─────────────────
+// Used as the 3D menu background scene.
+const SRV = '/assets/space/models/server-room';
+export const SERVER_ROOM_PREFAB: SpacePrefab = {
+  modelPath: `${SRV}/scene.gltf`,
+  format: 'gltf',
+  scale: 0.5,
+  offset: S(0, 0, 0),
+};
+
+// ── Craftpix Low-Poly Ships (FBX — 177 files, full fleet pack) ────
+const CLP = '/assets/space/models/craftpix-lowpoly-ships/fbx';
+export const CRAFTPIX_LP_PREFABS: Record<string, SpacePrefab> = {
+  clp_corvette_01: {
+    modelPath: `${CLP}/_Corvett_01.fbx`,
+    format: 'fbx',
+    scale: 0.03,
+    offset: S(0, 0, 0),
+    enginePoints: [S(0, 0, -0.5)],
+    weaponPoints: [S(0, 0, 0.6)],
+  },
+  clp_corvette_02: {
+    modelPath: `${CLP}/_Corvett_02.fbx`,
+    format: 'fbx',
+    scale: 0.03,
+    offset: S(0, 0, 0),
+    enginePoints: [S(0, 0, -0.5)],
+    weaponPoints: [S(0, 0, 0.6)],
+  },
+  clp_frigate_01: {
+    modelPath: `${CLP}/_Fregatt_01.fbx`,
+    format: 'fbx',
+    scale: 0.027,
+    offset: S(0, 0, 0),
+    enginePoints: [S(-0.4, 0, -0.8), S(0.4, 0, -0.8)],
+    weaponPoints: [S(0, 0.2, 0.8)],
+  },
+  clp_frigate_02: {
+    modelPath: `${CLP}/_Fregatt_02.fbx`,
+    format: 'fbx',
+    scale: 0.027,
+    offset: S(0, 0, 0),
+    enginePoints: [S(-0.4, 0, -0.8), S(0.4, 0, -0.8)],
+    weaponPoints: [S(0, 0.2, 0.8)],
+  },
+  clp_destroyer_01: {
+    modelPath: `${CLP}/_Esminets_01.fbx`,
+    format: 'fbx',
+    scale: 0.027,
+    offset: S(0, 0, 0),
+    enginePoints: [S(-0.5, 0, -1.4), S(0.5, 0, -1.4)],
+    weaponPoints: [S(0, 0.2, 1.1)],
+  },
+  clp_cruiser_01: {
+    modelPath: `${CLP}/_Kreiser_01.fbx`,
+    format: 'fbx',
+    scale: 0.024,
+    offset: S(0, 0, 0),
+    enginePoints: [S(-0.6, 0, -1.5), S(0, 0, -1.5), S(0.6, 0, -1.5)],
+    weaponPoints: [S(-0.5, 0.2, 1), S(0.5, 0.2, 1)],
+  },
+  clp_battleship: {
+    modelPath: `${CLP}/_Linkor_01.fbx`,
+    format: 'fbx',
+    scale: 0.021,
+    offset: S(0, 0, 0),
+    enginePoints: [S(-0.8, 0, -2), S(0, 0, -2), S(0.8, 0, -2)],
+    weaponPoints: [S(-0.6, 0.3, 1.2), S(0.6, 0.3, 1.2)],
+  },
+  clp_carrier: {
+    modelPath: `${CLP}/_Avianosec_01.fbx`,
+    format: 'fbx',
+    scale: 0.018,
+    offset: S(0, 0, 0),
+    enginePoints: [S(-1, 0, -2.5), S(0, 0, -2.5), S(1, 0, -2.5)],
+    weaponPoints: [S(0, 0.3, 1.5)],
+  },
+};
+
+// ── Crosshair Paths (UI overlays for combat/ground modes) ────────
+const XH = '/assets/space/ui/crosshairs/Crosshair Pack';
+export const CROSSHAIR_PATHS = {
+  white: Array.from({ length: 10 }, (_, i) => `${XH}/White/1080/${i + 1}.png`),
+  black: Array.from({ length: 10 }, (_, i) => `${XH}/Black/1080/${i + 1}.png`),
+};
+
 // ── Weapons (GLB turrets) ────────────────────────────────────────
 export const WEAPON_PREFABS: Record<string, SpacePrefab> = {
   pistol_turret: {
@@ -1227,9 +1726,24 @@ export function getShipPrefab(shipType: string): SpacePrefab | null {
     VOXEL_FLEET_PREFABS[shipType] ??
     BIONIC_PREFABS[shipType] ??
     LOWPOLY_FLEET_PREFABS[shipType] ??
+    LOWPOLY_FBX_PREFABS[shipType] ??
     ORGANIC_HERO_PREFABS[shipType] ??
     CARGO_TRANSPORT_PREFABS[shipType] ??
     DRONE_PREFABS[shipType] ??
+    FLYING_SHIP_PREFABS[shipType] ??
+    HEAVY_BOMBER_PREFABS[shipType] ??
+    MODULAR_SHIP_PREFABS[shipType] ??
+    CRAFTPIX_LP_PREFABS[shipType] ??
+    CHARACTER_PREFABS[shipType] ??
+    GROUND_UNIT_PREFABS[shipType] ??
+    INTERIOR_PREFABS[shipType] ??
+    TERRAIN_ENV_PREFABS[shipType] ??
+    ANCIENT_PROP_PREFABS[shipType] ??
+    GROUND_ENEMY_PREFABS[shipType] ??
+    GROUND_GUN_PREFABS[shipType] ??
+    GROUND_SHIELD_PREFABS[shipType] ??
+    ENV_SCIFI_PREFABS[shipType] ??
+    RTS_BUILDING_PREFABS[shipType] ??
     null
   );
 }
@@ -1245,7 +1759,26 @@ export const ALL_PREFAB_REGISTRIES = [
   VOXEL_FLEET_PREFABS,
   BIONIC_PREFABS,
   LOWPOLY_FLEET_PREFABS,
+  LOWPOLY_FBX_PREFABS,
   ORGANIC_HERO_PREFABS,
   CARGO_TRANSPORT_PREFABS,
   DRONE_PREFABS,
+  FLYING_SHIP_PREFABS,
+  HEAVY_BOMBER_PREFABS,
+  MODULAR_SHIP_PREFABS,
+  CRAFTPIX_LP_PREFABS,
+] as const;
+
+/** Non-ship prefab registries (interiors, ground units, characters, stations). */
+export const SCENE_PREFAB_REGISTRIES = [
+  INTERIOR_PREFABS,
+  GROUND_UNIT_PREFABS,
+  CHARACTER_PREFABS,
+  TERRAIN_ENV_PREFABS,
+  ANCIENT_PROP_PREFABS,
+  GROUND_ENEMY_PREFABS,
+  GROUND_GUN_PREFABS,
+  GROUND_SHIELD_PREFABS,
+  ENV_SCIFI_PREFABS,
+  RTS_BUILDING_PREFABS,
 ] as const;
