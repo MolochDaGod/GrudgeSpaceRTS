@@ -12,7 +12,7 @@
     "moduleDetection": "force",
     "noEmit": true,
     "jsx": "react-jsx",
-    "baseUrl": ".",
+    "baseUrl": "https://grudge-space-rts.vercel.app",
     "paths": { "@/*": ["./src/*"] },
     "strict": true,
     "noUnusedLocals": false,

@@ -29,8 +29,10 @@ function getImage(path: string): HTMLImageElement | null {
 }
 
 function getSpriteFrame(anim: SpriteAnim, frame: number): string {
-  const idx = String(frame).padStart(3, '0');
-  return `${anim.basePath}/${anim.prefix}${idx}.png`;
+  const actualFrame = (anim.startFrame ?? 0) + frame;
+  const idx = String(actualFrame).padStart(anim.pad ?? 3, '0');
+  const suffix = anim.suffix ?? '';
+  return `${anim.basePath}/${anim.prefix}${idx}${suffix}.png`;
 }
 
 // ── Camera ───────────────────────────────────────────────────────────
@@ -63,6 +65,9 @@ export function renderGroundRTS(
   ctx.translate(offX, offY);
   ctx.scale(scale, scale);
 
+  // Compute viewport for culling
+  _vp = getViewport(camera, canvasW, canvasH);
+
   renderTilemap(ctx, state);
   renderMapObjects(ctx, state);
   renderUnits(ctx, state);
@@ -77,21 +82,55 @@ export function renderGroundRTS(
   renderHUD(ctx, state, canvasW, canvasH);
 }
 
-// ── Tilemap ──────────────────────────────────────────────────────────
+// ── Viewport Culling Helper ───────────────────────────────────────
+function getViewport(camera: Camera, canvasW: number, canvasH: number): { x1: number; y1: number; x2: number; y2: number } {
+  const halfW = canvasW / camera.zoom / 2;
+  const halfH = canvasH / camera.zoom / 2;
+  return { x1: camera.x - halfW, y1: camera.y - halfH, x2: camera.x + halfW, y2: camera.y + halfH };
+}
+
+// Store viewport for culling during world-space rendering
+let _vp = { x1: 0, y1: 0, x2: 9999, y2: 9999 };
+
+// ── Tilemap (per-cell type, viewport culled, impassable overlay) ────
 function renderTilemap(ctx: CanvasRenderingContext2D, state: GroundRTSState): void {
-  const paths = TILE_PATHS[state.tileType];
-  for (let r = 0; r < state.tileRows; r++) {
-    for (let c = 0; c < state.tileCols; c++) {
+  const ts = state.tileSize;
+  const typeGrid: string[][] | undefined = (state as any)._tileTypeGrid;
+  const cStart = Math.max(0, Math.floor(_vp.x1 / ts));
+  const cEnd = Math.min(state.tileCols - 1, Math.ceil(_vp.x2 / ts));
+  const rStart = Math.max(0, Math.floor(_vp.y1 / ts));
+  const rEnd = Math.min(state.tileRows - 1, Math.ceil(_vp.y2 / ts));
+
+  for (let r = rStart; r <= rEnd; r++) {
+    for (let c = cStart; c <= cEnd; c++) {
       const tileIdx = state.tileGrid[r][c];
+      const walkVal = state.walkGrid[r]?.[c] ?? 0;
+      // Determine which tileset to use per cell
+      const cellType = (typeGrid?.[r]?.[c] ?? state.tileType) as 'sand' | 'ground' | 'stones' | 'water';
+      const paths = TILE_PATHS[cellType];
       const path = paths[tileIdx % paths.length];
       const img = getImage(path);
-      const x = c * state.tileSize;
-      const y = r * state.tileSize;
+      const x = c * ts;
+      const y = r * ts;
+
       if (img) {
-        ctx.drawImage(img, x, y, state.tileSize, state.tileSize);
+        ctx.drawImage(img, x, y, ts, ts);
       } else {
-        ctx.fillStyle = '#c4a86a';
-        ctx.fillRect(x, y, state.tileSize, state.tileSize);
+        // Placeholder color per type
+        const placeholders: Record<string, string> = { sand: '#c4a86a', ground: '#8a7a5a', stones: '#6a6a6a', water: '#1a2a4a' };
+        ctx.fillStyle = placeholders[cellType] ?? '#c4a86a';
+        ctx.fillRect(x, y, ts, ts);
+      }
+
+      // Darken impassable tiles (water = black/dark overlay)
+      if (walkVal === 2) {
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
+        ctx.fillRect(x, y, ts, ts);
+      }
+      // Slight tint on slow tiles
+      else if (walkVal === 1) {
+        ctx.fillStyle = 'rgba(80, 60, 20, 0.15)';
+        ctx.fillRect(x, y, ts, ts);
       }
     }
   }
@@ -128,6 +167,9 @@ function renderUnit(ctx: CanvasRenderingContext2D, unit: RTSUnit, _state: Ground
   const sz = unit.def.spriteSize;
   const halfSz = sz / 2;
 
+  // Viewport culling — skip units fully off-screen
+  if (unit.x + halfSz < _vp.x1 || unit.x - halfSz > _vp.x2 || unit.y + halfSz < _vp.y1 || unit.y - halfSz > _vp.y2) return;
+
   // Get current animation
   let anim: SpriteAnim;
   if (unit.state === 'dying' || unit.state === 'dead') {
@@ -146,6 +188,14 @@ function renderUnit(ctx: CanvasRenderingContext2D, unit: RTSUnit, _state: Ground
   ctx.save();
   ctx.translate(unit.x, unit.y);
 
+  // Team tint shadow under unit
+  if (unit.state !== 'dead') {
+    ctx.fillStyle = unit.team === 0 ? 'rgba(68,136,255,0.15)' : 'rgba(255,68,68,0.15)';
+    ctx.beginPath();
+    ctx.ellipse(0, halfSz * 0.3, halfSz * 0.5, halfSz * 0.2, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
   // Selection ring
   if (unit.selected && unit.state !== 'dead' && unit.state !== 'dying') {
     ctx.strokeStyle = '#44ff44';
@@ -153,6 +203,14 @@ function renderUnit(ctx: CanvasRenderingContext2D, unit: RTSUnit, _state: Ground
     ctx.beginPath();
     ctx.arc(0, 0, halfSz * 0.7, 0, Math.PI * 2);
     ctx.stroke();
+    // Attack range indicator
+    if (unit.def.attackType !== 'melee') {
+      ctx.strokeStyle = 'rgba(255,255,68,0.08)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.arc(0, 0, unit.def.attackRange, 0, Math.PI * 2);
+      ctx.stroke();
+    }
   }
 
   // Rotate sprite to face direction
@@ -160,51 +218,72 @@ function renderUnit(ctx: CanvasRenderingContext2D, unit: RTSUnit, _state: Ground
 
   // Draw sprite (or placeholder)
   if (img) {
-    // Fade dead bodies
-    if (unit.state === 'dead') ctx.globalAlpha = 0.5;
+    if (unit.state === 'dead') ctx.globalAlpha = 0.4;
+    else if (unit.state === 'dying') ctx.globalAlpha = 0.6;
     ctx.drawImage(img, -halfSz, -halfSz, sz, sz);
     ctx.globalAlpha = 1;
   } else {
-    // Placeholder circle
-    ctx.fillStyle = TEAM_COLORS[unit.team];
+    // Placeholder: team-colored circle with class indicator
+    const col = TEAM_COLORS[unit.team];
+    ctx.fillStyle = col;
     ctx.beginPath();
     ctx.arc(0, 0, halfSz * 0.5, 0, Math.PI * 2);
     ctx.fill();
-    // Arrow showing facing
     ctx.strokeStyle = '#fff';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(0, 0);
-    ctx.lineTo(0, -halfSz * 0.6);
+    ctx.lineWidth = 1.5;
     ctx.stroke();
+    // Facing arrow
+    ctx.fillStyle = '#fff';
+    ctx.beginPath();
+    ctx.moveTo(-3, 2);
+    ctx.lineTo(0, -halfSz * 0.6);
+    ctx.lineTo(3, 2);
+    ctx.closePath();
+    ctx.fill();
   }
 
   ctx.restore();
 
-  // Health bar (above unit, in world space)
-  if (unit.state !== 'dead' && unit.state !== 'dying' && unit.hp < unit.maxHp) {
+  // Health bar (above unit, in world space) — always show for enemies, only when damaged for player
+  const showHp = unit.state !== 'dead' && unit.state !== 'dying' && (unit.team === 1 || unit.hp < unit.maxHp);
+  if (showHp) {
     const barW = sz * 0.8;
-    const barH = 4;
+    const barH = unit.def.tier >= 4 ? 6 : 4;
     const barX = unit.x - barW / 2;
-    const barY = unit.y - halfSz - 8;
+    const barY = unit.y - halfSz - 10;
     const pct = unit.hp / unit.maxHp;
 
-    ctx.fillStyle = '#222';
+    ctx.fillStyle = '#111';
+    ctx.fillRect(barX - 1, barY - 1, barW + 2, barH + 2);
+    ctx.fillStyle = '#333';
     ctx.fillRect(barX, barY, barW, barH);
     ctx.fillStyle = pct > 0.5 ? '#44ff44' : pct > 0.25 ? '#ffaa00' : '#ff4444';
     ctx.fillRect(barX, barY, barW * pct, barH);
+
+    // Boss name tag
+    if (unit.def.tier >= 4) {
+      ctx.fillStyle = '#ff8844';
+      ctx.font = 'bold 10px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(unit.def.displayName, unit.x, barY - 4);
+    }
   }
 
   // Move target indicator for selected units
   if (unit.selected && unit.moveTarget && unit.state !== 'dead') {
-    ctx.strokeStyle = 'rgba(68, 255, 68, 0.3)';
+    ctx.strokeStyle = 'rgba(68, 255, 68, 0.25)';
     ctx.lineWidth = 1;
-    ctx.setLineDash([4, 4]);
+    ctx.setLineDash([6, 4]);
     ctx.beginPath();
     ctx.moveTo(unit.x, unit.y);
     ctx.lineTo(unit.moveTarget.x, unit.moveTarget.y);
     ctx.stroke();
     ctx.setLineDash([]);
+    // Target marker
+    ctx.strokeStyle = 'rgba(68, 255, 68, 0.4)';
+    ctx.beginPath();
+    ctx.arc(unit.moveTarget.x, unit.moveTarget.y, 6, 0, Math.PI * 2);
+    ctx.stroke();
   }
 }
 
@@ -262,6 +341,26 @@ function renderMinimap(ctx: CanvasRenderingContext2D, state: GroundRTSState, cam
   // Background
   ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
   ctx.fillRect(mmX, mmY, mmW, mmH);
+
+  // Walk grid overlay on minimap
+  const cellW = mmW / state.tileCols;
+  const cellH = mmH / state.tileRows;
+  for (let r = 0; r < state.tileRows; r++) {
+    for (let c = 0; c < state.tileCols; c++) {
+      const walk = state.walkGrid[r]?.[c] ?? 0;
+      if (walk === 2) {
+        ctx.fillStyle = 'rgba(10, 20, 40, 0.9)';
+        ctx.fillRect(mmX + c * cellW, mmY + r * cellH, cellW, cellH);
+      } else if (walk === 1) {
+        ctx.fillStyle = 'rgba(80, 70, 40, 0.4)';
+        ctx.fillRect(mmX + c * cellW, mmY + r * cellH, cellW, cellH);
+      } else {
+        ctx.fillStyle = 'rgba(120, 100, 60, 0.3)';
+        ctx.fillRect(mmX + c * cellW, mmY + r * cellH, cellW, cellH);
+      }
+    }
+  }
+
   ctx.strokeStyle = '#555';
   ctx.lineWidth = 1;
   ctx.strokeRect(mmX, mmY, mmW, mmH);
