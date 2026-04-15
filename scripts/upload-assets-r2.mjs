@@ -28,7 +28,8 @@ const __dirname = dirname(__filename);
 const ASSETS_DIR = join(__dirname, '..', 'public', 'assets');
 const R2_PREFIX = 'gruda-armada';
 const BUCKET = process.env.R2_BUCKET ?? 'grudge-assets';
-const CONCURRENCY = 10;
+const CONCURRENCY = Math.max(1, Number(process.env.R2_UPLOAD_CONCURRENCY ?? 10));
+const MAX_RETRIES = Math.max(0, Number(process.env.R2_UPLOAD_RETRIES ?? 4));
 
 const DRY_RUN = process.argv.includes('--dry-run');
 const FORCE = process.argv.includes('--force');
@@ -71,6 +72,23 @@ const SKIP_FILENAMES = new Set(['.DS_Store', 'Thumbs.db', 'desktop.ini']);
 function getMimeType(filepath) {
   const ext = extname(filepath).toLowerCase();
   return MIME_MAP[ext] ?? 'application/octet-stream';
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isTransientUploadError(err) {
+  const msg = String(err?.message ?? err ?? '').toLowerCase();
+  return (
+    msg.includes('econnreset') ||
+    msg.includes('etimedout') ||
+    msg.includes('socket hang up') ||
+    msg.includes('bad record mac') ||
+    msg.includes('ssl') ||
+    msg.includes('timeout') ||
+    msg.includes('network')
+  );
 }
 
 function shouldSkip(filepath, filename) {
@@ -226,7 +244,10 @@ async function main() {
             const head = await client.send(
               new HeadObjectCommand({ Bucket: BUCKET, Key: item.r2Key })
             );
-            if (head.ContentLength === item.size) {
+            // Skip if size matches AND ETag (MD5) matches — prevents corrupt re-uploads
+            const localMd5 = createHash('md5').update(await readFile(item.filepath)).digest('hex');
+            const remoteEtag = (head.ETag ?? '').replace(/"/g, '');
+            if (head.ContentLength === item.size && remoteEtag === localMd5) {
               skipped++;
               return;
             }
@@ -236,15 +257,31 @@ async function main() {
         }
 
         const body = await readFile(item.filepath);
-        await client.send(
-          new PutObjectCommand({
-            Bucket: BUCKET,
-            Key: item.r2Key,
-            Body: body,
-            ContentType: item.contentType,
-            CacheControl: 'public, max-age=2592000, immutable',
-          })
-        );
+        let lastErr = null;
+        for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+          try {
+            await client.send(
+              new PutObjectCommand({
+                Bucket: BUCKET,
+                Key: item.r2Key,
+                Body: body,
+                ContentType: item.contentType,
+                CacheControl: 'public, max-age=2592000, immutable',
+              })
+            );
+            lastErr = null;
+            break;
+          } catch (err) {
+            lastErr = err;
+            if (attempt >= MAX_RETRIES || !isTransientUploadError(err)) {
+              throw err;
+            }
+            const delayMs = 750 * Math.pow(2, attempt);
+            console.warn(`  ↻ Retry ${attempt + 1}/${MAX_RETRIES} for ${item.r2Key} after transient error`);
+            await sleep(delayMs);
+          }
+        }
+        if (lastErr) throw lastErr;
         uploaded++;
 
         // Progress every 50 files
@@ -268,23 +305,31 @@ async function main() {
   console.log(`  ✅ Upload complete in ${elapsed}s`);
   console.log(`     ${uploaded} uploaded · ${skipped} skipped (unchanged) · ${failed} failed`);
 
-  // Upload manifest
+  // Upload manifest only for full-tree uploads. A filtered run should not
+  // overwrite the global manifest with a partial asset list.
   const manifestJson = JSON.stringify(manifest, null, 2);
-  await client.send(
-    new PutObjectCommand({
-      Bucket: BUCKET,
-      Key: `${R2_PREFIX}/manifest.json`,
-      Body: manifestJson,
-      ContentType: 'application/json',
-      CacheControl: 'public, max-age=300', // 5 min cache for manifest
-    })
-  );
-  console.log(`  📝 Manifest uploaded to ${R2_PREFIX}/manifest.json (${manifest.length} entries)`);
+  if (!PREFIX_FILTER) {
+    await client.send(
+      new PutObjectCommand({
+        Bucket: BUCKET,
+        Key: `${R2_PREFIX}/manifest.json`,
+        Body: manifestJson,
+        ContentType: 'application/json',
+        CacheControl: 'public, max-age=300', // 5 min cache for manifest
+      })
+    );
+    console.log(`  📝 Manifest uploaded to ${R2_PREFIX}/manifest.json (${manifest.length} entries)`);
 
-  // Also save locally
-  const localManifest = join(__dirname, '..', 'r2-manifest.json');
-  await writeFile(localManifest, manifestJson);
-  console.log(`  💾 Local copy saved to r2-manifest.json\n`);
+    const localManifest = join(__dirname, '..', 'r2-manifest.json');
+    await writeFile(localManifest, manifestJson);
+    console.log(`  💾 Local copy saved to r2-manifest.json\n`);
+  } else {
+    const safePrefix = PREFIX_FILTER.replace(/[\\/]+/g, '-');
+    const localManifest = join(__dirname, '..', `r2-manifest-${safePrefix}.json`);
+    await writeFile(localManifest, manifestJson);
+    console.log(`  📝 Filtered run detected; global manifest left unchanged`);
+    console.log(`  💾 Local filtered manifest saved to ${`r2-manifest-${safePrefix}.json`}\n`);
+  }
 }
 
 main().catch((err) => {
