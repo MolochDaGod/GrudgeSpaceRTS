@@ -24,7 +24,7 @@ import {
   SMAAPreset,
   ToneMappingMode,
 } from 'postprocessing';
-import type { GroundRTSState, RTSUnit, Team, Vec2, Projectile } from './ground-rts-types';
+import type { GroundRTSState, RTSUnit, RTSBuilding, MineralDeposit, Team, Vec2, Projectile } from './ground-rts-types';
 
 // ── Asset Paths ──────────────────────────────────────────────────────
 const AW = '/assets/groundrts/advance-wars';
@@ -47,6 +47,17 @@ interface UnitMesh3D {
   selectionRing: THREE.Mesh;
 }
 
+interface BuildingMesh3D {
+  group: THREE.Group;
+  healthBar: THREE.Mesh;
+  healthBg: THREE.Mesh;
+  selectionRing: THREE.Mesh;
+}
+
+interface DepositMesh3D {
+  group: THREE.Group;
+}
+
 // ── Main Renderer Class ──────────────────────────────────────────────
 export class GroundRTS3DRenderer {
   private renderer!: THREE.WebGLRenderer;
@@ -60,9 +71,12 @@ export class GroundRTS3DRenderer {
 
   // Scene objects
   private unitMeshes = new Map<number, UnitMesh3D>();
+  private buildingMeshes = new Map<number, BuildingMesh3D>();
+  private depositMeshes = new Map<number, DepositMesh3D>();
   private projectileMeshes = new Map<number, THREE.Mesh>();
   private groundPlane!: THREE.Mesh;
   private gridHelper!: THREE.GridHelper;
+  private buildingModelCache = new Map<string, THREE.Group>();
 
   // Model templates (cloned per unit)
   private modelTemplates = new Map<string, THREE.Group>();
@@ -437,16 +451,214 @@ export class GroundRTS3DRenderer {
     return null;
   }
 
-  // ── Render Loop ───────────────────────────────────────────────────
+  // ── Building 3D Sync ───────────────────────────────────────────────
+  private syncBuildings(state: GroundRTSState): void {
+    // Remove destroyed building meshes
+    for (const [id, mesh] of this.buildingMeshes) {
+      const b = state.buildings.get(id);
+      if (!b || b.state === 'destroyed') {
+        this.scene.remove(mesh.group);
+        this.buildingMeshes.delete(id);
+      }
+    }
+
+    for (const [id, b] of state.buildings) {
+      if (b.state === 'destroyed') continue;
+
+      let mesh = this.buildingMeshes.get(id);
+      if (!mesh) {
+        mesh = this.createBuildingMesh(b);
+        this.buildingMeshes.set(id, mesh);
+      }
+
+      // Position
+      const centerX = (b.x + b.def.footprint.w * state.tileSize / 2) * WORLD_SCALE;
+      const centerZ = (b.y + b.def.footprint.h * state.tileSize / 2) * WORLD_SCALE;
+      mesh.group.position.set(centerX, 0, centerZ);
+
+      // Construction animation: scale Y from 0.1 to 1
+      if (b.state === 'constructing') {
+        const sy = 0.1 + b.buildProgress * 0.9;
+        mesh.group.scale.set(1, sy, 1);
+      } else {
+        mesh.group.scale.set(1, 1, 1);
+      }
+
+      // Unpowered: pulse opacity
+      if (b.state === 'unpowered') {
+        const pulse = 0.4 + Math.sin(Date.now() * 0.005) * 0.2;
+        mesh.group.traverse((c) => {
+          if ((c as THREE.Mesh).isMesh) {
+            const mat = (c as THREE.Mesh).material as THREE.Material;
+            mat.transparent = true;
+            mat.opacity = pulse;
+          }
+        });
+      }
+
+      // Health bar
+      const hpPct = b.hp / b.maxHp;
+      mesh.healthBar.visible = hpPct < 1;
+      mesh.healthBg.visible = hpPct < 1;
+      if (hpPct < 1) {
+        mesh.healthBar.scale.x = Math.max(0.01, hpPct);
+        const barMat = mesh.healthBar.material as THREE.MeshBasicMaterial;
+        barMat.color.setHex(hpPct > 0.5 ? 0x44ff44 : hpPct > 0.25 ? 0xffaa00 : 0xff4444);
+      }
+
+      // Selection
+      mesh.selectionRing.visible = b.selected;
+    }
+  }
+
+  private createBuildingMesh(b: RTSBuilding): BuildingMesh3D {
+    const group = new THREE.Group();
+
+    // Try load GLB, fallback to colored box
+    const cached = this.buildingModelCache.get(b.def.key);
+    if (cached) {
+      const clone = cached.clone();
+      this.fitBuildingModel(clone, b);
+      group.add(clone);
+    } else {
+      // Start async load, show placeholder immediately
+      const placeholder = this.buildBuildingPlaceholder(b);
+      group.add(placeholder);
+
+      this.gltfLoader.loadAsync(b.def.glbPath).then((gltf) => {
+        this.buildingModelCache.set(b.def.key, gltf.scene);
+        group.remove(placeholder);
+        const model = gltf.scene.clone();
+        this.fitBuildingModel(model, b);
+        group.add(model);
+      }).catch(() => {
+        // Keep placeholder on load failure
+      });
+    }
+
+    const footW = b.def.footprint.w * WORLD_SCALE * 192; // tileSize from state
+    const footH = b.def.footprint.h * WORLD_SCALE * 192;
+    const maxFoot = Math.max(footW, footH);
+
+    // Selection ring
+    const ringGeo = new THREE.RingGeometry(maxFoot * 0.45, maxFoot * 0.5, 24);
+    ringGeo.rotateX(-Math.PI / 2);
+    const ringMat = new THREE.MeshBasicMaterial({ color: 0x44ff44, transparent: true, opacity: 0.5, side: THREE.DoubleSide, depthWrite: false });
+    const selectionRing = new THREE.Mesh(ringGeo, ringMat);
+    selectionRing.position.y = 0.02;
+    selectionRing.visible = false;
+    group.add(selectionRing);
+
+    // Health bars
+    const barW = maxFoot * 0.8;
+    const barH = maxFoot * 0.06;
+    const bgGeo = new THREE.PlaneGeometry(barW, barH);
+    const bgMat = new THREE.MeshBasicMaterial({ color: 0x222222, transparent: true, opacity: 0.7, depthWrite: false });
+    const healthBg = new THREE.Mesh(bgGeo, bgMat);
+    healthBg.position.set(0, maxFoot * 1.5, 0);
+    healthBg.visible = false;
+    group.add(healthBg);
+
+    const barGeo = new THREE.PlaneGeometry(barW, barH);
+    const barMat = new THREE.MeshBasicMaterial({ color: 0x44ff44, transparent: true, opacity: 0.9, depthWrite: false });
+    const healthBar = new THREE.Mesh(barGeo, barMat);
+    healthBar.position.set(0, maxFoot * 1.5, 0.001);
+    healthBar.visible = false;
+    group.add(healthBar);
+
+    this.scene.add(group);
+    return { group, healthBar, healthBg, selectionRing };
+  }
+
+  private fitBuildingModel(model: THREE.Group, b: RTSBuilding): void {
+    const box = new THREE.Box3().setFromObject(model);
+    const size = box.getSize(new THREE.Vector3());
+    const maxDim = Math.max(size.x, size.y, size.z);
+    const targetSize = Math.max(b.def.footprint.w, b.def.footprint.h) * WORLD_SCALE * 192 * 0.8;
+    if (maxDim > 0.001) model.scale.setScalar(targetSize / maxDim);
+    // Team tint
+    this.tintModel(model, b.team);
+    // Enable shadows
+    model.traverse((c) => {
+      if ((c as THREE.Mesh).isMesh) {
+        (c as THREE.Mesh).castShadow = true;
+        (c as THREE.Mesh).receiveShadow = true;
+      }
+    });
+  }
+
+  private buildBuildingPlaceholder(b: RTSBuilding): THREE.Group {
+    const g = new THREE.Group();
+    const footW = b.def.footprint.w * WORLD_SCALE * 192;
+    const footH = b.def.footprint.h * WORLD_SCALE * 192;
+    const height = Math.max(footW, footH) * 0.6;
+    const ROLE_COLORS: Record<string, number> = {
+      production: 0x4488ff, economy: 0x44ee88, defense: 0xff4488,
+      research: 0xaa44ff, special: 0xffcc44, decoration: 0x888888,
+    };
+    const color = ROLE_COLORS[b.def.role] ?? 0x888888;
+    const geo = new THREE.BoxGeometry(footW * 0.8, height, footH * 0.8);
+    const mat = new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.15, metalness: 0.4, roughness: 0.5 });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.y = height / 2;
+    mesh.castShadow = true;
+    g.add(mesh);
+    return g;
+  }
+
+  // ── Mineral Deposit Sync ───────────────────────────────────────────
+  private syncDeposits(state: GroundRTSState): void {
+    for (const dep of state.mineralDeposits) {
+      if (dep.amount <= 0) {
+        const mesh = this.depositMeshes.get(dep.id);
+        if (mesh) {
+          this.scene.remove(mesh.group);
+          this.depositMeshes.delete(dep.id);
+        }
+        continue;
+      }
+
+      if (!this.depositMeshes.has(dep.id)) {
+        const g = new THREE.Group();
+        const TYPE_COLORS = { standard: 0x88aacc, rare: 0xffcc44, crystal: 0x44ddff };
+        const color = TYPE_COLORS[dep.type];
+        // Crystal cluster
+        for (let i = 0; i < 4; i++) {
+          const h = 0.3 + Math.random() * 0.5;
+          const r = 0.08 + Math.random() * 0.12;
+          const geo = new THREE.ConeGeometry(r, h, 5);
+          const mat = new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.3, transparent: true, opacity: 0.8, roughness: 0.2, metalness: 0.6 });
+          const crystal = new THREE.Mesh(geo, mat);
+          crystal.position.set((Math.random() - 0.5) * 0.4, h / 2, (Math.random() - 0.5) * 0.4);
+          crystal.rotation.z = (Math.random() - 0.5) * 0.4;
+          crystal.castShadow = true;
+          g.add(crystal);
+        }
+        g.position.set(dep.x * WORLD_SCALE, 0, dep.y * WORLD_SCALE);
+        this.scene.add(g);
+        this.depositMeshes.set(dep.id, { group: g });
+      }
+    }
+  }
+
+  // ── Render Loop ─────────────────────────────────────────────────────
   render(state: GroundRTSState, dt: number): void {
     if (this.disposed) return;
 
     this.syncUnits(state);
+    this.syncBuildings(state);
+    this.syncDeposits(state);
     this.syncProjectiles(state);
     this.updateCamera();
 
     // Billboard health bars toward camera
     for (const [, mesh] of this.unitMeshes) {
+      if (mesh.healthBar.visible) {
+        mesh.healthBar.lookAt(this.camera.position);
+        mesh.healthBg.lookAt(this.camera.position);
+      }
+    }
+    for (const [, mesh] of this.buildingMeshes) {
       if (mesh.healthBar.visible) {
         mesh.healthBar.lookAt(this.camera.position);
         mesh.healthBg.lookAt(this.camera.position);

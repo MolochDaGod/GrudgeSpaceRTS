@@ -2521,7 +2521,7 @@ export class GroundRenderer {
 
   // ── Postprocessing setup ──────────────────────────────────────
   private setupPostProcessing(): void {
-    this.composer?.dispose();
+    this.composer = new EffectComposer(this.renderer, {
       frameBufferType: THREE.HalfFloatType,
     });
     this.composer.addPass(new RenderPass(this.scene, this.camera));

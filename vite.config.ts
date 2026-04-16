@@ -20,6 +20,7 @@ export default defineConfig({
       input: {
         main: resolve(__dirname, 'index.html'),
         admin: resolve(__dirname, 'admin.html'),
+        info: resolve(__dirname, 'info.html'),
       },
     },
     outDir: 'dist',

@@ -565,12 +565,312 @@ export const EXPLOSION_PATHS = {
 // 0 = walkable full speed, 1 = slow (stones/rubble), 2 = impassable (water/walls)
 export type TileWalkability = 0 | 1 | 2;
 
+// ── Building System ──────────────────────────────────────────────────
+
+export type BuildingRole = 'production' | 'economy' | 'defense' | 'research' | 'special' | 'decoration';
+export type BuildingState = 'constructing' | 'active' | 'unpowered' | 'damaged' | 'destroyed';
+
+export interface BuildingDef {
+  key: string;
+  name: string;
+  role: BuildingRole;
+  description: string;
+  glbPath: string;
+  /** Grid footprint in tiles (e.g. 2×2, 3×3) */
+  footprint: { w: number; h: number };
+  /** Stats */
+  maxHp: number;
+  /** Power consumed (negative = generates power) */
+  powerCost: number;
+  /** Build cost */
+  creditCost: number;
+  mineralCost: number;
+  /** Build time in seconds */
+  buildTime: number;
+  /** Required building keys (tech tree prerequisites) */
+  requires: string[];
+  /** What this building unlocks (shown in UI) */
+  unlocks?: string[];
+  /** Supply cap increase (supply_depot) */
+  supplyCap?: number;
+  /** Mineral storage increase (silo) */
+  storageCap?: number;
+  /** Credits per second (refinery) */
+  incomeRate?: number;
+  /** Attack stats (turrets) */
+  attackDamage?: number;
+  attackRange?: number;
+  attackCooldown?: number;
+}
+
+export interface RTSBuilding {
+  id: number;
+  def: BuildingDef;
+  /** World position (top-left of footprint) */
+  x: number;
+  y: number;
+  /** Grid cell (col, row) of top-left */
+  gridCol: number;
+  gridRow: number;
+  hp: number;
+  maxHp: number;
+  state: BuildingState;
+  /** 0..1 construction progress */
+  buildProgress: number;
+  /** Owning team */
+  team: Team;
+  /** For turrets: current attack cooldown */
+  attackTimer: number;
+  /** For turrets: current target */
+  attackTargetId: number | null;
+  /** For production buildings: queue of unit classes */
+  productionQueue: string[];
+  /** Current production progress (0..1) */
+  productionProgress: number;
+  /** Rally point for produced units */
+  rallyPoint: Vec2 | null;
+  /** Selected state for UI */
+  selected: boolean;
+}
+
+// ── Mineral Deposits ─────────────────────────────────────────────────
+export interface MineralDeposit {
+  id: number;
+  x: number;
+  y: number;
+  gridCol: number;
+  gridRow: number;
+  /** Remaining minerals */
+  amount: number;
+  maxAmount: number;
+  /** Visual type based on planet */
+  type: 'standard' | 'rare' | 'crystal';
+}
+
+// ── Planet Resources ─────────────────────────────────────────────────
+export interface PlanetResources {
+  credits: number;
+  minerals: number;
+  maxMinerals: number; // increased by silos
+  power: number; // current power balance (generated - consumed)
+  powerGenerated: number;
+  powerConsumed: number;
+  supplyCurrent: number; // current unit count
+  supplyCap: number; // max unit count
+  /** Credits per second from refineries */
+  incomeRate: number;
+}
+
+// ── Building Definitions (from Dune catalog) ─────────────────────────
+const B = '/assets/groundrts/dune-buildings';
+
+export const BUILDING_DEFS: Record<string, BuildingDef> = {
+  // ── Command Center (free, auto-placed) ────────────────────────
+  command_center: {
+    key: 'command_center', name: 'Command Center', role: 'special',
+    description: 'HQ building. Required for all structures. Auto-placed on planet deploy.',
+    glbPath: `${B}/command_center.glb`, footprint: { w: 3, h: 3 },
+    maxHp: 2000, powerCost: 0, creditCost: 0, mineralCost: 0, buildTime: 0,
+    requires: [], unlocks: ['wind_trap', 'barracks', 'gun_turret'],
+    supplyCap: 10,
+  },
+  // ── Economy ───────────────────────────────────────────────────
+  wind_trap: {
+    key: 'wind_trap', name: 'Wind Trap', role: 'economy',
+    description: 'Generates 10 power. Required for all other buildings.',
+    glbPath: `${B}/wind_trap.glb`, footprint: { w: 2, h: 2 },
+    maxHp: 400, powerCost: -10, creditCost: 150, mineralCost: 50, buildTime: 8,
+    requires: ['command_center'], unlocks: ['refinery', 'light_factory', 'research_lab'],
+  },
+  power_plant: {
+    key: 'power_plant', name: 'Fusion Reactor', role: 'economy',
+    description: 'Generates 30 power. Advanced power generation.',
+    glbPath: `${B}/power_plant.glb`, footprint: { w: 2, h: 2 },
+    maxHp: 600, powerCost: -30, creditCost: 400, mineralCost: 200, buildTime: 15,
+    requires: ['research_lab'],
+  },
+  refinery: {
+    key: 'refinery', name: 'Spice Refinery', role: 'economy',
+    description: 'Converts minerals to credits. +3 credits/sec.',
+    glbPath: `${B}/refinery.glb`, footprint: { w: 3, h: 2 },
+    maxHp: 800, powerCost: 5, creditCost: 300, mineralCost: 100, buildTime: 12,
+    requires: ['wind_trap'], unlocks: ['harvester_bay', 'silo'],
+    incomeRate: 3,
+  },
+  harvester_bay: {
+    key: 'harvester_bay', name: 'Harvester Depot', role: 'economy',
+    description: 'Deploys harvesters to mineral deposits.',
+    glbPath: `${B}/harvester_bay.glb`, footprint: { w: 2, h: 2 },
+    maxHp: 500, powerCost: 3, creditCost: 200, mineralCost: 100, buildTime: 10,
+    requires: ['refinery'],
+  },
+  silo: {
+    key: 'silo', name: 'Resource Silo', role: 'economy',
+    description: 'Increases mineral storage by 500.',
+    glbPath: `${B}/silo.glb`, footprint: { w: 1, h: 1 },
+    maxHp: 300, powerCost: 1, creditCost: 100, mineralCost: 50, buildTime: 6,
+    requires: ['refinery'], storageCap: 500,
+  },
+  supply_depot: {
+    key: 'supply_depot', name: 'Supply Depot', role: 'economy',
+    description: 'Increases unit supply cap by 10.',
+    glbPath: `${B}/supply_depot.glb`, footprint: { w: 2, h: 1 },
+    maxHp: 400, powerCost: 2, creditCost: 150, mineralCost: 75, buildTime: 8,
+    requires: ['command_center'], supplyCap: 10,
+  },
+  // ── Production ────────────────────────────────────────────────
+  barracks: {
+    key: 'barracks', name: 'Barracks', role: 'production',
+    description: 'Trains infantry and light ground units.',
+    glbPath: `${B}/barracks.glb`, footprint: { w: 2, h: 2 },
+    maxHp: 600, powerCost: 4, creditCost: 250, mineralCost: 100, buildTime: 10,
+    requires: ['command_center'], unlocks: ['light_factory'],
+  },
+  light_factory: {
+    key: 'light_factory', name: 'Light Vehicle Factory', role: 'production',
+    description: 'Produces light vehicles and scouts.',
+    glbPath: `${B}/light_factory.glb`, footprint: { w: 3, h: 2 },
+    maxHp: 800, powerCost: 6, creditCost: 400, mineralCost: 200, buildTime: 15,
+    requires: ['barracks', 'wind_trap'], unlocks: ['heavy_factory'],
+  },
+  heavy_factory: {
+    key: 'heavy_factory', name: 'Heavy Vehicle Factory', role: 'production',
+    description: 'Produces tanks, artillery, and siege units.',
+    glbPath: `${B}/heavy_factory.glb`, footprint: { w: 3, h: 3 },
+    maxHp: 1200, powerCost: 10, creditCost: 600, mineralCost: 400, buildTime: 20,
+    requires: ['light_factory'], unlocks: ['mech_bay'],
+  },
+  mech_bay: {
+    key: 'mech_bay', name: 'Mech Assembly Bay', role: 'production',
+    description: 'Assembles heavy mech walkers.',
+    glbPath: `${B}/mech_bay.glb`, footprint: { w: 3, h: 3 },
+    maxHp: 1000, powerCost: 12, creditCost: 800, mineralCost: 500, buildTime: 25,
+    requires: ['heavy_factory', 'tech_center'],
+  },
+  hangar: {
+    key: 'hangar', name: 'Hangar Bay', role: 'production',
+    description: 'Produces air units.',
+    glbPath: `${B}/hangar.glb`, footprint: { w: 3, h: 2 },
+    maxHp: 700, powerCost: 8, creditCost: 500, mineralCost: 300, buildTime: 18,
+    requires: ['light_factory'],
+  },
+  starport: {
+    key: 'starport', name: 'Starport', role: 'production',
+    description: 'Calls in space reinforcements. Bridge to orbital layer.',
+    glbPath: `${B}/starport.glb`, footprint: { w: 3, h: 3 },
+    maxHp: 1500, powerCost: 15, creditCost: 1000, mineralCost: 600, buildTime: 30,
+    requires: ['heavy_factory', 'tech_center'],
+  },
+  // ── Defense ──────────────────────────────────────────────────
+  gun_turret: {
+    key: 'gun_turret', name: 'Gun Turret', role: 'defense',
+    description: 'Anti-ground auto-turret. Fast fire rate.',
+    glbPath: `${B}/gun_turret.glb`, footprint: { w: 1, h: 1 },
+    maxHp: 500, powerCost: 3, creditCost: 200, mineralCost: 100, buildTime: 8,
+    requires: ['command_center'], unlocks: ['rocket_turret'],
+    attackDamage: 15, attackRange: 250, attackCooldown: 0.8,
+  },
+  rocket_turret: {
+    key: 'rocket_turret', name: 'Rocket Turret', role: 'defense',
+    description: 'Anti-air missile launcher. Long range.',
+    glbPath: `${B}/rocket_turret.glb`, footprint: { w: 1, h: 1 },
+    maxHp: 400, powerCost: 4, creditCost: 300, mineralCost: 150, buildTime: 10,
+    requires: ['gun_turret'], unlocks: ['laser_turret'],
+    attackDamage: 25, attackRange: 350, attackCooldown: 1.5,
+  },
+  laser_turret: {
+    key: 'laser_turret', name: 'Laser Turret', role: 'defense',
+    description: 'High-energy beam. Effective vs armor.',
+    glbPath: `${B}/laser_turret.glb`, footprint: { w: 1, h: 1 },
+    maxHp: 600, powerCost: 8, creditCost: 500, mineralCost: 300, buildTime: 14,
+    requires: ['rocket_turret', 'research_lab'],
+    attackDamage: 40, attackRange: 300, attackCooldown: 2.0,
+  },
+  wall_straight: {
+    key: 'wall_straight', name: 'Wall Segment', role: 'defense',
+    description: 'Basic fortification wall. Blocks movement.',
+    glbPath: `${B}/wall_straight.glb`, footprint: { w: 1, h: 1 },
+    maxHp: 800, powerCost: 0, creditCost: 50, mineralCost: 30, buildTime: 3,
+    requires: ['command_center'],
+  },
+  shield_pylon: {
+    key: 'shield_pylon', name: 'Shield Pylon', role: 'defense',
+    description: 'Projects energy shield over nearby buildings.',
+    glbPath: `${B}/shield_pylon.glb`, footprint: { w: 1, h: 1 },
+    maxHp: 300, powerCost: 10, creditCost: 600, mineralCost: 400, buildTime: 16,
+    requires: ['tech_center'],
+  },
+  // ── Research ─────────────────────────────────────────────────
+  research_lab: {
+    key: 'research_lab', name: 'Research Lab', role: 'research',
+    description: 'Unlocks tier 2 units and upgrades.',
+    glbPath: `${B}/research_lab.glb`, footprint: { w: 2, h: 2 },
+    maxHp: 500, powerCost: 6, creditCost: 350, mineralCost: 200, buildTime: 15,
+    requires: ['wind_trap'], unlocks: ['tech_center', 'weapons_lab', 'armor_forge'],
+  },
+  tech_center: {
+    key: 'tech_center', name: 'Technology Center', role: 'research',
+    description: 'Unlocks tier 3 technologies.',
+    glbPath: `${B}/tech_center.glb`, footprint: { w: 2, h: 2 },
+    maxHp: 600, powerCost: 10, creditCost: 600, mineralCost: 400, buildTime: 20,
+    requires: ['research_lab'], unlocks: ['mech_bay', 'starport', 'palace'],
+  },
+  weapons_lab: {
+    key: 'weapons_lab', name: 'Weapons Lab', role: 'research',
+    description: 'Upgrades unit damage (+15% per level).',
+    glbPath: `${B}/weapons_lab.glb`, footprint: { w: 2, h: 2 },
+    maxHp: 500, powerCost: 6, creditCost: 400, mineralCost: 250, buildTime: 15,
+    requires: ['research_lab'],
+  },
+  armor_forge: {
+    key: 'armor_forge', name: 'Armor Forge', role: 'research',
+    description: 'Upgrades unit HP and armor (+15% per level).',
+    glbPath: `${B}/armor_forge.glb`, footprint: { w: 2, h: 2 },
+    maxHp: 500, powerCost: 6, creditCost: 400, mineralCost: 250, buildTime: 15,
+    requires: ['research_lab'],
+  },
+  // ── Special ──────────────────────────────────────────────────
+  palace: {
+    key: 'palace', name: 'Palace', role: 'special',
+    description: 'Faction superweapon. One per player.',
+    glbPath: `${B}/palace.glb`, footprint: { w: 3, h: 3 },
+    maxHp: 2500, powerCost: 20, creditCost: 1500, mineralCost: 1000, buildTime: 40,
+    requires: ['tech_center'],
+  },
+  repair_pad: {
+    key: 'repair_pad', name: 'Repair Pad', role: 'special',
+    description: 'Heals nearby units. +5 HP/sec in radius.',
+    glbPath: `${B}/repair_pad.glb`, footprint: { w: 2, h: 2 },
+    maxHp: 400, powerCost: 5, creditCost: 300, mineralCost: 150, buildTime: 10,
+    requires: ['light_factory'],
+  },
+};
+
+/** Get all buildable building keys (excluding decoration). */
+export function getBuildableBuildings(): string[] {
+  return Object.keys(BUILDING_DEFS).filter(k => BUILDING_DEFS[k].role !== 'decoration');
+}
+
+/** Check if a building's tech requirements are met. */
+export function canBuild(key: string, ownedBuildings: string[]): boolean {
+  const def = BUILDING_DEFS[key];
+  if (!def) return false;
+  return def.requires.every(req => ownedBuildings.includes(req));
+}
+
 // ── Game State ───────────────────────────────────────────────────────
 export interface GroundRTSState {
   units: Map<number, RTSUnit>;
   projectiles: Map<number, Projectile>;
   floatTexts: FloatText[];
   mapObjects: MapObject[];
+  // ── Buildings ────────────────────────────────────────────────
+  buildings: Map<number, RTSBuilding>;
+  /** Grid tracking which building occupies each cell (buildingId or 0) */
+  buildingGrid: number[][];
+  // ── Resources ───────────────────────────────────────────────
+  resources: PlanetResources;
+  mineralDeposits: MineralDeposit[];
   // Tile grid (indices into TILE_PATHS[type])
   tileGrid: number[][];
   tileType: TileType;

@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GRUDA ARMADA — Command. Conquer. Dominate.</title>
+  <meta name="description" content="Gruda Armada: A real-time strategy game set in space. Build fleets, capture planets, train commanders. 4 game modes: Quick Match, Campaign, Ground RTS, Ground Combat. By Grudge Studio.">
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+  <meta name="theme-color" content="#020408">
+  <meta property="og:title" content="GRUDA ARMADA — Space RTS">
+  <meta property="og:description" content="Build fleets, capture planets, train commanders. 4 game modes across space and ground combat.">
+  <meta property="og:type" content="website">
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@300;400;600;700&display=swap');
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      background: #020408;
+      color: #cde;
+      font-family: 'Rajdhani', 'Segoe UI', sans-serif;
+      line-height: 1.6;
+      overflow-x: hidden;
+    }
+    a { color: #4488ff; text-decoration: none; }
+    a:hover { color: #66bbff; }
+
+    /* ── Hero Section ─────────────────────────────────────── */
+    .hero {
+      position: relative;
+      height: 100vh;
+      min-height: 600px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      overflow: hidden;
+    }
+    .hero-video {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      object-fit: cover;
+      opacity: 0.4;
+      z-index: 0;
+    }
+    .hero-overlay {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: linear-gradient(180deg, rgba(2,4,8,0.3) 0%, rgba(2,4,8,0.8) 70%, #020408 100%);
+      z-index: 1;
+    }
+    .hero-content {
+      position: relative;
+      z-index: 2;
+      max-width: 800px;
+      padding: 0 24px;
+    }
+    .hero-logo {
+      font-family: 'Orbitron', monospace;
+      font-size: clamp(2.5rem, 8vw, 5rem);
+      font-weight: 900;
+      letter-spacing: 8px;
+      background: linear-gradient(135deg, #4488ff 0%, #44ddff 50%, #8844ff 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      text-shadow: none;
+      margin-bottom: 8px;
+    }
+    .hero-sub {
+      font-family: 'Orbitron', monospace;
+      font-size: clamp(0.8rem, 2vw, 1.1rem);
+      letter-spacing: 6px;
+      color: #68a;
+      margin-bottom: 32px;
+    }
+    .hero-tagline {
+      font-size: clamp(1rem, 3vw, 1.5rem);
+      color: #8ac;
+      font-weight: 300;
+      margin-bottom: 40px;
+    }
+    .hero-buttons { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 14px 32px;
+      border-radius: 6px;
+      font-family: 'Orbitron', monospace;
+      font-size: 0.85rem;
+      font-weight: 700;
+      letter-spacing: 2px;
+      cursor: pointer;
+      transition: all 0.2s;
+      border: none;
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, #4488ff, #2266dd);
+      color: #fff;
+      box-shadow: 0 0 30px rgba(68,136,255,0.3);
+    }
+    .btn-primary:hover { box-shadow: 0 0 50px rgba(68,136,255,0.5); transform: translateY(-2px); }
+    .btn-outline {
+      background: transparent;
+      color: #4488ff;
+      border: 1px solid #4488ff44;
+    }
+    .btn-outline:hover { background: rgba(68,136,255,0.1); border-color: #4488ff88; }
+    .scroll-hint {
+      position: absolute;
+      bottom: 30px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 2;
+      animation: bounce 2s infinite;
+      color: #4488ff44;
+      font-size: 1.5rem;
+    }
+    @keyframes bounce { 0%,100% { transform: translateX(-50%) translateY(0); } 50% { transform: translateX(-50%) translateY(10px); } }
+
+    /* ── Section shared ───────────────────────────────────── */
+    section { padding: 80px 24px; max-width: 1200px; margin: 0 auto; }
+    .section-title {
+      font-family: 'Orbitron', monospace;
+      font-size: clamp(1.3rem, 4vw, 2rem);
+      font-weight: 900;
+      letter-spacing: 4px;
+      color: #4488ff;
+      text-align: center;
+      margin-bottom: 12px;
+    }
+    .section-sub {
+      text-align: center;
+      color: #68a;
+      font-size: 0.95rem;
+      margin-bottom: 48px;
+      letter-spacing: 1px;
+    }
+
+    /* ── Game Modes ────────────────────────────────────────── */
+    .modes-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 24px;
+    }
+    .mode-card {
+      background: rgba(4,10,22,0.95);
+      border: 1px solid #1a3050;
+      border-radius: 12px;
+      padding: 28px 24px;
+      transition: all 0.3s;
+      position: relative;
+      overflow: hidden;
+    }
+    .mode-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 3px;
+      background: linear-gradient(90deg, transparent, var(--accent, #4488ff), transparent);
+    }
+    .mode-card:hover { border-color: var(--accent, #4488ff)44; transform: translateY(-4px); box-shadow: 0 8px 40px rgba(0,0,0,0.4); }
+    .mode-icon { font-size: 2.5rem; margin-bottom: 12px; }
+    .mode-title {
+      font-family: 'Orbitron', monospace;
+      font-size: 1.1rem;
+      font-weight: 700;
+      letter-spacing: 2px;
+      color: var(--accent, #4488ff);
+      margin-bottom: 8px;
+    }
+    .mode-desc { color: #8ac; font-size: 0.9rem; line-height: 1.6; margin-bottom: 16px; }
+    .mode-features { list-style: none; }
+    .mode-features li {
+      font-size: 0.8rem;
+      color: #68a;
+      padding: 3px 0;
+      padding-left: 16px;
+      position: relative;
+    }
+    .mode-features li::before {
+      content: '▸';
+      position: absolute;
+      left: 0;
+      color: var(--accent, #4488ff);
+    }
+    .mode-tag {
+      display: inline-block;
+      padding: 3px 10px;
+      border-radius: 4px;
+      font-size: 0.65rem;
+      font-weight: 700;
+      letter-spacing: 1px;
+      margin-top: 12px;
+    }
+
+    /* ── Commander cNFTs ───────────────────────────────────── */
+    .cnft-section { text-align: center; }
+    .cnft-grid {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 16px;
+      max-width: 700px;
+      margin: 0 auto 32px;
+    }
+    @media (max-width: 600px) { .cnft-grid { grid-template-columns: repeat(3, 1fr); } }
+    .faction-card {
+      background: rgba(4,10,22,0.9);
+      border: 1px solid #1a305044;
+      border-radius: 10px;
+      padding: 16px 8px;
+      text-align: center;
+      transition: all 0.2s;
+    }
+    .faction-card:hover { border-color: var(--fc, #4488ff)66; }
+    .faction-icon { font-size: 2rem; margin-bottom: 6px; }
+    .faction-name { font-family: 'Orbitron', monospace; font-size: 0.6rem; letter-spacing: 2px; color: var(--fc, #cde); font-weight: 700; }
+    .cnft-desc { color: #68a; font-size: 0.9rem; max-width: 600px; margin: 0 auto; line-height: 1.7; }
+
+    /* ── Features Grid ────────────────────────────────────── */
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 20px;
+    }
+    .feature-item {
+      text-align: center;
+      padding: 20px 12px;
+      background: rgba(4,10,22,0.6);
+      border: 1px solid #0a1828;
+      border-radius: 8px;
+    }
+    .feature-num {
+      font-family: 'Orbitron', monospace;
+      font-size: 1.8rem;
+      font-weight: 900;
+      color: #4488ff;
+    }
+    .feature-label { font-size: 0.8rem; color: #68a; letter-spacing: 1px; margin-top: 4px; }
+
+    /* ── Footer ────────────────────────────────────────────── */
+    footer {
+      padding: 40px 24px;
+      text-align: center;
+      border-top: 1px solid #0a1828;
+      margin-top: 40px;
+    }
+    .footer-brand {
+      font-family: 'Orbitron', monospace;
+      font-size: 0.8rem;
+      letter-spacing: 3px;
+      color: #4488ff44;
+      margin-bottom: 8px;
+    }
+    .footer-links { display: flex; gap: 24px; justify-content: center; flex-wrap: wrap; margin-bottom: 12px; }
+    .footer-links a { font-size: 0.8rem; color: #445; letter-spacing: 1px; }
+    .footer-copy { font-size: 0.7rem; color: #334; }
+
+    /* ── Animations ────────────────────────────────────────── */
+    .fade-in {
+      opacity: 0;
+      transform: translateY(30px);
+      transition: opacity 0.6s, transform 0.6s;
+    }
+    .fade-in.visible { opacity: 1; transform: translateY(0); }
+  </style>
+</head>
+<body>
+
+  <!-- ═══ HERO ═══════════════════════════════════════════ -->
+  <div class="hero">
+    <video class="hero-video" autoplay muted loop playsinline>
+      <source src="/assets/space/videos/intro.mp4" type="video/mp4">
+    </video>
+    <div class="hero-overlay"></div>
+    <div class="hero-content">
+      <div class="hero-logo">GRUDA ARMADA</div>
+      <div class="hero-sub">SOLAR SYSTEM SCRIM RTS</div>
+      <div class="hero-tagline">Command fleets. Capture planets. Build empires. Dominate the sector.</div>
+      <div class="hero-buttons">
+        <a href="/" class="btn btn-primary">⚔ PLAY NOW</a>
+        <a href="#modes" class="btn btn-outline">GAME MODES ▾</a>
+      </div>
+    </div>
+    <div class="scroll-hint">▼</div>
+  </div>
+
+  <!-- ═══ GAME MODES ═════════════════════════════════════ -->
+  <section id="modes">
+    <div class="section-title fade-in">GAME MODES</div>
+    <div class="section-sub fade-in">Four ways to play. One universe.</div>
+
+    <div class="modes-grid">
+      <!-- Quick Match -->
+      <div class="mode-card fade-in" style="--accent: #44ddff;">
+        <div class="mode-icon">⚡</div>
+        <div class="mode-title">QUICK MATCH</div>
+        <div class="mode-desc">Fast PvE and PvP RTS rounds. Choose your commander, set AI difficulty, and battle for space dominance in self-contained matches.</div>
+        <ul class="mode-features">
+          <li>PvE vs AI (D1 Casual → D5 Nightmare)</li>
+          <li>PvP matchmaking (coming soon)</li>
+          <li>5 commander factions with unique abilities</li>
+          <li>Elimination or Domination win conditions</li>
+          <li>15-30 minute rounds, nothing saves</li>
+        </ul>
+        <span class="mode-tag" style="background: #44ddff22; color: #44ddff; border: 1px solid #44ddff33;">AVAILABLE NOW</span>
+      </div>
+
+      <!-- Campaign -->
+      <div class="mode-card fade-in" style="--accent: #ffcc44;">
+        <div class="mode-icon">🌌</div>
+        <div class="mode-title">CAMPAIGN</div>
+        <div class="mode-desc">A never-ending persistent universe. Your commander, your star system, your empire. Conquer every planet to join the galactic PvP arena.</div>
+        <ul class="mode-features">
+          <li>Randomly generated star system per player</li>
+          <li>cNFT commanders with unique stats on Solana</li>
+          <li>Permanent progression — planets, bases, fleets persist</li>
+          <li>Boss planets, events, missions, guilds</li>
+          <li>Open galaxy PvP after system conquest</li>
+          <li>Player trade marketplace for resources & blueprints</li>
+          <li>Commander permadeath on flagship loss</li>
+        </ul>
+        <span class="mode-tag" style="background: #ffcc4422; color: #ffcc44; border: 1px solid #ffcc4433;">IN DEVELOPMENT</span>
+      </div>
+
+      <!-- Ground RTS -->
+      <div class="mode-card fade-in" style="--accent: #44ee88;">
+        <div class="mode-icon">🏗️</div>
+        <div class="mode-title">GROUND RTS</div>
+        <div class="mode-desc">Deploy to captured planets. Build bases, harvest resources, train armies, and defend against raids. Your economy fuels your space fleet.</div>
+        <ul class="mode-features">
+          <li>Command Center → tech tree → full base building</li>
+          <li>Advance Wars-style voxel units (infantry → carriers)</li>
+          <li>Resource economy: Credits, Minerals, Power</li>
+          <li>Turret defenses, walls, shield pylons</li>
+          <li>Planet income flows back to space fleet</li>
+          <li>10 unique planet biomes with distinct terrain</li>
+        </ul>
+        <span class="mode-tag" style="background: #44ee8822; color: #44ee88; border: 1px solid #44ee8833;">IN DEVELOPMENT</span>
+      </div>
+
+      <!-- Ground Combat -->
+      <div class="mode-card fade-in" style="--accent: #ff6644;">
+        <div class="mode-icon">🎯</div>
+        <div class="mode-title">GROUND COMBAT</div>
+        <div class="mode-desc">Drop into any ground battle in first or third person. Souls-like melee, ranged gunplay, and magic — with ally AI at your side.</div>
+        <ul class="mode-features">
+          <li>First-person and third-person camera modes</li>
+          <li>6 character classes: Warrior, Berserker, Ranger, Mage, Rogue, Gunslinger</li>
+          <li>Combo system, parry, dodge, heavy attacks</li>
+          <li>Ally AI companions fight alongside you</li>
+          <li>Defend or attack any active ground battle</li>
+          <li>PvP ground combat on contested planets</li>
+        </ul>
+        <span class="mode-tag" style="background: #ff664422; color: #ff6644; border: 1px solid #ff664433;">IN DEVELOPMENT</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ COMMANDER cNFTs ════════════════════════════════ -->
+  <section class="cnft-section" id="commanders">
+    <div class="section-title fade-in">COMMANDER cNFTs</div>
+    <div class="section-sub fade-in">Mint your unique commander on Solana. Five factions. Infinite possibilities.</div>
+
+    <div class="cnft-grid fade-in">
+      <div class="faction-card" style="--fc: #ff6622;">
+        <div class="faction-icon">🔥</div>
+        <div class="faction-name">FORGE</div>
+      </div>
+      <div class="faction-card" style="--fc: #4488ff;">
+        <div class="faction-icon">🌊</div>
+        <div class="faction-name">TIDE</div>
+      </div>
+      <div class="faction-card" style="--fc: #aa44ff;">
+        <div class="faction-icon">💎</div>
+        <div class="faction-name">PRISM</div>
+      </div>
+      <div class="faction-card" style="--fc: #44ddff;">
+        <div class="faction-icon">🌀</div>
+        <div class="faction-name">VORTEX</div>
+      </div>
+      <div class="faction-card" style="--fc: #222244;">
+        <div class="faction-icon">🕳️</div>
+        <div class="faction-name">VOID</div>
+      </div>
+    </div>
+
+    <div class="cnft-desc fade-in">
+      Each commander is randomly generated with unique stats, abilities, and visual traits.
+      Stored as a compressed NFT on Solana, your commander leads your fleet across the galaxy.
+      Lose your flagship — lose your commander. Trade, collect, and build legendary lineages.
+    </div>
+  </section>
+
+  <!-- ═══ FEATURES ═══════════════════════════════════════ -->
+  <section id="features">
+    <div class="section-title fade-in">BY THE NUMBERS</div>
+    <div class="section-sub fade-in">A universe of content.</div>
+
+    <div class="features-grid fade-in">
+      <div class="feature-item">
+        <div class="feature-num">50+</div>
+        <div class="feature-label">BUILDABLE SHIPS</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-num">10</div>
+        <div class="feature-label">PLANET BIOMES</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-num">100</div>
+        <div class="feature-label">GROUND BUILDINGS</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-num">6</div>
+        <div class="feature-label">CHARACTER CLASSES</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-num">5</div>
+        <div class="feature-label">COMMANDER FACTIONS</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-num">4</div>
+        <div class="feature-label">GAME MODES</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-num">20+</div>
+        <div class="feature-label">UNIT TYPES</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-num">∞</div>
+        <div class="feature-label">STAR SYSTEMS</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ ABOUT ══════════════════════════════════════════ -->
+  <section id="about" style="text-align: center;">
+    <div class="section-title fade-in">GRUDGE STUDIO</div>
+    <div class="section-sub fade-in">Created by Racalvin The Pirate King</div>
+    <div class="fade-in" style="color: #68a; max-width: 600px; margin: 0 auto; font-size: 0.9rem; line-height: 1.8;">
+      Gruda Armada is part of the Grudge Studio ecosystem — connecting
+      <a href="https://grudgewarlords.com" target="_blank">Grudge Warlords</a> (fantasy RPG),
+      <a href="https://grudge-space-rts.vercel.app" target="_blank">Gruda Armada</a> (sci-fi RTS),
+      and the <a href="https://grudge-studio.com" target="_blank">Grudge Backend</a>
+      through shared accounts, assets, and cross-game progression.
+    </div>
+  </section>
+
+  <!-- ═══ FOOTER ═════════════════════════════════════════ -->
+  <footer>
+    <div class="footer-brand">GRUDGE STUDIO</div>
+    <div class="footer-links">
+      <a href="/">Play Game</a>
+      <a href="/admin.html">Admin Panel</a>
+      <a href="https://grudge-studio.com" target="_blank">Backend</a>
+      <a href="https://grudgewarlords.com" target="_blank">Warlords</a>
+      <a href="/privacy.html">Privacy</a>
+      <a href="/tos.html">Terms</a>
+    </div>
+    <div class="footer-copy">© 2024-2026 Grudge Studio. All rights reserved.</div>
+  </footer>
+
+  <!-- ═══ Scroll Fade-In Animation ═══════════════════════ -->
+  <script>
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) entry.target.classList.add('visible');
+      });
+    }, { threshold: 0.1 });
+    document.querySelectorAll('.fade-in').forEach(el => observer.observe(el));
+  </script>
+</body>
+</html>

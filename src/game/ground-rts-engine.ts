@@ -14,10 +14,16 @@ import {
   type Team,
   type UnitClass,
   type TileWalkability,
+  type RTSBuilding,
+  type BuildingDef,
+  type MineralDeposit,
+  type PlanetResources,
   PLAYER_UNITS,
   ENEMY_UNITS,
   TILE_PATHS,
   OBJECT_PATHS,
+  BUILDING_DEFS,
+  canBuild,
   getWaveConfig,
   type MapObject,
 } from './ground-rts-types';
@@ -269,13 +275,60 @@ export function createGroundRTSState(roster: UnitClass[], level = 0): GroundRTSS
     }
   }
 
+  // Initialize building grid (0 = empty)
+  const buildingGrid: number[][] = [];
+  for (let r = 0; r < ROWS; r++) {
+    buildingGrid.push(new Array(COLS).fill(0));
+  }
+
+  // Generate mineral deposits based on level
+  const mineralDeposits: MineralDeposit[] = [];
+  let depositId = 50000;
+  const depositCount = 4 + levelIdx;
+  for (let i = 0; i < depositCount; i++) {
+    for (let attempt = 0; attempt < 30; attempt++) {
+      const dc = 2 + Math.floor(Math.random() * (COLS - 4));
+      const dr = 1 + Math.floor(Math.random() * (ROWS - 4));
+      if (walkGrid[dr][dc] === 0 && buildingGrid[dr][dc] === 0) {
+        const amount = 800 + Math.floor(Math.random() * 700);
+        mineralDeposits.push({
+          id: depositId++,
+          x: dc * TILE_SIZE + TILE_SIZE / 2,
+          y: dr * TILE_SIZE + TILE_SIZE / 2,
+          gridCol: dc,
+          gridRow: dr,
+          amount,
+          maxAmount: amount,
+          type: Math.random() < 0.15 ? 'rare' : Math.random() < 0.3 ? 'crystal' : 'standard',
+        });
+        break;
+      }
+    }
+  }
+
+  const resources: PlanetResources = {
+    credits: 500,
+    minerals: 200,
+    maxMinerals: 1000,
+    power: 0,
+    powerGenerated: 0,
+    powerConsumed: 0,
+    supplyCurrent: 0,
+    supplyCap: 10, // command center gives 10
+    incomeRate: 0,
+  };
+
   const state: GroundRTSState = {
     units: new Map(),
     projectiles: new Map(),
     floatTexts: [],
     mapObjects,
+    buildings: new Map(),
+    buildingGrid,
+    resources,
+    mineralDeposits,
     tileGrid,
-    tileType: 'sand', // base type — renderer uses tileTypeGrid for per-cell type
+    tileType: 'sand',
     tileCols: COLS,
     tileRows: ROWS,
     tileSize: TILE_SIZE,
@@ -283,8 +336,8 @@ export function createGroundRTSState(roster: UnitClass[], level = 0): GroundRTSS
     mapHeight: mapH,
     walkGrid,
     wave: 0,
-    waveTimer: 3,
-    waveInterval: 12,
+    waveTimer: 8, // longer initial delay for base setup
+    waveInterval: 20, // more time between waves for building
     waveActive: false,
     enemiesAlive: 0,
     kills: 0,
@@ -297,6 +350,14 @@ export function createGroundRTSState(roster: UnitClass[], level = 0): GroundRTSS
 
   // Store tileTypeGrid on state for renderer access
   (state as any)._tileTypeGrid = tileTypeGrid;
+
+  // Auto-place Command Center near bottom-center
+  const ccDef = BUILDING_DEFS['command_center'];
+  if (ccDef) {
+    const ccCol = Math.floor(COLS / 2) - 1;
+    const ccRow = ROWS - 5;
+    placeBuilding(state, 'command_center', ccCol, ccRow, 0, true);
+  }
 
   // Spawn player units on walkable tiles at bottom
   const spacing = 60;
@@ -384,6 +445,9 @@ export function tickGroundRTS(state: GroundRTSState, dt: number): void {
     }
     state.waveActive = state.enemiesAlive > 0;
   }
+
+  // Update buildings (construction, income, turret AI)
+  tickBuildings(state, dt);
 
   // Update units
   const allUnits = [...state.units.values()];
@@ -811,5 +875,256 @@ export function commandStop(state: GroundRTSState, unitIds: number[]): void {
     unit.attackTargetId = null;
     unit.attackMove = false;
     if (unit.state === 'walking') unit.state = 'idle';
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// BUILDING SYSTEM
+// ══════════════════════════════════════════════════════════════════════
+
+/** Check if a building can be placed at the given grid position. */
+export function canPlaceBuilding(
+  state: GroundRTSState,
+  key: string,
+  col: number,
+  row: number,
+): { ok: boolean; reason?: string } {
+  const def = BUILDING_DEFS[key];
+  if (!def) return { ok: false, reason: 'Unknown building' };
+
+  // Check grid bounds
+  if (col < 0 || row < 0 || col + def.footprint.w > state.tileCols || row + def.footprint.h > state.tileRows) {
+    return { ok: false, reason: 'Out of bounds' };
+  }
+
+  // Check all footprint cells are walkable and unoccupied
+  for (let r = row; r < row + def.footprint.h; r++) {
+    for (let c = col; c < col + def.footprint.w; c++) {
+      if (state.walkGrid[r][c] === 2) return { ok: false, reason: 'Impassable terrain' };
+      if (state.buildingGrid[r][c] !== 0) return { ok: false, reason: 'Occupied' };
+    }
+  }
+
+  // Check tech requirements
+  const ownedKeys = [...state.buildings.values()]
+    .filter(b => b.team === 0 && b.state !== 'destroyed')
+    .map(b => b.def.key);
+  if (!canBuild(key, ownedKeys)) {
+    return { ok: false, reason: 'Missing prerequisite' };
+  }
+
+  // Check resources
+  if (state.resources.credits < def.creditCost) return { ok: false, reason: 'Not enough credits' };
+  if (state.resources.minerals < def.mineralCost) return { ok: false, reason: 'Not enough minerals' };
+
+  return { ok: true };
+}
+
+/** Place a building on the grid. Deducts resources. */
+export function placeBuilding(
+  state: GroundRTSState,
+  key: string,
+  col: number,
+  row: number,
+  team: Team,
+  instant = false,
+): RTSBuilding | null {
+  const def = BUILDING_DEFS[key];
+  if (!def) return null;
+
+  // Deduct resources (skip for instant placements like Command Center)
+  if (!instant) {
+    state.resources.credits -= def.creditCost;
+    state.resources.minerals -= def.mineralCost;
+  }
+
+  const building: RTSBuilding = {
+    id: state.nextId++,
+    def,
+    x: col * state.tileSize,
+    y: row * state.tileSize,
+    gridCol: col,
+    gridRow: row,
+    hp: instant ? def.maxHp : Math.floor(def.maxHp * 0.1),
+    maxHp: def.maxHp,
+    state: instant ? 'active' : 'constructing',
+    buildProgress: instant ? 1 : 0,
+    team,
+    attackTimer: 0,
+    attackTargetId: null,
+    productionQueue: [],
+    productionProgress: 0,
+    rallyPoint: null,
+    selected: false,
+  };
+
+  // Mark grid cells as occupied
+  for (let r = row; r < row + def.footprint.h; r++) {
+    for (let c = col; c < col + def.footprint.w; c++) {
+      state.buildingGrid[r][c] = building.id;
+      // Buildings block movement
+      if (key !== 'repair_pad') state.walkGrid[r][c] = 2;
+    }
+  }
+
+  state.buildings.set(building.id, building);
+
+  // Recalculate power and supply
+  recalcResources(state);
+
+  return building;
+}
+
+/** Recalculate power, supply cap, income rate from all active buildings. */
+export function recalcResources(state: GroundRTSState): void {
+  let powerGen = 0;
+  let powerUse = 0;
+  let supplyCap = 0;
+  let income = 0;
+  let maxMinerals = 1000; // base
+
+  for (const b of state.buildings.values()) {
+    if (b.state === 'destroyed' || b.state === 'constructing') continue;
+    if (b.team !== 0) continue;
+
+    if (b.def.powerCost < 0) {
+      powerGen += Math.abs(b.def.powerCost);
+    } else {
+      powerUse += b.def.powerCost;
+    }
+    if (b.def.supplyCap) supplyCap += b.def.supplyCap;
+    if (b.def.incomeRate && b.state === 'active') income += b.def.incomeRate;
+    if (b.def.storageCap) maxMinerals += b.def.storageCap;
+  }
+
+  state.resources.powerGenerated = powerGen;
+  state.resources.powerConsumed = powerUse;
+  state.resources.power = powerGen - powerUse;
+  state.resources.supplyCap = supplyCap;
+  state.resources.incomeRate = income;
+  state.resources.maxMinerals = maxMinerals;
+
+  // Mark buildings as unpowered if total power is negative
+  if (state.resources.power < 0) {
+    for (const b of state.buildings.values()) {
+      if (b.state === 'active' && b.def.powerCost > 0 && b.team === 0) {
+        b.state = 'unpowered';
+      }
+    }
+  } else {
+    for (const b of state.buildings.values()) {
+      if (b.state === 'unpowered' && b.team === 0) {
+        b.state = 'active';
+      }
+    }
+  }
+
+  // Count supply
+  let supplyCurrent = 0;
+  for (const u of state.units.values()) {
+    if (u.team === 0 && u.state !== 'dead') supplyCurrent++;
+  }
+  state.resources.supplyCurrent = supplyCurrent;
+}
+
+/** Tick all buildings: construction, income, turret AI. */
+export function tickBuildings(state: GroundRTSState, dt: number): void {
+  const allUnits = [...state.units.values()];
+
+  for (const b of state.buildings.values()) {
+    if (b.state === 'destroyed') continue;
+
+    // Construction tick
+    if (b.state === 'constructing') {
+      const rate = b.def.buildTime > 0 ? dt / b.def.buildTime : 1;
+      b.buildProgress = Math.min(1, b.buildProgress + rate);
+      b.hp = Math.floor(b.def.maxHp * (0.1 + 0.9 * b.buildProgress));
+      if (b.buildProgress >= 1) {
+        b.state = 'active';
+        b.hp = b.def.maxHp;
+        recalcResources(state);
+        state.floatTexts.push({
+          x: b.x + state.tileSize,
+          y: b.y,
+          text: `${b.def.name} READY`,
+          color: '#44ee88',
+          age: 0,
+        });
+      }
+      continue;
+    }
+
+    // Income tick (refineries)
+    if (b.state === 'active' && b.def.incomeRate && b.team === 0) {
+      state.resources.credits += b.def.incomeRate * dt;
+    }
+
+    // Turret AI (defense buildings with attack stats)
+    if (b.state === 'active' && b.def.attackDamage && b.def.attackRange) {
+      b.attackTimer = Math.max(0, b.attackTimer - dt);
+
+      // Find target
+      if (b.attackTargetId == null || !state.units.has(b.attackTargetId)) {
+        b.attackTargetId = null;
+        const bCenter = { x: b.x + state.tileSize * b.def.footprint.w / 2, y: b.y + state.tileSize * b.def.footprint.h / 2 };
+        let closest = Infinity;
+        for (const u of allUnits) {
+          if (u.team === b.team || u.state === 'dead' || u.state === 'dying') continue;
+          const d = dist(bCenter, u);
+          if (d < b.def.attackRange && d < closest) {
+            closest = d;
+            b.attackTargetId = u.id;
+          }
+        }
+      }
+
+      // Fire
+      if (b.attackTargetId != null && b.attackTimer <= 0) {
+        const target = state.units.get(b.attackTargetId);
+        if (target && target.state !== 'dead' && target.state !== 'dying') {
+          const bCenter = { x: b.x + state.tileSize * b.def.footprint.w / 2, y: b.y + state.tileSize * b.def.footprint.h / 2 };
+          b.attackTimer = b.def.attackCooldown!;
+          state.projectiles.set(state.nextId, {
+            id: state.nextId++,
+            x: bCenter.x,
+            y: bCenter.y,
+            targetId: target.id,
+            speed: PROJECTILE_SPEED * 1.2,
+            damage: b.def.attackDamage!,
+            team: b.team,
+            color: '#ff4488',
+            radius: 4,
+          });
+        }
+      }
+    }
+  }
+}
+
+/** Deal damage to a building. Destroys if HP <= 0. */
+export function damageBuildingById(state: GroundRTSState, buildingId: number, damage: number): void {
+  const b = state.buildings.get(buildingId);
+  if (!b || b.state === 'destroyed') return;
+  b.hp -= damage;
+  if (b.hp <= 0) {
+    b.hp = 0;
+    b.state = 'destroyed';
+    // Free grid cells
+    for (let r = b.gridRow; r < b.gridRow + b.def.footprint.h; r++) {
+      for (let c = b.gridCol; c < b.gridCol + b.def.footprint.w; c++) {
+        if (r >= 0 && r < state.tileRows && c >= 0 && c < state.tileCols) {
+          state.buildingGrid[r][c] = 0;
+          state.walkGrid[r][c] = 0; // becomes walkable rubble
+        }
+      }
+    }
+    recalcResources(state);
+    state.floatTexts.push({
+      x: b.x + state.tileSize,
+      y: b.y,
+      text: `${b.def.name} DESTROYED`,
+      color: '#ff4444',
+      age: 0,
+    });
   }
 }
