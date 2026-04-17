@@ -220,11 +220,35 @@ export async function loadOBJ(objPath: string, mtlPath?: string, texturePath?: s
 
 // ── Format-agnostic loader (uses SpacePrefab-style format hint) ───
 
+/**
+ * Try to load a pre-converted GLB from the /assets-glb/ mirror.
+ * Returns the GLB model if found, or null to fall back to the original format.
+ * This enables incremental migration: as models are batch-converted to GLB,
+ * they are automatically used without touching prefab registries.
+ */
+async function tryGLBMirror(modelPath: string): Promise<LoadedModel | null> {
+  // Only attempt for non-GLB sources
+  const glbMirror = modelPath.replace('/assets/space/models/', '/assets-glb/').replace(/\.(obj|fbx)$/i, '.glb');
+  try {
+    // Probe the URL with a HEAD request to avoid loading 404 bodies
+    const resp = await fetch(resolveModelUrl(glbMirror), { method: 'HEAD' });
+    if (resp.ok) return loadGLB(glbMirror);
+  } catch {
+    // Mirror not available — fall through
+  }
+  return null;
+}
+
 export async function loadByFormat(
   modelPath: string,
   format: 'obj' | 'fbx' | 'glb' | 'gltf',
   opts?: { mtlPath?: string; texturePath?: string },
 ): Promise<LoadedModel> {
+  // If source is OBJ/FBX, check for a pre-converted GLB first
+  if (format === 'obj' || format === 'fbx') {
+    const glbResult = await tryGLBMirror(modelPath);
+    if (glbResult) return glbResult;
+  }
   switch (format) {
     case 'glb':
     case 'gltf':

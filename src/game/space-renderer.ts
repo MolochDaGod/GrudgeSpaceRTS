@@ -58,6 +58,8 @@ interface ShipMesh3D {
   shieldBar?: THREE.Mesh;
   selectionRing?: THREE.Mesh;
   shieldBubble?: THREE.Mesh;
+  shieldEffect?: THREE.Group;
+  damageSmoke?: THREE.Group;
 }
 
 // ── Energy Shield Shader (hex grid + hit ripple + team color) ─────
@@ -137,7 +139,8 @@ export class SpaceRenderer {
   private stationMeshes = new Map<number, THREE.Group>();
   private towerMeshes = new Map<number, THREE.Group>();
   private planetMeshes: THREE.Mesh[] = [];
-  private projectileMeshes = new Map<number, THREE.Mesh>();
+  private projectileMeshes = new Map<number, THREE.Group>();
+  private glbEffectMeshes = new Map<number, THREE.Group>();
   private poiMeshes = new Map<number, THREE.Sprite>();
 
   private modelCache = new Map<string, THREE.Group>();
@@ -1274,6 +1277,159 @@ export class SpaceRenderer {
     return canvasTex;
   }
 
+  /** Load an effect prefab clone with authored scale applied. */
+  private async loadEffectPrefab(effectKey: string): Promise<THREE.Group | null> {
+    const prefab = EFFECT_PREFABS[effectKey];
+    if (!prefab) return null;
+    const model = await this.loadModel(prefab);
+    model.scale.multiplyScalar(prefab.scale);
+    return model;
+  }
+
+  /** Gentle tint for authored VFX models so team/projectile colors carry through. */
+  private static tintEffectToColor(model: THREE.Object3D, hex: number, emissiveIntensity = 0.75): void {
+    const color = new THREE.Color(hex);
+    model.traverse((child) => {
+      if (!(child as THREE.Mesh).isMesh) return;
+      const mesh = child as THREE.Mesh;
+      const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+      for (const mat of materials) {
+        const anyMat = mat as any;
+        if (anyMat.color?.lerp) anyMat.color.lerp(color, 0.45);
+        if (anyMat.emissive?.lerp) {
+          anyMat.emissive.lerp(color, 0.9);
+          anyMat.emissiveIntensity = Math.max(anyMat.emissiveIntensity ?? 0, emissiveIntensity);
+        }
+        if (typeof anyMat.opacity === 'number') {
+          anyMat.transparent = true;
+          anyMat.opacity = Math.max(anyMat.opacity, 0.7);
+        }
+        anyMat.depthWrite = false;
+        anyMat.needsUpdate = true;
+      }
+    });
+  }
+
+  /** Lazy-load a reusable VFX child under a host group only once. */
+  private ensureEffectChild(host: THREE.Group, childName: string, effectKey: string, onReady?: (model: THREE.Group) => void): void {
+    if (host.getObjectByName(childName) || host.userData[`loading_${childName}`]) return;
+    host.userData[`loading_${childName}`] = true;
+    this.loadEffectPrefab(effectKey)
+      .then((model) => {
+        if (this.disposed || !model || !host.parent) return;
+        model.name = childName;
+        onReady?.(model);
+        host.add(model);
+      })
+      .catch(() => {
+        /* optional effect */
+      })
+      .finally(() => {
+        host.userData[`loading_${childName}`] = false;
+      });
+  }
+
+  // ── Transient GLB Effect Mesh Sync ──────────────────────────────
+  /** IDs of effects whose models are currently being loaded. */
+  private glbEffectLoading = new Set<number>();
+
+  /**
+   * Sync engine's `state.glbEffects[]` to transient Three.js meshes.
+   * Each GLBEffect is a short-lived model (0.2-1.5 s) spawned at a world
+   * position with rotation and fade-out.
+   */
+  private syncGLBEffects(state: SpaceGameState, dt: number): void {
+    const liveIds = new Set<number>();
+
+    for (const fx of state.glbEffects) {
+      if (fx.done) continue;
+      liveIds.add(fx.id);
+
+      const mesh = this.glbEffectMeshes.get(fx.id);
+
+      // ── Spawn ──
+      if (!mesh && !this.glbEffectLoading.has(fx.id)) {
+        this.glbEffectLoading.add(fx.id);
+        this.loadEffectPrefab(fx.type)
+          .then((model) => {
+            if (this.disposed || !model) return;
+            // The effect might have expired while loading; skip if so
+            if (fx.done) {
+              this.scene.remove(model);
+              return;
+            }
+            model.scale.multiplyScalar(fx.scale);
+            model.renderOrder = 6;
+            // Make materials additive / transparent for VFX look
+            model.traverse((child) => {
+              if (!(child as THREE.Mesh).isMesh) return;
+              const m = child as THREE.Mesh;
+              const mats = Array.isArray(m.material) ? m.material : [m.material];
+              for (const mat of mats) {
+                const a = mat as any;
+                a.transparent = true;
+                a.depthWrite = false;
+                a.blending = THREE.AdditiveBlending;
+                if (typeof a.emissiveIntensity === 'number') {
+                  a.emissiveIntensity = Math.max(a.emissiveIntensity, 0.8);
+                }
+                a.needsUpdate = true;
+              }
+            });
+            this.scene.add(model);
+            this.glbEffectMeshes.set(fx.id, model);
+          })
+          .catch(() => {
+            /* optional VFX — gracefully degrade */
+          })
+          .finally(() => {
+            this.glbEffectLoading.delete(fx.id);
+          });
+      }
+
+      // ── Update position / rotation / fade ──
+      if (mesh) {
+        mesh.position.set(fx.x * WORLD_SCALE, SpaceRenderer.SHIP_Y + fx.z * WORLD_SCALE, fx.y * WORLD_SCALE);
+        mesh.rotation.y = fx.rotation;
+
+        // Fade-out: opacity ramps from 1→0 over the last 40% of lifetime
+        const t = fx.lifetime / fx.maxLifetime; // 0→1
+        const fadeStart = 0.6;
+        const opacity = t < fadeStart ? 1.0 : 1.0 - (t - fadeStart) / (1.0 - fadeStart);
+        mesh.traverse((child) => {
+          if (!(child as THREE.Mesh).isMesh) return;
+          const mats = Array.isArray((child as THREE.Mesh).material)
+            ? ((child as THREE.Mesh).material as THREE.Material[])
+            : [(child as THREE.Mesh).material];
+          for (const mat of mats) {
+            (mat as any).opacity = Math.max(0, opacity);
+          }
+        });
+
+        // Gentle scale pulse: grow slightly then shrink
+        const pulseSc = 1.0 + 0.15 * Math.sin(t * Math.PI);
+        const base = fx.scale * (EFFECT_PREFABS[fx.type]?.scale ?? 1);
+        mesh.scale.setScalar(base * pulseSc);
+      }
+    }
+
+    // ── Cleanup expired meshes ──
+    for (const [id, mesh] of this.glbEffectMeshes) {
+      if (!liveIds.has(id)) {
+        this.scene.remove(mesh);
+        mesh.traverse((child) => {
+          if ((child as THREE.Mesh).isMesh) {
+            const m = child as THREE.Mesh;
+            if (Array.isArray(m.material)) m.material.forEach((mt) => mt.dispose());
+            else m.material.dispose();
+            m.geometry.dispose();
+          }
+        });
+        this.glbEffectMeshes.delete(id);
+      }
+    }
+  }
+
   /** Ships float above the ground plane so they render above planet equators. */
   private static readonly SHIP_Y = 3.5;
 
@@ -1806,6 +1962,7 @@ export class SpaceRenderer {
     // Sync 3D
     this.syncShips(this.engine.state, dt);
     this.syncProjectiles(this.engine.state);
+    this.syncGLBEffects(this.engine.state, dt);
     this.effectsRenderer.update(this.engine.state, dt, this.camera);
     // Update three.quarks particle systems (engine trails, explosions, trails)
     this.vfx.update(dt);
@@ -2490,6 +2647,19 @@ export class SpaceRenderer {
     window.removeEventListener('keydown', this.onRigDebugKeyDown);
     window.removeEventListener('keydown', this.onDevKeyDown);
     this.clearRigDebugOverlay();
+    // Dispose transient GLB effect meshes
+    for (const [, mesh] of this.glbEffectMeshes) {
+      this.scene.remove(mesh);
+      mesh.traverse((child) => {
+        if ((child as THREE.Mesh).isMesh) {
+          const m = child as THREE.Mesh;
+          if (Array.isArray(m.material)) m.material.forEach((mt) => mt.dispose());
+          else m.material.dispose();
+          m.geometry.dispose();
+        }
+      });
+    }
+    this.glbEffectMeshes.clear();
     this.composer?.dispose();
     this.vfx?.dispose();
     this.controls.dispose();

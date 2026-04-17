@@ -240,4 +240,5 @@ export const SKILLTREE_TABS = [
   { id: 'defence', label: 'DEFENCE', trees: ['tide', 'void'] },
   { id: 'cyber', label: 'CYBER', trees: ['cyber'] },
   { id: 'support', label: 'SUPPORT', trees: ['prism', 'vortex', 'command'] },
+  { id: 'fleet', label: 'FLEET', trees: [] },
 ] as const;

@@ -555,6 +555,7 @@ export function SpaceHUD({ renderer, onQuit, onToggleStarMap, onDeployGround }: 
         <UnifiedSkillTreePanel
           state={state}
           onResearch={(nodeId) => renderer.engine.startResearch(1 as any, nodeId)}
+          onUnlockShip={(nodeId) => renderer.engine.unlockSparkNode(1 as any, nodeId)}
           onClose={() => setSkillTreeOpen(false)}
         />
       )}

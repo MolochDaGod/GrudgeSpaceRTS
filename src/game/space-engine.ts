@@ -5,6 +5,7 @@ import type {
   Planet,
   Projectile,
   SpriteEffect,
+  GLBEffect,
   PlayerResources,
   Team,
   Vec3,
@@ -86,6 +87,8 @@ import {
   PLANET_LEVEL_SUPPLY_BONUS,
   FACTION_TO_RESOURCE,
   FACTION_RESOURCE_DATA,
+  FACTION_SHIP_TREES,
+  getEffectiveSparkCost,
 } from './space-config';
 import { generateSector } from './campaign-sector';
 import { logConquest, logStoryBeat, generateUuid } from './captains-log';
@@ -1281,6 +1284,7 @@ export class SpaceEngine {
     } else if (ab.ability.type === 'iron_dome') {
       this.spawnSpriteEffect(ship.x, ship.y, 0, 'waveform', 3.0);
       this.spawnSpriteEffect(ship.x, ship.y, 0, 'bomb-low', 2.0);
+      this.spawnGLBEffect(ship.x, ship.y, 0, 'vfx_hex_force_field', 2.2, 1.2, 0.8);
     } else if (ab.ability.type === 'emp') {
       this.spawnSpriteEffect(ship.x, ship.y, 0, 'spark', 2.5);
       this.spawnSpriteEffect(ship.x, ship.y, 0, 'bomb-tiny', 1.5);
@@ -1512,6 +1516,22 @@ export class SpaceEngine {
     });
   }
 
+  private spawnGLBEffect(x: number, y: number, z: number, type: string, scale: number, lifetime = 0.6, rotationSpeed = 1.2) {
+    this.state.glbEffects.push({
+      id: this.state.nextId++,
+      x,
+      y,
+      z,
+      type,
+      scale,
+      lifetime: 0,
+      maxLifetime: lifetime,
+      done: false,
+      rotation: Math.random() * Math.PI * 2,
+      rotationSpeed,
+    });
+  }
+
   // ── Projectiles ──────────────────────────────────────────────────
   private fireProjectile(src: SpaceShip, tgt: SpaceShip) {
     const id = this.state.nextId++;
@@ -1552,6 +1572,13 @@ export class SpaceEngine {
     const isMed = src.shipClass === 'cruiser' || src.shipClass === 'destroyer' || src.shipClass === 'light_cruiser';
     const mfxScale = isCapital ? 1.0 : isMed ? 0.7 : 0.4;
     this.spawnSpriteEffect(muzzle.x, muzzle.y, 0, mfx, mfxScale);
+    if (src.attackType === 'laser' || src.attackType === 'railgun') {
+      this.spawnGLBEffect(muzzle.x, muzzle.y, 0, 'vfx_laser_beam', isCapital ? 1.4 : isMed ? 1.0 : 0.75, 0.22, 3.0);
+    } else if (src.attackType === 'pulse' || src.attackType === 'fireball' || src.attackType === 'ice_lance') {
+      this.spawnGLBEffect(muzzle.x, muzzle.y, 0, 'vfx_projectile_orb', isCapital ? 1.0 : 0.65, 0.25, 2.2);
+    } else if (src.attackType === 'missile' || src.attackType === 'torpedo') {
+      this.spawnGLBEffect(muzzle.x, muzzle.y, 0, 'vfx_energy_trail', isCapital ? 1.2 : isMed ? 0.9 : 0.6, 0.35, 1.8);
+    }
     // SFX: weapon fire (only for player team to avoid spam)
     if (src.team === 1) {
       const sfx =
@@ -1588,10 +1615,12 @@ export class SpaceEngine {
       if (t && !t.dead && Math.sqrt((p.x - t.x) ** 2 + (p.y - t.y) ** 2) < 20) {
         this.applyDamage(t, p.damage);
         this.state.projectiles.delete(id);
+        this.spawnGLBEffect(t.x, t.y, 0, 'vfx_particle_core', p.type === 'railgun' ? 1.0 : 0.65, 0.45, 2.4);
         // Hit flash — weapon-type-specific effects
         if (p.type === 'torpedo' || p.type === 'missile') {
           const bombTier = p.type === 'torpedo' ? 'bomb-high' : 'bomb-mid';
           this.spawnSpriteEffect(t.x, t.y, 0, bombTier, p.type === 'torpedo' ? 2.0 : 1.4);
+          this.spawnGLBEffect(t.x, t.y, 0, 'vfx_smoke_cloud', p.type === 'torpedo' ? 1.5 : 1.0, 1.2, 0.9);
         } else {
           // Weapon-specific hit sprites
           const HIT_MAP: Record<string, HitFxType> = { laser: 'hits-1', pulse: 'hits-2', railgun: 'hits-3' };
@@ -1661,6 +1690,7 @@ export class SpaceEngine {
     if (hadShield && ship.shield <= 0) {
       this.spawnSpriteEffect(ship.x, ship.y, 0, 'waveform', 1.2);
       this.spawnSpriteEffect(ship.x, ship.y, 0, 'bomb-tiny-2', 0.8);
+      this.spawnGLBEffect(ship.x, ship.y, 0, 'vfx_hex_force_field', 1.5, 0.9, 1.4);
     }
     r = Math.max(0, r - ship.armor);
     ship.hp -= r;
@@ -1890,6 +1920,13 @@ export class SpaceEngine {
       }
     }
     this.state.spriteEffects = this.state.spriteEffects.filter((e) => !e.done);
+    for (const e of this.state.glbEffects) {
+      if (e.done) continue;
+      e.lifetime += dt;
+      e.rotation += e.rotationSpeed * dt;
+      if (e.lifetime >= e.maxLifetime) e.done = true;
+    }
+    this.state.glbEffects = this.state.glbEffects.filter((e) => !e.done);
     // Age floating damage texts
     for (const ft of this.state.floatingTexts) {
       ft.age += dt;
@@ -2848,6 +2885,78 @@ export class SpaceEngine {
     if (!res) return;
     res.spark += amount;
     res.sparkTotal += amount;
+  }
+
+  /**
+   * Spend Spark to unlock a node in a faction ship tree.
+   * Validates prereqs, cross-faction cost multiplier, and faction-resource cost for capstones.
+   * Returns true on success.
+   */
+  unlockSparkNode(team: Team, nodeId: string): boolean {
+    const ss = this.state.sparkState.get(team);
+    if (!ss) return false;
+    const res = this.state.resources[team];
+    if (!res) return false;
+
+    // Find the node and its faction
+    let targetNode: import('./space-types').SparkShipNode | null = null;
+    let nodeFaction: import('./space-types').SpaceFaction | null = null;
+    for (const [fac, tree] of Object.entries(FACTION_SHIP_TREES) as [
+      import('./space-types').SpaceFaction,
+      import('./space-types').FactionShipTree,
+    ][]) {
+      const found = tree.nodes.find((n) => n.id === nodeId);
+      if (found) {
+        targetNode = found;
+        nodeFaction = fac;
+        break;
+      }
+    }
+    if (!targetNode || !nodeFaction) return false;
+    if (ss.unlockedNodes.has(nodeId)) return false; // already unlocked
+
+    // Check prerequisites
+    if (!targetNode.requires.every((r) => ss.unlockedNodes.has(r))) return false;
+
+    // Calculate effective cost (cross-faction = 1.5x)
+    const cost = getEffectiveSparkCost(targetNode, nodeFaction, ss.faction);
+    if (res.spark < cost) return false;
+
+    // Capstone nodes may require faction resource
+    if (targetNode.factionResourceCost && targetNode.factionResourceCost > 0) {
+      // Find a planet with enough faction resource stockpile
+      let paid = false;
+      for (const planet of this.state.planets) {
+        if (planet.owner !== team || !planet.surface) continue;
+        if (planet.surface.factionResourceStockpile >= targetNode.factionResourceCost) {
+          planet.surface.factionResourceStockpile -= targetNode.factionResourceCost;
+          paid = true;
+          break;
+        }
+      }
+      if (!paid) return false;
+    }
+
+    // Deduct Spark and unlock
+    res.spark -= cost;
+    ss.unlockedNodes.add(nodeId);
+
+    // Register ship type as unlocked for production
+    const techSt = this.state.techState.get(team);
+    if (techSt) techSt.unlockedShips.add(targetNode.shipType);
+
+    // VFX + alert
+    this.state.alerts.push({
+      id: this.state.nextId++,
+      x: 0,
+      y: 0,
+      z: 0,
+      type: 'build_complete',
+      time: this.state.gameTime,
+      message: `Ship unlocked: ${getShipDef(targetNode.shipType)?.displayName ?? targetNode.shipType}`,
+    });
+    if (team === 1) gameAudio.play('upgrade', 0.7);
+    return true;
   }
 
   // ── Planet Level ─────────────────────────────────────────

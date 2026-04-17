@@ -5,10 +5,12 @@
  */
 
 import React, { useState, useMemo } from 'react';
-import type { SpaceGameState, Commander, TeamTechState } from './space-types';
+import type { SpaceGameState, Commander, TeamTechState, SpaceFaction, SparkShipNode, FactionShipTree } from './space-types';
 import { CHARACTER, CHARACTER_LAYOUT, SKILLTREES, SKILLTREE_NODES, SKILLTREE_TABS } from './scifi-gui-assets';
 import { ALL_TECH_TREES, type TechNode } from './space-techtree';
 import { FACTION_DATA } from './space-types';
+import { FACTION_SHIP_TREES, getEffectiveSparkCost, FACTION_DATA as FACTION_CFG } from './space-config';
+import { getShipDef } from './space-types';
 
 // ═══════════════════════════════════════════════════════════════════════
 // COMMANDER CHARACTER PANEL
@@ -264,15 +266,21 @@ export function CommanderCharacterPanel({ state, commander, onClose }: Commander
 interface UnifiedSkillTreePanelProps {
   state: SpaceGameState;
   onResearch: (nodeId: string) => void;
+  onUnlockShip?: (nodeId: string) => void;
   onClose: () => void;
 }
 
-export function UnifiedSkillTreePanel({ state, onResearch, onClose }: UnifiedSkillTreePanelProps) {
+const FACTION_KEYS: SpaceFaction[] = ['wisdom', 'construct', 'void', 'legion'];
+const FACTION_COLORS: Record<SpaceFaction, string> = { wisdom: '#44ccff', construct: '#ffaa22', void: '#aa44ff', legion: '#ff4444' };
+
+export function UnifiedSkillTreePanel({ state, onResearch, onUnlockShip, onClose }: UnifiedSkillTreePanelProps) {
   const [activeTab, setActiveTab] = useState(0);
+  const [fleetFaction, setFleetFaction] = useState<SpaceFaction>(state.sparkState.get(1)?.faction ?? 'legion');
   const techSt = state.techState.get(1);
   const tab = SKILLTREE_TABS[activeTab];
   const faction = state.sparkState.get(1)?.faction ?? 'legion';
   const colorVariant = faction === 'void' ? 'purple' : faction === 'construct' || faction === 'legion' ? 'gold' : 'green';
+  const isFleetTab = tab.id === 'fleet';
 
   // Gather all nodes from trees in the active tab
   const tabNodes = useMemo(() => {
@@ -352,7 +360,7 @@ export function UnifiedSkillTreePanel({ state, onResearch, onClose }: UnifiedSki
         SKILLS
       </div>
 
-      {/* Subtitle — tree name */}
+      {/* Subtitle — tree name + spark balance for fleet tab */}
       <div
         style={{
           position: 'absolute',
@@ -363,9 +371,13 @@ export function UnifiedSkillTreePanel({ state, onResearch, onClose }: UnifiedSki
           color: '#fc4',
           letterSpacing: 1,
           fontStyle: 'italic',
+          display: 'flex',
+          gap: 12,
+          alignItems: 'center',
         }}
       >
-        {tab.label} — {tabNodes.length} Nodes
+        <span>{isFleetTab ? `${FACTION_CFG[fleetFaction]?.label ?? fleetFaction} Fleet` : `${tab.label} — ${tabNodes.length} Nodes`}</span>
+        {isFleetTab && <span style={{ color: '#ffcc22', fontWeight: 700 }}>⚡ {state.resources[1]?.spark ?? 0} Spark</span>}
       </div>
 
       {/* Tab buttons (ATTACK / DEFENCE / CYBER / SUPPORT) */}
@@ -401,164 +413,364 @@ export function UnifiedSkillTreePanel({ state, onResearch, onClose }: UnifiedSki
         ))}
       </div>
 
-      {/* Skill nodes placed on the octagonal slots */}
-      {SKILLTREE_NODES.map((slot, si) => {
-        const node = filteredNodes[si] ?? null;
-        const isResearched = node && techSt?.researchedNodes.has(node.id);
-        const isInProgress = node && techSt?.inResearch === node.id;
-        const canResearch =
-          node &&
-          !isResearched &&
-          !isInProgress &&
-          techSt &&
-          node.requires.every((r) => techSt.researchedNodes.has(r)) &&
-          !techSt.inResearch;
-
-        return (
+      {/* ═══ FLEET TAB: Faction Ship Tree Graph ═══ */}
+      {isFleetTab ? (
+        <>
+          {/* Faction sub-tabs */}
           <div
-            key={si}
-            onClick={() => {
-              if (canResearch && node) onResearch(node.id);
-            }}
-            title={node ? `${node.name}\n${node.description}\nTier ${node.tier} · ${node.researchTime}s` : ''}
             style={{
               position: 'absolute',
-              left: `${slot.x}%`,
-              top: `${slot.y}%`,
-              width: `${slot.w}%`,
-              height: `${slot.h}%`,
+              top: '13%',
+              left: '8%',
+              right: '8%',
               display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              cursor: canResearch ? 'pointer' : 'default',
-              borderRadius: slot.size === 'large' ? 6 : 4,
-              transition: 'filter 0.15s',
-            }}
-            onMouseEnter={(e) => {
-              if (canResearch) e.currentTarget.style.filter = 'brightness(1.4)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.filter = 'brightness(1)';
+              gap: 4,
             }}
           >
-            {node ? (
-              <>
-                {/* Node icon */}
-                <img
-                  src={node.icon}
-                  alt=""
-                  style={{
-                    width: slot.size === 'large' ? '55%' : '50%',
-                    height: slot.size === 'large' ? '55%' : '50%',
-                    objectFit: 'contain',
-                    filter: isResearched
-                      ? 'brightness(1.2) saturate(1.5)'
-                      : canResearch
-                        ? 'brightness(0.8)'
-                        : 'brightness(0.3) grayscale(0.8)',
-                  }}
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).style.display = 'none';
-                  }}
-                />
-                {/* Node name */}
+            {FACTION_KEYS.map((fk) => {
+              const isMine = fk === faction;
+              const isActive = fk === fleetFaction;
+              return (
                 <div
+                  key={fk}
+                  onClick={() => setFleetFaction(fk)}
                   style={{
-                    fontSize: 6,
-                    fontWeight: 700,
+                    flex: 1,
                     textAlign: 'center',
-                    marginTop: 1,
-                    color: isResearched ? '#44ffaa' : canResearch ? '#cde' : '#444',
-                    maxWidth: '100%',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
+                    cursor: 'pointer',
+                    fontSize: 8,
+                    fontWeight: 700,
+                    letterSpacing: 1,
+                    padding: '3px 0',
+                    color: isActive ? '#fff' : '#555',
+                    borderBottom: isActive ? `2px solid ${FACTION_COLORS[fk]}` : '2px solid transparent',
                   }}
                 >
-                  {node.name}
+                  {fk.toUpperCase()}
+                  {isMine ? ' ★' : ''}
                 </div>
-                {/* Research in-progress indicator */}
-                {isInProgress && (
-                  <div
-                    style={{
-                      position: 'absolute',
-                      inset: 0,
-                      borderRadius: 6,
-                      border: '2px solid #fc4',
-                      animation: 'pulse 1s infinite',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}
-                  >
-                    <div style={{ fontSize: 7, color: '#fc4', fontWeight: 700 }}>{Math.ceil(techSt!.researchTimeRemaining)}s</div>
-                  </div>
-                )}
-                {/* Researched checkmark */}
-                {isResearched && (
-                  <div
-                    style={{
-                      position: 'absolute',
-                      top: 1,
-                      right: 2,
-                      fontSize: 10,
-                      color: '#44ff88',
-                    }}
-                  >
-                    ✓
-                  </div>
-                )}
-              </>
-            ) : (
-              <div style={{ fontSize: 10, color: '#222' }}>—</div>
-            )}
+              );
+            })}
           </div>
-        );
-      })}
 
-      {/* ACTIVE / PASSIVE toggle at bottom */}
-      <div
-        style={{
-          position: 'absolute',
-          bottom: '2%',
-          left: '10%',
-          right: '10%',
-          display: 'flex',
-          gap: 8,
-        }}
-      >
-        <div
-          onClick={() => setViewMode('active')}
-          style={{
-            flex: 1,
-            textAlign: 'center',
-            cursor: 'pointer',
-            fontSize: 11,
-            fontWeight: 800,
-            padding: '4px 0',
-            color: viewMode === 'active' ? '#fff' : '#446',
-            borderBottom: viewMode === 'active' ? '2px solid #44ffaa' : '2px solid transparent',
-          }}
-        >
-          ACTIVE
-        </div>
-        <div
-          onClick={() => setViewMode('passive')}
-          style={{
-            flex: 1,
-            textAlign: 'center',
-            cursor: 'pointer',
-            fontSize: 11,
-            fontWeight: 800,
-            padding: '4px 0',
-            color: viewMode === 'passive' ? '#fff' : '#446',
-            borderBottom: viewMode === 'passive' ? '2px solid #44ffaa' : '2px solid transparent',
-          }}
-        >
-          PASSIVE
-        </div>
-      </div>
+          {/* Node graph area */}
+          {(() => {
+            const tree = FACTION_SHIP_TREES[fleetFaction];
+            if (!tree) return null;
+            const ss = state.sparkState.get(1);
+            const unlockedNodes = ss?.unlockedNodes ?? new Set<string>();
+            const playerFaction = ss?.faction ?? 'legion';
+            const spark = state.resources[1]?.spark ?? 0;
+            const isCross = fleetFaction !== playerFaction;
+            const nodeW = 10; // % width
+            const nodeH = 7; // % height
+            // Map node id → {x,y} for SVG lines
+            const posMap = new Map<string, { cx: number; cy: number }>();
+            for (const n of tree.nodes) {
+              posMap.set(n.id, { cx: n.x + nodeW / 2, cy: n.y + nodeH / 2 });
+            }
+
+            return (
+              <div
+                style={{
+                  position: 'absolute',
+                  top: '18%',
+                  left: '6%',
+                  right: '6%',
+                  bottom: '6%',
+                }}
+              >
+                {/* SVG prerequisite lines */}
+                <svg
+                  viewBox="0 0 100 100"
+                  preserveAspectRatio="none"
+                  style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }}
+                >
+                  {tree.nodes.map((n) =>
+                    n.requires.map((reqId) => {
+                      const from = posMap.get(reqId);
+                      const to = posMap.get(n.id);
+                      if (!from || !to) return null;
+                      const bothUnlocked = unlockedNodes.has(reqId) && unlockedNodes.has(n.id);
+                      const available = unlockedNodes.has(reqId) && !unlockedNodes.has(n.id);
+                      return (
+                        <line
+                          key={`${reqId}-${n.id}`}
+                          x1={from.cx}
+                          y1={from.cy}
+                          x2={to.cx}
+                          y2={to.cy}
+                          stroke={bothUnlocked ? FACTION_COLORS[fleetFaction] : available ? '#555' : '#222'}
+                          strokeWidth={bothUnlocked ? 0.6 : 0.3}
+                          strokeDasharray={available ? '1.5 1' : 'none'}
+                        />
+                      );
+                    }),
+                  )}
+                </svg>
+
+                {/* Ship nodes */}
+                {tree.nodes.map((n) => {
+                  const isUnlocked = unlockedNodes.has(n.id);
+                  const prereqsMet = n.requires.every((r) => unlockedNodes.has(r));
+                  const cost = getEffectiveSparkCost(n, fleetFaction, playerFaction);
+                  const canAfford = spark >= cost;
+                  const canUnlock = !isUnlocked && prereqsMet && canAfford;
+                  const isCapstone = n.id === tree.capstoneNodeId;
+                  const def = getShipDef(n.shipType);
+                  const displayName = def?.displayName ?? n.shipType;
+                  const tier = def?.stats.tier ?? 1;
+
+                  return (
+                    <div
+                      key={n.id}
+                      onClick={() => {
+                        if (canUnlock && onUnlockShip) onUnlockShip(n.id);
+                      }}
+                      title={`${displayName}\nT${tier} ${def?.class ?? ''}\nSpark: ${cost}${isCross ? ' (cross-faction)' : ''}${n.factionResourceCost ? `\nFaction Resource: ${n.factionResourceCost}` : ''}`}
+                      style={{
+                        position: 'absolute',
+                        left: `${n.x}%`,
+                        top: `${n.y}%`,
+                        width: `${nodeW}%`,
+                        height: `${nodeH}%`,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        cursor: canUnlock ? 'pointer' : 'default',
+                        borderRadius: isCapstone ? 8 : 4,
+                        border: isUnlocked
+                          ? `2px solid ${FACTION_COLORS[fleetFaction]}`
+                          : canUnlock
+                            ? '2px solid rgba(255,255,255,0.4)'
+                            : '1px solid rgba(255,255,255,0.08)',
+                        background: isUnlocked ? 'rgba(68,255,170,0.12)' : canUnlock ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.3)',
+                        transition: 'border-color 0.15s, background 0.15s',
+                        boxShadow: isCapstone && isUnlocked ? `0 0 12px ${FACTION_COLORS[fleetFaction]}44` : 'none',
+                      }}
+                      onMouseEnter={(e) => {
+                        if (canUnlock) e.currentTarget.style.borderColor = FACTION_COLORS[fleetFaction];
+                      }}
+                      onMouseLeave={(e) => {
+                        if (canUnlock) e.currentTarget.style.borderColor = 'rgba(255,255,255,0.4)';
+                      }}
+                    >
+                      {/* Tier badge */}
+                      <div
+                        style={{
+                          position: 'absolute',
+                          top: 1,
+                          left: 2,
+                          fontSize: 6,
+                          fontWeight: 800,
+                          color: isUnlocked ? FACTION_COLORS[fleetFaction] : '#444',
+                        }}
+                      >
+                        T{tier}
+                      </div>
+
+                      {/* Ship name */}
+                      <div
+                        style={{
+                          fontSize: isCapstone ? 7 : 6,
+                          fontWeight: 700,
+                          color: isUnlocked ? '#fff' : canUnlock ? '#aab' : '#444',
+                          textAlign: 'center',
+                          maxWidth: '95%',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {isCapstone ? `★ ${displayName}` : displayName}
+                      </div>
+
+                      {/* Spark cost */}
+                      {!isUnlocked && (
+                        <div
+                          style={{
+                            fontSize: 6,
+                            color: canAfford ? '#ffcc22' : '#663300',
+                            fontWeight: 600,
+                          }}
+                        >
+                          ⚡{cost}
+                          {isCross ? '*' : ''}
+                        </div>
+                      )}
+
+                      {/* Unlocked checkmark */}
+                      {isUnlocked && <div style={{ position: 'absolute', top: 0, right: 2, fontSize: 9, color: '#44ff88' }}>✓</div>}
+                    </div>
+                  );
+                })}
+
+                {/* Cross-faction note */}
+                {isCross && (
+                  <div
+                    style={{
+                      position: 'absolute',
+                      bottom: 0,
+                      left: 0,
+                      fontSize: 7,
+                      color: '#886',
+                      fontStyle: 'italic',
+                    }}
+                  >
+                    * Cross-faction: 1.5× Spark cost
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+        </>
+      ) : (
+        <>
+          {/* ═══ TECH TABS: Octagonal slot nodes (original) ═══ */}
+          {SKILLTREE_NODES.map((slot, si) => {
+            const node = filteredNodes[si] ?? null;
+            const isResearched = node && techSt?.researchedNodes.has(node.id);
+            const isInProgress = node && techSt?.inResearch === node.id;
+            const canResearch =
+              node &&
+              !isResearched &&
+              !isInProgress &&
+              techSt &&
+              node.requires.every((r) => techSt.researchedNodes.has(r)) &&
+              !techSt.inResearch;
+
+            return (
+              <div
+                key={si}
+                onClick={() => {
+                  if (canResearch && node) onResearch(node.id);
+                }}
+                title={node ? `${node.name}\n${node.description}\nTier ${node.tier} · ${node.researchTime}s` : ''}
+                style={{
+                  position: 'absolute',
+                  left: `${slot.x}%`,
+                  top: `${slot.y}%`,
+                  width: `${slot.w}%`,
+                  height: `${slot.h}%`,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: canResearch ? 'pointer' : 'default',
+                  borderRadius: slot.size === 'large' ? 6 : 4,
+                  transition: 'filter 0.15s',
+                }}
+                onMouseEnter={(e) => {
+                  if (canResearch) e.currentTarget.style.filter = 'brightness(1.4)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.filter = 'brightness(1)';
+                }}
+              >
+                {node ? (
+                  <>
+                    <img
+                      src={node.icon}
+                      alt=""
+                      style={{
+                        width: slot.size === 'large' ? '55%' : '50%',
+                        height: slot.size === 'large' ? '55%' : '50%',
+                        objectFit: 'contain',
+                        filter: isResearched
+                          ? 'brightness(1.2) saturate(1.5)'
+                          : canResearch
+                            ? 'brightness(0.8)'
+                            : 'brightness(0.3) grayscale(0.8)',
+                      }}
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).style.display = 'none';
+                      }}
+                    />
+                    <div
+                      style={{
+                        fontSize: 6,
+                        fontWeight: 700,
+                        textAlign: 'center',
+                        marginTop: 1,
+                        color: isResearched ? '#44ffaa' : canResearch ? '#cde' : '#444',
+                        maxWidth: '100%',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {node.name}
+                    </div>
+                    {isInProgress && (
+                      <div
+                        style={{
+                          position: 'absolute',
+                          inset: 0,
+                          borderRadius: 6,
+                          border: '2px solid #fc4',
+                          animation: 'pulse 1s infinite',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
+                      >
+                        <div style={{ fontSize: 7, color: '#fc4', fontWeight: 700 }}>{Math.ceil(techSt!.researchTimeRemaining)}s</div>
+                      </div>
+                    )}
+                    {isResearched && <div style={{ position: 'absolute', top: 1, right: 2, fontSize: 10, color: '#44ff88' }}>✓</div>}
+                  </>
+                ) : (
+                  <div style={{ fontSize: 10, color: '#222' }}>—</div>
+                )}
+              </div>
+            );
+          })}
+
+          {/* ACTIVE / PASSIVE toggle at bottom */}
+          <div
+            style={{
+              position: 'absolute',
+              bottom: '2%',
+              left: '10%',
+              right: '10%',
+              display: 'flex',
+              gap: 8,
+            }}
+          >
+            <div
+              onClick={() => setViewMode('active')}
+              style={{
+                flex: 1,
+                textAlign: 'center',
+                cursor: 'pointer',
+                fontSize: 11,
+                fontWeight: 800,
+                padding: '4px 0',
+                color: viewMode === 'active' ? '#fff' : '#446',
+                borderBottom: viewMode === 'active' ? '2px solid #44ffaa' : '2px solid transparent',
+              }}
+            >
+              ACTIVE
+            </div>
+            <div
+              onClick={() => setViewMode('passive')}
+              style={{
+                flex: 1,
+                textAlign: 'center',
+                cursor: 'pointer',
+                fontSize: 11,
+                fontWeight: 800,
+                padding: '4px 0',
+                color: viewMode === 'passive' ? '#fff' : '#446',
+                borderBottom: viewMode === 'passive' ? '2px solid #44ffaa' : '2px solid transparent',
+              }}
+            >
+              PASSIVE
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }
