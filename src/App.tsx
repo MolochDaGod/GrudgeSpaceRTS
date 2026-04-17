@@ -947,6 +947,28 @@ function MainMenu({
   onLogout: () => void;
 }) {
   const [hotkeysOpen, setHotkeysOpen] = useState(false);
+  const [zoomTarget, setZoomTarget] = useState<[number, number, number] | null>(null);
+  const [uiFading, setUiFading] = useState(false);
+  const pendingAction = useRef<(() => void) | null>(null);
+
+  // Trigger zoom-in loading transition, then fire the action after zoom completes
+  const launchWithZoom = useCallback((action: () => void) => {
+    const home = STAR_SYSTEMS.find((s) => s.id === 'grudge_prime');
+    setZoomTarget(home?.position ?? [0, 0.2, 0]);
+    setUiFading(true);
+    pendingAction.current = action;
+  }, []);
+
+  const handleZoomComplete = useCallback(() => {
+    // Small delay for the final black flash
+    setTimeout(() => {
+      pendingAction.current?.();
+      pendingAction.current = null;
+      setZoomTarget(null);
+      setUiFading(false);
+    }, 300);
+  }, []);
+
   const quickModes: { key: GameMode; label: string; desc: string }[] = [
     { key: '1v1', label: 'INNER SYSTEM', desc: '2 commanders · 7 planets' },
     { key: '2v2', label: 'OUTER SYSTEM', desc: '4 commanders · 14 planets' },
@@ -1019,12 +1041,29 @@ function MainMenu({
       {/* 3D Galaxy background */}
       <GalaxyMap
         onSelectSystem={(id) => {
-          // Click on home system opens quick game
-          if (id === 'grudge_prime') onStart();
+          if (id === 'grudge_prime') launchWithZoom(onStart);
         }}
+        zoomTarget={zoomTarget}
+        onZoomComplete={handleZoomComplete}
+        controlsDisabled={!!zoomTarget}
       />
 
-      {/* Scrollable content */}
+      {/* Black flash overlay during zoom */}
+      {zoomTarget && (
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            background: '#000',
+            zIndex: 200,
+            opacity: uiFading ? 0 : 1,
+            transition: 'opacity 0.3s',
+            pointerEvents: 'none',
+          }}
+        />
+      )}
+
+      {/* Scrollable content — fades out during zoom */}
       <div
         style={{
           position: 'relative',
@@ -1035,6 +1074,9 @@ function MainMenu({
           padding: '48px 16px 32px',
           width: '100%',
           maxWidth: 1100,
+          opacity: uiFading ? 0 : 1,
+          transition: 'opacity 0.6s ease-out',
+          pointerEvents: uiFading ? 'none' : 'auto',
         }}
       >
         {/* ── Logo ── */}
@@ -1123,7 +1165,7 @@ function MainMenu({
                 );
               })}
             </div>
-            <button onClick={onStart} style={launchBtn('#2255cc', 'rgba(34,85,204,0.3)')}>
+            <button onClick={() => launchWithZoom(onStart)} style={launchBtn('#2255cc', 'rgba(34,85,204,0.3)')}>
               LAUNCH QUICK GAME
             </button>
           </div>
@@ -1156,10 +1198,7 @@ function MainMenu({
               Build your base · Conquer the galaxy
             </div>
             <button
-              onClick={() => {
-                setMode('campaign');
-                onCampaign();
-              }}
+              onClick={() => launchWithZoom(() => { setMode('campaign'); onCampaign(); })}
               style={launchBtn('#aa5500', 'rgba(170,85,0,0.3)')}
             >
               CREATE COMMANDER
@@ -1186,7 +1225,7 @@ function MainMenu({
                 Wave survival · Dodge & parry
               </div>
             </div>
-            <button onClick={onGroundCombat} style={{ ...launchBtn('#1a7744', 'rgba(26,119,68,0.3)'), marginBottom: 14 }}>
+            <button onClick={() => launchWithZoom(onGroundCombat)} style={{ ...launchBtn('#1a7744', 'rgba(26,119,68,0.3)'), marginBottom: 14 }}>
               LAUNCH GROUND COMBAT
             </button>
 
@@ -1206,7 +1245,7 @@ function MainMenu({
                 Flanking & morale · A* pathfinding
               </div>
             </div>
-            <button onClick={onGroundRts} style={launchBtn('#335566', 'rgba(51,85,102,0.3)')}>
+            <button onClick={() => launchWithZoom(onGroundRts)} style={launchBtn('#335566', 'rgba(51,85,102,0.3)')}>
               LAUNCH GROUND RTS
             </button>
           </div>
