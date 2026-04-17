@@ -1,0 +1,11 @@
+Model Information:
+* title:	UTTVM projectile
+* source:	https://sketchfab.com/3d-models/uttvm-projectile-9ad80c40c7344cbbb8f6da2b78151cd8
+* author:	photon (that one larry) (https://sketchfab.com/Professor_E12)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "UTTVM projectile" (https://sketchfab.com/3d-models/uttvm-projectile-9ad80c40c7344cbbb8f6da2b78151cd8) by photon (that one larry) (https://sketchfab.com/Professor_E12) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)

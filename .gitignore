@@ -15,8 +15,21 @@ tsconfig.tsbuildinfo
 *.tiff
 *.scml
 
-# Large zip archives — exceed GitHub's 100 MB file limit
+# Large zip/archive files — not needed in repo
+*.zip
+*.7z
+*.rar
 assets/animationsweapons.zip
+
+# Reference assets — screenshots, rigs preview, planning docs (not runtime)
+assets/*.png
+assets/extw-rigs-preview/
+assets/needs pipeline and best practices/
+review and organize/
+
+# Maya source files (not needed at runtime)
+*.ma
+*.mb
 
 # Server backend
 server/node_modules

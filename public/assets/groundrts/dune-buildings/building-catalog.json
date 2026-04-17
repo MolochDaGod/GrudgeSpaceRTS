@@ -1,0 +1,914 @@
+{
+  "_source": "Emperor: Battle for Dune - Models Part 6 (Harkonnen Buildings)",
+  "_totalMeshes": 100,
+  "_categories": {
+    "production": "Buildings that produce units",
+    "economy": "Resource generation and storage",
+    "defense": "Turrets, walls, and defensive structures",
+    "research": "Tech upgrades and unit improvements",
+    "special": "Unique buildings with special abilities",
+    "decoration": "Props, ruins, and environmental dressing"
+  },
+  "buildings": [
+    {
+      "index": 0,
+      "key": "construction_yard",
+      "name": "Construction Yard",
+      "role": "production",
+      "description": "Primary base structure. Builds all other buildings.",
+      "glbPath": "/assets/groundrts/dune-buildings/construction_yard.glb",
+      "meshIndex": 0
+    },
+    {
+      "index": 1,
+      "key": "barracks",
+      "name": "Barracks",
+      "role": "production",
+      "description": "Trains infantry and light ground units.",
+      "glbPath": "/assets/groundrts/dune-buildings/barracks.glb",
+      "meshIndex": 1
+    },
+    {
+      "index": 2,
+      "key": "light_factory",
+      "name": "Light Vehicle Factory",
+      "role": "production",
+      "description": "Produces light assault vehicles and scouts.",
+      "glbPath": "/assets/groundrts/dune-buildings/light_factory.glb",
+      "meshIndex": 2
+    },
+    {
+      "index": 3,
+      "key": "heavy_factory",
+      "name": "Heavy Vehicle Factory",
+      "role": "production",
+      "description": "Produces tanks, artillery, and siege units.",
+      "glbPath": "/assets/groundrts/dune-buildings/heavy_factory.glb",
+      "meshIndex": 3
+    },
+    {
+      "index": 4,
+      "key": "starport",
+      "name": "Starport",
+      "role": "production",
+      "description": "Calls in orbital units and off-world reinforcements.",
+      "glbPath": "/assets/groundrts/dune-buildings/starport.glb",
+      "meshIndex": 4
+    },
+    {
+      "index": 5,
+      "key": "hightech_factory",
+      "name": "High Tech Factory",
+      "role": "production",
+      "description": "Produces advanced aircraft and special units.",
+      "glbPath": "/assets/groundrts/dune-buildings/hightech_factory.glb",
+      "meshIndex": 5
+    },
+    {
+      "index": 6,
+      "key": "hangar",
+      "name": "Hangar Bay",
+      "role": "production",
+      "description": "Stores and launches aerial units.",
+      "glbPath": "/assets/groundrts/dune-buildings/hangar.glb",
+      "meshIndex": 6
+    },
+    {
+      "index": 7,
+      "key": "shipyard",
+      "name": "Orbital Shipyard",
+      "role": "production",
+      "description": "Constructs capital ships for space combat.",
+      "glbPath": "/assets/groundrts/dune-buildings/shipyard.glb",
+      "meshIndex": 7
+    },
+    {
+      "index": 8,
+      "key": "mech_bay",
+      "name": "Mech Assembly Bay",
+      "role": "production",
+      "description": "Assembles heavy mech walkers.",
+      "glbPath": "/assets/groundrts/dune-buildings/mech_bay.glb",
+      "meshIndex": 8
+    },
+    {
+      "index": 9,
+      "key": "drone_foundry",
+      "name": "Drone Foundry",
+      "role": "production",
+      "description": "Mass-produces autonomous combat drones.",
+      "glbPath": "/assets/groundrts/dune-buildings/drone_foundry.glb",
+      "meshIndex": 9
+    },
+    {
+      "index": 10,
+      "key": "refinery",
+      "name": "Spice Refinery",
+      "role": "economy",
+      "description": "Processes harvested resources into credits.",
+      "glbPath": "/assets/groundrts/dune-buildings/refinery.glb",
+      "meshIndex": 10
+    },
+    {
+      "index": 11,
+      "key": "silo",
+      "name": "Resource Silo",
+      "role": "economy",
+      "description": "Stores excess resources. +500 capacity.",
+      "glbPath": "/assets/groundrts/dune-buildings/silo.glb",
+      "meshIndex": 11
+    },
+    {
+      "index": 12,
+      "key": "wind_trap",
+      "name": "Wind Trap",
+      "role": "economy",
+      "description": "Generates base power. Required for all buildings.",
+      "glbPath": "/assets/groundrts/dune-buildings/wind_trap.glb",
+      "meshIndex": 12
+    },
+    {
+      "index": 13,
+      "key": "power_plant",
+      "name": "Fusion Reactor",
+      "role": "economy",
+      "description": "Advanced power generation. 3x wind trap output.",
+      "glbPath": "/assets/groundrts/dune-buildings/power_plant.glb",
+      "meshIndex": 13
+    },
+    {
+      "index": 14,
+      "key": "harvester_bay",
+      "name": "Harvester Depot",
+      "role": "economy",
+      "description": "Deploys and manages resource harvesters.",
+      "glbPath": "/assets/groundrts/dune-buildings/harvester_bay.glb",
+      "meshIndex": 14
+    },
+    {
+      "index": 15,
+      "key": "energy_pylon",
+      "name": "Energy Pylon",
+      "role": "economy",
+      "description": "Extends power grid to remote building clusters.",
+      "glbPath": "/assets/groundrts/dune-buildings/energy_pylon.glb",
+      "meshIndex": 15
+    },
+    {
+      "index": 16,
+      "key": "trade_hub",
+      "name": "Trade Hub",
+      "role": "economy",
+      "description": "Passive income from interplanetary trade routes.",
+      "glbPath": "/assets/groundrts/dune-buildings/trade_hub.glb",
+      "meshIndex": 16
+    },
+    {
+      "index": 17,
+      "key": "mineral_extractor",
+      "name": "Mineral Extractor",
+      "role": "economy",
+      "description": "Deep-core drill for rare mineral deposits.",
+      "glbPath": "/assets/groundrts/dune-buildings/mineral_extractor.glb",
+      "meshIndex": 17
+    },
+    {
+      "index": 18,
+      "key": "supply_depot",
+      "name": "Supply Depot",
+      "role": "economy",
+      "description": "Increases unit supply cap by 10.",
+      "glbPath": "/assets/groundrts/dune-buildings/supply_depot.glb",
+      "meshIndex": 18
+    },
+    {
+      "index": 19,
+      "key": "recycler",
+      "name": "Scrap Recycler",
+      "role": "economy",
+      "description": "Reclaims resources from destroyed units.",
+      "glbPath": "/assets/groundrts/dune-buildings/recycler.glb",
+      "meshIndex": 19
+    },
+    {
+      "index": 20,
+      "key": "gun_turret",
+      "name": "Gun Turret",
+      "role": "defense",
+      "description": "Anti-ground auto-turret. Fast fire rate.",
+      "glbPath": "/assets/groundrts/dune-buildings/gun_turret.glb",
+      "meshIndex": 20
+    },
+    {
+      "index": 21,
+      "key": "rocket_turret",
+      "name": "Rocket Turret",
+      "role": "defense",
+      "description": "Anti-air missile launcher. Long range.",
+      "glbPath": "/assets/groundrts/dune-buildings/rocket_turret.glb",
+      "meshIndex": 21
+    },
+    {
+      "index": 22,
+      "key": "laser_turret",
+      "name": "Laser Turret",
+      "role": "defense",
+      "description": "High-energy beam. Effective vs armor.",
+      "glbPath": "/assets/groundrts/dune-buildings/laser_turret.glb",
+      "meshIndex": 22
+    },
+    {
+      "index": 23,
+      "key": "plasma_cannon",
+      "name": "Plasma Cannon",
+      "role": "defense",
+      "description": "Heavy siege defense. Slow but devastating.",
+      "glbPath": "/assets/groundrts/dune-buildings/plasma_cannon.glb",
+      "meshIndex": 23
+    },
+    {
+      "index": 24,
+      "key": "flak_tower",
+      "name": "Flak Tower",
+      "role": "defense",
+      "description": "Area denial vs aircraft. Burst damage.",
+      "glbPath": "/assets/groundrts/dune-buildings/flak_tower.glb",
+      "meshIndex": 24
+    },
+    {
+      "index": 25,
+      "key": "shield_pylon",
+      "name": "Shield Pylon",
+      "role": "defense",
+      "description": "Projects energy shield over nearby buildings.",
+      "glbPath": "/assets/groundrts/dune-buildings/shield_pylon.glb",
+      "meshIndex": 25
+    },
+    {
+      "index": 26,
+      "key": "mine_layer",
+      "name": "Mine Deployer",
+      "role": "defense",
+      "description": "Plants proximity mines in a radius.",
+      "glbPath": "/assets/groundrts/dune-buildings/mine_layer.glb",
+      "meshIndex": 26
+    },
+    {
+      "index": 27,
+      "key": "sensor_array",
+      "name": "Sensor Array",
+      "role": "defense",
+      "description": "Reveals cloaked units. Extended vision range.",
+      "glbPath": "/assets/groundrts/dune-buildings/sensor_array.glb",
+      "meshIndex": 27
+    },
+    {
+      "index": 28,
+      "key": "wall_straight",
+      "name": "Wall Segment",
+      "role": "defense",
+      "description": "Basic fortification wall.",
+      "glbPath": "/assets/groundrts/dune-buildings/wall_straight.glb",
+      "meshIndex": 28
+    },
+    {
+      "index": 29,
+      "key": "wall_corner",
+      "name": "Wall Corner",
+      "role": "defense",
+      "description": "Corner wall piece for base perimeter.",
+      "glbPath": "/assets/groundrts/dune-buildings/wall_corner.glb",
+      "meshIndex": 29
+    },
+    {
+      "index": 30,
+      "key": "wall_gate",
+      "name": "Reinforced Gate",
+      "role": "defense",
+      "description": "Passable gate for friendly units.",
+      "glbPath": "/assets/groundrts/dune-buildings/wall_gate.glb",
+      "meshIndex": 30
+    },
+    {
+      "index": 31,
+      "key": "wall_tower",
+      "name": "Wall Watchtower",
+      "role": "defense",
+      "description": "Elevated guard post on wall.",
+      "glbPath": "/assets/groundrts/dune-buildings/wall_tower.glb",
+      "meshIndex": 31
+    },
+    {
+      "index": 32,
+      "key": "bunker",
+      "name": "Infantry Bunker",
+      "role": "defense",
+      "description": "Garrisonable defensive structure for infantry.",
+      "glbPath": "/assets/groundrts/dune-buildings/bunker.glb",
+      "meshIndex": 32
+    },
+    {
+      "index": 33,
+      "key": "pillbox",
+      "name": "Pillbox",
+      "role": "defense",
+      "description": "Small hardened gun emplacement.",
+      "glbPath": "/assets/groundrts/dune-buildings/pillbox.glb",
+      "meshIndex": 33
+    },
+    {
+      "index": 34,
+      "key": "tesla_coil",
+      "name": "Tesla Coil",
+      "role": "defense",
+      "description": "Chain lightning defense. Hits multiple targets.",
+      "glbPath": "/assets/groundrts/dune-buildings/tesla_coil.glb",
+      "meshIndex": 34
+    },
+    {
+      "index": 35,
+      "key": "anti_orbital",
+      "name": "Anti-Orbital Battery",
+      "role": "defense",
+      "description": "Ground-to-space weapon. Deters orbital strikes.",
+      "glbPath": "/assets/groundrts/dune-buildings/anti_orbital.glb",
+      "meshIndex": 35
+    },
+    {
+      "index": 36,
+      "key": "emp_tower",
+      "name": "EMP Tower",
+      "role": "defense",
+      "description": "Disables enemy vehicles in area.",
+      "glbPath": "/assets/groundrts/dune-buildings/emp_tower.glb",
+      "meshIndex": 36
+    },
+    {
+      "index": 37,
+      "key": "flame_turret",
+      "name": "Flame Turret",
+      "role": "defense",
+      "description": "Short-range anti-infantry incendiary.",
+      "glbPath": "/assets/groundrts/dune-buildings/flame_turret.glb",
+      "meshIndex": 37
+    },
+    {
+      "index": 38,
+      "key": "mortar_pit",
+      "name": "Mortar Pit",
+      "role": "defense",
+      "description": "Indirect fire emplacement. Area damage.",
+      "glbPath": "/assets/groundrts/dune-buildings/mortar_pit.glb",
+      "meshIndex": 38
+    },
+    {
+      "index": 39,
+      "key": "sam_site",
+      "name": "SAM Site",
+      "role": "defense",
+      "description": "Surface-to-air missile battery.",
+      "glbPath": "/assets/groundrts/dune-buildings/sam_site.glb",
+      "meshIndex": 39
+    },
+    {
+      "index": 40,
+      "key": "research_lab",
+      "name": "Research Lab",
+      "role": "research",
+      "description": "Unlocks tier 2 units and upgrades.",
+      "glbPath": "/assets/groundrts/dune-buildings/research_lab.glb",
+      "meshIndex": 40
+    },
+    {
+      "index": 41,
+      "key": "tech_center",
+      "name": "Technology Center",
+      "role": "research",
+      "description": "Unlocks tier 3 advanced technologies.",
+      "glbPath": "/assets/groundrts/dune-buildings/tech_center.glb",
+      "meshIndex": 41
+    },
+    {
+      "index": 42,
+      "key": "weapons_lab",
+      "name": "Weapons Lab",
+      "role": "research",
+      "description": "Upgrades unit damage and weapon systems.",
+      "glbPath": "/assets/groundrts/dune-buildings/weapons_lab.glb",
+      "meshIndex": 42
+    },
+    {
+      "index": 43,
+      "key": "armor_forge",
+      "name": "Armor Forge",
+      "role": "research",
+      "description": "Upgrades unit HP and armor values.",
+      "glbPath": "/assets/groundrts/dune-buildings/armor_forge.glb",
+      "meshIndex": 43
+    },
+    {
+      "index": 44,
+      "key": "comms_center",
+      "name": "Communications Center",
+      "role": "research",
+      "description": "Unlocks minimap and advanced orders.",
+      "glbPath": "/assets/groundrts/dune-buildings/comms_center.glb",
+      "meshIndex": 44
+    },
+    {
+      "index": 45,
+      "key": "academy",
+      "name": "War Academy",
+      "role": "research",
+      "description": "Trains veteran units. +1 rank on production.",
+      "glbPath": "/assets/groundrts/dune-buildings/academy.glb",
+      "meshIndex": 45
+    },
+    {
+      "index": 46,
+      "key": "biolab",
+      "name": "Biological Lab",
+      "role": "research",
+      "description": "Researches biological weapons and healing.",
+      "glbPath": "/assets/groundrts/dune-buildings/biolab.glb",
+      "meshIndex": 46
+    },
+    {
+      "index": 47,
+      "key": "cyber_core",
+      "name": "Cybernetics Core",
+      "role": "research",
+      "description": "Unlocks cybernetic unit augments.",
+      "glbPath": "/assets/groundrts/dune-buildings/cyber_core.glb",
+      "meshIndex": 47
+    },
+    {
+      "index": 48,
+      "key": "intel_hub",
+      "name": "Intelligence Hub",
+      "role": "research",
+      "description": "Reveals enemy production queue.",
+      "glbPath": "/assets/groundrts/dune-buildings/intel_hub.glb",
+      "meshIndex": 48
+    },
+    {
+      "index": 49,
+      "key": "upgrade_bay",
+      "name": "Upgrade Bay",
+      "role": "research",
+      "description": "Generic structure for applying field upgrades.",
+      "glbPath": "/assets/groundrts/dune-buildings/upgrade_bay.glb",
+      "meshIndex": 49
+    },
+    {
+      "index": 50,
+      "key": "palace",
+      "name": "Palace",
+      "role": "special",
+      "description": "Faction superweapon. Ultimate ability on cooldown.",
+      "glbPath": "/assets/groundrts/dune-buildings/palace.glb",
+      "meshIndex": 50
+    },
+    {
+      "index": 51,
+      "key": "outpost",
+      "name": "Outpost",
+      "role": "special",
+      "description": "Frontier expansion point. Builds basic defenses.",
+      "glbPath": "/assets/groundrts/dune-buildings/outpost.glb",
+      "meshIndex": 51
+    },
+    {
+      "index": 52,
+      "key": "repair_pad",
+      "name": "Repair Pad",
+      "role": "special",
+      "description": "Automatically repairs nearby friendly vehicles.",
+      "glbPath": "/assets/groundrts/dune-buildings/repair_pad.glb",
+      "meshIndex": 52
+    },
+    {
+      "index": 53,
+      "key": "landing_pad",
+      "name": "Landing Pad",
+      "role": "special",
+      "description": "Orbital drop zone for reinforcements.",
+      "glbPath": "/assets/groundrts/dune-buildings/landing_pad.glb",
+      "meshIndex": 53
+    },
+    {
+      "index": 54,
+      "key": "beacon",
+      "name": "Rally Beacon",
+      "role": "special",
+      "description": "Sets rally point for produced units.",
+      "glbPath": "/assets/groundrts/dune-buildings/beacon.glb",
+      "meshIndex": 54
+    },
+    {
+      "index": 55,
+      "key": "command_center",
+      "name": "Command Center",
+      "role": "special",
+      "description": "HQ building. Required for advanced structures.",
+      "glbPath": "/assets/groundrts/dune-buildings/command_center.glb",
+      "meshIndex": 55
+    },
+    {
+      "index": 56,
+      "key": "observation_post",
+      "name": "Observation Post",
+      "role": "special",
+      "description": "Extended radar range and detection.",
+      "glbPath": "/assets/groundrts/dune-buildings/observation_post.glb",
+      "meshIndex": 56
+    },
+    {
+      "index": 57,
+      "key": "teleporter",
+      "name": "Warp Gate",
+      "role": "special",
+      "description": "Teleports units between paired warp gates.",
+      "glbPath": "/assets/groundrts/dune-buildings/teleporter.glb",
+      "meshIndex": 57
+    },
+    {
+      "index": 58,
+      "key": "monument",
+      "name": "War Monument",
+      "role": "special",
+      "description": "Morale boost. Units nearby fight harder.",
+      "glbPath": "/assets/groundrts/dune-buildings/monument.glb",
+      "meshIndex": 58
+    },
+    {
+      "index": 59,
+      "key": "vault",
+      "name": "Resource Vault",
+      "role": "special",
+      "description": "Protected storage. Resources survive destruction.",
+      "glbPath": "/assets/groundrts/dune-buildings/vault.glb",
+      "meshIndex": 59
+    },
+    {
+      "index": 60,
+      "key": "ruins_a",
+      "name": "Ruined Structure A",
+      "role": "decoration",
+      "description": "Destroyed building remains for battlefield dressing.",
+      "glbPath": "/assets/groundrts/dune-buildings/ruins_a.glb",
+      "meshIndex": 60
+    },
+    {
+      "index": 61,
+      "key": "ruins_b",
+      "name": "Ruined Structure B",
+      "role": "decoration",
+      "description": "Collapsed building wreckage.",
+      "glbPath": "/assets/groundrts/dune-buildings/ruins_b.glb",
+      "meshIndex": 61
+    },
+    {
+      "index": 62,
+      "key": "ruins_c",
+      "name": "Ruined Tower",
+      "role": "decoration",
+      "description": "Destroyed watchtower remains.",
+      "glbPath": "/assets/groundrts/dune-buildings/ruins_c.glb",
+      "meshIndex": 62
+    },
+    {
+      "index": 63,
+      "key": "pipe_junction",
+      "name": "Pipe Junction",
+      "role": "decoration",
+      "description": "Industrial piping connector.",
+      "glbPath": "/assets/groundrts/dune-buildings/pipe_junction.glb",
+      "meshIndex": 63
+    },
+    {
+      "index": 64,
+      "key": "pipe_straight",
+      "name": "Pipe Segment",
+      "role": "decoration",
+      "description": "Straight pipeline section.",
+      "glbPath": "/assets/groundrts/dune-buildings/pipe_straight.glb",
+      "meshIndex": 64
+    },
+    {
+      "index": 65,
+      "key": "pipe_corner",
+      "name": "Pipe Elbow",
+      "role": "decoration",
+      "description": "Corner pipeline piece.",
+      "glbPath": "/assets/groundrts/dune-buildings/pipe_corner.glb",
+      "meshIndex": 65
+    },
+    {
+      "index": 66,
+      "key": "antenna_small",
+      "name": "Small Antenna",
+      "role": "decoration",
+      "description": "Communication antenna mast.",
+      "glbPath": "/assets/groundrts/dune-buildings/antenna_small.glb",
+      "meshIndex": 66
+    },
+    {
+      "index": 67,
+      "key": "antenna_large",
+      "name": "Radar Dish",
+      "role": "decoration",
+      "description": "Large rotating radar dish.",
+      "glbPath": "/assets/groundrts/dune-buildings/antenna_large.glb",
+      "meshIndex": 67
+    },
+    {
+      "index": 68,
+      "key": "scaffold_a",
+      "name": "Scaffold Frame A",
+      "role": "decoration",
+      "description": "Construction scaffolding.",
+      "glbPath": "/assets/groundrts/dune-buildings/scaffold_a.glb",
+      "meshIndex": 68
+    },
+    {
+      "index": 69,
+      "key": "scaffold_b",
+      "name": "Scaffold Frame B",
+      "role": "decoration",
+      "description": "Tall scaffolding structure.",
+      "glbPath": "/assets/groundrts/dune-buildings/scaffold_b.glb",
+      "meshIndex": 69
+    },
+    {
+      "index": 70,
+      "key": "crate_small",
+      "name": "Supply Crate",
+      "role": "decoration",
+      "description": "Small supply container.",
+      "glbPath": "/assets/groundrts/dune-buildings/crate_small.glb",
+      "meshIndex": 70
+    },
+    {
+      "index": 71,
+      "key": "crate_large",
+      "name": "Cargo Container",
+      "role": "decoration",
+      "description": "Large shipping container.",
+      "glbPath": "/assets/groundrts/dune-buildings/crate_large.glb",
+      "meshIndex": 71
+    },
+    {
+      "index": 72,
+      "key": "barrel_cluster",
+      "name": "Fuel Barrels",
+      "role": "decoration",
+      "description": "Grouped fuel storage barrels.",
+      "glbPath": "/assets/groundrts/dune-buildings/barrel_cluster.glb",
+      "meshIndex": 72
+    },
+    {
+      "index": 73,
+      "key": "tank_storage",
+      "name": "Storage Tank",
+      "role": "decoration",
+      "description": "Liquid storage tank.",
+      "glbPath": "/assets/groundrts/dune-buildings/tank_storage.glb",
+      "meshIndex": 73
+    },
+    {
+      "index": 74,
+      "key": "lamp_post",
+      "name": "Light Post",
+      "role": "decoration",
+      "description": "Base illumination pole.",
+      "glbPath": "/assets/groundrts/dune-buildings/lamp_post.glb",
+      "meshIndex": 74
+    },
+    {
+      "index": 75,
+      "key": "fence_straight",
+      "name": "Fence Segment",
+      "role": "decoration",
+      "description": "Chain-link perimeter fence.",
+      "glbPath": "/assets/groundrts/dune-buildings/fence_straight.glb",
+      "meshIndex": 75
+    },
+    {
+      "index": 76,
+      "key": "fence_gate",
+      "name": "Fence Gate",
+      "role": "decoration",
+      "description": "Passable fence gate.",
+      "glbPath": "/assets/groundrts/dune-buildings/fence_gate.glb",
+      "meshIndex": 76
+    },
+    {
+      "index": 77,
+      "key": "helipad",
+      "name": "Helipad",
+      "role": "decoration",
+      "description": "Landing circle marking.",
+      "glbPath": "/assets/groundrts/dune-buildings/helipad.glb",
+      "meshIndex": 77
+    },
+    {
+      "index": 78,
+      "key": "flag_pole",
+      "name": "Flag Pole",
+      "role": "decoration",
+      "description": "Faction banner pole.",
+      "glbPath": "/assets/groundrts/dune-buildings/flag_pole.glb",
+      "meshIndex": 78
+    },
+    {
+      "index": 79,
+      "key": "sandbag_wall",
+      "name": "Sandbag Wall",
+      "role": "decoration",
+      "description": "Improvised cover emplacement.",
+      "glbPath": "/assets/groundrts/dune-buildings/sandbag_wall.glb",
+      "meshIndex": 79
+    },
+    {
+      "index": 80,
+      "key": "turret_base_a",
+      "name": "Turret Platform A",
+      "role": "decoration",
+      "description": "Elevated weapon platform base.",
+      "glbPath": "/assets/groundrts/dune-buildings/turret_base_a.glb",
+      "meshIndex": 80
+    },
+    {
+      "index": 81,
+      "key": "turret_base_b",
+      "name": "Turret Platform B",
+      "role": "decoration",
+      "description": "Low-profile turret mount.",
+      "glbPath": "/assets/groundrts/dune-buildings/turret_base_b.glb",
+      "meshIndex": 81
+    },
+    {
+      "index": 82,
+      "key": "power_conduit",
+      "name": "Power Conduit",
+      "role": "decoration",
+      "description": "Energy transfer cable housing.",
+      "glbPath": "/assets/groundrts/dune-buildings/power_conduit.glb",
+      "meshIndex": 82
+    },
+    {
+      "index": 83,
+      "key": "exhaust_vent",
+      "name": "Exhaust Vent",
+      "role": "decoration",
+      "description": "Industrial ventilation stack.",
+      "glbPath": "/assets/groundrts/dune-buildings/exhaust_vent.glb",
+      "meshIndex": 83
+    },
+    {
+      "index": 84,
+      "key": "dish_array",
+      "name": "Sensor Dish Array",
+      "role": "decoration",
+      "description": "Multi-dish sensor cluster.",
+      "glbPath": "/assets/groundrts/dune-buildings/dish_array.glb",
+      "meshIndex": 84
+    },
+    {
+      "index": 85,
+      "key": "generator_small",
+      "name": "Portable Generator",
+      "role": "decoration",
+      "description": "Small field power unit.",
+      "glbPath": "/assets/groundrts/dune-buildings/generator_small.glb",
+      "meshIndex": 85
+    },
+    {
+      "index": 86,
+      "key": "bunker_small",
+      "name": "Observation Bunker",
+      "role": "decoration",
+      "description": "Small fortified lookout.",
+      "glbPath": "/assets/groundrts/dune-buildings/bunker_small.glb",
+      "meshIndex": 86
+    },
+    {
+      "index": 87,
+      "key": "blast_door",
+      "name": "Blast Door",
+      "role": "decoration",
+      "description": "Heavy reinforced entrance.",
+      "glbPath": "/assets/groundrts/dune-buildings/blast_door.glb",
+      "meshIndex": 87
+    },
+    {
+      "index": 88,
+      "key": "control_panel",
+      "name": "Control Terminal",
+      "role": "decoration",
+      "description": "Outdoor control console.",
+      "glbPath": "/assets/groundrts/dune-buildings/control_panel.glb",
+      "meshIndex": 88
+    },
+    {
+      "index": 89,
+      "key": "siren_tower",
+      "name": "Alert Siren Tower",
+      "role": "decoration",
+      "description": "Air raid warning system.",
+      "glbPath": "/assets/groundrts/dune-buildings/siren_tower.glb",
+      "meshIndex": 89
+    },
+    {
+      "index": 90,
+      "key": "water_tower",
+      "name": "Water Tower",
+      "role": "decoration",
+      "description": "Base water supply tank.",
+      "glbPath": "/assets/groundrts/dune-buildings/water_tower.glb",
+      "meshIndex": 90
+    },
+    {
+      "index": 91,
+      "key": "cooling_tower",
+      "name": "Cooling Tower",
+      "role": "decoration",
+      "description": "Reactor heat dissipation.",
+      "glbPath": "/assets/groundrts/dune-buildings/cooling_tower.glb",
+      "meshIndex": 91
+    },
+    {
+      "index": 92,
+      "key": "smokestack",
+      "name": "Smokestack",
+      "role": "decoration",
+      "description": "Industrial exhaust chimney.",
+      "glbPath": "/assets/groundrts/dune-buildings/smokestack.glb",
+      "meshIndex": 92
+    },
+    {
+      "index": 93,
+      "key": "landing_beacon",
+      "name": "Landing Beacon",
+      "role": "decoration",
+      "description": "Glowing approach marker.",
+      "glbPath": "/assets/groundrts/dune-buildings/landing_beacon.glb",
+      "meshIndex": 93
+    },
+    {
+      "index": 94,
+      "key": "comm_tower",
+      "name": "Communications Tower",
+      "role": "decoration",
+      "description": "Tall signal relay tower.",
+      "glbPath": "/assets/groundrts/dune-buildings/comm_tower.glb",
+      "meshIndex": 94
+    },
+    {
+      "index": 95,
+      "key": "garage",
+      "name": "Vehicle Garage",
+      "role": "decoration",
+      "description": "Vehicle shelter structure.",
+      "glbPath": "/assets/groundrts/dune-buildings/garage.glb",
+      "meshIndex": 95
+    },
+    {
+      "index": 96,
+      "key": "checkpoint",
+      "name": "Security Checkpoint",
+      "role": "decoration",
+      "description": "Base entry control point.",
+      "glbPath": "/assets/groundrts/dune-buildings/checkpoint.glb",
+      "meshIndex": 96
+    },
+    {
+      "index": 97,
+      "key": "watchtower",
+      "name": "Guard Tower",
+      "role": "decoration",
+      "description": "Elevated sentry position.",
+      "glbPath": "/assets/groundrts/dune-buildings/watchtower.glb",
+      "meshIndex": 97
+    },
+    {
+      "index": 98,
+      "key": "ammo_dump",
+      "name": "Ammunition Dump",
+      "role": "decoration",
+      "description": "Munitions storage area.",
+      "glbPath": "/assets/groundrts/dune-buildings/ammo_dump.glb",
+      "meshIndex": 98
+    },
+    {
+      "index": 99,
+      "key": "command_tent",
+      "name": "Field Command Post",
+      "role": "decoration",
+      "description": "Temporary tactical headquarters.",
+      "glbPath": "/assets/groundrts/dune-buildings/command_tent.glb",
+      "meshIndex": 99
+    }
+  ]
+}
