@@ -951,6 +951,55 @@ function MainMenu({
     { key: '2v2', label: 'OUTER SYSTEM', desc: '4 commanders · 14 planets' },
     { key: 'ffa4', label: 'FULL SECTOR', desc: '4-way free-for-all' },
   ];
+  // ── Shared panel style (opaque dark glass — no image backgrounds) ──
+  const panelBase: React.CSSProperties = {
+    padding: '24px 28px',
+    width: 300,
+    maxWidth: '90vw',
+    borderRadius: 12,
+    background: 'rgba(6,12,24,0.92)',
+    backdropFilter: 'blur(12px)',
+    border: '1px solid rgba(68,136,255,0.15)',
+    boxShadow: '0 8px 32px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.04)',
+  };
+  const panelTitle: React.CSSProperties = {
+    fontSize: 11,
+    fontWeight: 800,
+    letterSpacing: 4,
+    textAlign: 'center',
+    marginBottom: 16,
+    textTransform: 'uppercase',
+    paddingBottom: 8,
+    borderBottom: '1px solid rgba(255,255,255,0.06)',
+  };
+  const launchBtn = (color: string, hoverGlow: string): React.CSSProperties => ({
+    width: '100%',
+    height: 44,
+    border: 'none',
+    borderRadius: 8,
+    background: `linear-gradient(135deg, ${color}, ${color}88)`,
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: 800,
+    letterSpacing: 2,
+    cursor: 'pointer',
+    transition: 'box-shadow 0.2s, transform 0.1s',
+    boxShadow: `0 4px 16px ${hoverGlow}`,
+    textTransform: 'uppercase',
+  });
+  const authBtn = (bg: string, border: string, color: string): React.CSSProperties => ({
+    padding: '6px 16px',
+    fontSize: 11,
+    fontWeight: 700,
+    background: bg,
+    border: `1px solid ${border}`,
+    borderRadius: 6,
+    color,
+    cursor: 'pointer',
+    letterSpacing: 1,
+    transition: 'background 0.15s',
+  });
+
   return (
     <div
       style={{
@@ -959,53 +1008,38 @@ function MainMenu({
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
-        justifyContent: 'center',
         background: '#010308',
         color: '#cde',
         zIndex: 100,
+        overflowY: 'auto',
+        overflowX: 'hidden',
       }}
     >
       <StarfieldCanvas />
-      {/* Menu background art — LevelSelect from HUD pack */}
-      <img
-        src="/assets/space/ui/hud/LevelSelect_Background.webp"
-        alt=""
+
+      {/* Scrollable content */}
+      <div
         style={{
-          position: 'absolute',
-          inset: 0,
+          position: 'relative',
+          zIndex: 1,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          padding: '48px 16px 32px',
           width: '100%',
-          height: '100%',
-          objectFit: 'cover',
-          opacity: 0.12,
-          pointerEvents: 'none',
-          zIndex: 0,
+          maxWidth: 1100,
         }}
-        onError={(e) => {
-          (e.target as HTMLImageElement).style.display = 'none';
-        }}
-      />
-      <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-        {/* Top element decoration */}
-        <img
-          src="/assets/space/ui/scifi-gui/elements/3.png"
-          alt=""
-          style={{ width: 160, opacity: 0.25, marginBottom: 4 }}
-          onError={(e) => {
-            (e.target as HTMLImageElement).style.display = 'none';
-          }}
-        />
-        {/* Logo */}
+      >
+        {/* ── Logo ── */}
         <img
           src="/assets/space/ui/logo.webp"
           alt="GRUDA ARMADA"
           style={{
-            width: 380,
-            maxWidth: '88vw',
+            width: 340,
+            maxWidth: '80vw',
             display: 'block',
-            imageRendering: 'auto',
-            marginBottom: 8,
-            mixBlendMode: 'screen' as any,
-            filter: 'drop-shadow(0 0 40px rgba(68,136,255,0.45)) drop-shadow(0 0 18px rgba(200,30,30,0.3))',
+            marginBottom: 6,
+            filter: 'drop-shadow(0 0 40px rgba(68,136,255,0.4)) drop-shadow(0 0 16px rgba(200,30,30,0.25))',
           }}
           onError={(e) => {
             const t = e.target as HTMLImageElement;
@@ -1013,219 +1047,54 @@ function MainMenu({
             else t.style.display = 'none';
           }}
         />
-        {/* Subtitle with gem accents */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-          <img
-            src="/assets/space/ui/scifi-gui/sliced/gem-dia.png"
-            alt=""
-            style={{ width: 10, height: 10, opacity: 0.5 }}
-            onError={(e) => {
-              (e.target as HTMLImageElement).style.display = 'none';
-            }}
-          />
-          <span style={{ fontSize: 11, opacity: 0.35, letterSpacing: 4, textTransform: 'uppercase' as const }}>
-            Tactical Space RTS · by Racalvin The Pirate King
-          </span>
-          <img
-            src="/assets/space/ui/scifi-gui/sliced/gem-dia.png"
-            alt=""
-            style={{ width: 10, height: 10, opacity: 0.5 }}
-            onError={(e) => {
-              (e.target as HTMLImageElement).style.display = 'none';
-            }}
-          />
+        <div style={{ fontSize: 11, opacity: 0.3, letterSpacing: 5, textTransform: 'uppercase', marginBottom: 24 }}>
+          Tactical Space RTS · by Racalvin The Pirate King
         </div>
-        {/* ── Auth bar — using tag-sm sliced asset bg ── */}
+
+        {/* ── Auth bar ── */}
         <div
           style={{
             display: 'flex',
             alignItems: 'center',
             gap: 10,
-            marginBottom: 28,
-            padding: '6px 16px',
-            borderRadius: 6,
-            backgroundImage: 'url(/assets/space/ui/scifi-gui/sliced/panel-wide.png)',
-            backgroundSize: '100% 100%',
-            backgroundRepeat: 'no-repeat',
-            position: 'relative',
+            marginBottom: 36,
+            padding: '8px 20px',
+            borderRadius: 8,
+            background: 'rgba(10,18,36,0.8)',
+            border: '1px solid rgba(68,136,255,0.1)',
           }}
         >
           {user ? (
             <>
-              {user.avatarUrl && <img src={user.avatarUrl} alt="" style={{ width: 24, height: 24, borderRadius: 4 }} />}
-              <span style={{ fontSize: 12, color: '#4df', fontWeight: 600 }}>{user.displayName}</span>
-              <span style={{ fontSize: 9, color: 'rgba(160,200,255,0.4)', letterSpacing: 1 }}>GRUDGE ID</span>
-              <button
-                onClick={onLogout}
-                style={{
-                  marginLeft: 8,
-                  padding: '3px 10px',
-                  fontSize: 10,
-                  background: 'transparent',
-                  border: '1px solid rgba(255,68,68,0.3)',
-                  borderRadius: 4,
-                  color: '#f44',
-                  cursor: 'pointer',
-                  fontWeight: 600,
-                }}
-              >
+              {user.avatarUrl && <img src={user.avatarUrl} alt="" style={{ width: 26, height: 26, borderRadius: 6 }} />}
+              <span style={{ fontSize: 13, color: '#4df', fontWeight: 600 }}>{user.displayName}</span>
+              <span style={{ fontSize: 9, color: '#456', letterSpacing: 1 }}>GRUDGE ID</span>
+              <button onClick={onLogout} style={authBtn('transparent', 'rgba(255,68,68,0.25)', '#f66')}>
                 LOGOUT
               </button>
             </>
           ) : (
             <>
-              <span style={{ fontSize: 10, color: 'rgba(160,200,255,0.5)', letterSpacing: 1 }}>GUEST MODE</span>
-              <button
-                onClick={() => onLogin('discord')}
-                style={{
-                  padding: '4px 12px',
-                  fontSize: 10,
-                  background: 'rgba(88,101,242,0.2)',
-                  border: '1px solid rgba(88,101,242,0.4)',
-                  borderRadius: 4,
-                  color: '#7289da',
-                  cursor: 'pointer',
-                  fontWeight: 700,
-                }}
-              >
+              <span style={{ fontSize: 10, color: '#456', letterSpacing: 1 }}>GUEST MODE</span>
+              <button onClick={() => onLogin('discord')} style={authBtn('rgba(88,101,242,0.15)', 'rgba(88,101,242,0.35)', '#7289da')}>
                 DISCORD
               </button>
-              <button
-                onClick={() => onLogin('google')}
-                style={{
-                  padding: '4px 12px',
-                  fontSize: 10,
-                  background: 'rgba(255,255,255,0.05)',
-                  border: '1px solid rgba(255,255,255,0.15)',
-                  borderRadius: 4,
-                  color: '#cde',
-                  cursor: 'pointer',
-                  fontWeight: 700,
-                }}
-              >
+              <button onClick={() => onLogin('google')} style={authBtn('rgba(255,255,255,0.04)', 'rgba(255,255,255,0.1)', '#aab')}>
                 GOOGLE
               </button>
-              <button
-                onClick={() => onLogin('github')}
-                style={{
-                  padding: '4px 12px',
-                  fontSize: 10,
-                  background: 'rgba(255,255,255,0.05)',
-                  border: '1px solid rgba(255,255,255,0.15)',
-                  borderRadius: 4,
-                  color: '#cde',
-                  cursor: 'pointer',
-                  fontWeight: 700,
-                }}
-              >
+              <button onClick={() => onLogin('github')} style={authBtn('rgba(255,255,255,0.04)', 'rgba(255,255,255,0.1)', '#aab')}>
                 GITHUB
               </button>
             </>
           )}
         </div>
-        {/* ── Three-column mode selection with SciFi panels ── */}
-        <div style={{ display: 'flex', gap: 20, marginBottom: 24, flexWrap: 'wrap', justifyContent: 'center' }}>
-          {/* Quick Game column — using panel-sq sliced asset */}
-          <div
-            style={{
-              padding: '16px 20px',
-              minWidth: 280,
-              position: 'relative',
-              backgroundImage: 'url(/assets/space/ui/scifi-gui/sliced/panel-sq.png)',
-              backgroundSize: '100% 100%',
-              backgroundRepeat: 'no-repeat',
-              filter: 'drop-shadow(0 4px 16px rgba(0,0,0,0.5)) drop-shadow(0 0 8px rgba(68,136,255,0.15))',
-            }}
-          >
-            {/* Corner decorations */}
-            <img
-              src="/assets/space/ui/scifi-gui/sliced/corner.png"
-              alt=""
-              style={{ position: 'absolute', top: -2, left: -2, width: 20, height: 20, pointerEvents: 'none', opacity: 0.6 }}
-              onError={(e) => {
-                (e.target as HTMLImageElement).style.display = 'none';
-              }}
-            />
-            <img
-              src="/assets/space/ui/scifi-gui/sliced/corner.png"
-              alt=""
-              style={{
-                position: 'absolute',
-                top: -2,
-                right: -2,
-                width: 20,
-                height: 20,
-                pointerEvents: 'none',
-                opacity: 0.6,
-                transform: 'rotate(90deg)',
-              }}
-              onError={(e) => {
-                (e.target as HTMLImageElement).style.display = 'none';
-              }}
-            />
-            <img
-              src="/assets/space/ui/scifi-gui/sliced/corner.png"
-              alt=""
-              style={{
-                position: 'absolute',
-                bottom: -2,
-                right: -2,
-                width: 20,
-                height: 20,
-                pointerEvents: 'none',
-                opacity: 0.6,
-                transform: 'rotate(180deg)',
-              }}
-              onError={(e) => {
-                (e.target as HTMLImageElement).style.display = 'none';
-              }}
-            />
-            <img
-              src="/assets/space/ui/scifi-gui/sliced/corner.png"
-              alt=""
-              style={{
-                position: 'absolute',
-                bottom: -2,
-                left: -2,
-                width: 20,
-                height: 20,
-                pointerEvents: 'none',
-                opacity: 0.6,
-                transform: 'rotate(270deg)',
-              }}
-              onError={(e) => {
-                (e.target as HTMLImageElement).style.display = 'none';
-              }}
-            />
-            {/* Title chevron */}
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                backgroundImage: 'url(/assets/space/ui/scifi-gui/sliced/title-chevron.png)',
-                backgroundSize: '100% 100%',
-                backgroundRepeat: 'no-repeat',
-                padding: '4px 20px',
-                marginBottom: 12,
-                minHeight: 24,
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <img
-                  src="/assets/space/ui/space-icons/PNG/5.png"
-                  alt=""
-                  style={{ width: 16, height: 16 }}
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).style.display = 'none';
-                  }}
-                />
-                <span style={{ fontSize: 10, fontWeight: 800, color: '#fff', letterSpacing: 3, textTransform: 'uppercase' as const }}>
-                  QUICK GAME
-                </span>
-              </div>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+
+        {/* ── Three-column game mode cards ── */}
+        <div style={{ display: 'flex', gap: 24, marginBottom: 32, flexWrap: 'wrap', justifyContent: 'center' }}>
+          {/* ── QUICK GAME ── */}
+          <div style={{ ...panelBase, borderColor: 'rgba(68,136,255,0.2)' }}>
+            <div style={{ ...panelTitle, color: '#4488ff' }}>⚔ QUICK GAME</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
               {quickModes.map((m) => {
                 const sel = mode === m.key;
                 return (
@@ -1233,405 +1102,163 @@ function MainMenu({
                     key={m.key}
                     onClick={() => setMode(m.key)}
                     style={{
-                      padding: '10px 16px',
-                      borderRadius: 6,
+                      padding: '12px 16px',
+                      borderRadius: 8,
                       cursor: 'pointer',
-                      border: sel ? '2px solid #4488ff' : '1px solid #1a305066',
-                      background: sel ? 'rgba(68,136,255,0.15)' : 'transparent',
+                      border: sel ? '1px solid #4488ff' : '1px solid rgba(255,255,255,0.04)',
+                      background: sel ? 'rgba(68,136,255,0.1)' : 'rgba(255,255,255,0.02)',
                       transition: 'all 0.15s',
                     }}
                   >
-                    <div style={{ fontSize: 14, fontWeight: 700 }}>{m.label}</div>
-                    <div style={{ fontSize: 10, opacity: 0.5 }}>{m.desc}</div>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: sel ? '#fff' : '#8ab' }}>{m.label}</div>
+                    <div style={{ fontSize: 11, color: '#456', marginTop: 2 }}>{m.desc}</div>
                   </div>
                 );
               })}
             </div>
-            <Btn
-              label="LAUNCH QUICK GAME"
-              wide
-              active={mode !== 'campaign'}
-              onClick={onStart}
-              style={{ marginTop: 12, width: '100%', height: 40 }}
-            />
+            <button onClick={onStart} style={launchBtn('#2255cc', 'rgba(34,85,204,0.3)')}>
+              LAUNCH QUICK GAME
+            </button>
           </div>
 
-          {/* Campaign column — using panel-sq-alt gold sliced asset */}
-          <div
-            style={{
-              padding: '16px 20px',
-              minWidth: 280,
-              position: 'relative',
-              backgroundImage:
-                mode === 'campaign'
-                  ? 'url(/assets/space/ui/scifi-gui/sliced/panel-sq-alt-gold.png)'
-                  : 'url(/assets/space/ui/scifi-gui/sliced/panel-sq-alt.png)',
-              backgroundSize: '100% 100%',
-              backgroundRepeat: 'no-repeat',
-              filter: `drop-shadow(0 4px 16px rgba(0,0,0,0.5)) drop-shadow(0 0 8px ${mode === 'campaign' ? 'rgba(255,180,0,0.2)' : 'rgba(68,255,200,0.1)'})`,
-              transition: 'filter 0.2s',
-            }}
-          >
-            {/* Corner decorations — gold variant */}
-            <img
-              src="/assets/space/ui/scifi-gui/sliced/corner-gold.png"
-              alt=""
-              style={{ position: 'absolute', top: -2, left: -2, width: 20, height: 20, pointerEvents: 'none', opacity: 0.6 }}
-              onError={(e) => {
-                (e.target as HTMLImageElement).style.display = 'none';
-              }}
-            />
-            <img
-              src="/assets/space/ui/scifi-gui/sliced/corner-gold.png"
-              alt=""
-              style={{
-                position: 'absolute',
-                top: -2,
-                right: -2,
-                width: 20,
-                height: 20,
-                pointerEvents: 'none',
-                opacity: 0.6,
-                transform: 'rotate(90deg)',
-              }}
-              onError={(e) => {
-                (e.target as HTMLImageElement).style.display = 'none';
-              }}
-            />
-            <img
-              src="/assets/space/ui/scifi-gui/sliced/corner-gold.png"
-              alt=""
-              style={{
-                position: 'absolute',
-                bottom: -2,
-                right: -2,
-                width: 20,
-                height: 20,
-                pointerEvents: 'none',
-                opacity: 0.6,
-                transform: 'rotate(180deg)',
-              }}
-              onError={(e) => {
-                (e.target as HTMLImageElement).style.display = 'none';
-              }}
-            />
-            <img
-              src="/assets/space/ui/scifi-gui/sliced/corner-gold.png"
-              alt=""
-              style={{
-                position: 'absolute',
-                bottom: -2,
-                left: -2,
-                width: 20,
-                height: 20,
-                pointerEvents: 'none',
-                opacity: 0.6,
-                transform: 'rotate(270deg)',
-              }}
-              onError={(e) => {
-                (e.target as HTMLImageElement).style.display = 'none';
-              }}
-            />
-            {/* Title chevron — gold */}
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                backgroundImage: 'url(/assets/space/ui/scifi-gui/sliced/title-chevron-gold.png)',
-                backgroundSize: '100% 100%',
-                backgroundRepeat: 'no-repeat',
-                padding: '4px 20px',
-                marginBottom: 12,
-                minHeight: 24,
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <img
-                  src="/assets/space/ui/space-icons/PNG/9.png"
-                  alt=""
-                  style={{ width: 16, height: 16 }}
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).style.display = 'none';
-                  }}
-                />
-                <span style={{ fontSize: 10, fontWeight: 800, color: '#fff', letterSpacing: 3, textTransform: 'uppercase' as const }}>
-                  CAPTAIN'S CAMPAIGN
-                </span>
-              </div>
-            </div>
+          {/* ── CAPTAIN'S CAMPAIGN ── */}
+          <div style={{ ...panelBase, borderColor: 'rgba(255,136,34,0.2)' }}>
+            <div style={{ ...panelTitle, color: '#ff8822' }}>⭐ CAPTAIN'S CAMPAIGN</div>
             <div
               onClick={() => setMode('campaign')}
               style={{
-                padding: '12px 16px',
-                borderRadius: 6,
+                padding: '14px 16px',
+                borderRadius: 8,
                 cursor: 'pointer',
-                border: mode === 'campaign' ? '2px solid #ff8822' : '1px solid #44220066',
-                background: mode === 'campaign' ? 'rgba(255,136,34,0.12)' : 'transparent',
+                border: mode === 'campaign' ? '1px solid #ff8822' : '1px solid rgba(255,255,255,0.04)',
+                background: mode === 'campaign' ? 'rgba(255,136,34,0.08)' : 'rgba(255,255,255,0.02)',
                 transition: 'all 0.15s',
-                marginBottom: 10,
+                marginBottom: 12,
               }}
             >
-              <div style={{ fontSize: 14, fontWeight: 700, color: '#ff8822' }}>ENDLESS CONQUEST</div>
-              <div style={{ fontSize: 10, color: 'rgba(200,160,100,0.7)', marginTop: 4, lineHeight: 1.5 }}>
+              <div style={{ fontSize: 15, fontWeight: 700, color: '#ffaa44' }}>ENDLESS CONQUEST</div>
+              <div style={{ fontSize: 11, color: '#665', marginTop: 6, lineHeight: 1.6 }}>
                 Your shattered homeworld · Off-world base building
                 <br />
                 AI story events · 4 factions · Universe Wars
               </div>
             </div>
-            <div style={{ fontSize: 9, color: 'rgba(160,200,255,0.35)', textAlign: 'center', marginBottom: 8, lineHeight: 1.5 }}>
-              10x slower gameplay · Homeworld chunks forever mine
+            <div style={{ fontSize: 10, color: '#334', textAlign: 'center', marginBottom: 14, lineHeight: 1.6 }}>
+              10× slower gameplay · Homeworld chunks forever mine
               <br />
               Build your base · Conquer the galaxy
             </div>
-            <Btn
-              label="CREATE COMMANDER"
-              wide
-              active={mode === 'campaign'}
+            <button
               onClick={() => {
                 setMode('campaign');
                 onCampaign();
               }}
-              style={{ width: '100%', height: 40 }}
-            />
+              style={launchBtn('#aa5500', 'rgba(170,85,0,0.3)')}
+            >
+              CREATE COMMANDER
+            </button>
           </div>
 
-          {/* Ground Game Quick Play column — using panel-sq purple sliced asset */}
-          <div
-            style={{
-              padding: '16px 20px',
-              minWidth: 280,
-              position: 'relative',
-              backgroundImage: 'url(/assets/space/ui/scifi-gui/sliced/panel-sq-purple.png)',
-              backgroundSize: '100% 100%',
-              backgroundRepeat: 'no-repeat',
-              filter: 'drop-shadow(0 4px 16px rgba(0,0,0,0.5)) drop-shadow(0 0 8px rgba(160,60,255,0.15))',
-            }}
-          >
-            {/* Corner decorations — purple variant */}
-            <img
-              src="/assets/space/ui/scifi-gui/sliced/corner-purple.png"
-              alt=""
-              style={{ position: 'absolute', top: -2, left: -2, width: 20, height: 20, pointerEvents: 'none', opacity: 0.6 }}
-              onError={(e) => {
-                (e.target as HTMLImageElement).style.display = 'none';
-              }}
-            />
-            <img
-              src="/assets/space/ui/scifi-gui/sliced/corner-purple.png"
-              alt=""
-              style={{
-                position: 'absolute',
-                top: -2,
-                right: -2,
-                width: 20,
-                height: 20,
-                pointerEvents: 'none',
-                opacity: 0.6,
-                transform: 'rotate(90deg)',
-              }}
-              onError={(e) => {
-                (e.target as HTMLImageElement).style.display = 'none';
-              }}
-            />
-            <img
-              src="/assets/space/ui/scifi-gui/sliced/corner-purple.png"
-              alt=""
-              style={{
-                position: 'absolute',
-                bottom: -2,
-                right: -2,
-                width: 20,
-                height: 20,
-                pointerEvents: 'none',
-                opacity: 0.6,
-                transform: 'rotate(180deg)',
-              }}
-              onError={(e) => {
-                (e.target as HTMLImageElement).style.display = 'none';
-              }}
-            />
-            <img
-              src="/assets/space/ui/scifi-gui/sliced/corner-purple.png"
-              alt=""
-              style={{
-                position: 'absolute',
-                bottom: -2,
-                left: -2,
-                width: 20,
-                height: 20,
-                pointerEvents: 'none',
-                opacity: 0.6,
-                transform: 'rotate(270deg)',
-              }}
-              onError={(e) => {
-                (e.target as HTMLImageElement).style.display = 'none';
-              }}
-            />
-            {/* Title chevron — purple */}
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                backgroundImage: 'url(/assets/space/ui/scifi-gui/sliced/title-chevron-purple.png)',
-                backgroundSize: '100% 100%',
-                backgroundRepeat: 'no-repeat',
-                padding: '4px 20px',
-                marginBottom: 12,
-                minHeight: 24,
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <img
-                  src="/assets/space/ui/space-icons/PNG/11.png"
-                  alt=""
-                  style={{ width: 16, height: 16 }}
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).style.display = 'none';
-                  }}
-                />
-                <span style={{ fontSize: 10, fontWeight: 800, color: '#fff', letterSpacing: 3, textTransform: 'uppercase' as const }}>
-                  GROUND OPS
-                </span>
-              </div>
-            </div>
+          {/* ── GROUND OPS ── */}
+          <div style={{ ...panelBase, borderColor: 'rgba(120,60,255,0.2)' }}>
+            <div style={{ ...panelTitle, color: '#aa66ff' }}>🎮 GROUND OPS</div>
+
             <div
               style={{
                 padding: '12px 16px',
-                borderRadius: 6,
-                border: '1px solid rgba(68,220,100,0.15)',
-                background: 'transparent',
-                marginBottom: 8,
+                borderRadius: 8,
+                border: '1px solid rgba(68,238,136,0.1)',
+                background: 'rgba(68,238,136,0.04)',
+                marginBottom: 10,
               }}
             >
               <div style={{ fontSize: 14, fontWeight: 700, color: '#44ee88' }}>SOULS COMBAT</div>
-              <div style={{ fontSize: 10, color: 'rgba(160,220,180,0.6)', marginTop: 4, lineHeight: 1.5 }}>
+              <div style={{ fontSize: 11, color: '#456', marginTop: 4, lineHeight: 1.5 }}>
                 Third-person · 6 classes · Combo chains
                 <br />
                 Wave survival · Dodge & parry
               </div>
             </div>
-            <Btn label="LAUNCH GROUND COMBAT" wide active onClick={onGroundCombat} style={{ width: '100%', height: 40, marginBottom: 8 }} />
+            <button onClick={onGroundCombat} style={{ ...launchBtn('#1a7744', 'rgba(26,119,68,0.3)'), marginBottom: 14 }}>
+              LAUNCH GROUND COMBAT
+            </button>
+
             <div
               style={{
                 padding: '12px 16px',
-                borderRadius: 6,
-                border: '1px solid rgba(68,220,100,0.15)',
-                background: 'transparent',
-                marginBottom: 8,
+                borderRadius: 8,
+                border: '1px solid rgba(136,204,170,0.1)',
+                background: 'rgba(136,204,170,0.03)',
+                marginBottom: 10,
               }}
             >
               <div style={{ fontSize: 14, fontWeight: 700, color: '#88ccaa' }}>TACTICAL RTS</div>
-              <div style={{ fontSize: 10, color: 'rgba(160,220,180,0.6)', marginTop: 4, lineHeight: 1.5 }}>
+              <div style={{ fontSize: 11, color: '#456', marginTop: 4, lineHeight: 1.5 }}>
                 Top-down · Squad command · 4 mission types
                 <br />
                 Flanking & morale · A* pathfinding
               </div>
             </div>
-            <Btn label="LAUNCH GROUND RTS" wide onClick={onGroundRts} style={{ width: '100%', height: 40 }} />
+            <button onClick={onGroundRts} style={launchBtn('#335566', 'rgba(51,85,102,0.3)')}>
+              LAUNCH GROUND RTS
+            </button>
           </div>
         </div>
 
-        {/* Section divider with gems */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '4px 0 12px', width: 400, maxWidth: '90vw' }}>
-          <img
-            src="/assets/space/ui/scifi-gui/sliced/gem-dia.png"
-            alt=""
-            style={{ width: 10, height: 10 }}
-            onError={(e) => {
-              (e.target as HTMLImageElement).style.display = 'none';
-            }}
-          />
-          <div style={{ flex: 1, height: 1, background: 'linear-gradient(90deg, rgba(68,255,200,0.3), transparent)' }} />
-          <img
-            src="/assets/space/ui/scifi-gui/sliced/gem-tri.png"
-            alt=""
-            style={{ width: 8, height: 8 }}
-            onError={(e) => {
-              (e.target as HTMLImageElement).style.display = 'none';
-            }}
-          />
-          <div style={{ flex: 1, height: 1, background: 'linear-gradient(270deg, rgba(68,255,200,0.3), transparent)' }} />
-          <img
-            src="/assets/space/ui/scifi-gui/sliced/gem-dia.png"
-            alt=""
-            style={{ width: 10, height: 10 }}
-            onError={(e) => {
-              (e.target as HTMLImageElement).style.display = 'none';
-            }}
-          />
-        </div>
-        {/* Bottom menu buttons — using sliced btn-med assets */}
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
+        {/* ── Divider ── */}
+        <div style={{ width: 400, maxWidth: '90vw', height: 1, background: 'rgba(255,255,255,0.04)', marginBottom: 20 }} />
+
+        {/* ── Bottom nav buttons ── */}
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'center', marginBottom: 20 }}>
           {[
-            { label: 'SHIP FORGE', onClick: onEditor, icon: '/assets/space/ui/space-icons/PNG/4.png' },
-            { label: 'CODEX', onClick: onCodex, icon: '/assets/space/ui/space-icons/PNG/10.png' },
-            { label: 'HOW TO PLAY', onClick: onHowTo, icon: '/assets/space/ui/space-icons/PNG/14.png' },
-            { label: 'HOTKEYS', onClick: () => setHotkeysOpen(true), icon: '/assets/space/ui/space-icons/PNG/6.png' },
-            { label: 'ADMIN', onClick: () => window.open('/admin.html', '_blank'), icon: '/assets/space/ui/space-icons/PNG/16.png' },
+            { label: 'SHIP FORGE', onClick: onEditor },
+            { label: 'CODEX', onClick: onCodex },
+            { label: 'HOW TO PLAY', onClick: onHowTo },
+            { label: 'HOTKEYS', onClick: () => setHotkeysOpen(true) },
+            { label: 'ADMIN', onClick: () => window.open('/admin.html', '_blank') },
           ].map((btn) => (
-            <div
+            <button
               key={btn.label}
               onClick={btn.onClick}
               style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 5,
-                minWidth: 90,
-                height: 34,
-                padding: '0 12px',
-                backgroundImage: 'url(/assets/space/ui/scifi-gui/sliced/btn-med.png)',
-                backgroundSize: '100% 100%',
-                backgroundRepeat: 'no-repeat',
+                padding: '8px 20px',
+                fontSize: 10,
+                fontWeight: 700,
+                letterSpacing: 2,
+                color: '#6a8a9a',
+                background: 'rgba(255,255,255,0.02)',
+                border: '1px solid rgba(255,255,255,0.06)',
+                borderRadius: 6,
                 cursor: 'pointer',
-                userSelect: 'none' as const,
-                transition: 'filter 0.15s',
+                transition: 'all 0.15s',
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.filter = 'brightness(1.25) drop-shadow(0 0 6px rgba(68,255,200,0.4))';
+                e.currentTarget.style.borderColor = 'rgba(68,200,255,0.3)';
+                e.currentTarget.style.color = '#aaccdd';
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.filter = 'brightness(1)';
+                e.currentTarget.style.borderColor = 'rgba(255,255,255,0.06)';
+                e.currentTarget.style.color = '#6a8a9a';
               }}
             >
-              <img
-                src={btn.icon}
-                alt=""
-                style={{ width: 14, height: 14, objectFit: 'contain' }}
-                onError={(e) => {
-                  (e.target as HTMLImageElement).style.display = 'none';
-                }}
-              />
-              <span
-                style={{
-                  fontSize: 9,
-                  fontWeight: 700,
-                  color: '#c8e8dc',
-                  letterSpacing: 1,
-                  textShadow: '0 1px 2px rgba(0,0,0,0.8)',
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                {btn.label}
-              </span>
-            </div>
+              {btn.label}
+            </button>
           ))}
         </div>
+
         {hotkeysOpen && <HotkeySettings onClose={() => setHotkeysOpen(false)} />}
 
-        {/* Legal links — required for Discord app */}
-        <div style={{ display: 'flex', gap: 16, marginTop: 16, fontSize: 10, opacity: 0.35 }}>
+        {/* Legal */}
+        <div style={{ display: 'flex', gap: 16, fontSize: 10, opacity: 0.25 }}>
           <a href="/privacy.html" target="_blank" rel="noopener" style={{ color: '#8ac', textDecoration: 'none' }}>
             Privacy Policy
           </a>
-          <span style={{ color: '#333' }}>·</span>
+          <span style={{ color: '#222' }}>·</span>
           <a href="/tos.html" target="_blank" rel="noopener" style={{ color: '#8ac', textDecoration: 'none' }}>
             Terms of Service
           </a>
-          <span style={{ color: '#333' }}>·</span>
-          <span style={{ color: '#556' }}>© 2026 Grudge Studio</span>
+          <span style={{ color: '#222' }}>·</span>
+          <span style={{ color: '#334' }}>© 2026 Grudge Studio</span>
         </div>
       </div>
     </div>
