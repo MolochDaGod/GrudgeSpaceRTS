@@ -5,8 +5,26 @@
  * projectiles, floating damage numbers, minimap, map objects.
  */
 
-import type { GroundRTSState, RTSUnit, SpriteAnim, Vec2, Projectile, FloatText } from './ground-rts-types';
-import { TEAM_COLORS, TILE_PATHS } from './ground-rts-types';
+import type {
+  GroundRTSState,
+  RTSUnit,
+  SpriteAnim,
+  Vec2,
+  Projectile,
+  FloatText,
+  RTSBuilding,
+  MineralDeposit,
+  BuildingDef,
+} from './ground-rts-types';
+import { TEAM_COLORS, TILE_PATHS, BUILDING_DEFS, canBuild } from './ground-rts-types';
+
+/** Ghost placement info passed from UI for rendering. */
+export interface BuildGhost {
+  key: string;
+  gridCol: number;
+  gridRow: number;
+  valid: boolean;
+}
 
 // ── Image Cache ──────────────────────────────────────────────────────
 const imageCache = new Map<string, HTMLImageElement>();
@@ -54,6 +72,7 @@ export function renderGroundRTS(
   canvasW: number,
   canvasH: number,
   selectionBox: { x1: number; y1: number; x2: number; y2: number } | null,
+  buildGhost?: BuildGhost | null,
 ): void {
   ctx.clearRect(0, 0, canvasW, canvasH);
 
@@ -70,6 +89,9 @@ export function renderGroundRTS(
 
   renderTilemap(ctx, state);
   renderMapObjects(ctx, state);
+  renderDeposits(ctx, state);
+  renderBuildings(ctx, state);
+  if (buildGhost) renderBuildGhost(ctx, state, buildGhost);
   renderUnits(ctx, state);
   renderProjectiles(ctx, state);
   renderFloatTexts(ctx, state);
@@ -79,6 +101,7 @@ export function renderGroundRTS(
   // UI overlays (screen-space)
   if (selectionBox) renderSelectionBox(ctx, selectionBox);
   renderMinimap(ctx, state, camera, canvasW, canvasH);
+  renderResourceBar(ctx, state, canvasW);
   renderHUD(ctx, state, canvasW, canvasH);
 }
 
@@ -314,6 +337,173 @@ function renderFloatTexts(ctx: CanvasRenderingContext2D, state: GroundRTSState):
     ctx.fillText(ft.text, ft.x, ft.y);
   }
   ctx.globalAlpha = 1;
+}
+
+// ── Buildings (2D) ───────────────────────────────────────────────────
+const ROLE_COLORS_2D: Record<string, string> = {
+  production: '#4488ff',
+  economy: '#44ee88',
+  defense: '#ff4488',
+  research: '#aa44ff',
+  special: '#ffcc44',
+  decoration: '#888888',
+};
+
+function renderBuildings(ctx: CanvasRenderingContext2D, state: GroundRTSState): void {
+  for (const [, b] of state.buildings) {
+    if (b.state === 'destroyed') continue;
+    const ts = state.tileSize;
+    const x = b.gridCol * ts;
+    const y = b.gridRow * ts;
+    const w = b.def.footprint.w * ts;
+    const h = b.def.footprint.h * ts;
+
+    // Culling
+    if (x + w < _vp.x1 || x > _vp.x2 || y + h < _vp.y1 || y > _vp.y2) continue;
+
+    const roleColor = ROLE_COLORS_2D[b.def.role] ?? '#888';
+
+    // Building body
+    const alpha = b.state === 'constructing' ? 0.4 + b.buildProgress * 0.6 : 1;
+    ctx.globalAlpha = b.state === 'unpowered' ? 0.4 + Math.sin(Date.now() * 0.005) * 0.2 : alpha;
+    ctx.fillStyle = b.team === 0 ? roleColor : '#cc3333';
+    ctx.fillRect(x + 4, y + 4, w - 8, h - 8);
+    ctx.strokeStyle = b.selected ? '#44ff44' : '#222';
+    ctx.lineWidth = b.selected ? 3 : 1.5;
+    ctx.strokeRect(x + 4, y + 4, w - 8, h - 8);
+    ctx.globalAlpha = 1;
+
+    // Construction bar
+    if (b.state === 'constructing') {
+      const bw = w - 16;
+      ctx.fillStyle = '#222';
+      ctx.fillRect(x + 8, y + h - 16, bw, 6);
+      ctx.fillStyle = '#ffcc44';
+      ctx.fillRect(x + 8, y + h - 16, bw * b.buildProgress, 6);
+    }
+
+    // Name label
+    ctx.fillStyle = '#fff';
+    ctx.font = `bold ${Math.min(14, ts * 0.08)}px monospace`;
+    ctx.textAlign = 'center';
+    ctx.fillText(b.def.name, x + w / 2, y + h / 2 + 4);
+
+    // Health bar (if damaged)
+    const hpPct = b.hp / b.maxHp;
+    if (hpPct < 1) {
+      const barW = w - 16;
+      const barH = 5;
+      ctx.fillStyle = '#111';
+      ctx.fillRect(x + 8 - 1, y - 8, barW + 2, barH + 2);
+      ctx.fillStyle = '#333';
+      ctx.fillRect(x + 8, y - 7, barW, barH);
+      ctx.fillStyle = hpPct > 0.5 ? '#44ff44' : hpPct > 0.25 ? '#ffaa00' : '#ff4444';
+      ctx.fillRect(x + 8, y - 7, barW * hpPct, barH);
+    }
+  }
+}
+
+// ── Mineral Deposits (2D) ────────────────────────────────────────────
+function renderDeposits(ctx: CanvasRenderingContext2D, state: GroundRTSState): void {
+  for (const dep of state.mineralDeposits) {
+    if (dep.amount <= 0) continue;
+    const x = dep.x;
+    const y = dep.y;
+    if (x < _vp.x1 - 60 || x > _vp.x2 + 60 || y < _vp.y1 - 60 || y > _vp.y2 + 60) continue;
+
+    const pct = dep.amount / dep.maxAmount;
+    const TYPE_COLORS: Record<string, string> = { standard: '#88aacc', rare: '#ffcc44', crystal: '#44ddff' };
+    const color = TYPE_COLORS[dep.type] ?? '#88aacc';
+
+    // Crystal cluster
+    ctx.save();
+    ctx.translate(x, y);
+    for (let i = 0; i < 5; i++) {
+      const ang = (i / 5) * Math.PI * 2;
+      const r = 18 + Math.sin(i * 1.7) * 8;
+      const cx = Math.cos(ang) * r;
+      const cy = Math.sin(ang) * r;
+      const sz = 8 + (i % 3) * 4;
+      ctx.fillStyle = color;
+      ctx.globalAlpha = 0.5 + pct * 0.5;
+      ctx.beginPath();
+      ctx.moveTo(cx, cy - sz);
+      ctx.lineTo(cx - sz * 0.4, cy + sz * 0.3);
+      ctx.lineTo(cx + sz * 0.4, cy + sz * 0.3);
+      ctx.closePath();
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+    // Amount label
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 11px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(`${dep.amount}`, 0, 35);
+    ctx.restore();
+  }
+}
+
+// ── Build Ghost Preview ──────────────────────────────────────────────
+function renderBuildGhost(ctx: CanvasRenderingContext2D, state: GroundRTSState, ghost: BuildGhost): void {
+  const def = BUILDING_DEFS[ghost.key];
+  if (!def) return;
+  const ts = state.tileSize;
+  const x = ghost.gridCol * ts;
+  const y = ghost.gridRow * ts;
+  const w = def.footprint.w * ts;
+  const h = def.footprint.h * ts;
+
+  // Footprint fill
+  ctx.globalAlpha = 0.35;
+  ctx.fillStyle = ghost.valid ? '#44ff44' : '#ff4444';
+  ctx.fillRect(x, y, w, h);
+  ctx.globalAlpha = 0.7;
+  ctx.strokeStyle = ghost.valid ? '#44ff44' : '#ff4444';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(x, y, w, h);
+  ctx.globalAlpha = 1;
+
+  // Grid cells
+  ctx.strokeStyle = ghost.valid ? 'rgba(68,255,68,0.3)' : 'rgba(255,68,68,0.3)';
+  ctx.lineWidth = 1;
+  for (let r = 0; r < def.footprint.h; r++) {
+    for (let c = 0; c < def.footprint.w; c++) {
+      ctx.strokeRect(x + c * ts, y + r * ts, ts, ts);
+    }
+  }
+
+  // Label
+  ctx.fillStyle = '#fff';
+  ctx.font = `bold ${Math.min(16, ts * 0.09)}px monospace`;
+  ctx.textAlign = 'center';
+  ctx.fillText(def.name, x + w / 2, y + h / 2 + 4);
+}
+
+// ── Resource Bar (top of screen) ─────────────────────────────────────
+function renderResourceBar(ctx: CanvasRenderingContext2D, state: GroundRTSState, canvasW: number): void {
+  const r = state.resources;
+  const barY = 36; // below the existing HUD bar
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+  ctx.fillRect(0, barY, canvasW, 24);
+
+  ctx.font = 'bold 12px monospace';
+  ctx.textAlign = 'left';
+  const items = [
+    { label: 'Credits', value: Math.floor(r.credits), color: '#ffcc44' },
+    { label: 'Minerals', value: `${Math.floor(r.minerals)}/${r.maxMinerals}`, color: '#44ddff' },
+    { label: 'Power', value: `${r.powerGenerated - r.powerConsumed}`, color: r.power >= 0 ? '#44ff44' : '#ff4444' },
+    { label: 'Supply', value: `${r.supplyCurrent}/${r.supplyCap}`, color: r.supplyCurrent <= r.supplyCap ? '#fff' : '#ff4444' },
+    { label: 'Income', value: `+${r.incomeRate.toFixed(1)}/s`, color: '#ffcc44' },
+  ];
+  let xOff = 12;
+  for (const item of items) {
+    ctx.fillStyle = '#888';
+    ctx.fillText(item.label + ':', xOff, barY + 16);
+    xOff += ctx.measureText(item.label + ':').width + 4;
+    ctx.fillStyle = item.color;
+    ctx.fillText(String(item.value), xOff, barY + 16);
+    xOff += ctx.measureText(String(item.value)).width + 16;
+  }
 }
 
 // ── Selection Box ────────────────────────────────────────────────────

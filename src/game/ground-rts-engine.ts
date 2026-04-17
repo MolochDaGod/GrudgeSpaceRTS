@@ -18,8 +18,11 @@ import {
   type BuildingDef,
   type MineralDeposit,
   type PlanetResources,
+  type ProductionDef,
   PLAYER_UNITS,
   ENEMY_UNITS,
+  PRODUCTION_UNITS,
+  PRODUCTION_DEFS,
   TILE_PATHS,
   OBJECT_PATHS,
   BUILDING_DEFS,
@@ -512,7 +515,7 @@ function scoreTarget(attacker: RTSUnit, target: RTSUnit): number {
   const hpPct = target.hp / target.maxHp;
   // Prefer: closer targets, lower HP%, ranged units (kill threats first)
   let score = d;
-  score *= (0.3 + hpPct * 0.7); // low HP = much lower score (higher priority)
+  score *= 0.3 + hpPct * 0.7; // low HP = much lower score (higher priority)
   if (target.def.attackType === 'ranged' || target.def.attackType === 'flame') {
     score *= 0.7; // prioritize ranged threats
   }
@@ -531,7 +534,7 @@ function countAttackersOn(all: RTSUnit[], targetId: number, myTeam: number): num
 /** Get a flanking offset so enemies approach from different sides. */
 function getFlankOffset(attackerId: number, targetX: number, targetY: number): Vec2 {
   // Use attacker ID to deterministically pick a flank angle
-  const flankAngle = ((attackerId * 2.618) % (Math.PI * 2)); // golden ratio spread
+  const flankAngle = (attackerId * 2.618) % (Math.PI * 2); // golden ratio spread
   return {
     x: targetX + Math.cos(flankAngle) * AI_FLANK_SPREAD,
     y: targetY + Math.sin(flankAngle) * AI_FLANK_SPREAD,
@@ -550,7 +553,10 @@ function tickUnitAI(state: GroundRTSState, unit: RTSUnit, all: RTSUnit[], dt: nu
       for (const other of all) {
         if (other.team === unit.team || other.state === 'dead' || other.state === 'dying') continue;
         const d = dist(unit, other);
-        if (d < closestDist) { closestDist = d; closest = other; }
+        if (d < closestDist) {
+          closestDist = d;
+          closest = other;
+        }
       }
       if (closest) unit.attackTargetId = closest.id;
     }
@@ -560,7 +566,8 @@ function tickUnitAI(state: GroundRTSState, unit: RTSUnit, all: RTSUnit[], dt: nu
   // ── ENEMY AI ────────────────────────────────────────────────────
 
   // Periodically re-evaluate target (not every frame — use attack timer as proxy)
-  const shouldRetarget = unit.attackTargetId == null ||
+  const shouldRetarget =
+    unit.attackTargetId == null ||
     !isTargetValid(state, unit.attackTargetId) ||
     (unit.attackTimer <= 0 && Math.random() < dt / AI_RETARGET_INTERVAL);
 
@@ -577,7 +584,10 @@ function tickUnitAI(state: GroundRTSState, unit: RTSUnit, all: RTSUnit[], dt: nu
       const attackers = countAttackersOn(all, other.id, unit.team);
       if (attackers >= 1 && attackers <= 3) score *= 0.6; // focus fire
       if (attackers > 4) score *= 1.5; // too many, spread out
-      if (score < bestScore) { bestScore = score; bestTarget = other; }
+      if (score < bestScore) {
+        bestScore = score;
+        bestTarget = other;
+      }
     }
     if (bestTarget) {
       unit.attackTargetId = bestTarget.id;
@@ -878,17 +888,27 @@ export function commandStop(state: GroundRTSState, unitIds: number[]): void {
   }
 }
 
+/** Queue a unit for production at a building. Returns true if queued. */
+export function queueProduction(state: GroundRTSState, buildingId: number, unitClass: UnitClass): boolean {
+  const b = state.buildings.get(buildingId);
+  if (!b || b.state !== 'active' || b.team !== 0) return false;
+  const prodDef = PRODUCTION_DEFS.find((p) => p.unitClass === unitClass && p.producerKey === b.def.key);
+  if (!prodDef) return false;
+  if (b.productionQueue.length >= 5) return false; // max queue
+  if (state.resources.credits < prodDef.creditCost) return false;
+  if (state.resources.minerals < prodDef.mineralCost) return false;
+  state.resources.credits -= prodDef.creditCost;
+  state.resources.minerals -= prodDef.mineralCost;
+  b.productionQueue.push(unitClass);
+  return true;
+}
+
 // ══════════════════════════════════════════════════════════════════════
 // BUILDING SYSTEM
 // ══════════════════════════════════════════════════════════════════════
 
 /** Check if a building can be placed at the given grid position. */
-export function canPlaceBuilding(
-  state: GroundRTSState,
-  key: string,
-  col: number,
-  row: number,
-): { ok: boolean; reason?: string } {
+export function canPlaceBuilding(state: GroundRTSState, key: string, col: number, row: number): { ok: boolean; reason?: string } {
   const def = BUILDING_DEFS[key];
   if (!def) return { ok: false, reason: 'Unknown building' };
 
@@ -906,9 +926,7 @@ export function canPlaceBuilding(
   }
 
   // Check tech requirements
-  const ownedKeys = [...state.buildings.values()]
-    .filter(b => b.team === 0 && b.state !== 'destroyed')
-    .map(b => b.def.key);
+  const ownedKeys = [...state.buildings.values()].filter((b) => b.team === 0 && b.state !== 'destroyed').map((b) => b.def.key);
   if (!canBuild(key, ownedKeys)) {
     return { ok: false, reason: 'Missing prerequisite' };
   }
@@ -1059,6 +1077,35 @@ export function tickBuildings(state: GroundRTSState, dt: number): void {
       state.resources.credits += b.def.incomeRate * dt;
     }
 
+    // Production queue tick
+    if (b.state === 'active' && b.productionQueue.length > 0 && b.team === 0) {
+      const prodClass = b.productionQueue[0];
+      const prodDef = PRODUCTION_DEFS.find((p) => p.unitClass === prodClass);
+      if (prodDef) {
+        b.productionProgress += dt / prodDef.buildTime;
+        if (b.productionProgress >= 1) {
+          b.productionProgress = 0;
+          b.productionQueue.shift();
+          // Spawn the produced unit
+          const unitDef = PRODUCTION_UNITS.find((u) => u.unitClass === prodClass);
+          if (unitDef) {
+            const rally = b.rallyPoint ?? {
+              x: b.x + (b.def.footprint.w * state.tileSize) / 2,
+              y: b.y + (b.def.footprint.h + 1) * state.tileSize,
+            };
+            const spawned = spawnUnit(state, { ...unitDef, team: b.team }, rally.x, rally.y, b.team);
+            state.floatTexts.push({
+              x: b.x + state.tileSize,
+              y: b.y,
+              text: `${unitDef.displayName} READY`,
+              color: '#44eeff',
+              age: 0,
+            });
+          }
+        }
+      }
+    }
+
     // Turret AI (defense buildings with attack stats)
     if (b.state === 'active' && b.def.attackDamage && b.def.attackRange) {
       b.attackTimer = Math.max(0, b.attackTimer - dt);
@@ -1066,7 +1113,7 @@ export function tickBuildings(state: GroundRTSState, dt: number): void {
       // Find target
       if (b.attackTargetId == null || !state.units.has(b.attackTargetId)) {
         b.attackTargetId = null;
-        const bCenter = { x: b.x + state.tileSize * b.def.footprint.w / 2, y: b.y + state.tileSize * b.def.footprint.h / 2 };
+        const bCenter = { x: b.x + (state.tileSize * b.def.footprint.w) / 2, y: b.y + (state.tileSize * b.def.footprint.h) / 2 };
         let closest = Infinity;
         for (const u of allUnits) {
           if (u.team === b.team || u.state === 'dead' || u.state === 'dying') continue;
@@ -1082,7 +1129,7 @@ export function tickBuildings(state: GroundRTSState, dt: number): void {
       if (b.attackTargetId != null && b.attackTimer <= 0) {
         const target = state.units.get(b.attackTargetId);
         if (target && target.state !== 'dead' && target.state !== 'dying') {
-          const bCenter = { x: b.x + state.tileSize * b.def.footprint.w / 2, y: b.y + state.tileSize * b.def.footprint.h / 2 };
+          const bCenter = { x: b.x + (state.tileSize * b.def.footprint.w) / 2, y: b.y + (state.tileSize * b.def.footprint.h) / 2 };
           b.attackTimer = b.def.attackCooldown!;
           state.projectiles.set(state.nextId, {
             id: state.nextId++,

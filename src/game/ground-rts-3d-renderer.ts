@@ -14,6 +14,8 @@
 
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
+import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
 import {
   EffectComposer,
   EffectPass,
@@ -26,14 +28,38 @@ import {
 } from 'postprocessing';
 import type { GroundRTSState, RTSUnit, RTSBuilding, MineralDeposit, Team, Vec2, Projectile } from './ground-rts-types';
 
-// ── Asset Paths ──────────────────────────────────────────────────────
+// ── Asset Paths ────────────────────────────────────────────────────
 const AW = '/assets/groundrts/advance-wars';
+const PM = '/assets/groundrts/pixel-mech';
 const GLTF_PATHS = {
   infantry_mech: `${AW}/infantry-mech/scene.gltf`,
   land_units: `${AW}/land-units/scene.gltf`,
   air_naval: `${AW}/air-naval/scene.gltf`,
   soldier: '/assets/space/models/soldier/scene.gltf',
   mech: '/assets/space/models/mech/scene.gltf',
+};
+
+/** Pixel Mech FBX paths — 7 individual animation files + full mesh. */
+const PIXEL_MECH = {
+  full: `${PM}/mesh_full.FBX`,
+  texture: `${PM}/mech_d.jpg`,
+  anims: {
+    idle: `${PM}/idle_.FBX`,
+    walk_forward: `${PM}/walk_forward.FBX`,
+    walk_back: `${PM}/walk_back.FBX`,
+    run: `${PM}/run_.FBX`,
+    shoot: `${PM}/shooting_.FBX`,
+    damage: `${PM}/damage_.FBX`,
+    death: `${PM}/death_.FBX`,
+  },
+};
+
+/** Map unit state to pixel-mech animation name. */
+const MECH_STATE_ANIM: Record<string, string> = {
+  idle: 'idle',
+  walking: 'walk_forward',
+  attacking: 'shoot',
+  dying: 'death',
 };
 
 const TEAM_HEX: Record<number, number> = { 0: 0x4488ff, 1: 0xff4444 };
@@ -45,6 +71,13 @@ interface UnitMesh3D {
   healthBar: THREE.Mesh;
   healthBg: THREE.Mesh;
   selectionRing: THREE.Mesh;
+}
+
+/** Per-unit animation state for skinned FBX models (pixel mech). */
+interface UnitAnimState {
+  mixer: THREE.AnimationMixer;
+  actions: Map<string, THREE.AnimationAction>;
+  current: string;
 }
 
 interface BuildingMesh3D {
@@ -82,6 +115,15 @@ export class GroundRTS3DRenderer {
   private modelTemplates = new Map<string, THREE.Group>();
   private modelLoading = new Map<string, Promise<THREE.Group>>();
   private gltfLoader = new GLTFLoader();
+  private fbxLoader = new FBXLoader();
+
+  // Pixel Mech data
+  private pixelMechGroup: THREE.Group | null = null;
+  private pixelMechClips = new Map<string, THREE.AnimationClip>();
+  private pixelMechTexture: THREE.Texture | null = null;
+
+  // Per-unit animation (for skinned mech units)
+  private unitAnimStates = new Map<number, UnitAnimState>();
 
   // Camera state (mirrors space-renderer orbital pattern)
   public cameraX = 0;
@@ -132,8 +174,8 @@ export class GroundRTS3DRenderer {
     // Postprocessing
     this.setupPostProcessing();
 
-    // Preload Advance Wars models
-    await this.preloadModels();
+    // Preload models (GLTF + pixel mech FBX)
+    await Promise.all([this.preloadModels(), this.preloadPixelMech()]);
 
     // Resize handler
     window.addEventListener('resize', this.onResize);
@@ -226,9 +268,141 @@ export class GroundRTS3DRenderer {
     void results; // all settled, failures logged
   }
 
+  // ── Pixel Mech Preloading ────────────────────────────────────────
+  private async preloadPixelMech(): Promise<void> {
+    try {
+      // Load texture
+      const texLoader = new THREE.TextureLoader();
+      this.pixelMechTexture = await texLoader.loadAsync(PIXEL_MECH.texture);
+      this.pixelMechTexture.colorSpace = THREE.SRGBColorSpace;
+      // Pixel art: nearest-neighbor filtering for crisp pixels
+      this.pixelMechTexture.magFilter = THREE.NearestFilter;
+      this.pixelMechTexture.minFilter = THREE.NearestFilter;
+
+      // Load the full mesh (contains mesh + skeleton + all animations)
+      const fullGroup = await this.fbxLoader.loadAsync(PIXEL_MECH.full);
+
+      // Apply the diffuse texture to all meshes
+      fullGroup.traverse((child) => {
+        if ((child as THREE.Mesh).isMesh) {
+          const mesh = child as THREE.Mesh;
+          const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+          for (const m of mats) {
+            const sm = m as any;
+            if (sm.isMeshStandardMaterial || sm.isMeshPhongMaterial || sm.isMeshLambertMaterial) {
+              sm.map = this.pixelMechTexture;
+              sm.needsUpdate = true;
+            }
+          }
+          mesh.castShadow = true;
+          mesh.receiveShadow = true;
+        }
+      });
+
+      // Store clips from the full file (they come named by the FBX take)
+      for (const clip of fullGroup.animations) {
+        // Normalize clip names: the FBX may name them "Take 001" etc.
+        // We'll also load individual files for named clips
+        this.pixelMechClips.set('full_' + clip.name, clip);
+      }
+
+      this.pixelMechGroup = fullGroup;
+
+      // Load individual animation FBX files for named clip access
+      const animEntries = Object.entries(PIXEL_MECH.anims);
+      const animResults = await Promise.allSettled(
+        animEntries.map(async ([name, path]) => {
+          try {
+            const animGroup = await this.fbxLoader.loadAsync(path);
+            if (animGroup.animations.length > 0) {
+              const clip = animGroup.animations[0];
+              clip.name = name; // rename to our key
+              this.pixelMechClips.set(name, clip);
+            }
+          } catch (err) {
+            console.warn(`[PixelMech] Failed to load anim ${name}:`, err);
+          }
+        }),
+      );
+      void animResults;
+      console.log(`[PixelMech] Loaded mesh + ${this.pixelMechClips.size} animation clips`);
+    } catch (err) {
+      console.warn('[PixelMech] Failed to load pixel mech model:', err);
+    }
+  }
+
+  /** Clone the pixel mech for a new unit instance. Returns group + sets up AnimationMixer. */
+  private clonePixelMech(unitId: number): THREE.Group {
+    if (!this.pixelMechGroup) return this.buildPlaceholderUnit({ def: { spriteSize: 96 }, team: 0 } as any);
+
+    // SkeletonUtils.clone properly handles SkinnedMesh + Skeleton rebinding
+    const clone = SkeletonUtils.clone(this.pixelMechGroup) as THREE.Group;
+
+    // Re-apply texture to cloned materials (clone may share material refs)
+    if (this.pixelMechTexture) {
+      clone.traverse((child) => {
+        if ((child as THREE.Mesh).isMesh) {
+          const mesh = child as THREE.Mesh;
+          const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+          const newMats = mats.map((m) => {
+            const cloned = (m as THREE.MeshStandardMaterial).clone();
+            (cloned as any).map = this.pixelMechTexture;
+            cloned.needsUpdate = true;
+            return cloned;
+          });
+          mesh.material = newMats.length === 1 ? newMats[0] : newMats;
+        }
+      });
+    }
+
+    // Create AnimationMixer for this clone
+    const mixer = new THREE.AnimationMixer(clone);
+    const actions = new Map<string, THREE.AnimationAction>();
+    for (const [name, clip] of this.pixelMechClips) {
+      actions.set(name, mixer.clipAction(clip));
+    }
+    this.unitAnimStates.set(unitId, { mixer, actions, current: '' });
+
+    // Start with idle
+    this.playMechAnim(unitId, 'idle');
+
+    return clone;
+  }
+
+  /** Switch animation for a mech unit. */
+  private playMechAnim(unitId: number, animName: string): void {
+    const state = this.unitAnimStates.get(unitId);
+    if (!state || state.current === animName) return;
+
+    const newAction = state.actions.get(animName);
+    if (!newAction) return;
+
+    // Crossfade from current to new
+    const oldAction = state.actions.get(state.current);
+    if (oldAction) {
+      oldAction.fadeOut(0.2);
+    }
+    newAction.reset().fadeIn(0.2).play();
+
+    // Death plays once
+    if (animName === 'death') {
+      newAction.setLoop(THREE.LoopOnce, 1);
+      newAction.clampWhenFinished = true;
+    } else {
+      newAction.setLoop(THREE.LoopRepeat, Infinity);
+    }
+
+    state.current = animName;
+  }
+
   // ── Get unit model clone ──────────────────────────────────────────
   private getUnitModel(unit: RTSUnit): THREE.Group {
     const cls = unit.def.unitClass;
+
+    // Pixel mech for mech_walker units
+    if (cls === 'mech_walker') {
+      return this.clonePixelMech(unit.id);
+    }
 
     // Map unit classes to model templates
     let templateKey = 'infantry_mech'; // default
@@ -291,13 +465,14 @@ export class GroundRTS3DRenderer {
     });
   }
 
-  // ── Sync Units ────────────────────────────────────────────────────
+  // ── Sync Units ────────────────────────────────────────────────
   private syncUnits(state: GroundRTSState): void {
-    // Remove deleted units
+    // Remove deleted units + their animation state
     for (const [id, mesh] of this.unitMeshes) {
       if (!state.units.has(id)) {
         this.scene.remove(mesh.group);
         this.unitMeshes.delete(id);
+        this.unitAnimStates.delete(id);
       }
     }
 
@@ -351,6 +526,12 @@ export class GroundRTS3DRenderer {
       } else {
         mesh.healthBar.visible = false;
         mesh.healthBg.visible = false;
+      }
+
+      // Sync animation state for mech units
+      if (unit.def.unitClass === 'mech_walker') {
+        const desiredAnim = MECH_STATE_ANIM[unit.state] ?? 'idle';
+        this.playMechAnim(id, desiredAnim);
       }
     }
   }
@@ -472,8 +653,8 @@ export class GroundRTS3DRenderer {
       }
 
       // Position
-      const centerX = (b.x + b.def.footprint.w * state.tileSize / 2) * WORLD_SCALE;
-      const centerZ = (b.y + b.def.footprint.h * state.tileSize / 2) * WORLD_SCALE;
+      const centerX = (b.x + (b.def.footprint.w * state.tileSize) / 2) * WORLD_SCALE;
+      const centerZ = (b.y + (b.def.footprint.h * state.tileSize) / 2) * WORLD_SCALE;
       mesh.group.position.set(centerX, 0, centerZ);
 
       // Construction animation: scale Y from 0.1 to 1
@@ -525,15 +706,18 @@ export class GroundRTS3DRenderer {
       const placeholder = this.buildBuildingPlaceholder(b);
       group.add(placeholder);
 
-      this.gltfLoader.loadAsync(b.def.glbPath).then((gltf) => {
-        this.buildingModelCache.set(b.def.key, gltf.scene);
-        group.remove(placeholder);
-        const model = gltf.scene.clone();
-        this.fitBuildingModel(model, b);
-        group.add(model);
-      }).catch(() => {
-        // Keep placeholder on load failure
-      });
+      this.gltfLoader
+        .loadAsync(b.def.glbPath)
+        .then((gltf) => {
+          this.buildingModelCache.set(b.def.key, gltf.scene);
+          group.remove(placeholder);
+          const model = gltf.scene.clone();
+          this.fitBuildingModel(model, b);
+          group.add(model);
+        })
+        .catch(() => {
+          // Keep placeholder on load failure
+        });
     }
 
     const footW = b.def.footprint.w * WORLD_SCALE * 192; // tileSize from state
@@ -543,7 +727,13 @@ export class GroundRTS3DRenderer {
     // Selection ring
     const ringGeo = new THREE.RingGeometry(maxFoot * 0.45, maxFoot * 0.5, 24);
     ringGeo.rotateX(-Math.PI / 2);
-    const ringMat = new THREE.MeshBasicMaterial({ color: 0x44ff44, transparent: true, opacity: 0.5, side: THREE.DoubleSide, depthWrite: false });
+    const ringMat = new THREE.MeshBasicMaterial({
+      color: 0x44ff44,
+      transparent: true,
+      opacity: 0.5,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+    });
     const selectionRing = new THREE.Mesh(ringGeo, ringMat);
     selectionRing.position.y = 0.02;
     selectionRing.visible = false;
@@ -593,8 +783,12 @@ export class GroundRTS3DRenderer {
     const footH = b.def.footprint.h * WORLD_SCALE * 192;
     const height = Math.max(footW, footH) * 0.6;
     const ROLE_COLORS: Record<string, number> = {
-      production: 0x4488ff, economy: 0x44ee88, defense: 0xff4488,
-      research: 0xaa44ff, special: 0xffcc44, decoration: 0x888888,
+      production: 0x4488ff,
+      economy: 0x44ee88,
+      defense: 0xff4488,
+      research: 0xaa44ff,
+      special: 0xffcc44,
+      decoration: 0x888888,
     };
     const color = ROLE_COLORS[b.def.role] ?? 0x888888;
     const geo = new THREE.BoxGeometry(footW * 0.8, height, footH * 0.8);
@@ -627,7 +821,15 @@ export class GroundRTS3DRenderer {
           const h = 0.3 + Math.random() * 0.5;
           const r = 0.08 + Math.random() * 0.12;
           const geo = new THREE.ConeGeometry(r, h, 5);
-          const mat = new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.3, transparent: true, opacity: 0.8, roughness: 0.2, metalness: 0.6 });
+          const mat = new THREE.MeshStandardMaterial({
+            color,
+            emissive: color,
+            emissiveIntensity: 0.3,
+            transparent: true,
+            opacity: 0.8,
+            roughness: 0.2,
+            metalness: 0.6,
+          });
           const crystal = new THREE.Mesh(geo, mat);
           crystal.position.set((Math.random() - 0.5) * 0.4, h / 2, (Math.random() - 0.5) * 0.4);
           crystal.rotation.z = (Math.random() - 0.5) * 0.4;
@@ -641,7 +843,7 @@ export class GroundRTS3DRenderer {
     }
   }
 
-  // ── Render Loop ─────────────────────────────────────────────────────
+  // ── Render Loop ─────────────────────────────────────────────────
   render(state: GroundRTSState, dt: number): void {
     if (this.disposed) return;
 
@@ -650,6 +852,11 @@ export class GroundRTS3DRenderer {
     this.syncDeposits(state);
     this.syncProjectiles(state);
     this.updateCamera();
+
+    // Tick animation mixers for all animated units
+    for (const [, animState] of this.unitAnimStates) {
+      animState.mixer.update(dt);
+    }
 
     // Billboard health bars toward camera
     for (const [, mesh] of this.unitMeshes) {
