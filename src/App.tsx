@@ -37,6 +37,7 @@ import { getKey } from './game/hotkeys';
 import { HotkeySettings } from './game/HotkeySettings';
 import { loadRemoteBalance } from './game/space-data-loader';
 import { DevOverlay } from './game/dev-overlay';
+import { GalaxyMap, STAR_SYSTEMS } from './game/GalaxyMap';
 
 // ── Lazy-loaded heavy modules (code-split) ────────────────────────
 // These chunks only download when the user navigates to the relevant screen.
@@ -1015,7 +1016,13 @@ function MainMenu({
         overflowX: 'hidden',
       }}
     >
-      <StarfieldCanvas />
+      {/* 3D Galaxy background */}
+      <GalaxyMap
+        onSelectSystem={(id) => {
+          // Click on home system opens quick game
+          if (id === 'grudge_prime') onStart();
+        }}
+      />
 
       {/* Scrollable content */}
       <div
