@@ -101,8 +101,14 @@ export interface ShipAbility {
     | 'hack_siphon'
     | 'hack_sensors'
     | 'hack_sabotage'
-    | 'hack_hijack';
+    | 'hack_hijack'
+    | 'fleet_warp'     // high-level ship spell: warp self + N nearby allies to target
+    | 'homebound';     // instant retreat to homeworld/nearest owned planet
   duration: number;
+  /** fleet_warp: max allied ships that can jump with the caster (4/8/12 by tier) */
+  warpSlots?: number;
+  /** fleet_warp: countdown seconds before the jump executes (default 5) */
+  warpCountdown?: number;
   radius?: number;
   /** Hacking channel time in seconds (ability channels while hack completes) */
   hackTime?: number;
@@ -233,6 +239,7 @@ export type ShipAnimState =
   | 'barrel_roll'
   | 'speed_boost'
   | 'warping'
+  | 'warp_charging'   // 5s countdown before fleet warp executes
   | 'docking'
   | 'launching'
   | 'death_spiral'
@@ -466,9 +473,42 @@ export interface Alert {
   x: number;
   y: number;
   z: number;
-  type: 'under_attack' | 'unit_lost' | 'build_complete' | 'conquest' | 'dark_rift';
+  type: 'under_attack' | 'unit_lost' | 'build_complete' | 'conquest' | 'dark_rift' | 'warp_charging';
   time: number;
   message: string;
+}
+
+// ── Warp Gate (planet add-on building) ────────────────────────────
+// Purchased on an owned planet; connects to all other gates you own.
+// Ships entering gate radius are teleported to a chosen destination gate.
+export interface WarpGate extends GameEntity {
+  planetId: number;
+  orbitAngle: number;
+  orbitRadius: number;  // offset from planet center
+  /** Set of other gate IDs this gate is linked to (all owned gates auto-link) */
+  linkedGateIds: Set<number>;
+  /** Cooldown between uses (per-ship, not global) — seconds */
+  useCooldown: number;
+  /** Radius at which ships get the "warp" prompt */
+  activationRadius: number;
+  /** Ships currently in transit (id → arrival time) */
+  transitShipIds: Map<number, number>;
+}
+
+// ── Fleet Warp Charge (active countdown before jump) ──────────────
+// Created when a ship casts fleet_warp. Tracks the 5s countdown,
+// which ships are jumping, and the target location.
+export interface FleetWarpCharge {
+  id: number;
+  casterId: number;     // the ship that cast fleet_warp
+  team: Team;
+  targetX: number;
+  targetY: number;
+  countdown: number;    // seconds remaining (starts at 5)
+  maxCountdown: number;
+  passengerIds: number[]; // ship IDs jumping with the caster
+  done: boolean;
+  cancelled: boolean;   // true if caster dies during countdown
 }
 
 // ── Dark Rifts (PvE map events) ───────────────────────────

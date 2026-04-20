@@ -19,17 +19,29 @@ tsconfig.tsbuildinfo
 *.zip
 *.7z
 *.rar
-assets/animationsweapons.zip
 
-# Reference assets — screenshots, rigs preview, planning docs (not runtime)
-assets/*.png
-assets/extw-rigs-preview/
-assets/needs pipeline and best practices/
+# Raw asset staging (not for git — upload to R2 CDN via npm run r2:upload)
+assets/
 review and organize/
 
-# Maya source files (not needed at runtime)
+# Extracted asset packs with oversized textures (served via R2 CDN)
+public/assets/**/extracted/
+public/assets/ground/characters/armada/ncr-ranger.fbx
+public/assets/ground/characters/armada/ncr-ranger-diffuse.png
+public/assets/ground/characters/armada/ncr-ranger-normal.png
+public/assets/ground/characters/CorsairKing.fbx
+public/assets/space/videos/intro.mp4
+public/assets/space/textures/scifi-panels/4k JPEG/
+
+# Maya/Blender source files (not needed at runtime)
 *.ma
 *.mb
+*.blend
+*.blend1
+
+# Generated files
+r2-manifest*.json
+public/ship-portrait-generator.html
 
 # Server backend
 server/node_modules

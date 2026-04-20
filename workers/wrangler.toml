@@ -1,0 +1,13 @@
+name = "grudge-id-auth"
+main = "id-auth-worker.js"
+compatibility_date = "2024-01-01"
+
+# Route: id.grudge-studio.com/*
+# Set this up in Cloudflare dashboard OR use the routes below.
+# You must have grudge-studio.com zone in your Cloudflare account.
+routes = [
+  { pattern = "id.grudge-studio.com/*", zone_name = "grudge-studio.com" }
+]
+
+# Free tier: 100k requests/day — more than enough for auth
+# Workers run on 300+ edge locations globally

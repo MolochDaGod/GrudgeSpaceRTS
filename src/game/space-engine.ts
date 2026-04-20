@@ -26,6 +26,8 @@ import type {
   PlanetBuilding,
   PlanetBuildingType,
   SpaceMine,
+  WarpGate,
+  FleetWarpCharge,
 } from './space-types';
 import {
   SHIP_DEFINITIONS,
@@ -1292,6 +1294,12 @@ export class SpaceEngine {
       ship.baseSpeed = ship.speed;
       ship.speed *= 2.5;
       this.spawnSpriteEffect(ship.x, ship.y, 0, 'charged', 1.2);
+    } else if (ab.ability.type === 'fleet_warp') {
+      // Fleet Warp spell: 5s countdown, then jump caster + N nearby allies
+      this.initiateFleetWarp(ship, ab);
+    } else if (ab.ability.type === 'homebound') {
+      // Instant retreat to nearest owned planet
+      this.executeHomebound(ship);
     } else if (ab.ability.type === 'boarding') {
       const tgt = ship.targetId ? this.state.ships.get(ship.targetId) : null;
       if (tgt) this.spawnSpriteEffect(tgt.x, tgt.y, 0, 'hits-6', 1.0);
@@ -2329,7 +2337,262 @@ export class SpaceEngine {
     }
   }
 
-  // ── Dark Rifts (PvE random map events) ──────────────────
+  // ── Fleet Warp Spell (ship ability) ──────────────────────────
+  // High-level ships cast fleet_warp: 5s countdown, then jump caster + N allies.
+  // warpSlots determines capacity: T3=4, T4=8, T5=12 ships.
+  // During countdown, ships are vulnerable and show warp_charging anim.
+  // If caster dies, jump is cancelled.
+
+  private initiateFleetWarp(caster: SpaceShip, ab: ShipAbilityState): void {
+    const slots = ab.ability.warpSlots ?? 4;
+    const countdown = ab.ability.warpCountdown ?? 5;
+    const target = caster.moveTarget ?? { x: caster.x, y: caster.y, z: 0 };
+
+    // Gather nearby allies within 500 units (closest first, up to slots)
+    const candidates: SpaceShip[] = [];
+    for (const [, s] of this.state.ships) {
+      if (s.dead || s.team !== caster.team || s.id === caster.id) continue;
+      const d = dist2d(s, caster);
+      if (d < 500) candidates.push(s);
+    }
+    candidates.sort((a, b) => dist2d(a, caster) - dist2d(b, caster));
+    const passengers = candidates.slice(0, slots).map((s) => s.id);
+
+    // Set all jumping ships to warp_charging state
+    caster.animState = 'warp_charging';
+    caster.animTimer = 0;
+    caster.moveTarget = null;
+    for (const id of passengers) {
+      const s = this.state.ships.get(id);
+      if (s) {
+        s.animState = 'warp_charging';
+        s.animTimer = 0;
+        s.moveTarget = null;
+      }
+    }
+
+    // Create charge tracker
+    const charge: FleetWarpCharge = {
+      id: this.state.nextId++,
+      casterId: caster.id,
+      team: caster.team,
+      targetX: target.x,
+      targetY: target.y,
+      countdown,
+      maxCountdown: countdown,
+      passengerIds: passengers,
+      done: false,
+      cancelled: false,
+    };
+
+    if (!this.state.fleetWarpCharges) this.state.fleetWarpCharges = [];
+    this.state.fleetWarpCharges.push(charge);
+
+    // Departure VFX
+    this.spawnSpriteEffect(caster.x, caster.y, 0, WARP_VFX.departure, 6.0);
+
+    // Alert
+    this.state.alerts.push({
+      id: this.state.nextId++,
+      x: caster.x, y: caster.y, z: 0,
+      type: 'warp_charging',
+      time: this.state.gameTime,
+      message: `Fleet warp in ${countdown}s (${passengers.length + 1} ships)`,
+    });
+    gameAudio.play('alert', 0.5);
+  }
+
+  private updateFleetWarpCharges(dt: number): void {
+    if (!this.state.fleetWarpCharges) return;
+    for (const charge of this.state.fleetWarpCharges) {
+      if (charge.done) continue;
+
+      const caster = this.state.ships.get(charge.casterId);
+      if (!caster || caster.dead) {
+        // Caster died — cancel the jump, revert passengers
+        charge.cancelled = true;
+        charge.done = true;
+        for (const id of charge.passengerIds) {
+          const s = this.state.ships.get(id);
+          if (s && s.animState === 'warp_charging') s.animState = 'idle';
+        }
+        continue;
+      }
+
+      charge.countdown -= dt;
+      if (charge.countdown <= 0) {
+        // Execute the jump!
+        charge.done = true;
+
+        // Teleport caster
+        this.spawnSpriteEffect(caster.x, caster.y, 0, WARP_VFX.departure, 4.0);
+        caster.x = charge.targetX;
+        caster.y = charge.targetY;
+        caster.animState = 'idle';
+        caster.moveTarget = null;
+
+        // Teleport passengers in formation around target
+        let idx = 0;
+        for (const id of charge.passengerIds) {
+          const s = this.state.ships.get(id);
+          if (!s || s.dead) continue;
+          const angle = (idx / charge.passengerIds.length) * Math.PI * 2;
+          const spread = 80 + idx * 15;
+          s.x = charge.targetX + Math.cos(angle) * spread;
+          s.y = charge.targetY + Math.sin(angle) * spread;
+          s.animState = 'idle';
+          s.moveTarget = null;
+          idx++;
+        }
+
+        // Arrival VFX
+        this.spawnSpriteEffect(charge.targetX, charge.targetY, 0, WARP_VFX.arrival, 6.0);
+        gameAudio.play('commander', 0.6);
+      }
+    }
+    this.state.fleetWarpCharges = this.state.fleetWarpCharges.filter((c) => !c.done);
+  }
+
+  // ── Homebound Retreat (instant recall to owned planet) ──────────
+  // Commander ships and high-rank ships get this. Instantly warps
+  // the ship to the nearest owned planet. No passengers, no countdown.
+
+  private executeHomebound(ship: SpaceShip): void {
+    // Find nearest owned planet
+    let bestPlanet: Planet | null = null;
+    let bestDist = Infinity;
+    for (const p of this.state.planets) {
+      if (p.owner !== ship.team) continue;
+      const d = dist2d(ship, p);
+      if (d < bestDist) { bestDist = d; bestPlanet = p; }
+    }
+    if (!bestPlanet) return; // no owned planets — can't retreat
+
+    // Departure VFX at current position
+    this.spawnSpriteEffect(ship.x, ship.y, 0, WARP_VFX.departure, 4.0);
+
+    // Warp stretch animation (brief)
+    ship.animState = 'warping';
+    ship.animTimer = 0;
+
+    // Teleport to planet orbit
+    const angle = Math.random() * Math.PI * 2;
+    ship.x = bestPlanet.x + Math.cos(angle) * (bestPlanet.captureRadius * 0.6);
+    ship.y = bestPlanet.y + Math.sin(angle) * (bestPlanet.captureRadius * 0.6);
+    ship.moveTarget = null;
+    ship.targetId = null;
+
+    // Arrival VFX at planet
+    this.spawnSpriteEffect(ship.x, ship.y, 0, WARP_VFX.arrival, 4.0);
+    gameAudio.play('commander', 0.5);
+  }
+
+  // ── Warp Gates (planet add-on) ──────────────────────────────
+  // Purchased on owned planets. All gates a team owns auto-link.
+  // Ships entering a gate's radius get teleported to the chosen
+  // destination gate (or nearest gate if auto-routing).
+
+  buildWarpGate(team: Team, planetId: number): boolean {
+    const planet = this.state.planets.find((p) => p.id === planetId);
+    if (!planet || planet.owner !== team) return false;
+
+    // Only one gate per planet
+    if (!this.state.warpGates) this.state.warpGates = new Map();
+    for (const [, g] of this.state.warpGates) {
+      if (g.planetId === planetId && !g.dead) return false;
+    }
+
+    // Cost check
+    const cost = { credits: 500, energy: 200, minerals: 300 };
+    const res = this.state.resources[team];
+    if (!res || res.credits < cost.credits || res.energy < cost.energy || res.minerals < cost.minerals) return false;
+    res.credits -= cost.credits;
+    res.energy -= cost.energy;
+    res.minerals -= cost.minerals;
+
+    const gate: WarpGate = {
+      id: this.state.nextId++,
+      x: planet.x,
+      y: planet.y,
+      z: 0,
+      team,
+      hp: 600,
+      maxHp: 600,
+      dead: false,
+      planetId,
+      orbitAngle: Math.random() * Math.PI * 2,
+      orbitRadius: planet.captureRadius * 0.8,
+      linkedGateIds: new Set(),
+      useCooldown: 10,
+      activationRadius: 200,
+      transitShipIds: new Map(),
+    };
+
+    // Position at orbit
+    gate.x = planet.x + Math.cos(gate.orbitAngle) * gate.orbitRadius;
+    gate.y = planet.y + Math.sin(gate.orbitAngle) * gate.orbitRadius;
+
+    this.state.warpGates.set(gate.id, gate);
+
+    // Auto-link to all other gates this team owns
+    for (const [, other] of this.state.warpGates) {
+      if (other.id === gate.id || other.dead || other.team !== team) continue;
+      gate.linkedGateIds.add(other.id);
+      other.linkedGateIds.add(gate.id);
+    }
+
+    this.state.alerts.push({
+      id: this.state.nextId++,
+      x: gate.x, y: gate.y, z: 0,
+      type: 'build_complete',
+      time: this.state.gameTime,
+      message: `Warp Gate online at ${planet.name}${gate.linkedGateIds.size > 0 ? ` (linked to ${gate.linkedGateIds.size} gate${gate.linkedGateIds.size > 1 ? 's' : ''})` : ' (build another to link)'}`,
+    });
+    this.spawnSpriteEffect(gate.x, gate.y, 0, WARP_VFX.ancientGate, 5.0);
+    gameAudio.play('build_complete', 0.7);
+    return true;
+  }
+
+  /** Teleport a ship through a warp gate to the destination gate. */
+  useWarpGate(shipId: number, sourceGateId: number, destGateId: number): boolean {
+    if (!this.state.warpGates) return false;
+    const source = this.state.warpGates.get(sourceGateId);
+    const dest = this.state.warpGates.get(destGateId);
+    if (!source || !dest || source.dead || dest.dead) return false;
+    if (!source.linkedGateIds.has(destGateId)) return false;
+
+    const ship = this.state.ships.get(shipId);
+    if (!ship || ship.dead || ship.team !== source.team) return false;
+
+    // Range check
+    if (dist2d(ship, source) > source.activationRadius) return false;
+
+    // Per-ship cooldown check
+    const readyAt = source.transitShipIds.get(shipId) ?? 0;
+    if (this.state.gameTime < readyAt) return false;
+
+    // Execute teleport
+    this.spawnSpriteEffect(ship.x, ship.y, 0, WARP_VFX.departure, 3.0);
+    ship.animState = 'warping';
+    ship.animTimer = 0;
+
+    // Arrive near destination gate
+    const angle = Math.random() * Math.PI * 2;
+    ship.x = dest.x + Math.cos(angle) * 80;
+    ship.y = dest.y + Math.sin(angle) * 80;
+    ship.moveTarget = null;
+
+    this.spawnSpriteEffect(ship.x, ship.y, 0, WARP_VFX.arrival, 3.0);
+
+    // Set cooldown at BOTH gates for this ship
+    source.transitShipIds.set(shipId, this.state.gameTime + source.useCooldown);
+    dest.transitShipIds.set(shipId, this.state.gameTime + dest.useCooldown);
+
+    gameAudio.play('commander', 0.4);
+    return true;
+  }
+
+  // ── Dark Rifts (PvE random map events) ────────────────────
   private updateDarkRifts(dt: number) {
     // Countdown to next rift
     this.state.darkRiftTimer -= dt;

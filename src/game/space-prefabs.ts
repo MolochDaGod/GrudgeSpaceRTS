@@ -1455,6 +1455,22 @@ export const CHARACTER_PREFABS: Record<string, SpacePrefab> = {
     scale: 1.0,
     offset: S(0, 0, 0),
   },
+  // ── Armada Saga Heavy Armor Characters ───────────────────────
+  /** Power Armor — heavy tank class, ground combat boss / elite unit. GLB with full PBR. */
+  power_armor: {
+    modelPath: '/assets/ground/characters/armada/power-armor.glb',
+    format: 'glb',
+    scale: 2.0,
+    offset: S(0, 0, 0),
+  },
+  /** NCR Ranger — armored infantry, medium armor ground unit. FBX with PBR Diffuse+Normal. */
+  ncr_ranger: {
+    modelPath: '/assets/ground/characters/armada/ncr-ranger.fbx',
+    texturePath: '/assets/ground/characters/armada/ncr-ranger-diffuse.png',
+    format: 'fbx',
+    scale: 1.0,
+    offset: S(0, 0, 0),
+  },
 };
 
 // ── Space Station Modular (GLTF — 45 files, modular station pieces) ──

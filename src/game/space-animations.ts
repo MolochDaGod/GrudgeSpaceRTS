@@ -41,6 +41,18 @@ export function applyShipAnimation(group: THREE.Group, ship: SpaceShip, dt: numb
       group.scale.z = 1.0 + Math.sin(t * 2) * 0.05; // subtle stretch
       break;
     }
+    case 'warp_charging': {
+      // Fleet warp 5s countdown: ship vibrates with increasing intensity,
+      // portal energy builds around it. Ship stays visible and vulnerable.
+      const chargeProgress = Math.min(t / 5.0, 1.0);
+      const intensity = chargeProgress * chargeProgress; // ramps up
+      group.position.x += (Math.random() - 0.5) * 0.08 * intensity;
+      group.position.z += (Math.random() - 0.5) * 0.08 * intensity;
+      // Pulsing glow scale
+      const pulse = 1.0 + Math.sin(t * 8 + chargeProgress * 20) * 0.03 * intensity;
+      group.scale.setScalar(pulse);
+      break;
+    }
     case 'warping': {
       // Ship stretches on Z-axis, scales out
       const warpProgress = Math.min(t / 2.0, 1.0);

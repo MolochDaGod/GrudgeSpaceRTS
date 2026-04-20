@@ -103,15 +103,12 @@ import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
 import { MTLLoader } from 'three/examples/jsm/loaders/MTLLoader.js';
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { loadAnimationClip as loadAnimClipCentral, loadModel as loadModelCentral, loadPrefabGLB } from './model-loader';
 import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
-import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
-import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
-import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
-import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
-import { loadAnimationClip as loadAnimClipCentral } from './model-loader';
 import type { PlanetType } from './space-types';
+// ── Postprocessing: pmndrs/postprocessing (single-pass, faster than Three.js built-in) ──
+// Per glTF 2.0 PBR spec: bloom should respect emissiveTexture + emissiveFactor.
+// ToneMapping handles HDR→SDR conversion matching glTF's linear-space rendering.
 import {
   EffectComposer,
   EffectPass,
@@ -134,31 +131,9 @@ import {
 import { resolvePathUrl } from './asset-registry';
 import { getShipPrefab, type SpacePrefab } from './space-prefabs';
 
-// ── Vignette shader (fullscreen post pass) ────────────────────────
-const VignetteShader = {
-  uniforms: {
-    tDiffuse: { value: null as THREE.Texture | null },
-    offset: { value: 0.85 },
-    darkness: { value: 0.6 },
-  },
-  vertexShader: `
-    varying vec2 vUv;
-    void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }
-  `,
-  fragmentShader: `
-    uniform sampler2D tDiffuse;
-    uniform float offset;
-    uniform float darkness;
-    varying vec2 vUv;
-    void main() {
-      vec4 color = texture2D(tDiffuse, vUv);
-      vec2 uv = (vUv - vec2(0.5)) * vec2(offset);
-      float vig = clamp(pow(dot(uv, uv), darkness), 0.0, 1.0);
-      color.rgb *= (1.0 - vig);
-      gl_FragColor = color;
-    }
-  `,
-};
+// VignetteShader removed — pmndrs/postprocessing handles vignette via VignetteEffect
+// if needed in the future: import { VignetteEffect } from 'postprocessing';
+// and add to the EffectPass.
 
 // ── Animation system ─────────────────────────────────────────────
 const ANIM_BASE = '/assets/ground/animations';
@@ -860,7 +835,7 @@ export class GroundRenderer {
     cameraYaw: 0,
   };
 
-  // ── Post-processing ────────────────────────────────────────
+  // ── Post-processing (pmndrs/postprocessing — single EffectComposer) ──
   private composer!: EffectComposer;
 
   // ── Camera ───────────────────────────────────────────────
@@ -900,8 +875,7 @@ export class GroundRenderer {
   private heightData: Float32Array = new Float32Array(0);
   private heightRes = 0; // grid resolution (vertices per side)
 
-  // ── Postprocessing ───────────────────────────────────────
-  private composer!: EffectComposer;
+  // (composer declared above — no duplicate)
 
   // ── Model cache ───────────────────────────────────────────
   private fbxLoader = new FBXLoader();
@@ -982,13 +956,28 @@ export class GroundRenderer {
     const hemi = new THREE.HemisphereLight(0x88aacc, palette.ground, 0.3);
     this.scene.add(hemi);
 
-    // ── Post-processing: bloom + vignette ─────────────────────────
-    this.composer = new EffectComposer(this.renderer);
+    // ── Post-processing: pmndrs/postprocessing (single-pass pipeline) ────
+    // Uses HalfFloat for HDR → tone-map → bloom → SMAA in ONE merged pass.
+    // Per glTF 2.0 spec (p4): PBR materials use Metallic-Roughness model;
+    // bloom threshold should be set above base emissiveFactor so only
+    // intentional emissiveTexture surfaces glow (weapons, hit sparks, eyes).
+    this.composer = new EffectComposer(this.renderer, {
+      frameBufferType: THREE.HalfFloatType,
+    });
     this.composer.addPass(new RenderPass(this.scene, this.camera));
-    const bloomPass = new UnrealBloomPass(new THREE.Vector2(w, h), 0.55, 0.4, 0.35);
-    this.composer.addPass(bloomPass);
-    const vigPass = new ShaderPass(VignetteShader);
-    this.composer.addPass(vigPass);
+    this.composer.addPass(
+      new EffectPass(
+        this.camera,
+        new BloomEffect({
+          intensity: 0.55,
+          luminanceThreshold: 0.35,
+          luminanceSmoothing: 0.4,
+          mipmapBlur: true,
+        }),
+        new ToneMappingEffect({ mode: ToneMappingMode.ACES_FILMIC }),
+        new SMAAEffect({ preset: SMAAPreset.MEDIUM }),
+      ),
+    );
 
     // Heightmap terrain — high-res subdivided plane with per-vertex displacement
     this.buildTerrain(palette);
@@ -1825,54 +1814,21 @@ export class GroundRenderer {
     return [x, z];
   }
 
-  private async loadEnemyModel(enemy: GroundEnemy): Promise<THREE.Group> {
-    const cfg = ENEMY_MODEL_MAP[enemy.enemyType] ?? { modelIdx: 6, tint: 0xff4444 };
-    const idx = cfg.modelIdx % CHARACTER_FBXS.length;
-    // Boss (titan or boss type with maxHp > 300) uses CorsairKing model
-    const path = enemy.enemyType === 'boss' || enemy.maxHp >= 400 ? CORSAIR_KING_PATH : CHARACTER_FBXS[idx];
-    const tint = new THREE.Color(cfg.tint);
-    try {
-      const tex = await this.textureLoader.loadAsync(resolvePathUrl(cfg.tex)).catch(() => null);
-      let mtlMaterials = null;
-      try {
-        mtlMaterials = await this.mtlLoader.loadAsync(resolvePathUrl(cfg.mtl));
-        mtlMaterials.preload();
-      } catch {
-        /* no mtl — use basic */
-      }
+  // Old OBJ-based loadEnemyModel removed — was duplicate with broken cfg refs.
+  // The GLTF-based version below is the canonical implementation.
 
-      const loader = new OBJLoader();
-      if (mtlMaterials) loader.setMaterials(mtlMaterials);
-      const obj = await loader.loadAsync(resolvePathUrl(cfg.obj));
-      obj.scale.setScalar(cfg.scale);
-
-      const tintColor = new THREE.Color(cfg.tint);
-      obj.traverse((child) => {
-        if ((child as THREE.Mesh).isMesh) {
-          const mesh = child as THREE.Mesh;
-          mesh.castShadow = true;
-          mesh.receiveShadow = true;
-          // Convert to MeshStandard + tint + optional texture
-          const stdMat = new THREE.MeshStandardMaterial({
-            color: tintColor,
-            emissive: tintColor.clone().multiplyScalar(0.12),
-            emissiveIntensity: 0.6,
-            roughness: 0.45,
-            metalness: 0.7,
-          });
-          if (tex) {
-            stdMat.map = tex;
-            stdMat.color.set(0xffffff);
-          }
-          mesh.material = stdMat;
-        }
-      });
-
-      this.modelCache.set(cacheKey, obj);
-      return obj.clone();
-    } catch {
-      return this.createPlaceholder(cfg.tint);
+  /** Load a vehicle-type enemy model from VEHICLE_PREFABS (OBJ). */
+  private async loadVehicleModel(vehicleKey: string): Promise<THREE.Group> {
+    const VEHICLE_KEYS: Record<string, string> = {
+      scooter: 'scooter', gunbike: 'gun_bike', tracer: 'tracer',
+      cross: 'cross', chopper: 'chopper',
+    };
+    const prefabKey = VEHICLE_KEYS[vehicleKey] ?? vehicleKey;
+    const prefab = getShipPrefab(prefabKey);
+    if (prefab) {
+      return this.loadPrefabModel(prefab, 2.5);
     }
+    return this.createPlaceholder(0xff8800);
   }
 
   private async loadEnemyModel(enemy: GroundEnemy): Promise<THREE.Group> {
