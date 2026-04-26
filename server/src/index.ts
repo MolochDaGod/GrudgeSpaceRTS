@@ -75,6 +75,14 @@ app.onError((err, c) => {
   return c.json({ error: 'Internal server error' }, 500);
 });
 
+// ── Production safety checks ─────────────────────────────────────────
+// Loudly refuse to start in production without JWT_SECRET. Silent
+// fallback to a dev string in prod = open auth. Better to fast-fail.
+if (process.env.NODE_ENV === 'production' && !process.env.JWT_SECRET) {
+  console.error('[server] FATAL: JWT_SECRET is required in production');
+  process.exit(1);
+}
+
 // ── Start ──────────────────────────────────────────────────────────
 const PORT = parseInt(process.env.PORT ?? '3001', 10);
 

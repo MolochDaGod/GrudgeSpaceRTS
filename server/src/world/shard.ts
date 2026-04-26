@@ -179,6 +179,14 @@ export class WorldShard {
   private step(dt: number): void {
     this.tick++;
 
+    // Idle shard fast-path: skip physics + broadcast when nobody's home.
+    // Saves ~20 Hz of JSON serialisation on empty shards across the
+    // matchmaker fleet, which is the common case until pop builds up.
+    if (this.players.size === 0) {
+      this.onTick?.(this.tick);
+      return;
+    }
+
     // Trivial physics: linear velocity application + waypoint advance.
     for (const ship of this.ships.values()) {
       ship.pos.x += ship.vel.x * dt;
