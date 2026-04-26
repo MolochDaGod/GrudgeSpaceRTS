@@ -793,6 +793,42 @@ const CLASS_WEAPON_MAP: Record<string, string> = {
   gunslinger: '/assets/ground/weapons/scifi/Rifle.fbx',
 };
 
+// ── Weapon scale + position table ──────────────────────────────────────
+// Loaded once from public/assets/ground/weapons/weapon-scales.json. The
+// runtime applies these values literally with NO bbox math, NO maxDim
+// normalisation — the JSON file is the single source of truth on disk.
+interface WeaponXform {
+  scale: number;
+  position: [number, number, number];
+  rotationDeg?: [number, number, number];
+}
+interface WeaponScalesFile {
+  _default: WeaponXform;
+  weapons: Record<string, WeaponXform>;
+}
+let WEAPON_SCALES: WeaponScalesFile | null = null;
+let WEAPON_SCALES_PROMISE: Promise<WeaponScalesFile> | null = null;
+async function getWeaponScales(): Promise<WeaponScalesFile> {
+  if (WEAPON_SCALES) return WEAPON_SCALES;
+  if (!WEAPON_SCALES_PROMISE) {
+    WEAPON_SCALES_PROMISE = fetch('/assets/ground/weapons/weapon-scales.json')
+      .then((r) => r.json())
+      .then((j: WeaponScalesFile) => {
+        WEAPON_SCALES = j;
+        return j;
+      });
+  }
+  return WEAPON_SCALES_PROMISE;
+}
+
+/** Resolve a weapon path like '/assets/ground/weapons/kaykit/sword_A.fbx'
+ *  into its baked transform from weapon-scales.json. Falls back to _default. */
+function lookupWeaponXform(scales: WeaponScalesFile, path: string): WeaponXform {
+  // Strip the '/assets/ground/weapons/' prefix to match the JSON keys.
+  const key = path.replace(/^.*\/ground\/weapons\//, '');
+  return scales.weapons[key] ?? scales._default;
+}
+
 // ── Camera constants ───────────────────────────────────────────────
 const CAM_DISTANCE = 8;
 const CAM_HEIGHT = 4;
@@ -1613,15 +1649,39 @@ export class GroundRenderer {
     // Load weapon — class-specific first, then generic weapon type fallback
     const weaponPath = CLASS_WEAPON_MAP[this.state.player.characterClass] ?? WEAPON_MAP[this.state.player.weaponType] ?? WEAPON_MAP.sword;
     try {
-      const weapon = await this.loadFBX(weaponPath);
+      const weapon = await this.loadWeaponFBX(weaponPath);
       this.applyWeaponMaterial(weapon);
-      weapon.scale.setScalar(0.5);
       this.playerWeapon = weapon;
-      weapon.position.set(0.6, 1.2, 0.2);
       this.playerGroup!.add(weapon);
     } catch {
       // No weapon visual — OK
     }
+  }
+
+  /**
+   * Load a weapon FBX and apply the literal scale + position from
+   * `weapon-scales.json`. NO bbox normalisation, NO setScalar math — the
+   * JSON file on disk is the source of truth, runtime just applies it.
+   */
+  private async loadWeaponFBX(path: string): Promise<THREE.Group> {
+    // Bypass loadFBX (which auto-normalises to 2 m max-dim, wrong for weapons).
+    const url = resolvePathUrl(path);
+    const fbx = await this.fbxLoader.loadAsync(url);
+    fbx.traverse((child) => {
+      if ((child as THREE.Mesh).isMesh) {
+        (child as THREE.Mesh).castShadow = true;
+        (child as THREE.Mesh).receiveShadow = true;
+      }
+    });
+
+    const scales = await getWeaponScales();
+    const x = lookupWeaponXform(scales, path);
+    fbx.scale.setScalar(x.scale);
+    fbx.position.set(x.position[0], x.position[1], x.position[2]);
+    if (x.rotationDeg) {
+      fbx.rotation.set((x.rotationDeg[0] * Math.PI) / 180, (x.rotationDeg[1] * Math.PI) / 180, (x.rotationDeg[2] * Math.PI) / 180);
+    }
+    return fbx;
   }
 
   /** Load animation clips for a weapon type into a controller. */
@@ -1820,8 +1880,11 @@ export class GroundRenderer {
   /** Load a vehicle-type enemy model from VEHICLE_PREFABS (OBJ). */
   private async loadVehicleModel(vehicleKey: string): Promise<THREE.Group> {
     const VEHICLE_KEYS: Record<string, string> = {
-      scooter: 'scooter', gunbike: 'gun_bike', tracer: 'tracer',
-      cross: 'cross', chopper: 'chopper',
+      scooter: 'scooter',
+      gunbike: 'gun_bike',
+      tracer: 'tracer',
+      cross: 'cross',
+      chopper: 'chopper',
     };
     const prefabKey = VEHICLE_KEYS[vehicleKey] ?? vehicleKey;
     const prefab = getShipPrefab(prefabKey);
@@ -1872,13 +1935,11 @@ export class GroundRenderer {
         this.enemyGroups.set(enemy.id, group);
         this.scene.add(group);
 
-        // Load weapon for enemy and apply metallic material
+        // Load weapon for enemy — same baked-scale loader as the player.
         const wPath = WEAPON_MAP[enemy.weaponType] ?? WEAPON_MAP.sword;
         try {
-          const w = await this.loadFBX(wPath);
+          const w = await this.loadWeaponFBX(wPath);
           this.applyWeaponMaterial(w);
-          w.scale.setScalar(0.5);
-          w.position.set(0.6, 1.2, 0.2);
           group.add(w);
           this.enemyWeapons.set(enemy.id, w);
         } catch {
