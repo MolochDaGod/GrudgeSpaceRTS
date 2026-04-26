@@ -1614,7 +1614,7 @@ export class GroundRenderer {
     // Load weapon — class-specific first, then generic weapon type fallback
     const weaponPath = CLASS_WEAPON_MAP[this.state.player.characterClass] ?? WEAPON_MAP[this.state.player.weaponType] ?? WEAPON_MAP.sword;
     try {
-      const weapon = await this.loadWeaponFBX(weaponPath);
+      const weapon = await this.loadWeaponFBX(weaponPath, this.playerGroup!);
       this.applyWeaponMaterial(weapon);
       this.playerWeapon = weapon;
       this.playerGroup!.add(weapon);
@@ -1624,11 +1624,13 @@ export class GroundRenderer {
   }
 
   /**
-   * Load a weapon FBX and apply the literal scale + position from
-   * `weapon-scales.json`. NO bbox normalisation, NO setScalar math — the
-   * JSON file on disk is the source of truth, runtime just applies it.
+   * Load a weapon FBX and size it to a literal target length in metres.
+   * Robust to any source-FBX unit convention AND any parent character
+   * scale: we measure the raw FBX bbox once, divide by the parent's world
+   * scale, and scale the weapon so its longest axis renders at exactly
+   * `targetMeters` in world space. Source of truth: `weapon-scales.ts`.
    */
-  private async loadWeaponFBX(path: string): Promise<THREE.Group> {
+  private async loadWeaponFBX(path: string, parent: THREE.Object3D): Promise<THREE.Group> {
     // Bypass loadFBX (which auto-normalises to 2 m max-dim, wrong for weapons).
     const url = resolvePathUrl(path);
     const fbx = await this.fbxLoader.loadAsync(url);
@@ -1640,7 +1642,22 @@ export class GroundRenderer {
     });
 
     const x = lookupWeaponXform(path);
-    fbx.scale.setScalar(x.scale);
+
+    // Measure the raw FBX in its own (untransformed) local space.
+    const box = new THREE.Box3().setFromObject(fbx);
+    const size = box.getSize(new THREE.Vector3());
+    const maxDim = Math.max(size.x, size.y, size.z);
+
+    // Compensate for the parent character group's world scale, so the weapon
+    // ends up exactly targetMeters long regardless of character unit choices.
+    parent.updateWorldMatrix(true, false);
+    const parentScale = new THREE.Vector3();
+    parent.getWorldScale(parentScale);
+    const ps = (Math.abs(parentScale.x) + Math.abs(parentScale.y) + Math.abs(parentScale.z)) / 3 || 1;
+
+    const local = maxDim > 0.0001 ? x.targetMeters / (maxDim * ps) : 1;
+    fbx.scale.setScalar(local);
+
     fbx.position.set(x.position[0], x.position[1], x.position[2]);
     if (x.rotationDeg) {
       fbx.rotation.set((x.rotationDeg[0] * Math.PI) / 180, (x.rotationDeg[1] * Math.PI) / 180, (x.rotationDeg[2] * Math.PI) / 180);
@@ -1902,7 +1919,7 @@ export class GroundRenderer {
         // Load weapon for enemy — same baked-scale loader as the player.
         const wPath = WEAPON_MAP[enemy.weaponType] ?? WEAPON_MAP.sword;
         try {
-          const w = await this.loadWeaponFBX(wPath);
+          const w = await this.loadWeaponFBX(wPath, group);
           this.applyWeaponMaterial(w);
           group.add(w);
           this.enemyWeapons.set(enemy.id, w);
