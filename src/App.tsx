@@ -48,6 +48,7 @@ const LazyShipCodex3D = lazy(() => import('./game/codex-ui').then((m) => ({ defa
 const LazyGroundCombatView = lazy(() => import('./game/GroundCombatView').then((m) => ({ default: m.GroundCombatView })));
 const LazyGroundBattleView = lazy(() => import('./game/GroundBattleView').then((m) => ({ default: m.GroundBattleView })));
 const LazyGroundRTSView = lazy(() => import('./game/GroundRTSView'));
+const LazyMechBuilderShowcase = lazy(() => import('./game/MechBuilderShowcase'));
 import type { PlanetType } from './game/space-types';
 
 type Screen = 'intro' | 'menu' | 'codex' | 'howto' | 'editor' | 'playing' | 'ground_combat' | 'ground_rts';
@@ -396,6 +397,11 @@ export default function App() {
   const [starMapOpen, setStarMapOpen] = useState(false);
   const [showCmdModal, setShowCmdModal] = useState(false);
   const [showCampaignBuilder, setShowCampaignBuilder] = useState(false);
+  // Pre-campaign mech builder — chained before CampaignBuilderModal so the
+  // commander's mech loadout is snapshotted into the campaign profile.
+  // Additive only: nothing in the existing campaign builder gets removed.
+  const [showMechBuilder, setShowMechBuilder] = useState(false);
+  const [, setMechBuild] = useState<import('./game/mech-builder-renderer').MechBuildSnapshot | null>(null);
   const [selectedFaction, setSelectedFaction] = useState<SpaceFaction>('legion');
   const [campaignBuild, setCampaignBuild] = useState<CommanderBuild | null>(null);
   const [selectedSpec, setSelectedSpec] = useState<CommanderSpec>('forge');
@@ -498,7 +504,7 @@ export default function App() {
       {screen === 'menu' && (
         <MainMenu
           onStart={() => setShowCmdModal(true)}
-          onCampaign={() => setShowCampaignBuilder(true)}
+          onCampaign={() => setShowMechBuilder(true)}
           onCodex={() => setScreen('codex')}
           onHowTo={() => setScreen('howto')}
           onEditor={() => setScreen('editor')}
@@ -534,6 +540,19 @@ export default function App() {
           onConfirm={() => launchWithSpec(gameMode, selectedSpec, { playerColorIdx, enemyColorMode, enemyColorIdx }, aiDifficulty)}
           onCancel={() => setShowCmdModal(false)}
         />
+      )}
+      {showMechBuilder && (
+        <Suspense fallback={<LoadingScreen />}>
+          <LazyMechBuilderShowcase
+            onComplete={(build) => {
+              setMechBuild(build);
+              setShowMechBuilder(false);
+              // Chain into the existing campaign builder — nothing upstream changes.
+              setShowCampaignBuilder(true);
+            }}
+            onCancel={() => setShowMechBuilder(false)}
+          />
+        </Suspense>
       )}
       {showCampaignBuilder && (
         <CampaignBuilderModal
@@ -1198,7 +1217,12 @@ function MainMenu({
               Build your base · Conquer the galaxy
             </div>
             <button
-              onClick={() => launchWithZoom(() => { setMode('campaign'); onCampaign(); })}
+              onClick={() =>
+                launchWithZoom(() => {
+                  setMode('campaign');
+                  onCampaign();
+                })
+              }
               style={launchBtn('#aa5500', 'rgba(170,85,0,0.3)')}
             >
               CREATE COMMANDER
@@ -1225,7 +1249,10 @@ function MainMenu({
                 Wave survival · Dodge & parry
               </div>
             </div>
-            <button onClick={() => launchWithZoom(onGroundCombat)} style={{ ...launchBtn('#1a7744', 'rgba(26,119,68,0.3)'), marginBottom: 14 }}>
+            <button
+              onClick={() => launchWithZoom(onGroundCombat)}
+              style={{ ...launchBtn('#1a7744', 'rgba(26,119,68,0.3)'), marginBottom: 14 }}
+            >
               LAUNCH GROUND COMBAT
             </button>
 

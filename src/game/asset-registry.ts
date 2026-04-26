@@ -30,7 +30,23 @@ export type AssetCategory =
   | 'ui'
   | 'enemy'
   | 'boss'
-  | 'terrain';
+  | 'terrain'
+  // Mech / cockpit library extensions — used by the Mech Builder Showcase
+  // and the Pilot view. Entries can also re-use 'weapon' / 'animation'.
+  | 'mech' // mech body / attachment / mech-class equipment
+  | 'cockpit'; // cockpit prop / canopy / hangar set-piece
+
+/** Bone the weapon / mech part is anchored to. */
+export type WeaponBoneAnchor = 'right_hand' | 'left_hand' | 'right_shield' | 'spine';
+
+/** Animation family — links a weapon to its animation pack. */
+export type WeaponFamily = 'sword' | 'greatsword' | 'spear' | 'bow' | 'staff' | 'rifle' | 'gun' | 'common';
+
+export interface RestPoseOffset {
+  position?: { x: number; y: number; z: number };
+  /** Euler XYZ in degrees. */
+  rotationDeg?: { x: number; y: number; z: number };
+}
 
 export interface AssetEntry {
   uuid: string; // Grudge object storage key (v4 UUID)
@@ -43,6 +59,16 @@ export interface AssetEntry {
   mtlPath?: string; // OBJ material file
   colorTintable: boolean; // can team color be applied via material.color
   tags: string[]; // search/filter tags
+
+  // ── Mech / weapon attachment metadata (optional) ─────────────
+  /** Bone the part attaches to. Defaults to 'right_hand' for weapons. */
+  boneAnchor?: WeaponBoneAnchor;
+  /** Target world-space size in metres on a 2 m character / mech. */
+  targetSize?: number;
+  /** Rest-pose offset applied after attaching to the bone. */
+  restPose?: RestPoseOffset;
+  /** Animation family (links weapons to anim packs, characters to clip maps). */
+  weaponFamily?: WeaponFamily;
 }
 
 // ── Registry ──────────────────────────────────────────────────────
@@ -635,7 +661,281 @@ const REGISTRY: AssetEntry[] = [
     tags: ['terrain', 'mars', 'battle', 'gltf', 'ground', 'environment'],
   },
 
-  // ── Lowpoly FBX Fleet — color-variant ships ──────────────────
+  // ── Cockpit (Pilot view) ────────────────────────────────────────
+  {
+    uuid: 'a00g0001-cock-glb-spaceship-seat000',
+    key: 'cockpit_seat',
+    category: 'cockpit',
+    localPath: '/assets/space/cockpit/spaceship_cockpit__seat.glb',
+    format: 'glb',
+    colorTintable: false,
+    tags: ['cockpit', 'pilot', 'glb', 'space', 'seat'],
+  },
+  {
+    uuid: 'a00g0002-cock-obj-station-cockpit-A',
+    key: 'cockpit_block_a',
+    category: 'cockpit',
+    localPath: '/assets/space/cockpit/Spacestation_Structure_Cockpit_Model_A.obj',
+    mtlPath: '/assets/space/cockpit/Spacestation_Structure_Cockpit_Model_A.mtl',
+    format: 'obj',
+    colorTintable: false,
+    tags: ['cockpit', 'modular', 'obj', 'space'],
+  },
+  {
+    uuid: 'a00g0003-cock-obj-station-cockpit-B',
+    key: 'cockpit_block_b_center',
+    category: 'cockpit',
+    localPath: '/assets/space/cockpit/Spacestation_Structure_Cockpit_Model_B_Center.obj',
+    mtlPath: '/assets/space/cockpit/Spacestation_Structure_Cockpit_Model_B_Center.mtl',
+    format: 'obj',
+    colorTintable: false,
+    tags: ['cockpit', 'modular', 'center', 'obj', 'space'],
+  },
+  {
+    uuid: 'a00g0004-cock-obj-station-cockpit-1',
+    key: 'cockpit_block_b_end_1',
+    category: 'cockpit',
+    localPath: '/assets/space/cockpit/Spacestation_Structure_Cockpit_Model_B_End_1.obj',
+    mtlPath: '/assets/space/cockpit/Spacestation_Structure_Cockpit_Model_B_End_1.mtl',
+    format: 'obj',
+    colorTintable: false,
+    tags: ['cockpit', 'modular', 'end', 'obj', 'space'],
+  },
+  {
+    uuid: 'a00g0005-cock-obj-station-cockpit-2',
+    key: 'cockpit_block_b_end_2',
+    category: 'cockpit',
+    localPath: '/assets/space/cockpit/Spacestation_Structure_Cockpit_Model_B_End_2.obj',
+    mtlPath: '/assets/space/cockpit/Spacestation_Structure_Cockpit_Model_B_End_2.mtl',
+    format: 'obj',
+    colorTintable: false,
+    tags: ['cockpit', 'modular', 'end', 'obj', 'space'],
+  },
+
+  // ── Atmospheric flight ship (gltf + bin) ────────────────────────
+  {
+    uuid: 'a00h0001-ship-glb-clouds-flyer000000',
+    key: 'ship_in_clouds',
+    category: 'ship',
+    localPath: '/assets/space/models/ships/ShipInClouds/scene.gltf',
+    format: 'glb',
+    colorTintable: false,
+    tags: ['ship', 'flyer', 'atmospheric', 'gltf'],
+  },
+
+  // ── Mech_00 — modular mech with bone-anchored attachments ───────────
+  {
+    uuid: 'a00i0001-mech-fbx-char-mesh000000000',
+    key: 'mech_00_body',
+    category: 'mech',
+    localPath: '/assets/space/mechs/Mech_00/Char_Mesh/Mech_Char_Mesh.fbx',
+    format: 'fbx',
+    colorTintable: true,
+    tags: ['mech', 'body', 'fbx'],
+  },
+  {
+    uuid: 'a00i0002-mech-fbx-anim00000000000000',
+    key: 'mech_00_anim',
+    category: 'prop',
+    localPath: '/assets/space/mechs/Mech_00/Char_Anim/Mech_00_Anim.fbx',
+    format: 'fbx',
+    colorTintable: false,
+    tags: ['animation', 'mech'],
+  },
+  {
+    uuid: 'a00i0010-mech-wpn-hammer000000000000',
+    key: 'mech_wpn_hammer',
+    category: 'weapon',
+    localPath: '/assets/space/mechs/Mech_00/Weapons/Core_Hammer.fbx',
+    format: 'fbx',
+    colorTintable: false,
+    tags: ['mech', 'weapon', 'hammer', 'melee'],
+    weaponFamily: 'greatsword',
+    boneAnchor: 'right_hand',
+    targetSize: 1.4,
+  },
+  {
+    uuid: 'a00i0011-mech-wpn-sword0000000000000',
+    key: 'mech_wpn_sword',
+    category: 'weapon',
+    localPath: '/assets/space/mechs/Mech_00/Weapons/Core_Sword.fbx',
+    format: 'fbx',
+    colorTintable: false,
+    tags: ['mech', 'weapon', 'sword', 'melee'],
+    weaponFamily: 'sword',
+    boneAnchor: 'right_hand',
+    targetSize: 1.5,
+  },
+  {
+    uuid: 'a00i0020-mech-att-armour-00000000000',
+    key: 'mech_att_armour_00',
+    category: 'mech',
+    localPath: '/assets/space/mechs/Mech_00/Attachments/Attach_Armour_00.fbx',
+    format: 'fbx',
+    colorTintable: true,
+    tags: ['mech', 'attachment', 'armour'],
+    boneAnchor: 'spine',
+    targetSize: 1.6,
+  },
+  {
+    uuid: 'a00i0021-mech-att-armour-01000000000',
+    key: 'mech_att_armour_01',
+    category: 'mech',
+    localPath: '/assets/space/mechs/Mech_00/Attachments/Attach_Armour_01.fbx',
+    format: 'fbx',
+    colorTintable: true,
+    tags: ['mech', 'attachment', 'armour'],
+    boneAnchor: 'spine',
+    targetSize: 1.6,
+  },
+  {
+    uuid: 'a00i0022-mech-att-armour-02000000000',
+    key: 'mech_att_armour_02',
+    category: 'mech',
+    localPath: '/assets/space/mechs/Mech_00/Attachments/Attach_Armour_02.fbx',
+    format: 'fbx',
+    colorTintable: true,
+    tags: ['mech', 'attachment', 'armour'],
+    boneAnchor: 'spine',
+    targetSize: 1.6,
+  },
+  {
+    uuid: 'a00i0023-mech-att-back-1gun000000000',
+    key: 'mech_att_back_1gun',
+    category: 'mech',
+    localPath: '/assets/space/mechs/Mech_00/Attachments/Attach_Back_1Gun.fbx',
+    format: 'fbx',
+    colorTintable: true,
+    tags: ['mech', 'attachment', 'back', 'gun'],
+    boneAnchor: 'spine',
+    targetSize: 1.2,
+  },
+  {
+    uuid: 'a00i0024-mech-att-back-2gun000000000',
+    key: 'mech_att_back_2gun',
+    category: 'mech',
+    localPath: '/assets/space/mechs/Mech_00/Attachments/Attach_Back_2Gun.fbx',
+    format: 'fbx',
+    colorTintable: true,
+    tags: ['mech', 'attachment', 'back', 'gun'],
+    boneAnchor: 'spine',
+    targetSize: 1.4,
+  },
+  {
+    uuid: 'a00i0025-mech-att-back-jetpack000000',
+    key: 'mech_att_back_jetpack',
+    category: 'mech',
+    localPath: '/assets/space/mechs/Mech_00/Attachments/Attach_Back_JetPack_00.fbx',
+    format: 'fbx',
+    colorTintable: true,
+    tags: ['mech', 'attachment', 'back', 'jetpack'],
+    boneAnchor: 'spine',
+    targetSize: 1.4,
+  },
+  {
+    uuid: 'a00i0026-mech-att-back-missiles-0000',
+    key: 'mech_att_back_missiles_00',
+    category: 'mech',
+    localPath: '/assets/space/mechs/Mech_00/Attachments/Attach_Back_Missiles_00.fbx',
+    format: 'fbx',
+    colorTintable: true,
+    tags: ['mech', 'attachment', 'back', 'missiles'],
+    boneAnchor: 'spine',
+    targetSize: 1.5,
+  },
+  {
+    uuid: 'a00i0027-mech-att-back-missiles-0100',
+    key: 'mech_att_back_missiles_01',
+    category: 'mech',
+    localPath: '/assets/space/mechs/Mech_00/Attachments/Attach_Back_Missiles_01.fbx',
+    format: 'fbx',
+    colorTintable: true,
+    tags: ['mech', 'attachment', 'back', 'missiles'],
+    boneAnchor: 'spine',
+    targetSize: 1.4,
+  },
+  {
+    uuid: 'a00i0028-mech-att-back-wpnattach0000',
+    key: 'mech_att_back_wpn_attach',
+    category: 'mech',
+    localPath: '/assets/space/mechs/Mech_00/Attachments/Attach_Back_WeaponAttacher.fbx',
+    format: 'fbx',
+    colorTintable: true,
+    tags: ['mech', 'attachment', 'back', 'mount'],
+    boneAnchor: 'spine',
+    targetSize: 1.0,
+  },
+  {
+    uuid: 'a00i0030-mech-att-gun-00000000000000',
+    key: 'mech_att_gun_00',
+    category: 'weapon',
+    localPath: '/assets/space/mechs/Mech_00/Attachments/Attach_Gun_00.fbx',
+    format: 'fbx',
+    colorTintable: false,
+    tags: ['mech', 'weapon', 'gun', 'handheld'],
+    weaponFamily: 'rifle',
+    boneAnchor: 'right_hand',
+    targetSize: 1.1,
+  },
+  {
+    uuid: 'a00i0031-mech-att-gun-01000000000000',
+    key: 'mech_att_gun_01',
+    category: 'weapon',
+    localPath: '/assets/space/mechs/Mech_00/Attachments/Attach_Gun_01.fbx',
+    format: 'fbx',
+    colorTintable: false,
+    tags: ['mech', 'weapon', 'gun', 'handheld'],
+    weaponFamily: 'rifle',
+    boneAnchor: 'right_hand',
+    targetSize: 1.0,
+  },
+  {
+    uuid: 'a00i0032-mech-att-gun-02000000000000',
+    key: 'mech_att_gun_02',
+    category: 'weapon',
+    localPath: '/assets/space/mechs/Mech_00/Attachments/Attach_Gun_02.fbx',
+    format: 'fbx',
+    colorTintable: false,
+    tags: ['mech', 'weapon', 'gun', 'handheld'],
+    weaponFamily: 'rifle',
+    boneAnchor: 'right_hand',
+    targetSize: 1.0,
+  },
+  {
+    uuid: 'a00i0040-mech-att-module-000000000000',
+    key: 'mech_att_module_00',
+    category: 'mech',
+    localPath: '/assets/space/mechs/Mech_00/Attachments/Attach_Module_00.fbx',
+    format: 'fbx',
+    colorTintable: true,
+    tags: ['mech', 'attachment', 'module'],
+    boneAnchor: 'spine',
+    targetSize: 0.9,
+  },
+  {
+    uuid: 'a00i0041-mech-att-module-010000000000',
+    key: 'mech_att_module_01',
+    category: 'mech',
+    localPath: '/assets/space/mechs/Mech_00/Attachments/Attach_Module_01.fbx',
+    format: 'fbx',
+    colorTintable: true,
+    tags: ['mech', 'attachment', 'module'],
+    boneAnchor: 'spine',
+    targetSize: 1.0,
+  },
+  {
+    uuid: 'a00i0042-mech-att-module-020000000000',
+    key: 'mech_att_module_02',
+    category: 'mech',
+    localPath: '/assets/space/mechs/Mech_00/Attachments/Attach_Module_02.fbx',
+    format: 'fbx',
+    colorTintable: true,
+    tags: ['mech', 'attachment', 'module'],
+    boneAnchor: 'spine',
+    targetSize: 1.0,
+  },
+
+  // ── Lowpoly FBX Fleet — color-variant ships ──────────────
   ...(['Blue', 'Green', 'Orange', 'Purple'] as const).flatMap((color, _i) => [
     {
       uuid: `a00d0001-ship-fbx-lp-spaceship-${color.toLowerCase()}`,
@@ -697,9 +997,7 @@ export function resolveAssetUrl(key: string): string {
   if (CDN_BASE) {
     // Path-based R2 key: /assets/space/models/X → gruda-armada/space/models/X
     const r2Path = entry.localPath.replace(/^\/assets\//, '');
-    const versionSuffix = ASSET_VERSION
-      ? `${r2Path.includes('?') ? '&' : '?'}v=${ASSET_VERSION}`
-      : '';
+    const versionSuffix = ASSET_VERSION ? `${r2Path.includes('?') ? '&' : '?'}v=${ASSET_VERSION}` : '';
     return `${CDN_BASE}/gruda-armada/${r2Path}${versionSuffix}`;
   }
   return entry.localPath;
