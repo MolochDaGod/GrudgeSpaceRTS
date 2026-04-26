@@ -130,6 +130,7 @@ import {
 } from './ground-combat';
 import { resolvePathUrl } from './asset-registry';
 import { getShipPrefab, type SpacePrefab } from './space-prefabs';
+import { lookupWeaponXform } from './weapon-scales';
 
 // VignetteShader removed — pmndrs/postprocessing handles vignette via VignetteEffect
 // if needed in the future: import { VignetteEffect } from 'postprocessing';
@@ -792,42 +793,6 @@ const CLASS_WEAPON_MAP: Record<string, string> = {
   rogue: '/assets/ground/weapons/kaykit/dagger_A.fbx',
   gunslinger: '/assets/ground/weapons/scifi/Rifle.fbx',
 };
-
-// ── Weapon scale + position table ──────────────────────────────────────
-// Loaded once from public/assets/ground/weapons/weapon-scales.json. The
-// runtime applies these values literally with NO bbox math, NO maxDim
-// normalisation — the JSON file is the single source of truth on disk.
-interface WeaponXform {
-  scale: number;
-  position: [number, number, number];
-  rotationDeg?: [number, number, number];
-}
-interface WeaponScalesFile {
-  _default: WeaponXform;
-  weapons: Record<string, WeaponXform>;
-}
-let WEAPON_SCALES: WeaponScalesFile | null = null;
-let WEAPON_SCALES_PROMISE: Promise<WeaponScalesFile> | null = null;
-async function getWeaponScales(): Promise<WeaponScalesFile> {
-  if (WEAPON_SCALES) return WEAPON_SCALES;
-  if (!WEAPON_SCALES_PROMISE) {
-    WEAPON_SCALES_PROMISE = fetch('/assets/ground/weapons/weapon-scales.json')
-      .then((r) => r.json())
-      .then((j: WeaponScalesFile) => {
-        WEAPON_SCALES = j;
-        return j;
-      });
-  }
-  return WEAPON_SCALES_PROMISE;
-}
-
-/** Resolve a weapon path like '/assets/ground/weapons/kaykit/sword_A.fbx'
- *  into its baked transform from weapon-scales.json. Falls back to _default. */
-function lookupWeaponXform(scales: WeaponScalesFile, path: string): WeaponXform {
-  // Strip the '/assets/ground/weapons/' prefix to match the JSON keys.
-  const key = path.replace(/^.*\/ground\/weapons\//, '');
-  return scales.weapons[key] ?? scales._default;
-}
 
 // ── Camera constants ───────────────────────────────────────────────
 const CAM_DISTANCE = 8;
@@ -1674,8 +1639,7 @@ export class GroundRenderer {
       }
     });
 
-    const scales = await getWeaponScales();
-    const x = lookupWeaponXform(scales, path);
+    const x = lookupWeaponXform(path);
     fbx.scale.setScalar(x.scale);
     fbx.position.set(x.position[0], x.position[1], x.position[2]);
     if (x.rotationDeg) {
