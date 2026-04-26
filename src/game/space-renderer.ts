@@ -197,6 +197,12 @@ export class SpaceRenderer {
   public campaignGrudgeId: string | null = null;
   public campaignCommanderName: string | null = null;
   public campaignPortrait: string | null = null;
+  /**
+   * Commander mech loadout from the pre-campaign Mech Builder Showcase.
+   * Snapshot of body + per-slot equipped parts + selected animation.
+   * Set by App.tsx launchWithSpec(); read by future commander-spawn code.
+   */
+  public commanderMech: import('./mech-builder-renderer').MechBuildSnapshot | null = null;
 
   // Planet decoration assets (from provided props pack)
   private readonly ORBITAL_RING_MODELS = [

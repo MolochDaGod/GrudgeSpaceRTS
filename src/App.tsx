@@ -404,7 +404,11 @@ export default function App() {
   // Snapshot survives across the MechBuilder → CampaignBuilder → launch
   // chain without re-rendering on update. Read on launch in the future.
   const mechBuildRef = useRef<import('./game/mech-builder-renderer').MechBuildSnapshot | null>(null);
-  const [selectedFaction, setSelectedFaction] = useState<SpaceFaction>('legion');
+  // Faction selection lives on the campaign builder modal; this hook just
+  // holds the default until the modal mounts. The setter is currently
+  // unused (the modal owns its own state) but kept as a reservation for
+  // when the menu surfaces faction picking before the modal opens.
+  const [selectedFaction] = useState<SpaceFaction>('legion');
   const [campaignBuild, setCampaignBuild] = useState<CommanderBuild | null>(null);
   const [selectedSpec, setSelectedSpec] = useState<CommanderSpec>('forge');
   const [playerColorIdx, setPlayerColorIdx] = useState(0); // Blue default
@@ -455,6 +459,9 @@ export default function App() {
       r.playerCommanderSpec = spec;
       // Set AI difficulty before engine init (stored on renderer, copied during init)
       if (difficulty != null) r.aiDifficulty = difficulty;
+      // Forward the pre-campaign mech loadout (MechBuilderShowcase → ref)
+      // for future commander-spawn / persistence code paths.
+      r.commanderMech = mechBuildRef.current;
       // Campaign-specific: set faction + grudgeId + commander build on renderer
       if (mode === 'campaign' && campaignBuild) {
         r.campaignFaction = campaignBuild.faction;
