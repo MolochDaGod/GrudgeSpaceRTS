@@ -11,7 +11,14 @@
  *   /admin/*         — Admin dashboard (admin JWT required)
  *   /rts-config/*    — Remote game config
  *   /rts-matches/*   — RTS-specific leaderboard
+ *   /world/*         — PvP world matchmaker (HTTP) + /world WebSocket
  *   /health          — Public health check
+ *
+ * Express-style middleware patterns adopted via Hono primitives:
+ *   - logger() / cors() applied app-wide
+ *   - requireAuth() per-route guard (jose JWT)
+ *   - app.notFound() / app.onError() at the bottom
+ *   - Graceful shutdown on SIGTERM / SIGINT
  */
 
 import 'dotenv/config';
@@ -27,6 +34,8 @@ import { matchRouter, rtsMatchesRouter } from './routes/match.js';
 import { aiRouter } from './routes/ai.js';
 import { adminRouter } from './routes/admin.js';
 import { rtsConfigRouter } from './routes/rts-config.js';
+import { worldRouter } from './routes/world.js';
+import { getWorldServer } from './world/server.js';
 
 const app = new Hono();
 
@@ -55,6 +64,7 @@ app.route('/ai', aiRouter);
 app.route('/admin', adminRouter);
 app.route('/rts-config', rtsConfigRouter);
 app.route('/rts-matches', rtsMatchesRouter);
+app.route('/world', worldRouter);
 
 // ── 404 fallback ──────────────────────────────────────────────────
 app.notFound((c) => c.json({ error: 'Not found' }, 404));
@@ -65,10 +75,10 @@ app.onError((err, c) => {
   return c.json({ error: 'Internal server error' }, 500);
 });
 
-// ── Start ─────────────────────────────────────────────────────────
+// ── Start ──────────────────────────────────────────────────────────
 const PORT = parseInt(process.env.PORT ?? '3001', 10);
 
-serve({ fetch: app.fetch, port: PORT }, async () => {
+const server = serve({ fetch: app.fetch, port: PORT }, async () => {
   console.log(`[server] 🚀 Grudge Space API listening on port ${PORT}`);
 
   // Verify DB connection on startup
@@ -80,3 +90,28 @@ serve({ fetch: app.fetch, port: PORT }, async () => {
     console.warn('[server] Running without DB — some endpoints will fail');
   }
 });
+
+// ── PvP World Server (WebSocket on the same HTTP server) ───────────
+// One process hosts both the campaign API and the PvP world server,
+// keeping the Railway deployment to a single service. Set
+// WORLD_DISABLE=true to opt out (e.g. when running an API-only replica).
+if (process.env.WORLD_DISABLE !== 'true') {
+  const world = getWorldServer();
+  // @hono/node-server returns the underlying http.Server, which `ws`
+  // attaches to via the 'upgrade' event.
+  world.attach(server as unknown as import('node:http').Server);
+  console.log('[server] 🌍 World server attached at /world');
+}
+
+// ── Graceful shutdown ─────────────────────────────────────────────────
+function shutdown(signal: string): void {
+  console.log(`[server] received ${signal}, draining…`);
+  if (process.env.WORLD_DISABLE !== 'true') getWorldServer().shutdown();
+  pool.end().catch(() => undefined);
+  // serve()'s Server has a close() method (http.Server)
+  (server as unknown as import('node:http').Server).close(() => process.exit(0));
+  // Hard kill after 10s if anything hangs.
+  setTimeout(() => process.exit(1), 10_000).unref();
+}
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));
