@@ -9,7 +9,7 @@
     "build:strict": "tsc -b && vite build",
     "preview": "vite preview",
     "check": "tsc --noEmit",
-    "lint": "eslint src/",
+    "check:assets": "node scripts/verify-assets.mjs",
     "format": "prettier --write src/",
     "test": "vitest run",
     "prepare": "husky",
