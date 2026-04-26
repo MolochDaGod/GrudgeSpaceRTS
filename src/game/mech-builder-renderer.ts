@@ -33,11 +33,38 @@ export interface MechBuildSnapshot {
   animKey: string | null;
 }
 
+// Bone-name fragments are matched against `obj.name.toLowerCase().replace(/\s+/g, '')`.
+// Order matters: explicit-side names try first, falling back to side-agnostic
+// matches (Mech_00 uses a symmetric `Core_Palm` rig with no L/R distinction).
 const BONE_FRAGMENTS: Record<MechSlot, readonly string[]> = {
-  right_hand: ['righthand', 'right_hand', 'hand_r', 'r_hand', 'rightarm'],
-  left_hand: ['lefthand', 'left_hand', 'hand_l', 'l_hand', 'leftarm'],
-  right_shield: ['shield', 'shield_r'],
-  spine: ['spine', 'chest', 'torso', 'mech_root', 'root', 'pelvis'],
+  right_hand: [
+    'righthand',
+    'right_hand',
+    'hand_r',
+    'r_hand',
+    'rightarm',
+    'mixamorigrighthand',
+    'bip001rhand',
+    // Symmetric mech rigs (Mech_00 → Core_Palm)
+    'palm',
+    'corepalm',
+  ],
+  left_hand: ['lefthand', 'left_hand', 'hand_l', 'l_hand', 'leftarm', 'mixamoriglefthand', 'bip001lhand', 'palm', 'corepalm'],
+  right_shield: ['shield_r', 'rightshield', 'shield'],
+  spine: [
+    'corespine',
+    'spine',
+    'corebackjoint',
+    'backjoint',
+    'corecolarjoint',
+    'corecolar',
+    'chest',
+    'torso',
+    'mech_root',
+    'root',
+    'pelvis',
+    'bip001spine',
+  ],
 };
 
 export class MechBuilderRenderer {

@@ -401,7 +401,9 @@ export default function App() {
   // commander's mech loadout is snapshotted into the campaign profile.
   // Additive only: nothing in the existing campaign builder gets removed.
   const [showMechBuilder, setShowMechBuilder] = useState(false);
-  const [, setMechBuild] = useState<import('./game/mech-builder-renderer').MechBuildSnapshot | null>(null);
+  // Snapshot survives across the MechBuilder → CampaignBuilder → launch
+  // chain without re-rendering on update. Read on launch in the future.
+  const mechBuildRef = useRef<import('./game/mech-builder-renderer').MechBuildSnapshot | null>(null);
   const [selectedFaction, setSelectedFaction] = useState<SpaceFaction>('legion');
   const [campaignBuild, setCampaignBuild] = useState<CommanderBuild | null>(null);
   const [selectedSpec, setSelectedSpec] = useState<CommanderSpec>('forge');
@@ -545,7 +547,7 @@ export default function App() {
         <Suspense fallback={<LoadingScreen />}>
           <LazyMechBuilderShowcase
             onComplete={(build) => {
-              setMechBuild(build);
+              mechBuildRef.current = build;
               setShowMechBuilder(false);
               // Chain into the existing campaign builder — nothing upstream changes.
               setShowCampaignBuilder(true);
