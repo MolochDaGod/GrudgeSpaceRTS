@@ -102,8 +102,8 @@ export interface ShipAbility {
     | 'hack_sensors'
     | 'hack_sabotage'
     | 'hack_hijack'
-    | 'fleet_warp'     // high-level ship spell: warp self + N nearby allies to target
-    | 'homebound';     // instant retreat to homeworld/nearest owned planet
+    | 'fleet_warp' // high-level ship spell: warp self + N nearby allies to target
+    | 'homebound'; // instant retreat to homeworld/nearest owned planet
   duration: number;
   /** fleet_warp: max allied ships that can jump with the caster (4/8/12 by tier) */
   warpSlots?: number;
@@ -239,7 +239,7 @@ export type ShipAnimState =
   | 'barrel_roll'
   | 'speed_boost'
   | 'warping'
-  | 'warp_charging'   // 5s countdown before fleet warp executes
+  | 'warp_charging' // 5s countdown before fleet warp executes
   | 'docking'
   | 'launching'
   | 'death_spiral'
@@ -484,7 +484,7 @@ export interface Alert {
 export interface WarpGate extends GameEntity {
   planetId: number;
   orbitAngle: number;
-  orbitRadius: number;  // offset from planet center
+  orbitRadius: number; // offset from planet center
   /** Set of other gate IDs this gate is linked to (all owned gates auto-link) */
   linkedGateIds: Set<number>;
   /** Cooldown between uses (per-ship, not global) — seconds */
@@ -500,15 +500,15 @@ export interface WarpGate extends GameEntity {
 // which ships are jumping, and the target location.
 export interface FleetWarpCharge {
   id: number;
-  casterId: number;     // the ship that cast fleet_warp
+  casterId: number; // the ship that cast fleet_warp
   team: Team;
   targetX: number;
   targetY: number;
-  countdown: number;    // seconds remaining (starts at 5)
+  countdown: number; // seconds remaining (starts at 5)
   maxCountdown: number;
   passengerIds: number[]; // ship IDs jumping with the caster
   done: boolean;
-  cancelled: boolean;   // true if caster dies during countdown
+  cancelled: boolean; // true if caster dies during countdown
 }
 
 // ── Dark Rifts (PvE map events) ───────────────────────────
@@ -845,6 +845,10 @@ export interface SpaceGameState {
   campaignEvents: CampaignEvent[];
   // Spark ship tree
   sparkState: Map<number, SparkState>; // per team
+  // Warp gates + fleet warp charges — lazily initialised by space-engine.
+  // Optional so existing save files / serialisation paths still type-check.
+  warpGates?: Map<number, WarpGate>;
+  fleetWarpCharges?: FleetWarpCharge[];
 }
 
 // ── Selection ───────────────────────────────────────────────────

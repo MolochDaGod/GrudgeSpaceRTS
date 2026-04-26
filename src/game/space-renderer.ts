@@ -139,7 +139,9 @@ export class SpaceRenderer {
   private stationMeshes = new Map<number, THREE.Group>();
   private towerMeshes = new Map<number, THREE.Group>();
   private planetMeshes: THREE.Mesh[] = [];
-  private projectileMeshes = new Map<number, THREE.Group>();
+  // Holds projectile visuals — may be Sprite (bomb billboards) or Mesh
+  // (energy beam geometry). Object3D is the common supertype.
+  private projectileMeshes = new Map<number, THREE.Object3D>();
   private glbEffectMeshes = new Map<number, THREE.Group>();
   private poiMeshes = new Map<number, THREE.Sprite>();
 
@@ -1897,12 +1899,12 @@ export class SpaceRenderer {
         sprite.scale.set(sz, sz, 1);
         sprite.renderOrder = 4;
         this.scene.add(sprite);
-        // Store as Mesh type for compatibility with the map
-        this.projectileMeshes.set(id, sprite as unknown as THREE.Mesh);
-        mesh = sprite as unknown as THREE.Mesh;
+        this.projectileMeshes.set(id, sprite);
+        mesh = sprite;
         // Attach quarks trail for missiles/torpedoes/energy beams
         this.vfx.attachProjectileTrail(id, proj.trailColor, proj.type);
       }
+      if (!mesh) continue;
       mesh.position.set(proj.x * WORLD_SCALE, proj.z * WORLD_SCALE + 5, proj.y * WORLD_SCALE);
       this.vfx.updateProjectileTrail(id, proj.x, proj.y, proj.z);
     }
