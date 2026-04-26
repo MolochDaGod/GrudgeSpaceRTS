@@ -626,7 +626,7 @@ export default function App() {
       )}
       {screen === 'ground_rts' && (
         <Suspense fallback={<LoadingScreen />}>
-          <LazyGroundRTSView />
+          <LazyGroundRTSView onExit={() => setScreen('menu')} />
         </Suspense>
       )}
       {/* Admin UI overlay — toggle with backtick key */}
