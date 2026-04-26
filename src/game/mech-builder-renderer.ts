@@ -1,18 +1,22 @@
 /**
- * mech-builder-renderer.ts — Mech showcase + builder scene.
+ * mech-builder-renderer.ts — Mech_00 showcase scene.
  *
- * Loads Mech_00 (registered in asset-registry) onto a studio-lit floor
- * disc, plays its animation, and lets the caller equip / unequip
- * registered mech parts via `boneAnchor` (right_hand / left_hand /
- * spine). Re-uses the same scale-chain compensation pattern as the
- * ground renderer's `attachWeaponToBone` so a 30 KB attachment FBX ends
- * up at its registered `targetSize` regardless of the mech's normalised
- * scale.
+ * The Mech_00 asset pack is a set of modular FBXs (body, animation,
+ * 15 attachments, 2 weapons) all authored with a SHARED MODELLING
+ * ORIGIN. The right way to display the kit is to drop every part as a
+ * sibling of the body at the same scale and pose — the artist already
+ * baked the attachment offsets into each FBX's local coordinates.
  *
- * Designed as a self-contained scene component:
+ * Bone-finding / restPose juggling broke alignment (parts under the
+ * floor, weapons in the wrong axis) because Mech_00's rig isn't a
+ * Mixamo-style humanoid — it's a custom symmetric rig where bones
+ * don't have neutral world positions matching the attachment FBXs.
+ * We don't fight it: every part is parented to the mech root at
+ * (0,0,0) and shares the body's normalisation scale.
+ *
+ * Usage:
  *   const r = new MechBuilderRenderer(div);
- *   await r.init();
- *   await r.equip('mech_att_back_jetpack');
+ *   await r.init();             // loads body + auto-equips ALL Mech_00 parts
  *   r.playClip('Idle');
  *   r.dispose();
  */
@@ -20,52 +24,18 @@
 import * as THREE from 'three';
 import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import { resolvePathUrl, getAsset, type WeaponBoneAnchor } from './asset-registry';
+import { resolvePathUrl, getAsset, getAssetsByTag, type WeaponBoneAnchor } from './asset-registry';
 
 export type MechSlot = WeaponBoneAnchor; // 'right_hand' | 'left_hand' | 'right_shield' | 'spine'
 
 export interface MechBuildSnapshot {
   /** Asset key of the mech body (always 'mech_00_body' for now). */
   bodyKey: string;
-  /** Slot \u2192 list of asset keys equipped at that slot. */
+  /** Slot → list of asset keys equipped at that slot. */
   equipped: Record<MechSlot, string[]>;
   /** Currently playing animation clip name (null if none). */
   animKey: string | null;
 }
-
-// Bone-name fragments are matched against `obj.name.toLowerCase().replace(/\s+/g, '')`.
-// Order matters: explicit-side names try first, falling back to side-agnostic
-// matches (Mech_00 uses a symmetric `Core_Palm` rig with no L/R distinction).
-const BONE_FRAGMENTS: Record<MechSlot, readonly string[]> = {
-  right_hand: [
-    'righthand',
-    'right_hand',
-    'hand_r',
-    'r_hand',
-    'rightarm',
-    'mixamorigrighthand',
-    'bip001rhand',
-    // Symmetric mech rigs (Mech_00 → Core_Palm)
-    'palm',
-    'corepalm',
-  ],
-  left_hand: ['lefthand', 'left_hand', 'hand_l', 'l_hand', 'leftarm', 'mixamoriglefthand', 'bip001lhand', 'palm', 'corepalm'],
-  right_shield: ['shield_r', 'rightshield', 'shield'],
-  spine: [
-    'corespine',
-    'spine',
-    'corebackjoint',
-    'backjoint',
-    'corecolarjoint',
-    'corecolar',
-    'chest',
-    'torso',
-    'mech_root',
-    'root',
-    'pelvis',
-    'bip001spine',
-  ],
-};
 
 export class MechBuilderRenderer {
   // Three.js core
@@ -84,18 +54,20 @@ export class MechBuilderRenderer {
 
   // Mech state
   private mechRoot: THREE.Group | null = null;
+  /** Body FBX's normalised scale (e.g. 2.0 / heightDim) — every attachment
+   *  inherits this so kit pieces align with the body. */
+  private bodyScale = 1;
+  /** Y offset applied to plant the body on the floor; attachments mirror it. */
+  private bodyYOffset = 0;
   private mixer: THREE.AnimationMixer | null = null;
   private clips: THREE.AnimationClip[] = [];
   private currentAction: THREE.AnimationAction | null = null;
 
-  /** Slot \u2192 (assetKey \u2192 mounted Group). */
-  private equipped: Map<MechSlot, Map<string, THREE.Group>> = new Map();
+  /** Mounted attachment groups, keyed by registry asset key. */
+  private equipped: Map<string, THREE.Group> = new Map();
 
   constructor(container: HTMLElement) {
     this.container = container;
-    for (const slot of ['spine', 'right_hand', 'left_hand', 'right_shield'] as MechSlot[]) {
-      this.equipped.set(slot, new Map());
-    }
   }
 
   // ── Init ─────────────────────────────────────────────────────
@@ -133,6 +105,7 @@ export class MechBuilderRenderer {
 
     await this.loadMechBody();
     await this.loadAndPlayDefaultAnim();
+    await this.equipAllMechParts();
 
     window.addEventListener('resize', this.onResize);
     this.animate();
@@ -223,10 +196,15 @@ export class MechBuilderRenderer {
       const box = new THREE.Box3().setFromObject(fbx);
       const size = box.getSize(new THREE.Vector3());
       const heightDim = size.y > 0.1 ? size.y : Math.max(size.x, size.y, size.z);
-      if (heightDim > 0) fbx.scale.setScalar(2.0 / heightDim);
-      // Plant on floor
+      const s = heightDim > 0 ? 2.0 / heightDim : 1;
+      fbx.scale.setScalar(s);
+      this.bodyScale = s;
+
+      // Plant on floor: scaled bbox.min.y becomes 0.
       const baseBox = new THREE.Box3().setFromObject(fbx);
-      fbx.position.y -= baseBox.min.y;
+      const yOff = -baseBox.min.y;
+      fbx.position.y = yOff;
+      this.bodyYOffset = yOff;
 
       fbx.traverse((c) => {
         const m = c as THREE.Mesh;
@@ -239,6 +217,43 @@ export class MechBuilderRenderer {
       this.mechRoot = fbx;
     } catch (err) {
       console.warn('[MECH] body load failed', err);
+    }
+  }
+
+  /**
+   * Load every Mech_00 attachment + weapon registered in the asset
+   * registry and parent them all to the scene at the same scale and
+   * y-offset as the body. Because the source FBXs share a modelling
+   * origin, this single transform aligns every part to the body
+   * automatically (no bone-finding, no per-part offsets required).
+   */
+  private async equipAllMechParts(): Promise<void> {
+    if (!this.mechRoot) return;
+
+    // Pull every registry entry tagged 'mech' that isn't the body or anim.
+    const all = getAssetsByTag('mech').filter((e) => e.key !== 'mech_00_body' && e.key !== 'mech_00_anim' && e.format === 'fbx');
+
+    for (const entry of all) {
+      try {
+        const part = await this.loadFBXCached(entry.localPath);
+
+        // Inherit the body's normalisation scale so the attachment is
+        // measured in the same world units as the body.
+        part.scale.setScalar(this.bodyScale);
+        part.position.y = this.bodyYOffset;
+
+        part.traverse((c) => {
+          const m = c as THREE.Mesh;
+          if (m.isMesh) {
+            m.castShadow = true;
+            m.receiveShadow = true;
+          }
+        });
+        this.scene.add(part);
+        this.equipped.set(entry.key, part);
+      } catch (err) {
+        console.warn('[MECH] part load failed', entry.key, err);
+      }
     }
   }
 
@@ -278,34 +293,16 @@ export class MechBuilderRenderer {
     this.currentAction = action;
   }
 
-  // ── Equip / unequip ─────────────────────────────────────────
+  // ── Equip / unequip (origin-aligned) ───────────────────────────
+  // Mech_00 attachments share the body's modelling origin, so we
+  // simply parent each part to the scene at body-scale and body-Y.
 
-  private findBone(slot: MechSlot): THREE.Object3D | null {
-    if (!this.mechRoot) return null;
-    const fragments = BONE_FRAGMENTS[slot];
-    let found: THREE.Object3D | null = null;
-    this.mechRoot.traverse((obj) => {
-      if (found) return;
-      const norm = obj.name.toLowerCase().replace(/\s+/g, '');
-      if (fragments.some((f) => norm.includes(f))) found = obj;
-    });
-    // Fallback: spine slot can fall back to mechRoot itself.
-    return found ?? (slot === 'spine' ? this.mechRoot : null);
-  }
-
-  /** Equip an attachment by registry key. Returns true on success. */
+  /** Equip a registered Mech_00 part. Returns true on success. */
   async equip(assetKey: string): Promise<boolean> {
     if (!this.mechRoot) return false;
+    if (this.equipped.has(assetKey)) return true;
     const entry = getAsset(assetKey);
     if (!entry) return false;
-    const slot: MechSlot = entry.boneAnchor ?? 'spine';
-    const slotMap = this.equipped.get(slot);
-    if (!slotMap) return false;
-    if (slotMap.has(assetKey)) return true;
-
-    const bone = this.findBone(slot);
-    if (!bone) return false;
-    bone.updateWorldMatrix(true, true);
 
     let part: THREE.Group;
     try {
@@ -315,45 +312,23 @@ export class MechBuilderRenderer {
       return false;
     }
 
-    // Resize to targetSize, compensate for parent world-scale.
-    const target = entry.targetSize ?? 1.2;
-    const box = new THREE.Box3().setFromObject(part);
-    const size = box.getSize(new THREE.Vector3());
-    const maxDim = Math.max(size.x, size.y, size.z);
-    const desired = maxDim > 0 ? target / maxDim : 1;
-
-    const boneScale = new THREE.Vector3();
-    bone.getWorldScale(boneScale);
-    const sx = boneScale.x || 1;
-    const sy = boneScale.y || 1;
-    const sz = boneScale.z || 1;
-    part.scale.set(desired / sx, desired / sy, desired / sz);
-
-    const rp = entry.restPose;
-    if (rp?.position) part.position.set(rp.position.x, rp.position.y, rp.position.z);
-    if (rp?.rotationDeg) {
-      part.rotation.set((rp.rotationDeg.x * Math.PI) / 180, (rp.rotationDeg.y * Math.PI) / 180, (rp.rotationDeg.z * Math.PI) / 180);
-    }
+    part.scale.setScalar(this.bodyScale);
+    part.position.y = this.bodyYOffset;
 
     part.traverse((c) => {
       const m = c as THREE.Mesh;
       if (m.isMesh) m.castShadow = true;
     });
 
-    bone.add(part);
-    slotMap.set(assetKey, part);
+    this.scene.add(part);
+    this.equipped.set(assetKey, part);
     return true;
   }
 
   unequip(assetKey: string): boolean {
-    const entry = getAsset(assetKey);
-    if (!entry) return false;
-    const slot: MechSlot = entry.boneAnchor ?? 'spine';
-    const slotMap = this.equipped.get(slot);
-    if (!slotMap) return false;
-    const part = slotMap.get(assetKey);
+    const part = this.equipped.get(assetKey);
     if (!part) return false;
-    part.parent?.remove(part);
+    this.scene.remove(part);
     part.traverse((c) => {
       const m = c as THREE.Mesh;
       if (m.geometry) m.geometry.dispose();
@@ -363,7 +338,7 @@ export class MechBuilderRenderer {
         else (mat as THREE.Material).dispose();
       }
     });
-    slotMap.delete(assetKey);
+    this.equipped.delete(assetKey);
     return true;
   }
 
@@ -374,8 +349,12 @@ export class MechBuilderRenderer {
       equipped: { right_hand: [], left_hand: [], right_shield: [], spine: [] },
       animKey: this.currentAction?.getClip().name ?? null,
     };
-    for (const [slot, map] of this.equipped) {
-      snapshot.equipped[slot] = Array.from(map.keys());
+    // Bucket equipped keys by their registered boneAnchor slot for the
+    // snapshot; the actual scene attachment uses origin-alignment.
+    for (const key of this.equipped.keys()) {
+      const e = getAsset(key);
+      const slot: MechSlot = e?.boneAnchor ?? 'spine';
+      snapshot.equipped[slot].push(key);
     }
     return snapshot;
   }
