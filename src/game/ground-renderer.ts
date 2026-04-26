@@ -131,6 +131,7 @@ import {
 import { resolvePathUrl } from './asset-registry';
 import { getShipPrefab, type SpacePrefab } from './space-prefabs';
 import { lookupWeaponXform } from './weapon-scales';
+import { ObjectStoreVfx, VFX_PRESETS } from './object-store-vfx';
 
 // VignetteShader removed — pmndrs/postprocessing handles vignette via VignetteEffect
 // if needed in the future: import { VignetteEffect } from 'postprocessing';
@@ -1016,6 +1017,10 @@ export class GroundRenderer {
 
     // Spawn some enemies for initial encounter
     this.spawnInitialEnemies();
+
+    // Preload ObjectStore VFX manifest (slash, hit, muzzle, projectile sprites).
+    // Fire-and-forget — spawn() degrades gracefully if it lands mid-flight.
+    void ObjectStoreVfx.preload();
 
     // Bind input
     this.bindInputEvents();
@@ -2111,6 +2116,7 @@ export class GroundRenderer {
       this.syncLockOn();
       this.updateCamera(dt);
       this.updateProjectiles(dt);
+      ObjectStoreVfx.update(dt);
       if (this.state.result !== 'none') this.onResult?.(this.state.result);
     }
 
@@ -2199,11 +2205,15 @@ export class GroundRenderer {
     }
     this.lastPlayerHp = p.hp;
 
-    // ── Spawn projectile when ranged attack fires ─────────────
+    // ── Spawn projectile when ranged attack fires ─────────
     const isRanged = p.weaponType === 'bow' || p.weaponType === 'rifle';
     if (isRanged && (p.animKey === 'attack' || p.animKey === 'shoot') && p.combatState === 'attacking') {
       this.spawnProjectile(p.pos, p.facing, p.weaponType === 'rifle');
     }
+
+    // Spawn melee slash arc + collect enemy hit impacts each frame.
+    this.maybeSpawnMeleeSlash();
+    this.spawnEnemyHitImpacts();
 
     // Drive player animation from combat engine animKey.
     // AnimationController handles the two-layer logic:
@@ -2426,26 +2436,46 @@ export class GroundRenderer {
     this.composer?.setSize(w, h);
   };
 
-  // ── Projectile system ─────────────────────────────────────────
+  // ── Projectile system (ObjectStore VFX-backed) ────────────────
   private _lastProjAnimKey = '';
-  /** Spawn a glowing projectile sphere from player position toward facing. */
+  /**
+   * Spawn a tracer projectile + muzzle flash. The tracer is a small
+   * additive sphere (kept for collision / line-of-sight feel) and the
+   * cosmetic effects (muzzle flash, in-flight glow, impact spark) are
+   * driven by ObjectStore VFX sprites — no more procedural circles.
+   */
   private spawnProjectile(pos: { x: number; y: number; z: number }, facing: number, isRifle: boolean): void {
     // Rate-limit: one per attack animation trigger (guard by animKey change)
     const key = this.state.player.animKey + this.state.player.stateTimer.toFixed(1);
     if (key === this._lastProjAnimKey) return;
     this._lastProjAnimKey = key;
 
+    const muzzlePos = {
+      x: pos.x + Math.sin(facing) * 0.6,
+      y: pos.y + 1.3,
+      z: pos.z + Math.cos(facing) * 0.6,
+    };
+
+    // Muzzle flash from ObjectStore (lightning-style burst).
+    ObjectStoreVfx.spawn(this.scene, VFX_PRESETS.muzzleFlash, muzzlePos, {
+      scale: isRifle ? 1.0 : 1.4,
+      durationSec: 0.12,
+      tint: isRifle ? 0xffeebb : 0x88ffaa,
+    });
+
+    // Small additive sphere kept for projectile feel (visible bolt head).
     const color = isRifle ? 0xffdd44 : 0x44ffaa;
-    const geo = new THREE.SphereGeometry(isRifle ? 0.08 : 0.14, 6, 6);
+    const geo = new THREE.SphereGeometry(isRifle ? 0.08 : 0.12, 8, 8);
     const mat = new THREE.MeshStandardMaterial({
       color,
       emissive: new THREE.Color(color),
-      emissiveIntensity: 2.2,
+      emissiveIntensity: 2.6,
       roughness: 0.2,
       metalness: 0.0,
+      transparent: true,
     });
     const mesh = new THREE.Mesh(geo, mat);
-    mesh.position.set(pos.x + Math.sin(facing) * 0.6, pos.y + 1.3, pos.z + Math.cos(facing) * 0.6);
+    mesh.position.set(muzzlePos.x, muzzlePos.y, muzzlePos.z);
     this.scene.add(mesh);
 
     const speed = isRifle ? 28 : 18;
@@ -2453,25 +2483,82 @@ export class GroundRenderer {
     this.projectilePool.push({ mesh, vel, life: 0, maxLife: isRifle ? 0.8 : 1.2 });
   }
 
-  /** Advance all active projectiles; remove expired ones. */
+  /** Advance all active projectiles; remove expired ones with impact VFX. */
   private updateProjectiles(dt: number): void {
     for (let i = this.projectilePool.length - 1; i >= 0; i--) {
       const proj = this.projectilePool[i];
       proj.life += dt;
       proj.mesh.position.addScaledVector(proj.vel, dt);
-      // Slight gravity arc
-      proj.vel.y -= 4 * dt;
-      // Fade out
+      proj.vel.y -= 4 * dt; // slight gravity arc
+
       const t = proj.life / proj.maxLife;
       (proj.mesh.material as THREE.MeshStandardMaterial).opacity = 1 - t;
-      (proj.mesh.material as THREE.MeshStandardMaterial).transparent = true;
 
       if (proj.life >= proj.maxLife) {
+        // Impact spark from ObjectStore.
+        ObjectStoreVfx.spawn(
+          this.scene,
+          VFX_PRESETS.rangedHit,
+          { x: proj.mesh.position.x, y: proj.mesh.position.y, z: proj.mesh.position.z },
+          { scale: 1.4, durationSec: 0.35 },
+        );
         this.scene.remove(proj.mesh);
         proj.mesh.geometry.dispose();
         (proj.mesh.material as THREE.Material).dispose();
         this.projectilePool.splice(i, 1);
       }
+    }
+  }
+
+  // ── Melee slash + hit FX from ObjectStore ──────────────────────
+  /** Last attack key so we only spawn one slash per swing. */
+  private _lastMeleeKey = '';
+  /** Last enemy.hitFlash sample so we know when a hit just landed. */
+  private _enemyHitFlashLast = new Map<number, number>();
+
+  /** Spawn a slash arc in front of the player when a melee attack fires. */
+  private maybeSpawnMeleeSlash(): void {
+    const p = this.state.player;
+    if (p.combatState !== 'attacking') return;
+    const key = `${p.animKey}@${p.stateTimer.toFixed(1)}`;
+    if (key === this._lastMeleeKey) return;
+    this._lastMeleeKey = key;
+
+    const isRanged = p.weaponType === 'bow' || p.weaponType === 'rifle';
+    if (isRanged) return;
+
+    // Spawn in front of player at chest height.
+    const reach = 1.4;
+    const slashPos = {
+      x: p.pos.x + Math.sin(p.facing) * reach,
+      y: p.pos.y + 1.2,
+      z: p.pos.z + Math.cos(p.facing) * reach,
+    };
+    const finisher = p.comboCount === 3;
+    ObjectStoreVfx.spawn(this.scene, finisher ? VFX_PRESETS.meleeCrit : VFX_PRESETS.meleeSlash, slashPos, {
+      scale: finisher ? 2.4 : 1.8,
+      durationSec: 0.28,
+      tint: finisher ? 0xffaa44 : 0xffffff,
+    });
+  }
+
+  /** Detect newly-flashed enemies and spawn an impact sprite at them. */
+  private spawnEnemyHitImpacts(): void {
+    for (const enemy of this.state.enemies) {
+      const prev = this._enemyHitFlashLast.get(enemy.id) ?? 0;
+      if (enemy.hitFlash > 0.5 && prev <= 0.5) {
+        ObjectStoreVfx.spawn(
+          this.scene,
+          VFX_PRESETS.meleeHit,
+          { x: enemy.pos.x, y: enemy.pos.y + 1.2, z: enemy.pos.z },
+          { scale: 1.3, durationSec: 0.3 },
+        );
+      }
+      this._enemyHitFlashLast.set(enemy.id, enemy.hitFlash);
+    }
+    // Drop entries for dead/removed enemies.
+    for (const id of this._enemyHitFlashLast.keys()) {
+      if (!this.state.enemies.find((e) => e.id === id)) this._enemyHitFlashLast.delete(id);
     }
   }
 
@@ -2496,6 +2583,9 @@ export class GroundRenderer {
       (proj.mesh.material as THREE.Material).dispose();
     }
     this.projectilePool = [];
+
+    // Clear any in-flight ObjectStore VFX sprites.
+    ObjectStoreVfx.clear();
 
     this.scene.traverse((obj) => {
       if ((obj as THREE.Mesh).geometry) (obj as THREE.Mesh).geometry.dispose();
