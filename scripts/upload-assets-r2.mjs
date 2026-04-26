@@ -16,6 +16,7 @@
 
 import { S3Client, PutObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3';
 import { readFile, readdir, stat, writeFile } from 'node:fs/promises';
+import { existsSync, readFileSync } from 'node:fs';
 import { join, extname, relative, posix } from 'node:path';
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
@@ -23,6 +24,42 @@ import { dirname } from 'node:path';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
+
+// ── .env loader (zero-dep) ─────────────────────────────────────────────────
+// Reads `.env` and `.env.local` (in that order) from the repo root,
+// without overriding values already present in process.env.
+// Also aliases CF_* → R2_* so a single .env can serve both names.
+function loadEnvFiles() {
+  const repoRoot = join(__dirname, '..');
+  for (const filename of ['.env', '.env.local']) {
+    const path = join(repoRoot, filename);
+    if (!existsSync(path)) continue;
+    const text = readFileSync(path, 'utf8');
+    for (const rawLine of text.split(/\r?\n/)) {
+      const line = rawLine.trim();
+      if (!line || line.startsWith('#')) continue;
+      const eq = line.indexOf('=');
+      if (eq === -1) continue;
+      const key = line.slice(0, eq).trim();
+      let value = line.slice(eq + 1).trim();
+      if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+        value = value.slice(1, -1);
+      }
+      if (process.env[key] === undefined) process.env[key] = value;
+    }
+  }
+  // CF_* aliases → R2_* (only fill if R2_* not already set)
+  if (!process.env.R2_ACCESS_KEY_ID && process.env.CF_R2_ACCESS_KEY_ID) {
+    process.env.R2_ACCESS_KEY_ID = process.env.CF_R2_ACCESS_KEY_ID;
+  }
+  if (!process.env.R2_SECRET_ACCESS_KEY && process.env.CF_R2_SECRET_ACCESS_KEY) {
+    process.env.R2_SECRET_ACCESS_KEY = process.env.CF_R2_SECRET_ACCESS_KEY;
+  }
+  if (!process.env.R2_ENDPOINT && process.env.CF_ACCOUNT_ID) {
+    process.env.R2_ENDPOINT = `https://${process.env.CF_ACCOUNT_ID}.r2.cloudflarestorage.com`;
+  }
+}
+loadEnvFiles();
 
 // ── Config ────────────────────────────────────────────────────────
 const ASSETS_DIR = join(__dirname, '..', 'public', 'assets');
