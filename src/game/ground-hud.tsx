@@ -1,11 +1,68 @@
 /**
  * ground-hud.tsx — HUD overlay for ground combat mode.
- * Shows health, stamina, mission objective, combat state, lock-on indicator.
+ * Shows health, stamina, mission objective, combat state, lock-on indicator,
+ * and the action-bar hotbar (1–4 class skills, 5 empty, 6–8 consumables).
  */
 
 import { useState, useEffect, useRef } from 'react';
-import type { GroundCombatState } from './ground-combat';
+import type { GroundCombatState, CharacterClass } from './ground-combat';
 import { CLASS_STATS } from './ground-combat';
+
+// ── Hotbar slot definitions per class ──────────────────────────────────
+// Slots 1–4 are class skills mapped to existing combat actions where
+// possible, with class-flavoured labels. Slot 5 is intentionally empty
+// per the dynamic-hotbar spec. Slots 6–8 are consumable placeholders
+// that will be filled once inventory wires through.
+interface HotbarSkill {
+  key: string; // keyboard hint shown on the slot
+  icon: string;
+  name: string;
+  binding: string; // mouse / key binding for the underlying action
+  color: string;
+}
+const CLASS_SKILLS: Record<CharacterClass, [HotbarSkill, HotbarSkill, HotbarSkill, HotbarSkill]> = {
+  warrior: [
+    { key: '1', icon: '⚔️', name: 'Slash', binding: 'LMB', color: '#88aaff' },
+    { key: '2', icon: '💥', name: 'Heavy', binding: 'Hold L', color: '#ff8844' },
+    { key: '3', icon: '🛡️', name: 'Block', binding: 'RMB', color: '#44ccff' },
+    { key: '4', icon: '💨', name: 'Dodge', binding: 'Space', color: '#ffcc44' },
+  ],
+  berserker: [
+    { key: '1', icon: '🪓', name: 'Cleave', binding: 'LMB', color: '#ff6644' },
+    { key: '2', icon: '🌪️', name: 'Whirl', binding: 'Hold L', color: '#ff4422' },
+    { key: '3', icon: '⤵️', name: 'Slide', binding: 'Shift+S', color: '#ffaa44' },
+    { key: '4', icon: '💨', name: 'Dodge', binding: 'Space', color: '#ffcc44' },
+  ],
+  ranger: [
+    { key: '1', icon: '🏹', name: 'Shoot', binding: 'LMB', color: '#88ffaa' },
+    { key: '2', icon: '🔫', name: 'Heavy Shot', binding: 'Hold L', color: '#44ff88' },
+    { key: '3', icon: '🌿', name: 'Strafe', binding: 'A/D', color: '#88ddff' },
+    { key: '4', icon: '💨', name: 'Roll-Shot', binding: 'Space', color: '#ffcc44' },
+  ],
+  mage: [
+    { key: '1', icon: '✨', name: 'Bolt', binding: 'LMB', color: '#cc88ff' },
+    { key: '2', icon: '💫', name: 'Blast AoE', binding: 'Hold L', color: '#ff66ff' },
+    { key: '3', icon: '🔮', name: 'Ward', binding: 'RMB', color: '#66ccff' },
+    { key: '4', icon: '💨', name: 'Blink', binding: 'Space', color: '#ffcc44' },
+  ],
+  rogue: [
+    { key: '1', icon: '🗡️', name: 'Slice', binding: 'LMB', color: '#aaff88' },
+    { key: '2', icon: '🎯', name: 'Backstab', binding: 'Hold L', color: '#ff4488' },
+    { key: '3', icon: '🌫️', name: 'Vanish', binding: 'RMB', color: '#888888' },
+    { key: '4', icon: '💨', name: 'Roll', binding: 'Space', color: '#ffcc44' },
+  ],
+  gunslinger: [
+    { key: '1', icon: '🔫', name: 'Burst', binding: 'LMB', color: '#ffaa44' },
+    { key: '2', icon: '💥', name: 'Hipfire', binding: 'Hold L', color: '#ff6622' },
+    { key: '3', icon: '🚫', name: 'Suppress', binding: 'RMB', color: '#cc8844' },
+    { key: '4', icon: '💨', name: 'Cover Roll', binding: 'Space', color: '#ffcc44' },
+  ],
+};
+const CONSUMABLE_SLOTS: Array<{ key: string; icon: string; name: string; color: string }> = [
+  { key: '6', icon: '🧪', name: 'HP Flask', color: '#ff4466' },
+  { key: '7', icon: '⚡', name: 'Stim Pack', color: '#ffcc44' },
+  { key: '8', icon: '🔮', name: 'Relic', color: '#aa88ff' },
+];
 
 interface GroundHudProps {
   getState: () => GroundCombatState;
@@ -377,19 +434,24 @@ export function GroundHUD({ getState, onQuit }: GroundHudProps) {
             background: 'rgba(4,10,22,0.7)',
             border: '1px solid rgba(40,60,80,0.3)',
             fontSize: 9,
-            color: 'rgba(160,200,255,0.4)',
-            lineHeight: 1.8,
+            color: 'rgba(160,200,255,0.45)',
+            lineHeight: 1.7,
+            minWidth: 160,
           }}
         >
+          <div style={{ color: 'rgba(160,200,255,0.7)', fontWeight: 700, letterSpacing: 1.5, marginBottom: 3 }}>CONTROLS</div>
           WASD Move · Shift Sprint
           <br />
-          LMB Attack · Hold Heavy
+          A/D Turn · Q/E Strafe
           <br />
-          RMB Block/Parry
+          LMB Cam Rotate (hold)
           <br />
-          Space Dodge · Tab Lock-on
+          Tab Target · Esc Retreat
         </div>
       </div>
+
+      {/* ── Bottom-center: Hotbar (1–4 skills, 5 empty, 6–8 consumables) ── */}
+      <Hotbar characterClass={p.characterClass} />
 
       {/* ── Center: Result overlay ────────────────────── */}
       {state.result !== 'none' && (
@@ -438,6 +500,7 @@ export function GroundHUD({ getState, onQuit }: GroundHudProps) {
       )}
 
       {/* ── Center crosshair (when pointer locked) ───── */}
+      {/* (defined below the result overlay so the crosshair stays under it) */}
       <div
         style={{
           position: 'absolute',
@@ -472,6 +535,160 @@ export function GroundHUD({ getState, onQuit }: GroundHudProps) {
           }}
         />
       </div>
+    </div>
+  );
+}
+
+// ── Hotbar component ─────────────────────────────────────────────────
+function Hotbar({ characterClass }: { characterClass: CharacterClass }) {
+  const skills = CLASS_SKILLS[characterClass];
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        bottom: 18,
+        left: '50%',
+        transform: 'translateX(-50%)',
+        display: 'flex',
+        gap: 6,
+        padding: '8px 12px',
+        borderRadius: 10,
+        background: 'rgba(4,10,22,0.78)',
+        border: '1px solid rgba(80,120,160,0.35)',
+        boxShadow: '0 6px 24px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.05)',
+        pointerEvents: 'none',
+      }}
+    >
+      {/* Slots 1–4 — class skills */}
+      {skills.map((s) => (
+        <HotbarSlot key={s.key} slotKey={s.key} icon={s.icon} name={s.name} binding={s.binding} accent={s.color} />
+      ))}
+
+      {/* Slot 5 — intentionally empty divider */}
+      <HotbarSlot slotKey="5" icon="" name="" binding="" accent="rgba(255,255,255,0.08)" empty />
+
+      {/* Slots 6–8 — consumables */}
+      {CONSUMABLE_SLOTS.map((c) => (
+        <HotbarSlot key={c.key} slotKey={c.key} icon={c.icon} name={c.name} binding="" accent={c.color} consumable />
+      ))}
+    </div>
+  );
+}
+
+function HotbarSlot({
+  slotKey,
+  icon,
+  name,
+  binding,
+  accent,
+  empty = false,
+  consumable = false,
+}: {
+  slotKey: string;
+  icon: string;
+  name: string;
+  binding: string;
+  accent: string;
+  empty?: boolean;
+  consumable?: boolean;
+}) {
+  return (
+    <div
+      style={{
+        position: 'relative',
+        width: 50,
+        height: 50,
+        borderRadius: 6,
+        background: empty ? 'rgba(255,255,255,0.02)' : 'linear-gradient(180deg, rgba(20,28,42,0.95), rgba(8,14,24,0.95))',
+        border: `1px solid ${empty ? 'rgba(255,255,255,0.06)' : accent + '66'}`,
+        boxShadow: empty ? 'none' : `inset 0 0 12px ${accent}22`,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
+      {/* Slot key indicator (top-left) */}
+      <div
+        style={{
+          position: 'absolute',
+          top: 2,
+          left: 4,
+          fontSize: 9,
+          fontWeight: 800,
+          color: empty ? 'rgba(255,255,255,0.2)' : accent,
+          letterSpacing: 0.5,
+          textShadow: '0 1px 2px rgba(0,0,0,0.8)',
+        }}
+      >
+        {slotKey}
+      </div>
+
+      {/* Icon */}
+      {!empty && (
+        <div
+          style={{
+            fontSize: 22,
+            filter: consumable ? 'saturate(0.7) brightness(0.85)' : 'none',
+            opacity: consumable ? 0.6 : 1,
+          }}
+        >
+          {icon}
+        </div>
+      )}
+
+      {/* Skill name (bottom strip) */}
+      {!empty && name && (
+        <div
+          style={{
+            position: 'absolute',
+            bottom: 1,
+            left: 0,
+            right: 0,
+            fontSize: 7,
+            fontWeight: 700,
+            letterSpacing: 0.5,
+            textAlign: 'center',
+            color: accent,
+            textShadow: '0 1px 2px rgba(0,0,0,0.8)',
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            padding: '0 2px',
+          }}
+        >
+          {name}
+        </div>
+      )}
+
+      {/* Mouse/key binding badge (top-right, only on skill slots) */}
+      {!empty && binding && (
+        <div
+          style={{
+            position: 'absolute',
+            top: 1,
+            right: 2,
+            fontSize: 6,
+            fontWeight: 700,
+            color: 'rgba(255,255,255,0.4)',
+            letterSpacing: 0.5,
+          }}
+        >
+          {binding}
+        </div>
+      )}
+
+      {/* Empty consumable: dashed inner border */}
+      {consumable && (
+        <div
+          style={{
+            position: 'absolute',
+            inset: 4,
+            borderRadius: 3,
+            border: `1px dashed ${accent}33`,
+            pointerEvents: 'none',
+          }}
+        />
+      )}
     </div>
   );
 }
