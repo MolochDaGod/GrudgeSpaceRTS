@@ -132,6 +132,7 @@ import { resolvePathUrl } from './asset-registry';
 import { getShipPrefab, type SpacePrefab } from './space-prefabs';
 import { lookupWeaponXform } from './weapon-scales';
 import { ObjectStoreVfx, VFX_PRESETS } from './object-store-vfx';
+import { ObjectStoreModels, ObjectStoreUnits } from './object-store-models';
 
 // VignetteShader removed — pmndrs/postprocessing handles vignette via VignetteEffect
 // if needed in the future: import { VignetteEffect } from 'postprocessing';
@@ -1018,9 +1019,11 @@ export class GroundRenderer {
     // Spawn some enemies for initial encounter
     this.spawnInitialEnemies();
 
-    // Preload ObjectStore VFX manifest (slash, hit, muzzle, projectile sprites).
-    // Fire-and-forget — spawn() degrades gracefully if it lands mid-flight.
+    // Preload ObjectStore VFX + model + unit manifests in parallel. All
+    // spawns degrade gracefully if a manifest is still in-flight.
     void ObjectStoreVfx.preload();
+    void ObjectStoreModels.preload().then(() => this.spawnObjectStoreScenery());
+    void ObjectStoreUnits.preload();
 
     // Bind input
     this.bindInputEvents();
@@ -1909,7 +1912,41 @@ export class GroundRenderer {
       (group as any).__gltfClips = animations;
       return group;
     } catch {
-      return this.createPlaceholder(cfg.tint);
+      // Local GLTF missing → try ObjectStore character library.
+      const fallback = await this.loadObjectStoreCharacter(enemy.id, cfg.tint);
+      return fallback ?? this.createPlaceholder(cfg.tint);
+    }
+  }
+
+  /**
+   * Pull a character GLB from ObjectStore as a fallback when local enemy
+   * models are missing. Cycles deterministically by enemy id so each
+   * enemy keeps the same look across re-spawns.
+   */
+  private async loadObjectStoreCharacter(seedIdx: number, tint: number): Promise<THREE.Group | null> {
+    const entry = ObjectStoreModels.pickCharacter(seedIdx);
+    if (!entry) return null;
+    try {
+      const url = ObjectStoreModels.urlFor(entry.path);
+      const gltf = await this.gltfLoader.loadAsync(url);
+      const scene = gltf.scene as THREE.Group;
+      // Normalise to ~2 m tall like loadGLTF does.
+      const box = new THREE.Box3().setFromObject(scene);
+      const size = box.getSize(new THREE.Vector3());
+      const heightDim = size.y > 0.1 ? size.y : Math.max(size.x, size.y, size.z);
+      if (heightDim > 0) scene.scale.setScalar(2.0 / heightDim);
+      this.applyCharacterMaterial(scene, tint, 0.18);
+      scene.traverse((c) => {
+        if ((c as THREE.Mesh).isMesh) {
+          (c as THREE.Mesh).castShadow = true;
+          (c as THREE.Mesh).receiveShadow = true;
+        }
+      });
+      // Tag the embedded animations like loadGLTF does so anim wiring works.
+      (scene as any).__gltfClips = gltf.animations;
+      return scene;
+    } catch {
+      return null;
     }
   }
 
@@ -2540,6 +2577,69 @@ export class GroundRenderer {
       durationSec: 0.28,
       tint: finisher ? 0xffaa44 : 0xffffff,
     });
+  }
+
+  // ── ObjectStore scenery loader ──────────────────────────────
+  /**
+   * Drops 8–12 KayKit medieval-builder GLBs around the play area as
+   * scenery so the map isn't bare. Each model loads from ObjectStore,
+   * normalised to ~3 m, scattered outside the spawn circle, deterministic
+   * per planet seed so the same map keeps the same skyline.
+   */
+  private async spawnObjectStoreScenery(): Promise<void> {
+    if (this.disposed) return;
+    const buildings = ObjectStoreModels.byCategory('kaykit-medievalbuilder');
+    if (buildings.length === 0) return;
+
+    const seed = this.planetSeed(this.state.planetType);
+    const rng = (i: number) => Math.abs(Math.sin(seed * 100 + i * 7.31)) % 1; // deterministic 0..1
+    const count = 10;
+    const TARGET_SIZE = 4.0; // metres (longest axis)
+
+    for (let i = 0; i < count; i++) {
+      if (this.disposed) return;
+      const idx = Math.floor(rng(i) * buildings.length);
+      const entry = buildings[idx];
+      if (!entry) continue;
+      const url = ObjectStoreModels.urlFor(entry.path);
+
+      try {
+        const gltf = await this.gltfLoader.loadAsync(url);
+        if (this.disposed) return;
+        const group = gltf.scene as THREE.Group;
+
+        // Normalise to TARGET_SIZE on its longest axis.
+        const box = new THREE.Box3().setFromObject(group);
+        const size = box.getSize(new THREE.Vector3());
+        const maxDim = Math.max(size.x, size.y, size.z);
+        if (maxDim > 0.0001) group.scale.setScalar(TARGET_SIZE / maxDim);
+
+        // Scatter outside the safe spawn circle.
+        const angle = rng(i + 0.31) * Math.PI * 2;
+        const dist = 22 + rng(i + 0.62) * 38; // 22–60 m out
+        const px = Math.cos(angle) * dist;
+        const pz = Math.sin(angle) * dist;
+        const py = this.sampleHeight(px, pz);
+        group.position.set(px, py, pz);
+        group.rotation.y = rng(i + 0.99) * Math.PI * 2;
+
+        group.traverse((c) => {
+          const m = c as THREE.Mesh;
+          if (m.isMesh) {
+            m.castShadow = true;
+            m.receiveShadow = true;
+          }
+        });
+
+        this.scene.add(group);
+        this.terrainObjects.push(group);
+        // Block navigation so the player can't walk through buildings.
+        this.blockedZones.push({ x: px, z: pz, radius: TARGET_SIZE * 0.4 });
+      } catch (err) {
+        // Quietly skip — ObjectStore CDN may be slow or model malformed.
+        void err;
+      }
+    }
   }
 
   /** Detect newly-flashed enemies and spawn an impact sprite at them. */
