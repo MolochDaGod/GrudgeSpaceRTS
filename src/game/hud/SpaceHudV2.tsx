@@ -30,7 +30,9 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { SpaceRenderer } from '../space-renderer';
 import type { PlanetType } from '../space-types';
 import { SC } from './sc-tokens';
-import { Bar, Mfd, RailIcon, StatusChip, ToastStream, useToastQueue } from './sc-primitives';
+import { Mfd, RailIcon, StatusChip, ToastStream, useToastQueue } from './sc-primitives';
+import { MFD_REGISTRY, getMfd, loadSlots, saveSlots } from './mfds';
+import { bindPowerHotkeys } from '../ship-systems/power-triangle';
 
 interface Props {
   renderer: SpaceRenderer | null;
@@ -78,7 +80,24 @@ export function SpaceHudV2({ renderer, onQuit, onToggleStarMap, onDeployGround }
   const [cmdrOpen, setCmdrOpen] = useState(false);
   const [logOpen, setLogOpen] = useState(false);
 
-  // Esc closes any open modal.
+  // Bottom-bar slot config (3 slots) — persisted in localStorage.
+  const [slots, setSlots] = useState<[string, string, string]>(loadSlots);
+  const cycleSlot = (idx: 0 | 1 | 2, direction: 1 | -1) => {
+    setSlots((prev) => {
+      const cur = prev[idx];
+      const i = MFD_REGISTRY.findIndex((m) => m.id === cur);
+      const nextIdx = (i + direction + MFD_REGISTRY.length) % MFD_REGISTRY.length;
+      const next = [...prev] as [string, string, string];
+      next[idx] = MFD_REGISTRY[nextIdx].id;
+      saveSlots(next);
+      return next;
+    });
+  };
+
+  // Bind global power-triangle hotkeys (1/2/3/0) for the lifetime of the HUD.
+  useEffect(() => bindPowerHotkeys(), []);
+
+  // Esc closes any open modal. Tab cycles slot 1 forward (Shift+Tab back).
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -90,6 +109,13 @@ export function SpaceHudV2({ renderer, onQuit, onToggleStarMap, onDeployGround }
       if (e.key.toLowerCase() === 'b') setBuildOpen((o) => !o);
       if (e.key.toLowerCase() === 't') setTechOpen((o) => !o);
       if (e.key.toLowerCase() === 'l') setLogOpen((o) => !o);
+      // Bracket keys cycle each slot independently.
+      if (e.key === '[') cycleSlot(0, -1);
+      if (e.key === ']') cycleSlot(0, 1);
+      if (e.key === '{') cycleSlot(1, -1);
+      if (e.key === '}') cycleSlot(1, 1);
+      if (e.key === ';') cycleSlot(2, -1);
+      if (e.key === "'") cycleSlot(2, 1);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -254,7 +280,7 @@ export function SpaceHudV2({ renderer, onQuit, onToggleStarMap, onDeployGround }
         <StatusChip label="Stations" value={summary.playerStationCount} tone="default" />
       </div>
 
-      {/* ── Bottom MFD Bar ─────────────────────────────────── */}
+      {/* ── Bottom MFD Bar — driven from MFD_REGISTRY via slot config ── */}
       <div
         style={{
           position: 'absolute',
@@ -269,66 +295,22 @@ export function SpaceHudV2({ renderer, onQuit, onToggleStarMap, onDeployGround }
           pointerEvents: 'auto',
         }}
       >
-        {/* POWER MFD */}
-        <Mfd title="POWER" status={summary.gameOver ? 'OFFLINE' : 'ONLINE'} statusTone={summary.gameOver ? 'alert' : 'ok'}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <Bar label="WEAPONS" value={0.55} readout="55%" tone="alert" ticks />
-            <Bar label="SHIELDS" value={0.7} readout="70%" tone="accent" ticks />
-            <Bar label="ENGINES" value={0.4} readout="40%" tone="ok" ticks />
-            <div style={{ marginTop: 4, fontSize: 9, color: SC.textDim, letterSpacing: 1.5 }}>1/2/3 to allocate (wired in Phase 3)</div>
-          </div>
-        </Mfd>
-
-        {/* TARGETING MFD */}
-        <Mfd
-          title="TARGETING"
-          status={summary.primaryShip ? `T${summary.primaryShip.team}` : 'NO LOCK'}
-          statusTone={summary.primaryShip ? (summary.primaryShip.team === 1 ? 'ok' : 'alert') : 'dim'}
-        >
-          {summary.primaryShip ? (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              <div style={{ fontSize: 12, fontWeight: 800, color: SC.text, textTransform: 'uppercase', letterSpacing: 2 }}>
-                {summary.primaryShip.name}
-              </div>
-              <Bar
-                label="HULL"
-                value={summary.primaryShip.hp / Math.max(1, summary.primaryShip.maxHp)}
-                readout={`${Math.round(summary.primaryShip.hp)} / ${Math.round(summary.primaryShip.maxHp)}`}
-                tone={summary.primaryShip.hp / summary.primaryShip.maxHp < 0.3 ? 'alert' : 'ok'}
-              />
-              <Bar
-                label="SHIELD"
-                value={summary.primaryShip.shield / Math.max(1, summary.primaryShip.maxShield)}
-                readout={`${Math.round(summary.primaryShip.shield)} / ${Math.round(summary.primaryShip.maxShield)}`}
-                tone="accent"
-              />
-            </div>
-          ) : (
-            <div style={{ fontSize: 11, color: SC.textGhost }}>Click a ship to lock target.</div>
-          )}
-        </Mfd>
-
-        {/* NAV MFD */}
-        <Mfd
-          title="NAV"
-          status={summary.nearestPlanet ? summary.nearestPlanet.type.toUpperCase() : '—'}
-          statusTone="accent"
-          onHeaderClick={onToggleStarMap}
-        >
-          {summary.nearestPlanet ? (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              <div style={{ fontSize: 12, fontWeight: 800, color: SC.text, textTransform: 'uppercase', letterSpacing: 2 }}>
-                {summary.nearestPlanet.name}
-              </div>
-              <div style={{ fontSize: 10, color: SC.textDim, letterSpacing: 1.5 }}>DIST {fmtNum(summary.nearestPlanet.dist)} u</div>
-              <div style={{ marginTop: 6, fontSize: 9, color: SC.textGhost, letterSpacing: 1.5 }}>Click header to open Star Map</div>
-            </div>
-          ) : (
-            <div style={{ fontSize: 11, color: SC.textGhost }}>No planets in range.</div>
-          )}
-        </Mfd>
+        {slots.map((id, i) => {
+          const content = getMfd(id) ?? MFD_REGISTRY[i % MFD_REGISTRY.length];
+          const Body = content.Body;
+          const status = content.statusOf?.({ renderer });
+          const tone = content.statusToneOf?.({ renderer }) ?? 'accent';
+          // The NAV MFD's header opens the Star Map; other MFDs cycle to the
+          // next content on header click via the `[ ]`, `{ }`, `; '` keys
+          // documented in the controls cheatsheet.
+          const onHeaderClick = content.id === 'nav' && onToggleStarMap ? onToggleStarMap : () => cycleSlot(i as 0 | 1 | 2, 1);
+          return (
+            <Mfd key={`${i}-${content.id}`} title={content.title} status={status} statusTone={tone} onHeaderClick={onHeaderClick}>
+              <Body renderer={renderer} />
+            </Mfd>
+          );
+        })}
       </div>
-
       {/* ── Right Command Rail ─────────────────────────────── */}
       <div
         style={{
