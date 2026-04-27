@@ -41,7 +41,10 @@ import { GalaxyMap, STAR_SYSTEMS } from './game/GalaxyMap';
 
 // ── Lazy-loaded heavy modules (code-split) ────────────────────────
 // These chunks only download when the user navigates to the relevant screen.
-const LazySpaceHUD = lazy(() => import('./game/space-ui').then((m) => ({ default: m.SpaceHUD })));
+// HUD v2 (SC-style unified overlay) — clean replacement for the v1 stack.
+// The old space-hud.tsx / space-ui.tsx panels are still on disk and exported
+// from `./game/space-ui` as `SpaceHUD` for rollback.
+const LazySpaceHUD = lazy(() => import('./game/hud/SpaceHudV2').then((m) => ({ default: m.SpaceHudV2 })));
 const LazyStarMapOverlay = lazy(() => import('./game/space-starmap').then((m) => ({ default: m.StarMapOverlay })));
 const LazyShipForgeEditor = lazy(() => import('./game/ship-editor').then((m) => ({ default: m.ShipForgeEditor })));
 const LazyShipCodex3D = lazy(() => import('./game/codex-ui').then((m) => ({ default: m.ShipCodex3D })));
