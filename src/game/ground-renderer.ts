@@ -133,6 +133,7 @@ import { getShipPrefab, type SpacePrefab } from './space-prefabs';
 import { lookupWeaponXform } from './weapon-scales';
 import { ObjectStoreVfx, VFX_PRESETS } from './object-store-vfx';
 import { ObjectStoreModels, ObjectStoreUnits } from './object-store-models';
+import { pickSceneryDeterministic } from './space-base-scenery';
 
 // VignetteShader removed — pmndrs/postprocessing handles vignette via VignetteEffect
 // if needed in the future: import { VignetteEffect } from 'postprocessing';
@@ -716,8 +717,12 @@ const CHARACTER_FBXS = Array.from({ length: 12 }, (_, i) =>
 );
 const CHARACTER_TEXTURE = '/assets/ground/characters/DungeonCrawler_Character.png';
 
-// ── GLTF character models (Ultimate Modular Men pack) ─────────────
-const GLTF_BASE = '/assets/ground/characters/gltf';
+// ── GLTF character models (pipeline-processed NPC enemies) ───────
+// Path convention: characters/npc/<role>/* where 'npc' marks files that
+// have been through the GLTF pipeline (rigged, normalised, animation-
+// embedded) and 'enemies' is the role bucket. Player classes will live
+// alongside under characters/npc/players/* once those pipe through too.
+const GLTF_BASE = '/assets/ground/characters/npc/enemies';
 
 /** Character class → GLTF model file */
 const CHARACTER_GLTF_MAP: Record<string, string> = {
@@ -1022,8 +1027,13 @@ export class GroundRenderer {
     // Preload ObjectStore VFX + model + unit manifests in parallel. All
     // spawns degrade gracefully if a manifest is still in-flight.
     void ObjectStoreVfx.preload();
-    void ObjectStoreModels.preload().then(() => this.spawnObjectStoreScenery());
+    void ObjectStoreModels.preload();
     void ObjectStoreUnits.preload();
+
+    // Local KayKit Space Base scenery — 1.7 MB GLTF pack shipped with
+    // the build, no network needed. Replaces the older ObjectStore
+    // medieval-builder scatter.
+    void this.spawnSpaceBaseScenery();
 
     // Bind input
     this.bindInputEvents();
@@ -2579,67 +2589,81 @@ export class GroundRenderer {
     });
   }
 
-  // ── ObjectStore scenery loader ──────────────────────────────
+  // ── KayKit Space Base scenery loader ──────────────────────
   /**
-   * Drops 8–12 KayKit medieval-builder GLBs around the play area as
-   * scenery so the map isn't bare. Each model loads from ObjectStore,
-   * normalised to ~3 m, scattered outside the spawn circle, deterministic
-   * per planet seed so the same map keeps the same skyline.
+   * Drops a deterministic skyline of KayKit Space Base buildings + props
+   * onto the map from the local pack at /assets/space/buildings/
+   * kaykit-spacebase. No network calls — the GLTFs ship with the build.
+   *
+   * Layout:
+   *   - 8 buildings  scattered 25–60 m out (large, nav-blocking)
+   *   - 6 vehicles   scattered 18–55 m out (medium, nav-blocking)
+   *   - 12 props     scattered 14–70 m out (small, walkable-around)
    */
-  private async spawnObjectStoreScenery(): Promise<void> {
+  private async spawnSpaceBaseScenery(): Promise<void> {
     if (this.disposed) return;
-    const buildings = ObjectStoreModels.byCategory('kaykit-medievalbuilder');
-    if (buildings.length === 0) return;
-
     const seed = this.planetSeed(this.state.planetType);
-    const rng = (i: number) => Math.abs(Math.sin(seed * 100 + i * 7.31)) % 1; // deterministic 0..1
-    const count = 10;
-    const TARGET_SIZE = 4.0; // metres (longest axis)
+    const rng = (i: number) => Math.abs(Math.sin(seed * 100 + i * 7.31)) % 1;
 
-    for (let i = 0; i < count; i++) {
-      if (this.disposed) return;
-      const idx = Math.floor(rng(i) * buildings.length);
-      const entry = buildings[idx];
-      if (!entry) continue;
-      const url = ObjectStoreModels.urlFor(entry.path);
+    const buildings = pickSceneryDeterministic('building', 8, seed);
+    const vehicles = pickSceneryDeterministic('vehicle', 6, seed + 0.17);
+    const props = pickSceneryDeterministic('prop', 12, seed + 0.41);
 
-      try {
-        const gltf = await this.gltfLoader.loadAsync(url);
+    const place = async (
+      list: ReturnType<typeof pickSceneryDeterministic>,
+      offset: number,
+      minDist: number,
+      maxDist: number,
+    ): Promise<void> => {
+      for (let i = 0; i < list.length; i++) {
         if (this.disposed) return;
-        const group = gltf.scene as THREE.Group;
+        const entry = list[i];
+        try {
+          const gltf = await this.gltfLoader.loadAsync(resolvePathUrl(entry.path));
+          if (this.disposed) return;
+          const group = gltf.scene as THREE.Group;
 
-        // Normalise to TARGET_SIZE on its longest axis.
-        const box = new THREE.Box3().setFromObject(group);
-        const size = box.getSize(new THREE.Vector3());
-        const maxDim = Math.max(size.x, size.y, size.z);
-        if (maxDim > 0.0001) group.scale.setScalar(TARGET_SIZE / maxDim);
+          // Normalise to literal target metres on the longest axis.
+          const box = new THREE.Box3().setFromObject(group);
+          const size = box.getSize(new THREE.Vector3());
+          const maxDim = Math.max(size.x, size.y, size.z);
+          if (maxDim > 0.0001) group.scale.setScalar(entry.sizeM / maxDim);
 
-        // Scatter outside the safe spawn circle.
-        const angle = rng(i + 0.31) * Math.PI * 2;
-        const dist = 22 + rng(i + 0.62) * 38; // 22–60 m out
-        const px = Math.cos(angle) * dist;
-        const pz = Math.sin(angle) * dist;
-        const py = this.sampleHeight(px, pz);
-        group.position.set(px, py, pz);
-        group.rotation.y = rng(i + 0.99) * Math.PI * 2;
+          // Foot of bounding box → ground (no clipping).
+          const baseBox = new THREE.Box3().setFromObject(group);
 
-        group.traverse((c) => {
-          const m = c as THREE.Mesh;
-          if (m.isMesh) {
-            m.castShadow = true;
-            m.receiveShadow = true;
+          const angle = rng(i + offset) * Math.PI * 2;
+          const dist = minDist + rng(i + offset + 0.51) * (maxDist - minDist);
+          const px = Math.cos(angle) * dist;
+          const pz = Math.sin(angle) * dist;
+          const py = this.sampleHeight(px, pz) - baseBox.min.y + (entry.yOff ?? 0);
+          group.position.set(px, py, pz);
+          group.rotation.y = rng(i + offset + 0.99) * Math.PI * 2;
+
+          group.traverse((c) => {
+            const m = c as THREE.Mesh;
+            if (m.isMesh) {
+              m.castShadow = true;
+              m.receiveShadow = true;
+            }
+          });
+
+          this.scene.add(group);
+          this.terrainObjects.push(group);
+          if (entry.navR > 0) {
+            this.blockedZones.push({ x: px, z: pz, radius: entry.navR });
           }
-        });
-
-        this.scene.add(group);
-        this.terrainObjects.push(group);
-        // Block navigation so the player can't walk through buildings.
-        this.blockedZones.push({ x: px, z: pz, radius: TARGET_SIZE * 0.4 });
-      } catch (err) {
-        // Quietly skip — ObjectStore CDN may be slow or model malformed.
-        void err;
+        } catch (err) {
+          // Skip silently — a missing local file shouldn't break gameplay.
+          void err;
+        }
       }
-    }
+    };
+
+    // Stagger the load so buildings appear first, then vehicles, then props.
+    await place(buildings, 1.1, 25, 60);
+    await place(vehicles, 2.7, 18, 55);
+    await place(props, 4.3, 14, 70);
   }
 
   /** Detect newly-flashed enemies and spawn an impact sprite at them. */
