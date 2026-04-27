@@ -49,11 +49,12 @@ const LazyGroundCombatView = lazy(() => import('./game/GroundCombatView').then((
 const LazyGroundBattleView = lazy(() => import('./game/GroundBattleView').then((m) => ({ default: m.GroundBattleView })));
 const LazyGroundRTSView = lazy(() => import('./game/GroundRTSView'));
 const LazyMechBuilderShowcase = lazy(() => import('./game/MechBuilderShowcase'));
+const LazyUniverseView = lazy(() => import('./game/UniverseView'));
 import type { PlanetType } from './game/space-types';
 
-type Screen = 'intro' | 'menu' | 'codex' | 'howto' | 'editor' | 'playing' | 'ground_combat' | 'ground_rts';
+type Screen = 'intro' | 'menu' | 'codex' | 'howto' | 'editor' | 'playing' | 'ground_combat' | 'ground_rts' | 'universe';
 
-// ── URL Routing ───────────────────────────────────────────────────
+// ── URL Routing ──────────────────────────────────────
 const ROUTE_TO_SCREEN: Record<string, Screen> = {
   '/': 'menu',
   '/codex': 'codex',
@@ -62,6 +63,7 @@ const ROUTE_TO_SCREEN: Record<string, Screen> = {
   '/game': 'playing',
   '/ground': 'ground_combat',
   '/ground-rts': 'ground_rts',
+  '/universe': 'universe',
 };
 const SCREEN_TO_ROUTE: Partial<Record<Screen, string>> = {
   menu: '/',
@@ -71,6 +73,7 @@ const SCREEN_TO_ROUTE: Partial<Record<Screen, string>> = {
   playing: '/game',
   ground_combat: '/ground',
   ground_rts: '/ground-rts',
+  universe: '/universe',
 };
 
 function screenFromPath(path: string): Screen {
@@ -517,6 +520,7 @@ export default function App() {
           onCodex={() => setScreen('codex')}
           onHowTo={() => setScreen('howto')}
           onEditor={() => setScreen('editor')}
+          onUniverse={() => setScreen('universe')}
           onGroundCombat={() => {
             setGroundPlanetType('barren');
             setGroundPlanetName('Training Grounds');
@@ -627,6 +631,23 @@ export default function App() {
       {screen === 'ground_rts' && (
         <Suspense fallback={<LoadingScreen />}>
           <LazyGroundRTSView onExit={() => setScreen('menu')} />
+        </Suspense>
+      )}
+      {screen === 'universe' && (
+        <Suspense fallback={<LoadingScreen />}>
+          <LazyUniverseView
+            onExit={() => {
+              // If a campaign target was just stored, route to /game; else /menu.
+              const target = (() => {
+                try {
+                  return localStorage.getItem('campaign_target');
+                } catch {
+                  return null;
+                }
+              })();
+              setScreen(target ? 'playing' : 'menu');
+            }}
+          />
         </Suspense>
       )}
       {/* Admin UI overlay — toggle with backtick key */}
@@ -953,6 +974,7 @@ function MainMenu({
   onCodex,
   onHowTo,
   onEditor,
+  onUniverse,
   onGroundCombat,
   onGroundRts,
   mode,
@@ -966,6 +988,7 @@ function MainMenu({
   onCodex: () => void;
   onHowTo: () => void;
   onEditor: () => void;
+  onUniverse: () => void;
   onGroundCombat: () => void;
   onGroundRts: () => void;
   mode: GameMode;
@@ -1293,6 +1316,7 @@ function MainMenu({
         {/* ── Bottom nav buttons ── */}
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'center', marginBottom: 20 }}>
           {[
+            { label: 'UNIVERSE MAP', onClick: onUniverse },
             { label: 'SHIP FORGE', onClick: onEditor },
             { label: 'CODEX', onClick: onCodex },
             { label: 'HOW TO PLAY', onClick: onHowTo },
