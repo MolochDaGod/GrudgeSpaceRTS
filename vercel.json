@@ -3,6 +3,10 @@
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "rewrites": [
+    { "source": "/api/auth/:path*", "destination": "https://id.grudge-studio.com/auth/:path*" },
+    { "source": "/api/characters/:path*", "destination": "https://api.grudge-studio.com/api/characters/:path*" },
+    { "source": "/api/assets/:path*", "destination": "https://assets.grudge-studio.com/:path*" },
+    { "source": "/api/:path*", "destination": "https://api.grudge-studio.com/api/:path*" },
     { "source": "/privacy", "destination": "/privacy.html" },
     { "source": "/tos", "destination": "/tos.html" },
     { "source": "/ship-gallery", "destination": "/ship-gallery.html" },
