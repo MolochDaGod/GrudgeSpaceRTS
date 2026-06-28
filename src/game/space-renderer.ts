@@ -31,6 +31,7 @@ import { loadHeroShip, glbBlobToUrl } from './ship-storage';
 import { getBoosterVisualOffsets, getRigAudit, getRigWorldAnchors } from './space-rig';
 import { VFXSystem } from './space-vfx';
 import { resolvePathUrl } from './asset-registry';
+import { resolveUrl } from './asset-loader';
 
 // ── Postprocessing (pmndrs/postprocessing) ─────────────────────────
 import {
@@ -203,6 +204,9 @@ export class SpaceRenderer {
    * Set by App.tsx launchWithSpec(); read by future commander-spawn code.
    */
   public commanderMech: import('./mech-builder-renderer').MechBuildSnapshot | null = null;
+  /** Carrier engagement room — enables PvP fleet sync when set. */
+  public engagementRoomId: string | null = null;
+  private carrierBridge: import('./carrier-bridge').CarrierBridge | null = null;
 
   // Planet decoration assets (from provided props pack)
   private readonly ORBITAL_RING_MODELS = [
@@ -256,7 +260,7 @@ export class SpaceRenderer {
     this.container.appendChild(this.renderer.domElement);
 
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color(0x020408);
+    this.scene.background = new THREE.Color(0x010308);
 
     // Far plane 12 000: supports camera distance up to ~2400 zoom (≈1966 height)
     // + star field radius up to 6000 + margin (max camera-to-star ≈ 8400 < 12 000).
@@ -281,6 +285,14 @@ export class SpaceRenderer {
     if (this.campaignCommanderName != null) this.engine.campaignCommanderName = this.campaignCommanderName;
     if (this.campaignPortrait != null) this.engine.campaignPortrait = this.campaignPortrait;
     this.engine.initGame(this.gameMode);
+
+    if (this.engagementRoomId) {
+      const { getActiveCarrier } = await import('./carrier-client');
+      if (getActiveCarrier()?.isConnected) {
+        const { CarrierBridge } = await import('./carrier-bridge');
+        this.carrierBridge = new CarrierBridge(this.engine);
+      }
+    }
 
     this.controls = new SpaceControls(this.container, this.camera, this.engine.state, this.renderer);
     this.effectsRenderer = new SpaceEffectsRenderer(this.scene);
@@ -346,11 +358,11 @@ export class SpaceRenderer {
     });
     this.composer.addPass(new RenderPass(this.scene, this.camera));
 
-    // Bloom: engine trails, shield bubbles, explosions, emissive materials glow
+    // Bloom: subtle emissive glow only — shields/explosions, not whole scene wash
     this.bloomEffect = new BloomEffect({
-      intensity: 0.8,
-      luminanceThreshold: 0.4,
-      luminanceSmoothing: 0.3,
+      intensity: 0.22,
+      luminanceThreshold: 0.78,
+      luminanceSmoothing: 0.25,
       mipmapBlur: true,
     });
 
@@ -369,24 +381,22 @@ export class SpaceRenderer {
   }
 
   private setupLighting() {
-    // Brighter lighting for better model visibility
-    const ambient = new THREE.AmbientLight(0x556688, 1.4);
+    const ambient = new THREE.AmbientLight(0x3a4a5c, 1.0);
     this.scene.add(ambient);
 
-    const sun = new THREE.DirectionalLight(0xffeedd, 2.0);
+    const sun = new THREE.DirectionalLight(0xfff0e0, 1.65);
     sun.position.set(200, 400, 100);
     this.scene.add(sun);
 
-    const fill = new THREE.DirectionalLight(0x6688cc, 0.8);
+    const fill = new THREE.DirectionalLight(0x5a7a9a, 0.55);
     fill.position.set(-200, 200, -200);
     this.scene.add(fill);
 
-    const rim = new THREE.PointLight(0xff8844, 0.6, 1000);
+    const rim = new THREE.PointLight(0xc87840, 0.35, 1000);
     rim.position.set(0, 80, -400);
     this.scene.add(rim);
 
-    // Extra hemisphere light for overall brightness
-    const hemi = new THREE.HemisphereLight(0x88aacc, 0x334466, 0.6);
+    const hemi = new THREE.HemisphereLight(0x6a8aaa, 0x1a2430, 0.45);
     this.scene.add(hemi);
   }
 
@@ -481,7 +491,7 @@ export class SpaceRenderer {
   }
 
   private setupBackground() {
-    // Layered parallax planes with slow independent drift — no tiling artifacts
+    // Layered parallax — blue nebula set from CDN/local, normal blend (no purple additive wash)
     const configs: Array<{
       path: string;
       opacity: number;
@@ -490,20 +500,22 @@ export class SpaceRenderer {
       vz: number;
       y: number;
     }> = [
-      { path: BACKGROUND_LAYERS.classic.background, opacity: 0.1, scale: 3600, vx: 0.01, vz: 0.006, y: -90 },
-      { path: BACKGROUND_LAYERS.classic.stars, opacity: 0.08, scale: 3000, vx: -0.007, vz: 0.009, y: -80 },
-      { path: BACKGROUND_LAYERS.classic.farPlanets, opacity: 0.05, scale: 2600, vx: 0.005, vz: -0.008, y: -70 },
+      { path: BACKGROUND_LAYERS.blue.back, opacity: 0.22, scale: 3600, vx: 0.01, vz: 0.006, y: -90 },
+      { path: BACKGROUND_LAYERS.blue.stars, opacity: 0.18, scale: 3000, vx: -0.007, vz: 0.009, y: -80 },
+      { path: BACKGROUND_LAYERS.blue.withStars, opacity: 0.12, scale: 2800, vx: 0.005, vz: -0.008, y: -75 },
+      { path: BACKGROUND_LAYERS.blue.planetBig, opacity: 0.08, scale: 2200, vx: -0.004, vz: 0.005, y: -65 },
     ];
 
     for (const cfg of configs) {
-      const tex = this.textureLoader.load(cfg.path);
+      const tex = this.textureLoader.load(resolveUrl(cfg.path, true));
+      tex.colorSpace = THREE.SRGBColorSpace;
       const geo = new THREE.PlaneGeometry(cfg.scale, cfg.scale);
       const mat = new THREE.MeshBasicMaterial({
         map: tex,
         transparent: true,
         opacity: cfg.opacity,
         depthWrite: false,
-        blending: THREE.AdditiveBlending,
+        blending: THREE.NormalBlending,
       });
       const mesh = new THREE.Mesh(geo, mat);
       mesh.rotation.x = -Math.PI / 2;
@@ -1966,6 +1978,7 @@ export class SpaceRenderer {
     // Update game logic
     this.engine.update(dt);
     this.controls.update(dt);
+    this.carrierBridge?.tick(this.engine.state, performance.now());
 
     // Sync 3D
     this.syncShips(this.engine.state, dt);
@@ -2649,6 +2662,8 @@ export class SpaceRenderer {
   };
 
   dispose() {
+    this.carrierBridge?.dispose();
+    this.carrierBridge = null;
     this.disposed = true;
     cancelAnimationFrame(this.animFrame);
     window.removeEventListener('resize', this.onResize);

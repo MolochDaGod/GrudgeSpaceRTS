@@ -36,6 +36,7 @@ import { adminRouter } from './routes/admin.js';
 import { rtsConfigRouter } from './routes/rts-config.js';
 import { worldRouter } from './routes/world.js';
 import { getWorldServer } from './world/server.js';
+import { engagementHealth, getEngagementServer } from './engagement/server.js';
 
 const app = new Hono();
 
@@ -53,6 +54,7 @@ app.use(
 
 // ── Public Health ─────────────────────────────────────────────────
 app.get('/health', (c) => c.json({ status: 'ok', ts: Date.now() }));
+app.get('/api/engagement/health', (c) => c.json(engagementHealth()));
 
 // ── Routes ────────────────────────────────────────────────────────
 app.route('/auth', authRouter);
@@ -103,18 +105,23 @@ const server = serve({ fetch: app.fetch, port: PORT }, async () => {
 // One process hosts both the campaign API and the PvP world server,
 // keeping the Railway deployment to a single service. Set
 // WORLD_DISABLE=true to opt out (e.g. when running an API-only replica).
+const httpServer = server as unknown as import('node:http').Server;
+
 if (process.env.WORLD_DISABLE !== 'true') {
-  const world = getWorldServer();
-  // @hono/node-server returns the underlying http.Server, which `ws`
-  // attaches to via the 'upgrade' event.
-  world.attach(server as unknown as import('node:http').Server);
+  getWorldServer().attach(httpServer);
   console.log('[server] 🌍 World server attached at /world');
+}
+
+if (process.env.ENGAGEMENT_DISABLE !== 'true') {
+  getEngagementServer().attach(httpServer);
+  console.log('[server] ⚔️  Engagement server attached at /api/engagement');
 }
 
 // ── Graceful shutdown ─────────────────────────────────────────────────
 function shutdown(signal: string): void {
   console.log(`[server] received ${signal}, draining…`);
   if (process.env.WORLD_DISABLE !== 'true') getWorldServer().shutdown();
+  if (process.env.ENGAGEMENT_DISABLE !== 'true') getEngagementServer().shutdown();
   pool.end().catch(() => undefined);
   // serve()'s Server has a close() method (http.Server)
   (server as unknown as import('node:http').Server).close(() => process.exit(0));

@@ -180,6 +180,12 @@ export class SpaceEngine {
   campaignCommanderName: string | null = null;
   /** Campaign: chosen faction for evolution. */
   campaignFaction: 'wisdom' | 'construct' | 'void' | 'legion' = 'legion';
+  /** Human-controlled team (1 default). Set by Carrier PvP bridge. */
+  localTeam: Team = 1 as Team;
+
+  disableAiForTeam(team: number) {
+    this.aiBrains.delete(team);
+  }
 
   initGame(mode: GameMode = '1v1') {
     const map = getMapSize(mode);
