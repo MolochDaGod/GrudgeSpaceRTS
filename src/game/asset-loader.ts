@@ -84,6 +84,20 @@ export function resolveModelUrl(localPath: string): string {
   return resolveUrl(localPath, false);
 }
 
+/**
+ * Resolve a video URL (MP4/WebM cutscenes, intros, producer reels).
+ * Videos are large — always prefer R2 CDN in production; never bundle in Vercel.
+ */
+export function resolveVideoUrl(localPath: string): string {
+  const cdnBase =
+    CDN_BASE || (import.meta.env.PROD ? 'https://assets.grudge-studio.com' : '');
+  if (!cdnBase) return localPath;
+
+  const cdnPath = localPath.replace(/^\/assets\//, '');
+  const versionSuffix = ASSET_VERSION ? `?v=${ASSET_VERSION}` : '';
+  return `${cdnBase}/${CDN_PREFIX}/${cdnPath}${versionSuffix}`;
+}
+
 // ── CDN Health Check ──────────────────────────────────────────────
 let _cdnHealthy = true;
 

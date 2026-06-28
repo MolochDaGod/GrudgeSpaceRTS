@@ -40,6 +40,7 @@ import { DevOverlay } from './game/dev-overlay';
 import { GalaxyMap, STAR_SYSTEMS } from './game/GalaxyMap';
 import { EngagementLobby } from './game/EngagementLobby';
 import type { EngagementKind } from './game/engagement-rooms';
+import { GrudgeVideo } from './game/GrudgeVideo';
 
 // ── Lazy-loaded heavy modules (code-split) ────────────────────────
 // These chunks only download when the user navigates to the relevant screen.
@@ -2553,7 +2554,6 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 // ── Intro Video Screen ────────────────────────────────────────────
 function IntroScreen({ onFinish }: { onFinish: () => void }) {
-  const videoRef = useRef<HTMLVideoElement>(null);
   const [fadeOut, setFadeOut] = useState(false);
   const [canSkip, setCanSkip] = useState(false);
   const [showLogo, setShowLogo] = useState(false);
@@ -2605,21 +2605,10 @@ function IntroScreen({ onFinish }: { onFinish: () => void }) {
         transition: 'opacity 0.6s ease-out',
       }}
     >
-      {/* Background video — fills screen, no controls */}
-      <video
-        ref={videoRef}
-        src="/assets/space/videos/intro.mp4"
-        autoPlay
-        muted
-        playsInline
+      <GrudgeVideo
+        intro
+        poster="/assets/space/ui/logo.webp"
         onEnded={handleVideoEnd}
-        style={{
-          position: 'absolute',
-          inset: 0,
-          width: '100%',
-          height: '100%',
-          objectFit: 'cover',
-        }}
       />
 
       {/* Dark vignette overlay for logo readability */}
@@ -2713,22 +2702,7 @@ function LoadingScreen() {
         background: '#000',
       }}
     >
-      {/* Reuse intro video as loading background */}
-      <video
-        src="/assets/space/videos/intro.mp4"
-        autoPlay
-        muted
-        loop
-        playsInline
-        style={{
-          position: 'absolute',
-          inset: 0,
-          width: '100%',
-          height: '100%',
-          objectFit: 'cover',
-          opacity: 0.25,
-        }}
-      />
+      <GrudgeVideo intro loop opacity={0.25} />
       <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.55)', pointerEvents: 'none' }} />
 
       {/* Logo */}
