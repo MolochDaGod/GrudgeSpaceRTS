@@ -38,6 +38,8 @@ import { HotkeySettings } from './game/HotkeySettings';
 import { loadRemoteBalance } from './game/space-data-loader';
 import { DevOverlay } from './game/dev-overlay';
 import { GalaxyMap, STAR_SYSTEMS } from './game/GalaxyMap';
+import { EngagementLobby } from './game/EngagementLobby';
+import type { EngagementKind } from './game/engagement-rooms';
 
 // ── Lazy-loaded heavy modules (code-split) ────────────────────────
 // These chunks only download when the user navigates to the relevant screen.
@@ -129,15 +131,15 @@ const StarfieldCanvas = memo(function StarfieldCanvas() {
       sp: number;
     }
     const nebLights: NebLight[] = [
-      { x: w * 0.12, y: h * 0.18, vx: 0.14, vy: 0.07, r: Math.max(w, h) * 0.3, rgb: [10, 60, 200], alpha: 0.055, ph: 0, sp: 0.0008 },
+      { x: w * 0.12, y: h * 0.18, vx: 0.14, vy: 0.07, r: Math.max(w, h) * 0.3, rgb: [8, 42, 88], alpha: 0.032, ph: 0, sp: 0.0008 },
       {
         x: w * 0.88,
         y: h * 0.25,
         vx: -0.11,
         vy: 0.055,
         r: Math.max(w, h) * 0.24,
-        rgb: [110, 10, 200],
-        alpha: 0.045,
+        rgb: [12, 72, 110],
+        alpha: 0.028,
         ph: Math.PI * 0.7,
         sp: 0.001,
       },
@@ -147,8 +149,8 @@ const StarfieldCanvas = memo(function StarfieldCanvas() {
         vx: 0.07,
         vy: -0.09,
         r: Math.max(w, h) * 0.32,
-        rgb: [180, 30, 10],
-        alpha: 0.04,
+        rgb: [120, 55, 18],
+        alpha: 0.026,
         ph: Math.PI * 1.4,
         sp: 0.0012,
       },
@@ -158,8 +160,8 @@ const StarfieldCanvas = memo(function StarfieldCanvas() {
         vx: -0.09,
         vy: -0.06,
         r: Math.max(w, h) * 0.22,
-        rgb: [0, 130, 110],
-        alpha: 0.038,
+        rgb: [0, 95, 88],
+        alpha: 0.024,
         ph: Math.PI * 2.1,
         sp: 0.0007,
       },
@@ -169,8 +171,8 @@ const StarfieldCanvas = memo(function StarfieldCanvas() {
         vx: 0.06,
         vy: 0.08,
         r: Math.max(w, h) * 0.18,
-        rgb: [80, 10, 160],
-        alpha: 0.03,
+        rgb: [18, 48, 72],
+        alpha: 0.022,
         ph: Math.PI * 3.0,
         sp: 0.0009,
       },
@@ -402,6 +404,8 @@ export default function App() {
   const [gameMode, setGameMode] = useState<GameMode>('1v1');
   const [starMapOpen, setStarMapOpen] = useState(false);
   const [showCmdModal, setShowCmdModal] = useState(false);
+  const [showEngagementLobby, setShowEngagementLobby] = useState<EngagementKind | null>(null);
+  const [engagementRoomId, setEngagementRoomId] = useState<string | null>(null);
   const [showCampaignBuilder, setShowCampaignBuilder] = useState(false);
   // Pre-campaign mech builder — chained before CampaignBuilderModal so the
   // commander's mech loadout is snapshotted into the campaign profile.
@@ -468,6 +472,7 @@ export default function App() {
       // Forward the pre-campaign mech loadout (MechBuilderShowcase → ref)
       // for future commander-spawn / persistence code paths.
       r.commanderMech = mechBuildRef.current;
+      if (engagementRoomId) r.engagementRoomId = engagementRoomId;
       // Campaign-specific: set faction + grudgeId + commander build on renderer
       if (mode === 'campaign' && campaignBuild) {
         r.campaignFaction = campaignBuild.faction;
@@ -496,7 +501,7 @@ export default function App() {
           backToMenu();
         });
     },
-    [authUser, campaignBuild, selectedFaction, backToMenu],
+    [authUser, campaignBuild, selectedFaction, engagementRoomId, backToMenu],
   );
 
   return (
@@ -518,8 +523,8 @@ export default function App() {
       {screen === 'intro' && <IntroScreen onFinish={() => setScreen('menu')} />}
       {screen === 'menu' && (
         <MainMenu
-          onStart={() => setShowCmdModal(true)}
-          onCampaign={() => setShowMechBuilder(true)}
+          onStart={() => setShowEngagementLobby('quick')}
+          onCampaign={() => setShowEngagementLobby('conquest')}
           onCodex={() => setScreen('codex')}
           onHowTo={() => setScreen('howto')}
           onEditor={() => setScreen('editor')}
@@ -539,6 +544,20 @@ export default function App() {
           user={authUser}
           onLogin={login}
           onLogout={logout}
+        />
+      )}
+      {showEngagementLobby && (
+        <EngagementLobby
+          kind={showEngagementLobby}
+          user={authUser}
+          onLaunch={(roomId) => {
+            const kind = showEngagementLobby;
+            setEngagementRoomId(roomId);
+            setShowEngagementLobby(null);
+            if (kind === 'quick') setShowCmdModal(true);
+            else if (kind === 'conquest') setShowMechBuilder(true);
+          }}
+          onCancel={() => setShowEngagementLobby(null)}
         />
       )}
       {showCmdModal && (

@@ -241,9 +241,9 @@ export class GroundRTS3DRenderer {
     this.composer.addPass(new RenderPass(this.scene, this.camera));
 
     const bloom = new BloomEffect({
-      intensity: 0.5,
-      luminanceThreshold: 0.5,
-      luminanceSmoothing: 0.3,
+      intensity: 0.28,
+      luminanceThreshold: 0.72,
+      luminanceSmoothing: 0.25,
       mipmapBlur: true,
     });
     const toneMapping = new ToneMappingEffect({ mode: ToneMappingMode.ACES_FILMIC });
