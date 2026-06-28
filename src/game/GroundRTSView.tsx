@@ -1,9 +1,8 @@
 /**
  * GroundRTSView.tsx — Hero-Commander RTS embed.
  *
- * /ground-rts mounts the existing Hero-Commander island gameplay deployed
- * at grudgewarlords.com/island (built in the GrudgeBuilder repo, live on
- * Cloudflare Pages / Vercel). That page already implements:
+ * /ground-rts embeds Warlord Genesis MOBA/RTS (warlord-genesis.vercel.app/play).
+ * That artifact implements:
  *   • HeroCommandBar (RTS-style hero portrait dock)
  *   • Autonomous hero AI (harvesting / fighting / sleeping)
  *   • Profession progression + auto-harvest mode
@@ -18,7 +17,9 @@
 
 import { useEffect } from 'react';
 
-const HERO_COMMANDER_URL = 'https://grudgewarlords.com/island';
+/** Warlord Genesis MOBA/RTS play route — github.com/MolochDaGod/warlord-genesis */
+const HERO_COMMANDER_URL =
+  import.meta.env.VITE_WARLORD_GENESIS_URL ?? 'https://warlord-genesis.vercel.app/play';
 
 interface Props {
   onExit?: () => void;
