@@ -37,8 +37,8 @@ export interface CarrierClientCallbacks {
 function carrierWsUrl(): string {
   const override = import.meta.env.VITE_CARRIER_WS_URL as string | undefined;
   if (override) return override;
-  // Vercel rewrites cannot proxy WebSocket upgrades — connect to API host in prod.
-  if (import.meta.env.PROD) return 'wss://api.grudge-studio.com/api/carrier';
+  // Vercel rewrites cannot proxy WebSocket upgrades — use Carrier Railway host in prod.
+  if (import.meta.env.PROD) return 'wss://carrier.grudge-studio.com/api/engagement';
   const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
   return `${proto}//${window.location.host}/api/carrier`;
 }
