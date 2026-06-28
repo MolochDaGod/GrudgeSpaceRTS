@@ -38,7 +38,12 @@ function carrierWsUrl(): string {
   const override = import.meta.env.VITE_CARRIER_WS_URL as string | undefined;
   if (override) return override;
   // Vercel rewrites cannot proxy WebSocket upgrades — use Carrier Railway host in prod.
-  if (import.meta.env.PROD) return 'wss://carrier.grudge-studio.com/api/engagement';
+  if (import.meta.env.PROD) {
+    return (
+      (import.meta.env.VITE_CARRIER_WS_URL as string | undefined) ??
+      'wss://carrier-production-4e12.up.railway.app/api/engagement'
+    );
+  }
   const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
   return `${proto}//${window.location.host}/api/carrier`;
 }
