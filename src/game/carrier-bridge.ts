@@ -3,7 +3,7 @@
  */
 
 import type { SpaceEngine } from './space-engine';
-import type { SpaceGameState } from './space-types';
+import type { SpaceGameState, Team } from './space-types';
 import { getActiveCarrier } from './carrier-client';
 
 export interface CarrierBridgeOptions {
@@ -55,8 +55,9 @@ export class CarrierBridge {
     const team =
       (msg.localTeam as number) ??
       ((msg.teamSlot as number) != null ? (msg.teamSlot as number) + 1 : 1);
-    this.localTeam = team;
-    this.engine.localTeam = team;
+    const resolved = Math.min(4, Math.max(1, team)) as Team;
+    this.localTeam = resolved;
+    this.engine.localTeam = resolved;
     this.onRoomState(msg);
   }
 
