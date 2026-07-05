@@ -206,6 +206,8 @@ export class SpaceRenderer {
   public commanderMech: import('./mech-builder-renderer').MechBuildSnapshot | null = null;
   /** Carrier engagement room — enables PvP fleet sync when set. */
   public engagementRoomId: string | null = null;
+  /** Engagement kind — drives dogfight vs fleet bridge behaviour. */
+  public engagementKind: import('./engagement-rooms').EngagementKind | null = null;
   private carrierBridge: import('./carrier-bridge').CarrierBridge | null = null;
 
   // Planet decoration assets (from provided props pack)
@@ -290,7 +292,9 @@ export class SpaceRenderer {
       const { getActiveCarrier } = await import('./carrier-client');
       if (getActiveCarrier()?.isConnected) {
         const { CarrierBridge } = await import('./carrier-bridge');
-        this.carrierBridge = new CarrierBridge(this.engine);
+        this.carrierBridge = new CarrierBridge(this.engine, {
+          engagementKind: this.engagementKind ?? undefined,
+        });
       }
     }
 

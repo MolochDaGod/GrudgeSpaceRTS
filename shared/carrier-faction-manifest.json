@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "description": "Carrier ↔ Armada faction sync and fleet asset ids (upload to R2 at carrier/models/)",
+  "armadaToCarrier": {
+    "legion": "scavengers",
+    "wisdom": "hollow",
+    "construct": "network",
+    "void": "brood"
+  },
+  "carrierFactions": ["scavengers", "hollow", "network", "brood", "prospector"],
+  "engagementKinds": ["quick", "conquest", "souls", "dogfight", "universe", "infinity"],
+  "wsPaths": {
+    "engagement": "/api/engagement",
+    "carrier": "/api/carrier",
+    "world": "/world"
+  },
+  "railway": {
+    "carrierHost": "carrier-production-4e12.up.railway.app",
+    "healthEngagement": "/api/engagement/health",
+    "healthCarrier": "/api/carrier/health",
+    "healthWorld": "/world/health"
+  },
+  "cdn": {
+    "base": "https://assets.grudge-studio.com",
+    "prefix": "carrier/models"
+  }
+}

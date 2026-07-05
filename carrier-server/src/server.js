@@ -56,10 +56,13 @@ function roomSnapshot(room) {
       grudgeId: p.grudgeId,
       displayName: p.displayName,
       ready: p.ready,
+      loadoutId: p.loadoutId,
     })),
     hostId: room.hostId,
     tickHz: TICK_HZ,
     maxPilots: MAX_PILOTS,
+    engagementKind: room.engagementKind,
+    carrierMode: room.carrierMode,
   };
 }
 
@@ -79,15 +82,35 @@ function disposeRoomIfEmpty(roomId) {
   console.log(`[carrier] room disposed id=${roomId}`);
 }
 
-function getOrCreateRoom(roomId) {
+function inferEngagementKind(roomId) {
+  if (roomId.includes("dogfight")) return "dogfight";
+  if (roomId.includes("infinity")) return "infinity";
+  if (roomId.includes("universe")) return "universe";
+  if (roomId.includes("conquest")) return "conquest";
+  if (roomId.includes("souls")) return "souls";
+  return "quick";
+}
+
+function carrierModeForKind(kind) {
+  if (kind === "dogfight") return "dogfight";
+  if (kind === "infinity" || kind === "universe") return "open_world";
+  if (kind === "conquest") return "campaign";
+  if (kind === "souls") return "ground_souls";
+  return "rts_skirmish";
+}
+
+function getOrCreateRoom(roomId, meta = {}) {
   let room = rooms.get(roomId);
   if (room) return room;
+  const kind = meta.engagementKind ?? inferEngagementKind(roomId);
   room = {
     id: roomId,
     pilots: new Map(),
     sockets: new Map(),
     hostId: null,
     tick: 0,
+    engagementKind: kind,
+    carrierMode: meta.carrierMode ?? carrierModeForKind(kind),
     createdAt: Date.now(),
     tickTimer: setInterval(() => tickRoom(roomId), TICK_MS),
   };
@@ -119,12 +142,18 @@ app.get("/api/carrier/health", (_req, res) => {
   res.json({ ok: true, service: "carrier", rooms: rooms.size, pilots: totalPilots(), tickHz: TICK_HZ });
 });
 
+app.get("/api/engagement/health", (_req, res) => {
+  res.json({ ok: true, service: "engagement", rooms: rooms.size, pilots: totalPilots(), tickHz: TICK_HZ });
+});
+
+const WS_PATHS = new Set(["/api/carrier", "/api/engagement"]);
+
 const server = http.createServer(app);
 const wss = new WebSocketServer({ noServer: true });
 
 server.on("upgrade", (req, socket, head) => {
   const url = new URL(req.url ?? "/", `http://${req.headers.host ?? "localhost"}`);
-  if (url.pathname !== "/api/carrier") {
+  if (!WS_PATHS.has(url.pathname)) {
     socket.destroy();
     return;
   }
@@ -143,7 +172,10 @@ wss.on("connection", (ws) => {
 
       if (type === "join") {
         const id = sanitizeRoomId(msg.roomId);
-        const room = getOrCreateRoom(id);
+        const room = getOrCreateRoom(id, {
+          engagementKind: msg.engagementKind ?? inferEngagementKind(id),
+          carrierMode: msg.carrierMode ?? carrierModeForKind(inferEngagementKind(id)),
+        });
         if (room.pilots.size >= MAX_PILOTS) {
           ws.send(JSON.stringify({ type: "error", message: "room full" }));
           ws.close(4000, "room full");
@@ -174,11 +206,15 @@ wss.on("connection", (ws) => {
             hostId: room.hostId,
             teamSlot: pilot.teamSlot,
             localTeam: pilot.teamSlot + 1,
+            engagementKind: room.engagementKind,
+            carrierMode: room.carrierMode,
+            faction: msg.faction ?? undefined,
             pilots: Array.from(room.pilots.values()).map((p) => ({
               id: p.id,
               grudgeId: p.grudgeId,
               displayName: p.displayName,
               ready: p.ready,
+              loadoutId: p.loadoutId,
             })),
             tickHz: TICK_HZ,
             maxPilots: MAX_PILOTS,

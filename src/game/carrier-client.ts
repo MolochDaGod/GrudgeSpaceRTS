@@ -21,6 +21,9 @@ export interface CarrierRoomState {
   hostId: string | null;
   localTeam?: number;
   teamSlot?: number;
+  engagementKind?: string;
+  carrierMode?: string;
+  faction?: string;
 }
 
 export interface CarrierClientCallbacks {
@@ -34,18 +37,24 @@ export interface CarrierClientCallbacks {
   onError?: (message: string) => void;
 }
 
+const DEFAULT_CARRIER_HOST =
+  (import.meta.env.VITE_CARRIER_RAILWAY_HOST as string | undefined) ??
+  'carrier-production-4e12.up.railway.app';
+
+function carrierWsPath(): string {
+  return (import.meta.env.VITE_CARRIER_WS_PATH as string | undefined) ?? '/api/engagement';
+}
+
 function carrierWsUrl(): string {
   const override = import.meta.env.VITE_CARRIER_WS_URL as string | undefined;
   if (override) return override;
-  // Vercel rewrites cannot proxy WebSocket upgrades — use Carrier Railway host in prod.
+  const path = carrierWsPath();
+  // Vercel rewrites cannot proxy WebSocket upgrades — hit Railway directly in prod.
   if (import.meta.env.PROD) {
-    return (
-      (import.meta.env.VITE_CARRIER_WS_URL as string | undefined) ??
-      'wss://carrier-production-4e12.up.railway.app/api/engagement'
-    );
+    return `wss://${DEFAULT_CARRIER_HOST}${path}`;
   }
   const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-  return `${proto}//${window.location.host}/api/engagement`;
+  return `${proto}//${window.location.host}${path}`;
 }
 
 export class CarrierClient {
@@ -113,7 +122,14 @@ export class CarrierClient {
 
   connect(
     roomId: string,
-    identity: { grudgeId: string; displayName: string; loadoutId?: string },
+    identity: {
+      grudgeId: string;
+      displayName: string;
+      loadoutId?: string;
+      engagementKind?: string;
+      carrierMode?: string;
+      faction?: string;
+    },
     callbacks: CarrierClientCallbacks,
   ): void {
     if (!CarrierClient.isEnabled()) {
@@ -126,7 +142,14 @@ export class CarrierClient {
     this.openSocket(identity);
   }
 
-  private openSocket(identity: { grudgeId: string; displayName: string; loadoutId?: string }) {
+  private openSocket(identity: {
+    grudgeId: string;
+    displayName: string;
+    loadoutId?: string;
+    engagementKind?: string;
+    carrierMode?: string;
+    faction?: string;
+  }) {
     if (this.ws) {
       this.ws.close();
       this.ws = null;
@@ -155,6 +178,9 @@ export class CarrierClient {
           grudgeId: identity.grudgeId,
           displayName: identity.displayName,
           loadoutId: identity.loadoutId ?? 'default',
+          engagementKind: identity.engagementKind,
+          carrierMode: identity.carrierMode,
+          faction: identity.faction,
           token: token ?? undefined,
         }),
       );
@@ -221,6 +247,9 @@ export class CarrierClient {
       hostId: (msg.hostId as string) ?? null,
       localTeam: msg.localTeam as number | undefined,
       teamSlot: msg.teamSlot as number | undefined,
+      engagementKind: msg.engagementKind as string | undefined,
+      carrierMode: msg.carrierMode as string | undefined,
+      faction: msg.faction as string | undefined,
     };
   }
 

@@ -14,9 +14,18 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { SCNavigationPlanner, type ObjectContainer, type NavigationPlan } from './nav';
 import { CAMPAIGN_CONTAINERS, CAMPAIGN_POIS } from './nav/universe-seed';
+import {
+  connectWorldShard,
+  fetchWorldShards,
+  storeWorldSession,
+  type WorldShardInfo,
+} from './world-client';
+import { isLoggedIn } from './grudge-auth';
 
 interface Props {
   onExit: () => void;
+  onDogfight?: () => void;
+  onInfinity?: () => void;
 }
 
 /** Convert a body's metres-from-origin position to scene-friendly units (1 unit = 1 Bn m). */
@@ -47,11 +56,26 @@ function fmtEta(seconds: number): string {
   return `${m}m ${s.toString().padStart(2, '0')}s`;
 }
 
-export default function UniverseView({ onExit }: Props) {
+export default function UniverseView({ onExit, onDogfight, onInfinity }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [selected, setSelected] = useState<ObjectContainer | null>(null);
   const [plan, setPlan] = useState<NavigationPlan | null>(null);
   const [origin, setOrigin] = useState<string>('Stanton');
+  const [shards, setShards] = useState<WorldShardInfo[]>([]);
+  const [shardStatus, setShardStatus] = useState<'loading' | 'live' | 'offline'>('loading');
+  const [connectingShard, setConnectingShard] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchWorldShards().then((list) => {
+      if (cancelled) return;
+      setShards(list);
+      setShardStatus(list.length > 0 ? 'live' : 'offline');
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Build the planner once. Holds the visibility graph + OM lattice.
   const planner = useMemo(() => new SCNavigationPlanner(CAMPAIGN_POIS, CAMPAIGN_CONTAINERS), []);
@@ -215,7 +239,21 @@ export default function UniverseView({ onExit }: Props) {
     } catch {
       /* localStorage unavailable — fine */
     }
-    onExit(); // App.tsx routes back to /game (or wherever the host wants)
+    onExit();
+  };
+
+  const handleEnterShard = async (shard: WorldShardInfo) => {
+    if (!isLoggedIn()) {
+      onInfinity?.();
+      return;
+    }
+    setConnectingShard(shard.id);
+    const session = await connectWorldShard({ shardId: shard.id, system: shard.system });
+    setConnectingShard(null);
+    if (session) {
+      storeWorldSession(session);
+      onInfinity?.();
+    }
   };
 
   return (
@@ -240,6 +278,42 @@ export default function UniverseView({ onExit }: Props) {
             </option>
           ))}
         </select>
+      </div>
+
+      {/* Open-world shards (left) */}
+      <div style={shardsPanelStyle}>
+        <div style={shardsTitleStyle}>OPEN WORLD SHARDS</div>
+        <div style={shardsMetaStyle}>
+          {shardStatus === 'loading' && 'Querying Railway world server…'}
+          {shardStatus === 'offline' && 'World API offline — solo infinity still available'}
+          {shardStatus === 'live' && `${shards.length} live shard(s)`}
+        </div>
+        {shards.map((s) => (
+          <button
+            key={s.id}
+            type="button"
+            disabled={connectingShard === s.id}
+            onClick={() => handleEnterShard(s)}
+            style={shardBtnStyle(s.population >= s.max)}
+          >
+            <div style={{ fontWeight: 800, color: '#cde' }}>{s.name}</div>
+            <div style={{ fontSize: 9, color: '#6a8', marginTop: 2 }}>
+              {s.system} · {s.population}/{s.max} pilots
+            </div>
+          </button>
+        ))}
+        <div style={{ display: 'flex', gap: 6, marginTop: 10, flexWrap: 'wrap' }}>
+          {onDogfight && (
+            <button type="button" onClick={onDogfight} style={modeChipStyle('#ff4466')}>
+              DOGFIGHT
+            </button>
+          )}
+          {onInfinity && (
+            <button type="button" onClick={onInfinity} style={modeChipStyle('#44eecc')}>
+              INFINITY
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Body legend (top-right) */}
@@ -370,6 +444,56 @@ const originSelectStyle: React.CSSProperties = {
   fontFamily: 'inherit',
   fontSize: 11,
 };
+
+const shardsPanelStyle: React.CSSProperties = {
+  position: 'absolute',
+  top: 70,
+  left: 18,
+  width: 200,
+  background: 'rgba(8,16,32,0.78)',
+  border: '1px solid rgba(80,180,255,0.25)',
+  borderRadius: 6,
+  padding: '10px 12px',
+};
+const shardsTitleStyle: React.CSSProperties = {
+  fontSize: 9,
+  fontWeight: 800,
+  letterSpacing: 2,
+  color: 'rgba(120,200,255,0.6)',
+  marginBottom: 6,
+};
+const shardsMetaStyle: React.CSSProperties = {
+  fontSize: 9,
+  color: 'rgba(180,220,255,0.45)',
+  marginBottom: 8,
+  lineHeight: 1.4,
+};
+const shardBtnStyle = (full: boolean): React.CSSProperties => ({
+  display: 'block',
+  width: '100%',
+  textAlign: 'left',
+  padding: '8px 10px',
+  marginBottom: 6,
+  borderRadius: 4,
+  cursor: full ? 'not-allowed' : 'pointer',
+  opacity: full ? 0.5 : 1,
+  background: 'rgba(20,28,42,0.7)',
+  border: '1px solid rgba(80,180,255,0.2)',
+  fontFamily: 'inherit',
+  fontSize: 10,
+});
+const modeChipStyle = (color: string): React.CSSProperties => ({
+  padding: '6px 10px',
+  fontSize: 9,
+  fontWeight: 800,
+  letterSpacing: 2,
+  color,
+  background: `${color}18`,
+  border: `1px solid ${color}55`,
+  borderRadius: 4,
+  cursor: 'pointer',
+  fontFamily: 'inherit',
+});
 
 const legendStyle: React.CSSProperties = {
   position: 'absolute',

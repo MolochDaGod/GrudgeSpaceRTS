@@ -359,9 +359,13 @@ const StarfieldCanvas = memo(function StarfieldCanvas() {
 export default function App() {
   const containerRef = useRef<HTMLDivElement>(null);
   const rendererRef = useRef<import('./game/space-renderer').SpaceRenderer | null>(null);
-  // Resolve initial screen from URL — skip intro if deep-linking to a specific route
+  // Resolve initial screen from URL — skip intro if deep-linking or launcher hub embed
   const initialPath = window.location.pathname;
-  const initialScreen = initialPath === '/' || initialPath === '' ? 'intro' : screenFromPath(initialPath);
+  const skipIntro =
+    new URLSearchParams(window.location.search).has('skipIntro')
+    || new URLSearchParams(window.location.search).has('hub');
+  const initialScreen =
+    (initialPath === '/' || initialPath === '') && !skipIntro ? 'intro' : screenFromPath(initialPath);
   const [screen, setScreenRaw] = useState<Screen>(initialScreen);
   const [authUser, setAuthUser] = useState<GrudgeUser | null>(null);
 
@@ -407,6 +411,7 @@ export default function App() {
   const [showCmdModal, setShowCmdModal] = useState(false);
   const [showEngagementLobby, setShowEngagementLobby] = useState<EngagementKind | null>(null);
   const [engagementRoomId, setEngagementRoomId] = useState<string | null>(null);
+  const [engagementKind, setEngagementKind] = useState<EngagementKind | null>(null);
   const [showCampaignBuilder, setShowCampaignBuilder] = useState(false);
   // Pre-campaign mech builder — chained before CampaignBuilderModal so the
   // commander's mech loadout is snapshotted into the campaign profile.
@@ -474,6 +479,7 @@ export default function App() {
       // for future commander-spawn / persistence code paths.
       r.commanderMech = mechBuildRef.current;
       if (engagementRoomId) r.engagementRoomId = engagementRoomId;
+      if (engagementKind) r.engagementKind = engagementKind;
       // Campaign-specific: set faction + grudgeId + commander build on renderer
       if (mode === 'campaign' && campaignBuild) {
         r.campaignFaction = campaignBuild.faction;
@@ -502,7 +508,7 @@ export default function App() {
           backToMenu();
         });
     },
-    [authUser, campaignBuild, selectedFaction, engagementRoomId, backToMenu],
+    [authUser, campaignBuild, selectedFaction, engagementRoomId, engagementKind, backToMenu],
   );
 
   return (
@@ -530,6 +536,8 @@ export default function App() {
           onHowTo={() => setScreen('howto')}
           onEditor={() => setScreen('editor')}
           onUniverse={() => setScreen('universe')}
+          onDogfight={() => setShowEngagementLobby('dogfight')}
+          onSouls={() => setShowEngagementLobby('souls')}
           onGroundCombat={() => {
             setGroundPlanetType('barren');
             setGroundPlanetName('Training Grounds');
@@ -551,12 +559,20 @@ export default function App() {
         <EngagementLobby
           kind={showEngagementLobby}
           user={authUser}
-          onLaunch={(roomId) => {
+          playerFaction={selectedFaction}
+          onLaunch={(roomId, _offline) => {
             const kind = showEngagementLobby;
             setEngagementRoomId(roomId);
+            setEngagementKind(kind);
             setShowEngagementLobby(null);
-            if (kind === 'quick') setShowCmdModal(true);
-            else if (kind === 'conquest') setShowMechBuilder(true);
+            if (kind === 'dogfight') setGameMode('ffa4');
+            if (kind === 'quick' || kind === 'dogfight') setShowCmdModal(true);
+            else if (kind === 'conquest' || kind === 'infinity' || kind === 'universe') setShowMechBuilder(true);
+            else if (kind === 'souls') {
+              setGroundPlanetType('barren');
+              setGroundPlanetName('Souls Arena');
+              setScreen('ground_combat');
+            }
           }}
           onCancel={() => setShowEngagementLobby(null)}
         />
@@ -659,8 +675,9 @@ export default function App() {
       {screen === 'universe' && (
         <Suspense fallback={<LoadingScreen />}>
           <LazyUniverseView
+            onDogfight={() => setShowEngagementLobby('dogfight')}
+            onInfinity={() => setShowEngagementLobby('infinity')}
             onExit={() => {
-              // If a campaign target was just stored, route to /game; else /menu.
               const target = (() => {
                 try {
                   return localStorage.getItem('campaign_target');
@@ -668,7 +685,12 @@ export default function App() {
                   return null;
                 }
               })();
-              setScreen(target ? 'playing' : 'menu');
+              if (target) {
+                setEngagementKind('universe');
+                launchWithSpec('campaign', selectedSpec, { playerColorIdx, enemyColorMode, enemyColorIdx }, aiDifficulty);
+              } else {
+                setScreen('menu');
+              }
             }}
           />
         </Suspense>
@@ -998,6 +1020,8 @@ function MainMenu({
   onHowTo,
   onEditor,
   onUniverse,
+  onDogfight,
+  onSouls,
   onGroundCombat,
   onGroundRts,
   mode,
@@ -1012,6 +1036,8 @@ function MainMenu({
   onHowTo: () => void;
   onEditor: () => void;
   onUniverse: () => void;
+  onDogfight: () => void;
+  onSouls: () => void;
   onGroundCombat: () => void;
   onGroundRts: () => void;
   mode: GameMode;
@@ -1242,6 +1268,12 @@ function MainMenu({
             <button onClick={() => launchWithZoom(onStart)} style={launchBtn('#2255cc', 'rgba(34,85,204,0.3)')}>
               LAUNCH QUICK GAME
             </button>
+            <button
+              onClick={() => launchWithZoom(onDogfight)}
+              style={{ ...launchBtn('#aa2244', 'rgba(170,34,68,0.25)'), marginTop: 10 }}
+            >
+              CARRIER DOGFIGHT PvP
+            </button>
           </div>
 
           {/* ── CAPTAIN'S CAMPAIGN ── */}
@@ -1305,10 +1337,16 @@ function MainMenu({
               </div>
             </div>
             <button
-              onClick={() => launchWithZoom(onGroundCombat)}
-              style={{ ...launchBtn('#1a7744', 'rgba(26,119,68,0.3)'), marginBottom: 14 }}
+              onClick={() => launchWithZoom(onSouls)}
+              style={{ ...launchBtn('#1a7744', 'rgba(26,119,68,0.3)'), marginBottom: 8 }}
             >
-              LAUNCH GROUND COMBAT
+              SOULS PvP LOBBY
+            </button>
+            <button
+              onClick={() => launchWithZoom(onGroundCombat)}
+              style={{ ...launchBtn('#335544', 'rgba(51,85,68,0.25)'), marginBottom: 14 }}
+            >
+              SOLO GROUND COMBAT
             </button>
 
             <div

@@ -1,5 +1,5 @@
 /**
- * EngagementLobby — Carrier room browser before Quick Game / Endless Conquest PvP.
+ * EngagementLobby — Carrier room browser before PvP launch modes.
  */
 
 import { useCallback, useEffect, useState, type CSSProperties } from 'react';
@@ -7,22 +7,35 @@ import { CarrierClient, setActiveCarrier, type CarrierPilot, type CarrierRoomSta
 import {
   type EngagementKind,
   buildEngagementRoomId,
+  buildLoadoutId,
   engagementConfig,
   publicEngagementRoom,
 } from './engagement-rooms';
+import {
+  CARRIER_FACTION_ORDER,
+  CARRIER_FACTIONS,
+  carrierFactionForArmada,
+  type CarrierFactionId,
+} from './faction-sync';
 import type { GrudgeUser } from './grudge-auth';
+import type { SpaceFaction } from './space-types';
 
 interface Props {
   kind: EngagementKind;
   user: GrudgeUser | null;
+  playerFaction?: SpaceFaction;
   onLaunch: (roomId: string, offline: boolean) => void;
   onCancel: () => void;
 }
 
-export function EngagementLobby({ kind, user, onLaunch, onCancel }: Props) {
+export function EngagementLobby({ kind, user, playerFaction, onLaunch, onCancel }: Props) {
   const config = engagementConfig(kind);
+  const defaultFaction = playerFaction
+    ? carrierFactionForArmada(playerFaction)
+    : CARRIER_FACTION_ORDER[0];
   const [roomId, setRoomId] = useState(publicEngagementRoom(kind));
   const [pilots, setPilots] = useState<CarrierPilot[]>([]);
+  const [faction, setFaction] = useState<CarrierFactionId>(defaultFaction);
   const [status, setStatus] = useState<'idle' | 'connecting' | 'connected' | 'offline'>('idle');
   const [error, setError] = useState<string | null>(null);
   const [client] = useState(() => new CarrierClient());
@@ -30,6 +43,10 @@ export function EngagementLobby({ kind, user, onLaunch, onCancel }: Props) {
   const identity = {
     grudgeId: user?.grudgeId ?? `guest_${Math.random().toString(36).slice(2, 10)}`,
     displayName: user?.displayName ?? 'Guest Commander',
+    loadoutId: buildLoadoutId(faction, kind),
+    engagementKind: kind,
+    carrierMode: config.carrierMode,
+    faction,
   };
 
   const joinRoom = useCallback(
@@ -56,7 +73,7 @@ export function EngagementLobby({ kind, user, onLaunch, onCancel }: Props) {
       });
       setActiveCarrier(client);
     },
-    [client, identity.grudgeId, identity.displayName],
+    [client, identity.grudgeId, identity.displayName, identity.loadoutId, faction, kind],
   );
 
   useEffect(() => {
@@ -65,7 +82,7 @@ export function EngagementLobby({ kind, user, onLaunch, onCancel }: Props) {
       client.disconnect();
       setActiveCarrier(null);
     };
-  }, [kind]);
+  }, [kind, faction]);
 
   const createPrivate = () => joinRoom(buildEngagementRoomId(kind));
 
@@ -78,7 +95,18 @@ export function EngagementLobby({ kind, user, onLaunch, onCancel }: Props) {
     onLaunch(roomId, offline);
   };
 
-  const accent = kind === 'quick' ? '#4488ff' : kind === 'conquest' ? '#ff8822' : '#44ee88';
+  const accent =
+    kind === 'quick'
+      ? '#4488ff'
+      : kind === 'conquest'
+        ? '#ff8822'
+        : kind === 'dogfight'
+          ? '#ff4466'
+          : kind === 'infinity' || kind === 'universe'
+            ? '#44eecc'
+            : '#44ee88';
+
+  const factionMeta = CARRIER_FACTIONS[faction];
 
   return (
     <div
@@ -96,7 +124,7 @@ export function EngagementLobby({ kind, user, onLaunch, onCancel }: Props) {
     >
       <div
         style={{
-          width: 480,
+          width: 520,
           maxWidth: '92vw',
           padding: 28,
           borderRadius: 12,
@@ -105,9 +133,41 @@ export function EngagementLobby({ kind, user, onLaunch, onCancel }: Props) {
           boxShadow: `0 0 40px ${accent}18`,
         }}
       >
-        <div style={{ fontSize: 10, letterSpacing: 4, color: `${accent}99`, marginBottom: 6 }}>CARRIER ENGAGEMENT</div>
+        <div style={{ fontSize: 10, letterSpacing: 4, color: `${accent}99`, marginBottom: 6 }}>
+          CARRIER ENGAGEMENT
+        </div>
         <div style={{ fontSize: 20, fontWeight: 800, color: accent, marginBottom: 8 }}>{config.label}</div>
-        <div style={{ fontSize: 11, color: '#567', lineHeight: 1.6, marginBottom: 20 }}>{config.description}</div>
+        <div style={{ fontSize: 11, color: '#567', lineHeight: 1.6, marginBottom: 16 }}>{config.description}</div>
+
+        <div style={{ fontSize: 9, color: '#456', letterSpacing: 2, marginBottom: 8 }}>FACTION · CARRIER HULLS</div>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 16 }}>
+          {CARRIER_FACTION_ORDER.map((fid) => {
+            const meta = CARRIER_FACTIONS[fid];
+            const sel = faction === fid;
+            return (
+              <button
+                key={fid}
+                type="button"
+                onClick={() => setFaction(fid)}
+                style={{
+                  padding: '8px 10px',
+                  borderRadius: 6,
+                  cursor: 'pointer',
+                  border: sel ? `1px solid ${meta.color}` : '1px solid rgba(255,255,255,0.08)',
+                  background: sel ? `${meta.color}22` : 'rgba(0,0,0,0.25)',
+                  color: sel ? meta.color : '#8ab',
+                  fontSize: 10,
+                  fontWeight: 700,
+                  letterSpacing: 1,
+                  fontFamily: 'inherit',
+                }}
+              >
+                {meta.name}
+              </button>
+            );
+          })}
+        </div>
+        <div style={{ fontSize: 10, color: '#556', marginBottom: 16, lineHeight: 1.5 }}>{factionMeta.blurb}</div>
 
         <div style={{ fontSize: 9, color: '#456', letterSpacing: 2, marginBottom: 8 }}>ROOM · {roomId}</div>
         <div
@@ -120,7 +180,9 @@ export function EngagementLobby({ kind, user, onLaunch, onCancel }: Props) {
             marginBottom: 16,
           }}
         >
-          {status === 'connecting' && <div style={{ fontSize: 11, color: '#6af' }}>Connecting to carrier.grudge-studio.com…</div>}
+          {status === 'connecting' && (
+            <div style={{ fontSize: 11, color: '#6af' }}>Connecting to Carrier Railway…</div>
+          )}
           {status === 'connected' && pilots.length === 0 && (
             <div style={{ fontSize: 11, color: '#6a8' }}>Waiting for pilots… (max {config.maxPlayers})</div>
           )}

@@ -29,6 +29,8 @@ interface Room {
   hostId: string | null;
   tick: number;
   tickTimer: ReturnType<typeof setInterval>;
+  engagementKind: string;
+  carrierMode: string;
 }
 
 const rooms = new Map<string, Room>();
@@ -59,10 +61,13 @@ function roomSnapshot(room: Room): object {
       grudgeId: p.grudgeId,
       displayName: p.displayName,
       ready: p.ready,
+      loadoutId: p.loadoutId,
     })),
     hostId: room.hostId,
     tickHz: TICK_HZ,
     maxPilots: MAX_PILOTS,
+    engagementKind: room.engagementKind,
+    carrierMode: room.carrierMode,
   };
 }
 
@@ -81,15 +86,35 @@ function disposeRoomIfEmpty(roomId: string) {
   rooms.delete(roomId);
 }
 
-function getOrCreateRoom(roomId: string): Room {
+function inferEngagementKind(roomId: string): string {
+  if (roomId.includes('dogfight')) return 'dogfight';
+  if (roomId.includes('infinity')) return 'infinity';
+  if (roomId.includes('universe')) return 'universe';
+  if (roomId.includes('conquest')) return 'conquest';
+  if (roomId.includes('souls')) return 'souls';
+  return 'quick';
+}
+
+function carrierModeForKind(kind: string): string {
+  if (kind === 'dogfight') return 'dogfight';
+  if (kind === 'infinity' || kind === 'universe') return 'open_world';
+  if (kind === 'conquest') return 'campaign';
+  if (kind === 'souls') return 'ground_souls';
+  return 'rts_skirmish';
+}
+
+function getOrCreateRoom(roomId: string, meta?: { engagementKind?: string; carrierMode?: string }): Room {
   let room = rooms.get(roomId);
   if (room) return room;
+  const kind = meta?.engagementKind ?? inferEngagementKind(roomId);
   room = {
     id: roomId,
     pilots: new Map(),
     sockets: new Map(),
     hostId: null,
     tick: 0,
+    engagementKind: kind,
+    carrierMode: meta?.carrierMode ?? carrierModeForKind(kind),
     tickTimer: setInterval(() => {
       const r = rooms.get(roomId);
       if (!r) return;
@@ -142,7 +167,10 @@ export class EngagementServer {
 
           if (type === 'join') {
             const id = sanitizeRoomId(msg.roomId);
-            const room = getOrCreateRoom(id);
+            const room = getOrCreateRoom(id, {
+              engagementKind: String(msg.engagementKind ?? inferEngagementKind(id)),
+              carrierMode: String(msg.carrierMode ?? carrierModeForKind(inferEngagementKind(id))),
+            });
             if (room.pilots.size >= MAX_PILOTS) {
               ws.send(JSON.stringify({ type: 'error', message: 'room full' }));
               ws.close(4000, 'room full');
@@ -173,11 +201,15 @@ export class EngagementServer {
                 hostId: room.hostId,
                 teamSlot: pilot.teamSlot,
                 localTeam: pilot.teamSlot + 1,
+                engagementKind: room.engagementKind,
+                carrierMode: room.carrierMode,
+                faction: msg.faction ?? undefined,
                 pilots: Array.from(room.pilots.values()).map((p) => ({
                   id: p.id,
                   grudgeId: p.grudgeId,
                   displayName: p.displayName,
                   ready: p.ready,
+                  loadoutId: p.loadoutId,
                 })),
                 tickHz: TICK_HZ,
                 maxPilots: MAX_PILOTS,
