@@ -1,0 +1,343 @@
+/* Danger Room targeting — soft lock (amber) vs hard focus (cyan) */
+
+canvas.dr-combat-cursor {
+  cursor: crosshair !important;
+}
+
+.dr-targeting-hud {
+  --ch-accent: #6fe0ff;
+  --ch-soft: #ffd27f;
+  --ch-hostile: #ff6b6b;
+  font-family: ui-monospace, Consolas, monospace;
+}
+
+.dr-mode-strip {
+  position: fixed;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 8px;
+  z-index: 36;
+  pointer-events: none;
+}
+
+.dr-mode-pill {
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.35;
+  border: 1px solid transparent;
+  transition: opacity 0.15s, border-color 0.15s, box-shadow 0.15s;
+}
+
+.dr-mode-soft {
+  color: var(--ch-soft);
+  border-color: rgba(255, 210, 127, 0.25);
+}
+
+.dr-mode-focus {
+  color: var(--ch-accent);
+  border-color: rgba(111, 224, 255, 0.25);
+}
+
+.dr-mode-pill.is-active {
+  opacity: 1;
+  box-shadow: 0 0 12px rgba(0, 0, 0, 0.35);
+}
+
+.dr-mode-soft.is-active {
+  background: rgba(40, 24, 8, 0.82);
+  border-color: rgba(255, 210, 127, 0.55);
+}
+
+.dr-mode-focus.is-active {
+  background: rgba(6, 14, 28, 0.88);
+  border-color: rgba(111, 224, 255, 0.55);
+}
+
+.dr-soft-badge {
+  position: fixed;
+  top: 48px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 34;
+  pointer-events: none;
+  padding: 4px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 210, 127, 0.45);
+  background: rgba(40, 24, 8, 0.82);
+  color: #ffd080;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+}
+
+.dr-target-hint {
+  position: fixed;
+  bottom: 6.5rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 34;
+  pointer-events: none;
+  padding: 6px 12px;
+  border-radius: 6px;
+  background: rgba(6, 14, 28, 0.78);
+  color: rgba(255, 210, 127, 0.95);
+  font-size: 11px;
+  letter-spacing: 0.03em;
+}
+
+.dr-crosshair {
+  --ch-gap: 0px;
+  --ch-color: #6fe0ff;
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  width: 26px;
+  height: 26px;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 35;
+}
+
+.dr-ch-dot {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: var(--ch-color);
+  transform: translate(-50%, -50%);
+  box-shadow: 0 0 6px var(--ch-color);
+}
+
+.dr-ch-line {
+  position: absolute;
+  background: var(--ch-color);
+  box-shadow: 0 0 4px var(--ch-color);
+  transition: transform 0.06s linear;
+}
+
+.dr-ch-top,
+.dr-ch-bottom {
+  width: 2px;
+  height: 7px;
+  left: 50%;
+}
+
+.dr-ch-left,
+.dr-ch-right {
+  height: 2px;
+  width: 7px;
+  top: 50%;
+}
+
+.dr-ch-top {
+  bottom: 50%;
+  transform: translateX(-50%) translateY(calc(-5px - var(--ch-gap)));
+}
+
+.dr-ch-bottom {
+  top: 50%;
+  transform: translateX(-50%) translateY(calc(5px + var(--ch-gap)));
+}
+
+.dr-ch-left {
+  right: 50%;
+  transform: translateY(-50%) translateX(calc(-5px - var(--ch-gap)));
+}
+
+.dr-ch-right {
+  left: 50%;
+  transform: translateY(-50%) translateX(calc(5px + var(--ch-gap)));
+}
+
+.dr-ch-range {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  border: 1.5px solid var(--ch-range-color, transparent);
+  box-shadow: 0 0 6px var(--ch-range-color, transparent), inset 0 0 4px var(--ch-range-color, transparent);
+  opacity: 0.85;
+}
+
+.dr-ch-range-optimal { --ch-range-color: #57e08a; }
+.dr-ch-range-far { --ch-range-color: #f0c64b; }
+.dr-ch-range-close { --ch-range-color: #ff5d5d; }
+
+.dr-ch-hit {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  animation: dr-ch-hit-pop 0.32s ease-out forwards;
+}
+
+.dr-ch-hit-line {
+  position: absolute;
+  width: 8px;
+  height: 2px;
+  background: #ffd34d;
+  box-shadow: 0 0 5px #ffae3b;
+  transform-origin: left center;
+}
+
+.dr-ch-hit-tl { transform: translate(-14px, -14px) rotate(45deg); }
+.dr-ch-hit-tr { transform: translate(14px, -14px) rotate(135deg); }
+.dr-ch-hit-bl { transform: translate(-14px, 14px) rotate(-45deg); }
+.dr-ch-hit-br { transform: translate(14px, 14px) rotate(-135deg); }
+
+@keyframes dr-ch-hit-pop {
+  0% { opacity: 1; transform: scale(0.6); }
+  100% { opacity: 0; transform: scale(1.4); }
+}
+
+/* Parry timing ring — pulses when an enemy telegraphs a strike (tap R inside window). */
+.dr-ch-parry-window {
+  position: absolute;
+  width: 52px;
+  height: 52px;
+  border: 2px solid rgba(120, 210, 255, 0.85);
+  border-radius: 50%;
+  box-shadow: 0 0 12px rgba(80, 180, 255, 0.5);
+  animation: dr-parry-pulse 0.42s ease-in-out infinite;
+}
+
+.dr-ch-parry-flash {
+  position: absolute;
+  width: 64px;
+  height: 64px;
+  border: 3px solid #fff;
+  border-radius: 50%;
+  animation: dr-parry-flash 0.35s ease-out forwards;
+}
+
+.dr-ch-riposte {
+  position: absolute;
+  width: 38px;
+  height: 38px;
+  border: 2px dashed #ffd56a;
+  border-radius: 50%;
+  animation: dr-parry-pulse 0.55s ease-in-out infinite;
+}
+
+@keyframes dr-parry-pulse {
+  0%, 100% { transform: scale(0.92); opacity: 0.75; }
+  50% { transform: scale(1.08); opacity: 1; }
+}
+
+@keyframes dr-parry-flash {
+  0% { opacity: 1; transform: scale(0.7); }
+  100% { opacity: 0; transform: scale(1.35); }
+}
+
+/* Full-screen anime rebound burst on successful parry. */
+.dr-block-screen-fx {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 36;
+  overflow: hidden;
+}
+
+.dr-block-flash {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 50% 45%, rgba(255, 255, 255, 0.55) 0%, rgba(140, 210, 255, 0.12) 35%, transparent 68%);
+  animation: dr-block-flash 0.28s ease-out forwards;
+}
+
+.dr-block-speed-lines {
+  position: absolute;
+  inset: -20%;
+  background:
+    repeating-conic-gradient(
+      from 0deg at 50% 50%,
+      transparent 0deg 8deg,
+      rgba(232, 244, 255, 0.22) 8deg 9deg,
+      transparent 9deg 18deg
+    );
+  animation: dr-block-speed-spin 0.32s ease-out forwards;
+  mix-blend-mode: screen;
+}
+
+@keyframes dr-block-flash {
+  0% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+@keyframes dr-block-speed-spin {
+  0% { opacity: 0.9; transform: scale(0.65) rotate(0deg); }
+  100% { opacity: 0; transform: scale(1.35) rotate(18deg); }
+}
+
+/* Clash blink vignette when block/parry connects. */
+.dr-clash-blink {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 35;
+  background: radial-gradient(circle at 50% 50%, transparent 40%, rgba(255, 240, 200, 0.08) 100%);
+  animation: dr-clash-blink 0.24s steps(3) forwards;
+}
+
+@keyframes dr-clash-blink {
+  0%, 100% { opacity: 0; }
+  33% { opacity: 1; }
+  66% { opacity: 0.35; }
+}
+
+.dr-focus-badge {
+  position: fixed;
+  top: 48px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  padding: 4px 12px;
+  border-radius: 999px;
+  pointer-events: none;
+  z-index: 34;
+}
+
+.dr-focus-badge--cyan {
+  color: #9ee8ff;
+  background: rgba(6, 14, 28, 0.82);
+  border: 1px solid rgba(111, 224, 255, 0.45);
+}
+
+/* Soft lock — amber diamond reticle, no bracket lines */
+.dr-crosshair-soft .dr-ch-dot {
+  width: 4px;
+  height: 4px;
+}
+
+.dr-ch-soft-diamond {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 22px;
+  height: 22px;
+  transform: translate(-50%, -50%) rotate(45deg);
+  border: 1.5px solid var(--ch-color);
+  box-shadow: 0 0 8px var(--ch-color);
+  opacity: 0.9;
+  animation: dr-soft-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes dr-soft-pulse {
+  0%, 100% { transform: translate(-50%, -50%) rotate(45deg) scale(0.92); opacity: 0.75; }
+  50% { transform: translate(-50%, -50%) rotate(45deg) scale(1.05); opacity: 1; }
+}
+
+.dr-crosshair-focus .dr-ch-line {
+  transition: transform 0.08s linear;
+}

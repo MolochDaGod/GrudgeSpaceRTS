@@ -518,8 +518,8 @@ export default function App() {
     >
       <div
         ref={containerRef}
-        style={{ width: '100%', height: '100%', display: screen === 'playing' || screen === 'ground_combat' ? 'block' : 'none' }}
-        // ground_rts uses its own canvas — keep Three.js canvas hidden during RTS
+        style={{ width: '100%', height: '100%', display: screen === 'playing' ? 'block' : 'none' }}
+        // ground_combat + ground_rts use their own R3F / iframe views
       />
       {screen === 'intro' && <IntroScreen onFinish={() => setScreen('menu')} />}
       {screen === 'menu' && (

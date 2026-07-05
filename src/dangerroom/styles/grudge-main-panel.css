@@ -1,0 +1,203 @@
+/* In-game overlay — distilled from info.grudge-studio.com/main-panel.html */
+@import url("https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=JetBrains+Mono:wght@400;700&display=swap");
+
+.gmp-root {
+  --gmp-gold: hsl(43 85% 55%);
+  --gmp-gold-dark: hsl(43 70% 35%);
+  --gmp-muted: hsl(45 15% 60%);
+  --gmp-dim: hsl(45 10% 40%);
+  --gmp-green: #57e08a;
+  --gmp-red: #e0393e;
+  font-family: "JetBrains Mono", Consolas, monospace;
+  color: #f2ead8;
+}
+
+.gmp-top-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 16px;
+  background: linear-gradient(90deg, #1a100a, #221710, #1a100a);
+  border-bottom: 2px solid var(--gmp-gold);
+  pointer-events: none;
+  z-index: 20;
+}
+
+.gmp-top-bar .gmp-title {
+  font-family: Cinzel, serif;
+  font-size: 13px;
+  color: var(--gmp-gold);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+
+.gmp-player-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 11px;
+}
+
+.gmp-xp-bar {
+  width: 110px;
+  height: 6px;
+  background: #2a1e14;
+  border-radius: 3px;
+  overflow: hidden;
+  border: 1px solid #3a2a1a;
+}
+
+.gmp-xp-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--gmp-gold-dark), var(--gmp-gold));
+  border-radius: 3px;
+  transition: width 0.3s;
+}
+
+.gmp-left-col {
+  position: absolute;
+  top: 52px;
+  left: 12px;
+  width: 248px;
+  background: rgba(26, 18, 12, 0.88);
+  border: 2px solid #3a2a1a;
+  border-radius: 8px;
+  padding: 12px;
+  pointer-events: none;
+  z-index: 18;
+}
+
+.gmp-right-col {
+  position: absolute;
+  top: 52px;
+  right: 12px;
+  width: 220px;
+  background: rgba(26, 18, 12, 0.88);
+  border: 2px solid #3a2a1a;
+  border-radius: 8px;
+  padding: 10px 12px;
+  pointer-events: auto;
+  z-index: 18;
+}
+
+.gmp-stat-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 4px 0;
+  font-size: 11px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.gmp-stat-row .k { color: var(--gmp-muted); }
+.gmp-stat-row .v { font-size: 10px; }
+
+.gmp-bar-track {
+  width: 100%;
+  height: 10px;
+  background: #221710;
+  border-radius: 4px;
+  overflow: hidden;
+  border: 1px solid #3a2a1a;
+  margin: 4px 0 8px;
+}
+
+.gmp-bar-fill {
+  height: 100%;
+  transition: width 0.15s;
+}
+
+.gmp-log {
+  margin-top: 8px;
+  max-height: 120px;
+  overflow-y: auto;
+  font-size: 10px;
+  line-height: 1.45;
+  color: var(--gmp-muted);
+}
+
+.gmp-swim-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid rgba(68, 136, 255, 0.35);
+  background: rgba(20, 40, 70, 0.55);
+  color: #8ec8ff;
+  font-size: 10px;
+}
+
+.gmp-hotbar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  gap: 6px;
+  justify-content: center;
+  padding: 8px 12px 10px;
+  background: #120c06;
+  border-top: 2px solid var(--gmp-gold);
+  pointer-events: auto;
+  z-index: 22;
+}
+
+.gmp-hb-slot {
+  width: 52px;
+  height: 52px;
+  border: 2px solid #3a2a1a;
+  border-radius: 6px;
+  background: #2a1e14;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-size: 8px;
+  color: var(--gmp-dim);
+  cursor: pointer;
+  position: relative;
+  transition: border-color 0.15s;
+}
+
+.gmp-hb-slot:hover { border-color: var(--gmp-gold); }
+.gmp-hb-slot .key {
+  position: absolute;
+  top: 2px;
+  left: 4px;
+  font-size: 8px;
+  color: var(--gmp-muted);
+}
+.gmp-hb-slot .name {
+  font-size: 7px;
+  text-align: center;
+  padding: 0 2px;
+  color: #ddd;
+}
+.gmp-hb-slot .cd {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  top: auto;
+  bottom: 0;
+}
+
+.gmp-hint {
+  position: absolute;
+  top: 52px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 10px;
+  opacity: 0.6;
+  background: rgba(18, 12, 6, 0.65);
+  padding: 3px 10px;
+  border-radius: 6px;
+  border: 1px solid #3a2a1a;
+  pointer-events: none;
+  z-index: 17;
+  white-space: nowrap;
+}
