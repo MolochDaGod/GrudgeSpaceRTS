@@ -1,6 +1,7 @@
 /**
- * GroundCombatView — /ground route: dangerroom R3F combat with Poly Haven terrain,
- * soft lock, RMB focus, block/parry, and MM movement.
+ * GroundCombatView — /ground route: Nexus Ground combat sandbox.
+ * Nexus toon bodies + survival origins + 8-stat point buy (no class roles).
+ * Stats/abilities from BIO·NEU·KIN·QNT·SYN·CHR·ENT·GRA.
  */
 
 import { DangerRoomGroundView } from "./DangerRoomGroundView";

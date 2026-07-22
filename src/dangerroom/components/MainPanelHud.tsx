@@ -5,6 +5,7 @@ import { playerMode } from "../state/playerMode";
 
 import { defaultWeaponBar } from "../data/weaponSkills";
 import { CombatCrosshair } from "./CombatCrosshair";
+import { NexusStatsPanel } from "./NexusStatsPanel";
 import "../styles/grudge-main-panel.css";
 
 export function MainPanelHud() {
@@ -23,7 +24,7 @@ export function MainPanelHud() {
   return (
     <div className="gmp-root" style={{ position: "absolute", inset: 0, pointerEvents: "none" }}>
       <header className="gmp-top-bar">
-        <div className="gmp-title">Ground Combat</div>
+        <div className="gmp-title">Nexus Ground</div>
         <div className="gmp-player-info">
           <span style={{ color: "var(--gmp-gold)", fontFamily: "Cinzel, serif" }}>{classDef.name}</span>
           <span style={{ color: "var(--gmp-muted)" }}>
@@ -36,6 +37,8 @@ export function MainPanelHud() {
           </div>
         </div>
       </header>
+
+      <NexusStatsPanel />
 
       <aside className="gmp-left-col">
         <div className="gmp-stat-row">

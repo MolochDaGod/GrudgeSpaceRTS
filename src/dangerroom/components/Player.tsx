@@ -9,9 +9,9 @@ import {
 } from "@react-three/rapier";
 import * as THREE from "three";
 import type { Group } from "three";
-import { Character } from "./Character";
-import { getRaceById } from "../data/classes";
+import { NexusToonCharacter } from "./NexusToonCharacter";
 import { useGame } from "../state/gameStore";
+import { getNexusToonByKey } from "../nexus/nexusToons";
 import { worldPositions, cameraRig } from "../state/world";
 import { combatAim, camForwardYaw } from "../state/combatAim";
 import { getTerrainHeight } from "../state/terrain";
@@ -565,8 +565,9 @@ export function Player() {
 
   if (!classDef || !state.raceId) return null;
 
-  const modelFolder = getRaceById(state.raceId)?.modelFolder ?? "crusade";
-  const modelPath = `${import.meta.env.BASE_URL}models/${modelFolder}/${state.raceId}_${classDef.id}.glb`;
+  // raceId stores Nexus toon key `gender:bodyId` (e.g. male:adventurer)
+  const toon = getNexusToonByKey(state.raceId);
+  const toonKey = toon ? state.raceId : "male:adventurer";
 
   return (
     <RigidBody
@@ -581,13 +582,13 @@ export function Player() {
         collisionGroups={collision.player}
       />
       <group ref={visualRef} position={[0, -CAP_OFFSET, 0]}>
-        <Character
-          modelPath={modelPath}
+        <NexusToonCharacter
+          toonKey={toonKey}
           animation={currentAnim}
           animationSeq={currentAnim === state.lastAbilityAnimation ? state.swingSeq : 0}
-          fallbackAnimation={classDef.idleAnimation}
+          fallbackAnimation="idle"
           onGroupReady={handleModelReady}
-          targetHeight={state.raceId === "orcs" ? 2 : undefined}
+          targetHeight={1.75}
         />
       </group>
     </RigidBody>

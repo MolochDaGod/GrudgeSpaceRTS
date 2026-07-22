@@ -4,7 +4,7 @@
  */
 
 import { GameProvider, useGame } from "../dangerroom/state/gameStore";
-import { ClassSelect } from "../dangerroom/components/ClassSelect";
+import { NexusToonSelect } from "../dangerroom/components/NexusToonSelect";
 import { GameCanvas } from "../dangerroom/GameCanvas";
 
 interface Props {
@@ -14,7 +14,7 @@ interface Props {
 
 function SandboxRoot() {
   const { classDef } = useGame();
-  return classDef ? <GameCanvas /> : <ClassSelect />;
+  return classDef ? <GameCanvas /> : <NexusToonSelect />;
 }
 
 export function DangerRoomGroundView({ planetName = "Training Grounds", onExit }: Props) {
@@ -64,7 +64,7 @@ export function DangerRoomGroundView({ planetName = "Training Grounds", onExit }
           textTransform: "uppercase",
         }}
       >
-        {planetName}
+        Nexus Ground · {planetName}
       </div>
       <div style={{ position: "absolute", inset: 0 }}>
         <GameProvider>

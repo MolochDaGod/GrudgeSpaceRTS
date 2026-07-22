@@ -91,12 +91,15 @@ export function ClassSelect() {
       <header style={styles.header}>
         <img src={activeFaction.emblem} alt={activeFaction.name} style={styles.crest} />
         <div>
-          <h1 style={styles.title}>GRUDGE WARLORDS</h1>
-          <div style={styles.kicker}>{activeFaction.name.toUpperCase()} · COMBAT SANDBOX</div>
+          <h1 style={styles.title}>NEXUS GROUND</h1>
+          <div style={styles.kicker}>
+            {activeFaction.name.toUpperCase()} · MODULAR GRUDGE6 · SURVIVAL STATS
+          </div>
         </div>
       </header>
       <p style={styles.subtitle}>
-        Choose your faction, forge a champion, and test your steel in the arena.
+        Deploy a grudge6 race kit with full animation packs. Nexus 8-stat loadouts
+        (BIO·NEU·KIN·QNT·SYN·CHR·ENT·GRA) and starter gear from Grudges / survival.
       </p>
 
       {/* Faction selection */}

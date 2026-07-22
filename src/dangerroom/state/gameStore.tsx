@@ -8,9 +8,22 @@ import {
   useRef,
 } from "react";
 import type { ReactNode } from "react";
-import { getClassById } from "../data/classes";
 import type { Ability, ClassDef } from "../data/types";
 import { ANIMAL_SPAWNS, DUMMY_SPAWNS, worldPositions } from "./world";
+import {
+  poolsFromNexus,
+  primaryResourceFromStats,
+  type NexusStats,
+  emptyNexusStats,
+} from "../nexus/attributes";
+import {
+  resolveLoadout,
+  sumLoadoutBonuses,
+  type NexusItemDef,
+} from "../nexus/items";
+import { getOrigin, applyOriginSeeds } from "../nexus/origins";
+import { buildSurvivorProfile } from "../nexus/survivalCombat";
+import { getNexusToonByKey } from "../nexus/nexusToons";
 import { combatAim } from "./combatAim";
 import {
   BLOCK_DAMAGE_MULT,
@@ -69,8 +82,12 @@ export interface LogEntry {
 }
 
 interface GameState {
+  /** Always `survivor` when deployed — no class roles. */
   classId: string | null;
+  /** Nexus toon key `gender:bodyId`. */
   raceId: string | null;
+  /** Survival origin id (military, medic, …). */
+  originId: string | null;
   hp: number;
   maxHp: number;
   resource: number;
@@ -94,10 +111,23 @@ interface GameState {
   lastAbilityAnimation: string;
   /** Increments on every ability use so one-shot attack clips restart from frame 0. */
   swingSeq: number;
+  /** Nexus 8-stat allocation (survival SSOT). */
+  nexusStats: NexusStats;
+  /** Equipped / bag item ids. */
+  inventory: string[];
+  loadout: NexusItemDef[];
+  /** Flat damage bonus from gear + nexus phys/mag blend. */
+  damageBonus: number;
+  armorBonus: number;
 }
 
 type Action =
-  | { type: "SELECT_CLASS"; classId: string; raceId: string }
+  | {
+      type: "DEPLOY_SURVIVOR";
+      toonKey: string;
+      originId: string;
+      nexusStats: NexusStats;
+    }
   | { type: "SET_TARGET"; targetId: string | null }
   | { type: "USE_ABILITY"; ability: Ability; now: number; inRange: boolean }
   | { type: "TICK"; now: number; dt: number }
@@ -141,6 +171,7 @@ function initialState(): GameState {
   return {
     classId: null,
     raceId: null,
+    originId: null,
     hp: 0,
     maxHp: 0,
     resource: 0,
@@ -163,6 +194,11 @@ function initialState(): GameState {
     swingUntil: 0,
     lastAbilityAnimation: "idle",
     swingSeq: 0,
+    nexusStats: emptyNexusStats(),
+    inventory: [],
+    loadout: [],
+    damageBonus: 0,
+    armorBonus: 0,
   };
 }
 
@@ -180,17 +216,42 @@ function pushLog(log: LogEntry[], text: string, now: number): LogEntry[] {
 
 function reducer(state: GameState, action: Action): GameState {
   switch (action.type) {
-    case "SELECT_CLASS": {
-      const def = getClassById(action.classId);
-      if (!def) return state;
+    case "DEPLOY_SURVIVOR": {
+      const origin = getOrigin(action.originId);
+      if (!origin) return state;
+      const nexus = { ...action.nexusStats };
+      const pools = poolsFromNexus(nexus);
+      const prim = primaryResourceFromStats(nexus);
+      const itemIds = origin.starterItems;
+      const loadout = resolveLoadout(itemIds);
+      const gear = sumLoadoutBonuses(loadout);
+      const maxHp = pools.maxHealth + gear.health;
+      const maxResource = prim.maxResource + gear.resource;
+      const damageBonus =
+        Math.max(pools.physicalDamage, pools.techDamage) + gear.damage;
+      const toon = getNexusToonByKey(action.toonKey);
       return {
         ...initialState(),
-        classId: def.id,
-        raceId: action.raceId,
-        hp: def.maxHp,
-        maxHp: def.maxHp,
-        resource: def.maxResource,
-        maxResource: def.maxResource,
+        classId: "survivor",
+        raceId: action.toonKey,
+        originId: origin.id,
+        hp: maxHp,
+        maxHp,
+        resource: maxResource,
+        maxResource,
+        nexusStats: nexus,
+        inventory: [...itemIds],
+        loadout,
+        damageBonus,
+        armorBonus: pools.armor + gear.armor,
+        speedMultiplier: 1 + gear.moveSpeed * 0.05,
+        log: [
+          {
+            id: nextId("log"),
+            text: `Nexus Ground · ${toon?.label ?? "Survivor"} (${origin.label}) · stats live.`,
+            createdAt: performance.now(),
+          },
+        ],
       };
     }
     case "SET_TARGET":
@@ -251,7 +312,11 @@ function reducer(state: GameState, action: Action): GameState {
         combatParry.riposteReady &&
         now < combatParry.riposteUntil &&
         (ability.effect === "melee" || ability.effect === "dash");
-      const strikePower = riposte ? Math.round(ability.power * RIPOSTE_DAMAGE_MULT) : ability.power;
+      // Ability base + Nexus gear/stat damage bonus
+      const basePower = ability.power + (state.damageBonus ?? 0) * 0.35;
+      const strikePower = Math.round(
+        riposte ? basePower * RIPOSTE_DAMAGE_MULT : basePower,
+      );
       if (riposte) {
         combatParry.riposteReady = false;
         nextState.log = pushLog(nextState.log, "Riposte! Counter-attack lands.", now);
@@ -427,9 +492,11 @@ function reducer(state: GameState, action: Action): GameState {
           log: pushLog(state.log, `Parry! ${attackerName}'s strike is deflected.`, now),
         };
       }
-      let dmg = damage;
+      // Armor mitigates flat damage (Nexus ENT + plate)
+      const armorMit = Math.min(0.55, (state.armorBonus ?? 0) / (state.armorBonus + 80));
+      let dmg = Math.round(damage * (1 - armorMit));
       const blocking = combatParry.blocking;
-      if (blocking) dmg = Math.round(damage * BLOCK_DAMAGE_MULT);
+      if (blocking) dmg = Math.round(dmg * BLOCK_DAMAGE_MULT);
       const absorbed = state.shield > 0 ? Math.min(state.shield, dmg) : 0;
       const hpLoss = Math.max(0, dmg - absorbed);
       let shield = Math.max(0, state.shield - absorbed);
@@ -611,7 +678,13 @@ function reducer(state: GameState, action: Action): GameState {
 interface GameContextValue {
   state: GameState;
   classDef: ClassDef | null;
+  /** @deprecated use deploySurvivor */
   selectClass: (classId: string, raceId: string) => void;
+  deploySurvivor: (args: {
+    toonKey: string;
+    originId: string;
+    nexusStats: NexusStats;
+  }) => void;
   setTarget: (id: string | null) => void;
   useAbility: (ability: Ability) => void;
   removeDamageNumber: (id: string) => void;
@@ -642,10 +715,21 @@ export function GameProvider({ children }: { children: ReactNode }) {
     return () => cancelAnimationFrame(raf);
   }, []);
 
-  const selectClass = useCallback(
-    (classId: string, raceId: string) => dispatch({ type: "SELECT_CLASS", classId, raceId }),
+  const deploySurvivor = useCallback(
+    (args: { toonKey: string; originId: string; nexusStats: NexusStats }) =>
+      dispatch({ type: "DEPLOY_SURVIVOR", ...args }),
     [],
   );
+  const selectClass = useCallback((_classId: string, raceId: string) => {
+    const origin = getOrigin("military")!;
+    const seeds = applyOriginSeeds(origin);
+    dispatch({
+      type: "DEPLOY_SURVIVOR",
+      toonKey: raceId.includes(":") ? raceId : `male:adventurer`,
+      originId: origin.id,
+      nexusStats: seeds,
+    });
+  }, []);
   const setTarget = useCallback((id: string | null) => dispatch({ type: "SET_TARGET", targetId: id }), []);
 
   const useAbility = useCallback((ability: Ability) => {
@@ -700,13 +784,20 @@ export function GameProvider({ children }: { children: ReactNode }) {
     [],
   );
 
-  const classDef = useMemo(() => (state.classId ? getClassById(state.classId) ?? null : null), [state.classId]);
+  const classDef = useMemo(() => {
+    if (!state.classId || !state.originId) return null;
+    const origin = getOrigin(state.originId);
+    if (!origin) return null;
+    const toon = state.raceId ? getNexusToonByKey(state.raceId) : undefined;
+    return buildSurvivorProfile(origin, state.nexusStats, toon?.label ?? "Survivor");
+  }, [state.classId, state.originId, state.nexusStats, state.raceId]);
 
   const value = useMemo<GameContextValue>(
     () => ({
       state,
       classDef,
       selectClass,
+      deploySurvivor,
       setTarget,
       useAbility,
       removeDamageNumber,
@@ -720,6 +811,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       state,
       classDef,
       selectClass,
+      deploySurvivor,
       setTarget,
       useAbility,
       removeDamageNumber,

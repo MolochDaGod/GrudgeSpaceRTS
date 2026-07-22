@@ -26,7 +26,8 @@ export interface Ability {
   mm?: number;
 }
 
-export type ClassKind = "knight" | "warrior" | "mage" | "ranger";
+/** Combat profile id — survival ground uses `survivor` only (no class roles). */
+export type ClassKind = "survivor" | "knight" | "warrior" | "mage" | "ranger";
 
 export interface ClassDef {
   id: ClassKind;
