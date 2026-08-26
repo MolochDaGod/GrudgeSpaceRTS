@@ -51,12 +51,111 @@ import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
 const CDN = 'https://assets.grudge-studio.com/gruda-armada';
+const CARRIER_CDN = 'https://assets.grudge-studio.com/carrier/models';
 const COLS = 8;
 const GAP_X = 18;
 const GAP_Z = 20;
 
-// Hulls from space-config / space-prefabs / asset-registry. Grouped by class (not resorted by HP).
+function C(rel, extra) {
+  return Object.assign({ pack:'carrier', model:rel, fmt: rel.split('.').pop().replace('gltf','glb') }, extra || {});
+}
+
+// Hulls from Carrier factionAssets + motherships + mechs, then Armada space-config.
 const SHIPS = [
+  // ── Carrier motherships (faction stations) ──
+  { key:'ms_scavengers', name:'Tech-Scavengers Pyramid Ark', cls:'mothership', tier:5, hp:2000, ...C('environment/stations/techscavenger-pyramid/PyramidShips.obj', { tex:'environment/stations/techscavenger-pyramid/PyramidShips.png', fmt:'obj' }) },
+  { key:'ms_hollow', name:'Hollow Lords Ring Cathedral', cls:'mothership', tier:5, hp:2000, pack:'carrier', fmt:'obj',
+    model:'environment/stations/hollowlords-station02/base/station02_base.obj',
+    tex:'environment/stations/hollowlords-station02/base/station02_base_diffuse.png',
+    parts:[
+      { pack:'carrier', model:'environment/stations/hollowlords-station02/base/station02_base.obj', tex:'environment/stations/hollowlords-station02/base/station02_base_diffuse.png', fmt:'obj' },
+      { pack:'carrier', model:'environment/stations/hollowlords-station02/ring/station02_ring.obj', fmt:'obj' },
+    ] },
+  { key:'ms_network', name:'Network Docking Hub', cls:'mothership', tier:5, hp:2000, pack:'carrier', fmt:'obj',
+    model:'environment/stations/network-station03/base/station03_base.obj',
+    parts:[
+      { pack:'carrier', model:'environment/stations/network-station03/base/station03_base.obj', fmt:'obj' },
+      { pack:'carrier', model:'environment/stations/network-station03/dock/station03_dock.obj', fmt:'obj' },
+    ] },
+  { key:'ms_brood', name:'Brood Hive Queen', cls:'mothership', tier:5, hp:2200, ...C('environment/stations/broodmother-hive-queen/hive_queen.glb') },
+  { key:'ms_prospector', name:'Prospector Belt Rig', cls:'mothership', tier:5, hp:2000, pack:'carrier', fmt:'obj',
+    model:'environment/stations/prospector-station05/base/station05.obj',
+    parts:[
+      { pack:'carrier', model:'environment/stations/prospector-station05/base/station05.obj', fmt:'obj' },
+      { pack:'carrier', model:'environment/stations/prospector-station05/ring/station05_ring.obj', fmt:'obj' },
+    ] },
+  { key:'ms_carrier_hull', name:'Carrier Capital Hull', cls:'mothership', tier:5, hp:1800, ...C('vehicles/space/carrier/spaceship.glb') },
+  // ── Carrier class hulls (mothership roster 0–5) ──
+  { key:'carrier_miner', name:'Miner (Ore Siphon)', cls:'mothership', tier:1, hp:900, ...C('vehicles/space/capital/destroyer-02.glb') },
+  { key:'carrier_scout', name:'Scout (Wide Sweep)', cls:'mothership', tier:1, hp:700, ...C('vehicles/space/raiders/swordfish.glb') },
+  { key:'carrier_corsair', name:'Corsair (Salvage Cutter)', cls:'mothership', tier:2, hp:1000, ...C('vehicles/space/capital/cruiser-03.glb') },
+  { key:'carrier_frigate', name:'Frigate (Aegis Projector)', cls:'mothership', tier:2, hp:1100, ...C('vehicles/space/capital/destroyer-01.glb') },
+  { key:'carrier_cruiser', name:'Cruiser (All-Range Battery)', cls:'mothership', tier:2, hp:1300, ...C('vehicles/space/capital/cruiser-01.glb') },
+  { key:'carrier_dreadnought', name:'Dreadnought (Capital Barrage)', cls:'mothership', tier:3, hp:2000, ...C('vehicles/space/capital/cruiser-02.glb') },
+  // ── Starter mechs ──
+  { key:'mech_vanguard', name:'Vanguard Mech', cls:'fighter', tier:1, hp:80, yaw:Math.PI, ...C('vehicles/space/fighters/fighter-player.glb') },
+  { key:'mech_lancer', name:'Lancer Mech', cls:'fighter', tier:2, hp:100, ...C('vehicles/space/fighters/interceptor/interceptor.fbx', { fmt:'fbx' }) },
+  { key:'mech_titan', name:'Titan Mech', cls:'bomber', tier:4, hp:140, ...C('vehicles/space/bombers/bomber/bomber.fbx', { fmt:'fbx' }) },
+  { key:'carrier_fighter_enemy', name:'Enemy Fighter', cls:'fighter', tier:1, hp:60, ...C('vehicles/space/fighters/interceptor-red/interceptor-red.fbx', { fmt:'fbx' }) },
+  // ── Tech-Scavengers fleet ──
+  { key:'scav_miner', name:'Scavengers Skimmer', cls:'worker', tier:1, hp:80, yaw:Math.PI, ...C('vehicles/space/fleet/skimmer.glb') },
+  { key:'scav_scout', name:'Scavengers Camo Jet', cls:'scout', tier:1, hp:55, ...C('vehicles/space/fleet/camo-jet/camo-jet.obj', { tex:'vehicles/space/fleet/camo-jet/camo-jet.png', fmt:'obj' }) },
+  { key:'scav_corsair', name:'Scavengers Interceptor', cls:'fighter', tier:2, hp:90, ...C('vehicles/space/fighters/interceptor/interceptor.fbx', { fmt:'fbx' }) },
+  { key:'scav_frigate', name:'Scavengers Transtellar', cls:'frigate', tier:3, hp:150, ...C('vehicles/space/fleet/transtellar/transtellar.obj', { tex:'vehicles/space/fleet/transtellar/transtellar.png', fmt:'obj' }) },
+  { key:'scav_cruiser', name:'Scavengers Concept Cruiser', cls:'cruiser', tier:4, hp:400, ...C('vehicles/space/raiders/spaceship-concept.glb') },
+  { key:'scav_dread', name:'Scavengers Bomber', cls:'dreadnought', tier:5, hp:800, ...C('vehicles/space/bombers/bomber/bomber.fbx', { fmt:'fbx' }) },
+  // ── Hollow Lords fleet ──
+  { key:'hol_miner', name:'Hollow Beamer', cls:'worker', tier:1, hp:80, ...C('vehicles/space/fleet/beamer.glb') },
+  { key:'hol_scout', name:'Hollow V-Shooter', cls:'scout', tier:1, hp:55, ...C('vehicles/space/fleet/v-shooter.glb') },
+  { key:'hol_corsair', name:'Hollow Raider I', cls:'fighter', tier:2, hp:90, ...C('vehicles/space/raiders/raider-01.glb') },
+  { key:'hol_frigate', name:'Hollow Raider II', cls:'frigate', tier:3, hp:150, ...C('vehicles/space/raiders/raider-02.glb') },
+  { key:'hol_cruiser', name:'Hollow Cruiser', cls:'cruiser', tier:4, hp:400, ...C('vehicles/space/capital/cruiser-01.glb') },
+  { key:'hol_dread', name:'Hollow Destroyer', cls:'dreadnought', tier:5, hp:800, ...C('vehicles/space/capital/destroyer-01.glb') },
+  // ── Network fleet ──
+  { key:'net_miner', name:'Network Cutter', cls:'worker', tier:1, hp:80, ...C('vehicles/space/fleet/cutter.glb') },
+  { key:'net_scout', name:'Network Tri-Shot', cls:'scout', tier:1, hp:55, ...C('vehicles/space/fleet/tri-shot.glb') },
+  { key:'net_corsair', name:'Network Raider III', cls:'fighter', tier:2, hp:90, ...C('vehicles/space/raiders/raider-03.glb') },
+  { key:'net_frigate', name:'Network Raider IV', cls:'frigate', tier:3, hp:150, ...C('vehicles/space/raiders/raider-04.glb') },
+  { key:'net_cruiser', name:'Network Cruiser', cls:'cruiser', tier:4, hp:420, ...C('vehicles/space/capital/cruiser-02.glb') },
+  { key:'net_dread', name:'Network Destroyer', cls:'dreadnought', tier:5, hp:850, ...C('vehicles/space/capital/destroyer-02.glb') },
+  // ── Brood Mother living fleet ──
+  { key:'brood_miner', name:'Brood Flesh-Hive Worm', cls:'worker', tier:2, hp:120, ...C('vehicles/space/brood/flesh-hive-worm.glb') },
+  { key:'brood_scout', name:'Brood Delphi Recon', cls:'scout', tier:2, hp:90, ...C('vehicles/space/brood/delphi-recon-station.glb') },
+  { key:'brood_corsair', name:'Brood Void Core', cls:'fighter', tier:3, hp:140, ...C('vehicles/space/brood/void-core.glb') },
+  { key:'brood_frigate', name:'Brood Bloodvein', cls:'frigate', tier:3, hp:180, ...C('vehicles/space/brood/bloodvein-frigate.glb') },
+  { key:'brood_cruiser', name:'Brood Hytri Cruiser', cls:'cruiser', tier:4, hp:500, ...C('vehicles/space/brood/hytri-cruiser.glb') },
+  { key:'brood_dread', name:'Brood Leviathan', cls:'dreadnought', tier:5, hp:2400, ...C('vehicles/space/brood/leviathan.glb') },
+  // ── Prospector fleet ──
+  { key:'pro_miner', name:'Prospector Twin-Engine', cls:'worker', tier:1, hp:80, ...C('vehicles/space/fleet/twin-engine.glb') },
+  { key:'pro_scout', name:'Prospector The Ram', cls:'scout', tier:1, hp:70, ...C('vehicles/space/fleet/the-ram.glb') },
+  { key:'pro_corsair', name:'Prospector Scout Hull', cls:'fighter', tier:2, hp:90, ...C('vehicles/space/fleet/scout.glb') },
+  { key:'pro_frigate', name:'Prospector Simple Ship', cls:'frigate', tier:3, hp:140, ...C('vehicles/space/raiders/simple-ship.glb') },
+  { key:'pro_cruiser', name:'Prospector Spaceship-01', cls:'cruiser', tier:4, hp:380, ...C('vehicles/space/raiders/spaceship-01.glb') },
+  { key:'pro_dread', name:'Prospector Spaceship', cls:'dreadnought', tier:5, hp:750, ...C('vehicles/space/raiders/spaceship.glb') },
+  // ── Extra Carrier vehicles not in a faction slot ──
+  { key:'car_horseshoe', name:'Horse-Shoe', cls:'fighter', tier:2, hp:70, ...C('vehicles/space/fleet/horse-shoe.glb') },
+  { key:'car_swirler', name:'Swirler', cls:'fighter', tier:2, hp:70, ...C('vehicles/space/fleet/swirler.glb') },
+  { key:'car_raider05', name:'Raider V', cls:'fighter', tier:2, hp:90, ...C('vehicles/space/raiders/raider-05.glb') },
+  { key:'car_raider06', name:'Raider VI', cls:'fighter', tier:2, hp:90, ...C('vehicles/space/raiders/raider-06.glb') },
+  { key:'car_destroyer03', name:'Destroyer III', cls:'destroyer', tier:4, hp:310, ...C('vehicles/space/capital/destroyer-03.glb') },
+  { key:'car_bomber_red', name:'Bomber Red', cls:'bomber', tier:4, hp:200, ...C('vehicles/space/bombers/bomber-red/bomber-red.fbx', { fmt:'fbx' }) },
+  { key:'car_orb', name:'Carrier Orb', cls:'scout', tier:1, hp:40, ...C('vehicles/space/orb/orb.glb') },
+  { key:'car_platform', name:'Cyberpunk Platform', cls:'station', tier:3, hp:400, ...C('environment/carrier/cyberpunk-platform.glb') },
+  // ── Drones ──
+  { key:'drone_worker', name:'Worker Drone', cls:'drone', tier:1, hp:30, ...C('vehicles/space/drones/worker.glb') },
+  { key:'drone_attack', name:'Attack Drone', cls:'drone', tier:1, hp:35, ...C('vehicles/space/drones/attack-drone.glb') },
+  { key:'drone_attack2', name:'Attack Drone T2', cls:'drone', tier:2, hp:50, ...C('vehicles/space/drones/attack-tier2.glb') },
+  { key:'drone_laser', name:'Defensive Laser Drone', cls:'drone', tier:2, hp:45, ...C('vehicles/space/drones/defensive-laser.glb') },
+  { key:'drone_hunter', name:'Hunter-Seeker', cls:'drone', tier:2, hp:55, ...C('vehicles/space/drones/hunter-seeker.glb') },
+  { key:'drone_scout', name:'Scout Fighter Drone', cls:'drone', tier:1, hp:40, ...C('vehicles/space/drones/scout-fighter.glb') },
+  { key:'drone_defense', name:'Starting Defense Drone', cls:'drone', tier:1, hp:40, ...C('vehicles/space/drones/starting-defense.glb') },
+  // ── Turrets ──
+  { key:'turret_heavy', name:'Heavy Metal Turret', cls:'turret', tier:3, hp:80, ...C('props/carrier/heavy-metal-turret.glb') },
+  { key:'turret_gun', name:'Rapid Pulse Turret', cls:'turret', tier:2, hp:40, ...C('props/carrier/turret-gun.glb') },
+  { key:'turret_cannon', name:'Heavy Cannon Turret', cls:'turret', tier:3, hp:60, ...C('props/carrier/turret-cannon.glb') },
+  { key:'turret_gun_b', name:'Turret Gun B', cls:'turret', tier:2, hp:40, ...C('props/turrets/turret-gun-b.glb') },
+  { key:'turret_pad', name:'Turret Pad', cls:'turret', tier:1, hp:30, ...C('props/turrets/turret-pad.glb') },
+  // ── Armada dreadnoughts ──
   // Dreadnoughts
   { key:'boss_ship_02', name:'Apex Dreadnought', cls:'dreadnought', tier:5, hp:2400, model:'/assets/space/models/new-ships/Ship_Boss_02_Hull.fbx', fmt:'fbx', tex:'/assets/space/models/new-ships/Ship_Boss_02_Hull.png' },
   { key:'boss_ship_01', name:'Command Dreadnought', cls:'dreadnought', tier:5, hp:1600, model:'/assets/space/models/new-ships/Ship_Boos_01_Hull.fbx', fmt:'fbx', tex:'/assets/space/models/new-ships/Ship_Boos_01_Hull.png' },
@@ -225,6 +324,19 @@ const CLASS_FALLBACK = {
     { model:'/assets/space/models/stations/EnergyShip/EnergyShip.fbx', fmt:'fbx', tex:'/assets/space/models/stations/EnergyShip/EnergyShip.png' },
     { model:'/assets/space/models/stations/Minador/Minador.obj', mtl:'/assets/space/models/stations/Minador/Minador.mtl', tex:'/assets/space/models/stations/Minador/Minador.png', fmt:'obj' },
   ],
+  mothership: [
+    { pack:'carrier', model:'vehicles/space/carrier/spaceship.glb', fmt:'glb' },
+    { pack:'carrier', model:'vehicles/space/capital/cruiser-02.glb', fmt:'glb' },
+    { model:'/assets/space/models/stations/Station/Station.fbx', fmt:'fbx', tex:'/assets/space/models/stations/Station/Station.png' },
+  ],
+  turret: [
+    { pack:'carrier', model:'props/carrier/turret-gun.glb', fmt:'glb' },
+    { pack:'carrier', model:'props/carrier/turret-cannon.glb', fmt:'glb' },
+  ],
+  drone: [
+    { pack:'carrier', model:'vehicles/space/drones/worker.glb', fmt:'glb' },
+    { pack:'carrier', model:'vehicles/space/drones/scout-fighter.glb', fmt:'glb' },
+  ],
 };
 
 const LAST_RESORT = {
@@ -302,7 +414,14 @@ function cdnPath(path) {
   return `${CDN}/${encodeURI(rel)}`;
 }
 
-function candidateUrls(path) {
+function candidateUrls(path, pack) {
+  if (pack === 'carrier') {
+    const rel = path.replace(/^\/assets\/carrier\/models\//, '').replace(/^\//, '');
+    return [
+      '/assets/carrier/models/' + encodeURI(rel),
+      CARRIER_CDN + '/' + encodeURI(rel),
+    ];
+  }
   const local = encodeAsset(path);
   const cdn = cdnPath(path);
   return local === cdn ? [local] : [local, cdn];
@@ -437,7 +556,8 @@ function mountHullJets(obj, size) {
 function applyLook(obj, ship) {
   const texUrl = ship.tex;
   if (texUrl) {
-    const texture = texLoader.load(encodeAsset(texUrl));
+    const urls = candidateUrls(texUrl, ship.pack);
+    const texture = texLoader.load(urls[0]);
     texture.colorSpace = THREE.SRGBColorSpace;
     obj.traverse(c => {
       if (c.isMesh) {
@@ -455,7 +575,9 @@ function applyLook(obj, ship) {
 }
 
 function placeShip(obj, ship, x, z) {
-  autoOrientShip(obj);
+  const grounded = ship.cls === 'mothership' || ship.cls === 'station' || ship.cls === 'turret';
+  if (ship.yaw != null) obj.rotation.y = ship.yaw;
+  else if (!grounded) autoOrientShip(obj);
   const maxDim = meshExtent(obj) || 1;
   const targetSize = 2 + Math.log2(Math.max(ship.hp, 10)) * 1.5;
   obj.scale.setScalar(targetSize / maxDim);
@@ -467,14 +589,14 @@ function placeShip(obj, ship, x, z) {
   const axes = new THREE.AxesHelper(targetSize * 0.45);
   axes.name = 'shipAxes';
   obj.add(axes);
-  mountHullJets(obj, targetSize);
+  if (ship.cls !== 'turret' && ship.cls !== 'station') mountHullJets(obj, targetSize);
   scene.add(obj);
   shipMeshes.push({ mesh: obj, worldPos: new THREE.Vector3(x, 4, z), ship });
 }
 
 function loadOnce(spec) {
   return new Promise((resolve, reject) => {
-    const urls = candidateUrls(spec.model);
+    const urls = candidateUrls(spec.model, spec.pack);
     const tryUrl = (idx) => {
       if (idx >= urls.length) { reject(new Error('all urls failed')); return; }
       const url = urls[idx];
@@ -489,7 +611,7 @@ function loadOnce(spec) {
         } else if (spec.fmt === 'glb' || spec.fmt === 'gltf') {
           new GLTFLoader().load(url, (gltf) => ok(gltf.scene), undefined, fail);
         } else if (spec.fmt === 'obj' && spec.mtl) {
-          const mtlUrls = candidateUrls(spec.mtl);
+          const mtlUrls = candidateUrls(spec.mtl, spec.pack);
           const tryMtl = (mi) => {
             if (mi >= mtlUrls.length) {
               new OBJLoader().load(url, ok, undefined, fail);
@@ -514,9 +636,27 @@ function loadOnce(spec) {
   });
 }
 
+async function loadSpec(spec) {
+  if (spec.parts && spec.parts.length > 1) {
+    const g = new THREE.Group();
+    for (const p of spec.parts) {
+      try {
+        const child = await loadOnce(p);
+        if (p.tex) applyLook(child, p);
+        g.add(child);
+      } catch (e) {
+        console.warn('Part failed', p.model, e);
+      }
+    }
+    if (!g.children.length) throw new Error('empty assembly');
+    return g;
+  }
+  return loadOnce(spec);
+}
+
 async function loadShip(ship, x, z) {
   const tried = new Set([ship.model]);
-  const queue = [{ model: ship.model, mtl: ship.mtl, tex: ship.tex, fmt: ship.fmt }];
+  const queue = [ship];
   for (const fb of (CLASS_FALLBACK[ship.cls] || [])) {
     if (!tried.has(fb.model)) {
       tried.add(fb.model);
@@ -526,7 +666,7 @@ async function loadShip(ship, x, z) {
   if (!tried.has(LAST_RESORT.model)) queue.push(LAST_RESORT);
   for (let i = 0; i < queue.length; i++) {
     try {
-      const obj = await loadOnce(queue[i]);
+      const obj = await loadSpec(queue[i]);
       const used = { ...ship, tex: queue[i].tex || ship.tex };
       placeShip(obj, used, x, z);
       if (i > 0) {
