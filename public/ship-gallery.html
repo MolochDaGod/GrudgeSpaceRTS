@@ -12,7 +12,7 @@
   * { margin:0; padding:0; box-sizing:border-box; }
   body { background:#000; color:#cde; font-family:'Segoe UI',system-ui,sans-serif; overflow:hidden; }
   #ui { position:fixed; top:0; left:0; right:0; z-index:10; padding:10px 20px;
-    background:linear-gradient(180deg,rgba(0,6,20,0.95),transparent); display:flex; align-items:center; gap:16px; }
+    background:linear-gradient(180deg,rgba(0,6,20,0.95),transparent); display:flex; align-items:center; gap:16px; flex-wrap:wrap; }
   #ui h1 { font-size:18px; letter-spacing:3px; color:#4ff; text-shadow:0 0 12px #0aa; }
   #ui .info { font-size:12px; opacity:0.6; }
   button { background:rgba(68,136,255,0.2); border:1px solid #4488ff; color:#cde; padding:6px 16px;
@@ -33,7 +33,7 @@
   <button onclick="resetCamera()">🎯 Reset View</button>
 </div>
 <div id="labels"></div>
-<div id="status">Scroll to zoom · Drag to orbit</div>
+<div id="status">8 per row · Scroll to zoom · Drag to orbit</div>
 <canvas id="c"></canvas>
 
 <script type="importmap">
@@ -50,90 +50,192 @@ import { MTLLoader } from 'three/addons/loaders/MTLLoader.js';
 import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
-// ── All ships ordered biggest → smallest (by HP as proxy for size) ──
+const CDN = 'https://assets.grudge-studio.com/gruda-armada';
+const COLS = 8;
+const GAP_X = 18;
+const GAP_Z = 20;
+
+// Hulls from space-config / space-prefabs / asset-registry. Grouped by class (not resorted by HP).
 const SHIPS = [
-  // Dreadnoughts / Boss
-  { key:'boss_ship_02', name:'Apex Dreadnought', tier:5, hp:2400, model:'/assets/space/models/new-ships/Ship_Boss_02_Hull.fbx', fmt:'fbx', s:0.045 },
-  { key:'boss_ship_01', name:'Command Dreadnought', tier:5, hp:1600, model:'/assets/space/models/new-ships/Ship_Boos_01_Hull.fbx', fmt:'fbx', s:0.045 },
-  // Battleship
-  { key:'battleship', name:'Battleship', tier:5, hp:800, model:'/assets/space/models/capital/Battleships/Battleship.fbx', fmt:'fbx', s:0.024, tex:'/assets/space/models/capital/Battleships/Battleship.png' },
-  // Cruiser
-  { key:'cruiser', name:'Cruiser', tier:4, hp:400, model:'/assets/space/models/capital/Cruiser/Cruiser.fbx', fmt:'fbx', s:0.027, tex:'/assets/space/models/capital/Cruiser/Cruiser.png' },
-  // Light Cruisers
-  { key:'cf_light_cruiser_01', name:'Prism Cruiser', tier:4, hp:320, model:'/assets/space/models/battle-ships/Light cruiser_01.fbx', fmt:'fbx', s:0.024 },
-  { key:'cf_light_cruiser_02', name:'Leviathan', tier:4, hp:380, model:'/assets/space/models/battle-ships/Light cruiser_02.fbx', fmt:'fbx', s:0.024 },
-  { key:'cf_light_cruiser_03', name:'Cruiser Mk.III', tier:4, hp:350, model:'/assets/space/models/battle-ships/Light cruiser_03.fbx', fmt:'fbx', s:0.024 },
-  { key:'cf_light_cruiser_04', name:'Forge Cruiser', tier:4, hp:340, model:'/assets/space/models/battle-ships/Light cruiser_04.fbx', fmt:'fbx', s:0.024 },
-  { key:'cf_light_cruiser_05', name:'Cruiser Mk.V', tier:4, hp:400, model:'/assets/space/models/battle-ships/Light cruiser_05.fbx', fmt:'fbx', s:0.024 },
+  // Dreadnoughts
+  { key:'boss_ship_02', name:'Apex Dreadnought', cls:'dreadnought', tier:5, hp:2400, model:'/assets/space/models/new-ships/Ship_Boss_02_Hull.fbx', fmt:'fbx', tex:'/assets/space/models/new-ships/Ship_Boss_02_Hull.png' },
+  { key:'boss_ship_01', name:'Command Dreadnought', cls:'dreadnought', tier:5, hp:1600, model:'/assets/space/models/new-ships/Ship_Boos_01_Hull.fbx', fmt:'fbx', tex:'/assets/space/models/new-ships/Ship_Boos_01_Hull.png' },
+  { key:'custom_hero', name:'Custom Hero Ship', cls:'dreadnought', tier:5, hp:1000, model:'/assets/space/models/new-ships/Ship_Boss_02_Hull.fbx', fmt:'fbx', tex:'/assets/space/models/new-ships/Ship_Boss_02_Hull.png' },
+  { key:'hero_construct_titan', name:'Construct Titan', cls:'dreadnought', tier:5, hp:1100, model:'/assets/space/models/new-ships/Ship_Boos_01_Hull.fbx', fmt:'fbx', tex:'/assets/space/models/new-ships/Ship_Boos_01_Hull.png' },
+  // Battleships / heroes
+  { key:'battleship', name:'Battleship', cls:'battleship', tier:5, hp:800, model:'/assets/space/models/capital/Battleships/Battleship.fbx', fmt:'fbx', tex:'/assets/space/models/capital/Battleships/Battleship.png' },
+  { key:'fp_capital_01', name:'Leviathan Capital', cls:'battleship', tier:5, hp:850, model:'/assets/space/models/forge-prefabs/spaceship_10.fbx', fmt:'fbx' },
+  { key:'vanguard_prime', name:'Vanguard Prime', cls:'battleship', tier:5, hp:1200, model:'/assets/space/models/new-ships/Spaceship_main_01_Hull.fbx', fmt:'fbx', tex:'/assets/space/models/new-ships/Spaceship_main_01_Hull.png' },
+  { key:'boss_captain_02', name:'Corsair Warlord', cls:'battleship', tier:5, hp:700, model:'/assets/space/models/new-ships/Spaceship_main_02_Hull.fbx', fmt:'fbx', tex:'/assets/space/models/new-ships/Spaceship_main_02_Hull.png' },
+  // Cruisers
+  { key:'cruiser', name:'Cruiser', cls:'cruiser', tier:4, hp:400, model:'/assets/space/models/capital/Cruiser/Cruiser.fbx', fmt:'fbx', tex:'/assets/space/models/capital/Cruiser/Cruiser.png' },
+  { key:'cf_light_cruiser_01', name:'Prism Cruiser', cls:'cruiser', tier:4, hp:320, model:'/assets/space/models/battle-ships/Light cruiser_01.fbx', fmt:'fbx', tex:'/assets/space/models/battle-ships/Light cruiser_01.png' },
+  { key:'cf_light_cruiser_02', name:'Leviathan', cls:'cruiser', tier:4, hp:380, model:'/assets/space/models/battle-ships/Light cruiser_02.fbx', fmt:'fbx', tex:'/assets/space/models/battle-ships/Light cruiser_02.png' },
+  { key:'cf_light_cruiser_03', name:'Cruiser Mk.III', cls:'cruiser', tier:4, hp:350, model:'/assets/space/models/battle-ships/Light cruiser_03.fbx', fmt:'fbx', tex:'/assets/space/models/battle-ships/Light cruiser_03.png' },
+  { key:'cf_light_cruiser_04', name:'Forge Cruiser', cls:'cruiser', tier:4, hp:340, model:'/assets/space/models/battle-ships/Light cruiser_04.fbx', fmt:'fbx', tex:'/assets/space/models/battle-ships/Light cruiser_04.png' },
+  { key:'cf_light_cruiser_05', name:'Cruiser Mk.V', cls:'cruiser', tier:4, hp:400, model:'/assets/space/models/battle-ships/Light cruiser_05.fbx', fmt:'fbx', tex:'/assets/space/models/battle-ships/Light cruiser_05.png' },
+  { key:'fp_cruiser_01', name:'Warden', cls:'cruiser', tier:3, hp:360, model:'/assets/space/models/forge-prefabs/spaceship_4.fbx', fmt:'fbx' },
+  { key:'fp_cruiser_02', name:'Sentinel', cls:'cruiser', tier:4, hp:420, model:'/assets/space/models/forge-prefabs/spaceship_5.fbx', fmt:'fbx' },
+  { key:'fp_heavy_dark', name:'Obsidian', cls:'cruiser', tier:3, hp:380, model:'/assets/space/models/forge-prefabs/heavy_ship_black.glb', fmt:'glb' },
+  { key:'fp_heavy_light', name:'Aurora', cls:'cruiser', tier:2, hp:220, model:'/assets/space/models/forge-prefabs/heavy_ship_white.glb', fmt:'glb' },
+  { key:'iron_bastion', name:'Iron Bastion', cls:'cruiser', tier:5, hp:800, model:'/assets/space/models/new-ships/Spaceship_main_03_Hull.fbx', fmt:'fbx', tex:'/assets/space/models/new-ships/Spaceship_main_03_Hull.png' },
+  { key:'boss_captain_01', name:'Skull Dreadlord', cls:'cruiser', tier:4, hp:500, model:'/assets/space/models/new-ships/Ship_enemy_12_Hull.fbx', fmt:'fbx', tex:'/assets/space/models/new-ships/Ship_enemy_12_Hull.png' },
+  { key:'boss_captain_03', name:'Claw Overlord', cls:'cruiser', tier:4, hp:600, model:'/assets/space/models/new-ships/Spaceship_main_03_Hull.fbx', fmt:'fbx', tex:'/assets/space/models/new-ships/Spaceship_main_03_Hull.png' },
+  { key:'hero_wisdom_oracle', name:'Oracle of Wisdom', cls:'cruiser', tier:5, hp:900, model:'/assets/space/models/new-ships/Ship_enemy_04_Hull.fbx', fmt:'fbx', tex:'/assets/space/models/new-ships/Ship_enemy_04_Hull.png' },
+  { key:'hero_legion_warlord', name:'Legion Warlord', cls:'cruiser', tier:5, hp:950, model:'/assets/space/models/new-ships/Ship_enemy_10_Hull.fbx', fmt:'fbx', tex:'/assets/space/models/new-ships/Ship_enemy_10_Hull.png' },
+  { key:'plague_mother', name:'Plague Mother', cls:'cruiser', tier:5, hp:600, model:'/assets/space/models/new-ships/Ship_enemy_05_Hull.fbx', fmt:'fbx', tex:'/assets/space/models/new-ships/Ship_enemy_05_Hull.png' },
   // Destroyers
-  { key:'destroyer', name:'Destroyer', tier:4, hp:250, model:'/assets/space/models/capital/Destroyer/Destroyer.fbx', fmt:'fbx', s:0.03, tex:'/assets/space/models/capital/Destroyer/Destroyer.png' },
-  { key:'cf_destroyer_01', name:'Destroyer Mk.I', tier:4, hp:270, model:'/assets/space/models/battle-ships/Destroyer_01.fbx', fmt:'fbx', s:0.027 },
-  { key:'cf_destroyer_02', name:'Destroyer Mk.II', tier:4, hp:290, model:'/assets/space/models/battle-ships/Destroyer_02.fbx', fmt:'fbx', s:0.027 },
-  { key:'cf_destroyer_03', name:'Storm Destroyer', tier:4, hp:260, model:'/assets/space/models/battle-ships/Destroyer_03.fbx', fmt:'fbx', s:0.027 },
-  { key:'cf_destroyer_04', name:'Destroyer Mk.IV', tier:4, hp:310, model:'/assets/space/models/battle-ships/Destroyer_04.fbx', fmt:'fbx', s:0.027 },
-  { key:'cf_destroyer_05', name:'Tempest Destroyer', tier:4, hp:300, model:'/assets/space/models/battle-ships/Destroyer_05.fbx', fmt:'fbx', s:0.027 },
-  // Bomber
-  { key:'bomber', name:'Bomber', tier:4, hp:200, model:'/assets/space/models/capital/Bomber/Bomber.fbx', fmt:'fbx', s:0.036, tex:'/assets/space/models/capital/Bomber/Bomber.png' },
+  { key:'destroyer', name:'Destroyer', cls:'destroyer', tier:4, hp:250, model:'/assets/space/models/capital/Destroyer/Destroyer.fbx', fmt:'fbx', tex:'/assets/space/models/capital/Destroyer/Destroyer.png' },
+  { key:'cf_destroyer_01', name:'Destroyer Mk.I', cls:'destroyer', tier:4, hp:270, model:'/assets/space/models/battle-ships/Destroyer_01.fbx', fmt:'fbx', tex:'/assets/space/models/battle-ships/Destroyer_01.png' },
+  { key:'cf_destroyer_02', name:'Destroyer Mk.II', cls:'destroyer', tier:4, hp:290, model:'/assets/space/models/battle-ships/Destroyer_02.fbx', fmt:'fbx', tex:'/assets/space/models/battle-ships/Destroyer_02.png' },
+  { key:'cf_destroyer_03', name:'Storm Destroyer', cls:'destroyer', tier:4, hp:260, model:'/assets/space/models/battle-ships/Destroyer_03.fbx', fmt:'fbx', tex:'/assets/space/models/battle-ships/Destroyer_03.png' },
+  { key:'cf_destroyer_04', name:'Destroyer Mk.IV', cls:'destroyer', tier:4, hp:310, model:'/assets/space/models/battle-ships/Destroyer_04.fbx', fmt:'fbx', tex:'/assets/space/models/battle-ships/Destroyer_04.png' },
+  { key:'cf_destroyer_05', name:'Tempest Destroyer', cls:'destroyer', tier:4, hp:300, model:'/assets/space/models/battle-ships/Destroyer_05.fbx', fmt:'fbx', tex:'/assets/space/models/battle-ships/Destroyer_05.png' },
+  { key:'fp_destroyer_01', name:'Havoc', cls:'destroyer', tier:4, hp:280, model:'/assets/space/models/forge-prefabs/spaceship_8.fbx', fmt:'fbx' },
+  { key:'fp_destroyer_02', name:'Reaver', cls:'destroyer', tier:4, hp:305, model:'/assets/space/models/forge-prefabs/spaceship_9.fbx', fmt:'fbx' },
+  { key:'storm_herald', name:'Storm Herald', cls:'destroyer', tier:5, hp:400, model:'/assets/space/models/new-ships/Ship_enemy_08_Hull.fbx', fmt:'fbx', tex:'/assets/space/models/new-ships/Ship_enemy_08_Hull.png' },
+  // Bombers
+  { key:'bomber', name:'Bomber', cls:'bomber', tier:4, hp:200, model:'/assets/space/models/capital/Bomber/Bomber.fbx', fmt:'fbx', tex:'/assets/space/models/capital/Bomber/Bomber.png' },
+  { key:'pirate_06', name:'Pirate Bombard', cls:'bomber', tier:3, hp:120, model:'/assets/space/models/new-ships/Ship_enemy_11_Hull.fbx', fmt:'fbx', tex:'/assets/space/models/new-ships/Ship_enemy_11_Hull.png' },
   // Frigates
-  { key:'cf_frigate_01', name:'Frigate Mk.I', tier:2, hp:120, model:'/assets/space/models/battle-ships/Frigate_01.fbx', fmt:'fbx', s:0.027, tex:'/assets/space/models/battle-ships/T_Spase_64.png' },
-  { key:'cf_frigate_02', name:'Frigate Mk.II', tier:3, hp:135, model:'/assets/space/models/battle-ships/Frigate_02.fbx', fmt:'fbx', s:0.027, tex:'/assets/space/models/battle-ships/T_Spase_64.png' },
-  { key:'cf_frigate_03', name:'Siege Frigate', tier:3, hp:150, model:'/assets/space/models/battle-ships/Frigate_03.fbx', fmt:'fbx', s:0.027, tex:'/assets/space/models/battle-ships/T_Spase_64.png' },
-  { key:'cf_frigate_04', name:'Frigate Mk.IV', tier:3, hp:140, model:'/assets/space/models/battle-ships/Frigate_04.fbx', fmt:'fbx', s:0.027, tex:'/assets/space/models/battle-ships/T_Spase_blue.png' },
-  { key:'cf_frigate_05', name:'Frigate Mk.V', tier:3, hp:160, model:'/assets/space/models/battle-ships/Frigate_05.fbx', fmt:'fbx', s:0.027, tex:'/assets/space/models/battle-ships/T_Spase_blue.png' },
-  // Assault Frigates (OBJ voxel)
-  { key:'warship', name:'Warship', tier:3, hp:150, model:'/assets/space/models/ships/Warship/Warship.obj', mtl:'/assets/space/models/ships/Warship/Warship.mtl', tex:'/assets/space/models/ships/Warship/Warship.png', fmt:'obj', s:0.045 },
-  { key:'pyramid_ship', name:'PyramidShip', tier:3, hp:140, model:'/assets/space/models/ships/PyramidShip/PyramidShips.obj', mtl:'/assets/space/models/ships/PyramidShip/PyramidShips.mtl', tex:'/assets/space/models/ships/PyramidShip/PyramidShips.png', fmt:'obj', s:0.054 },
+  { key:'cf_frigate_01', name:'Frigate Mk.I', cls:'frigate', tier:2, hp:120, model:'/assets/space/models/battle-ships/Frigate_01.fbx', fmt:'fbx', tex:'/assets/space/models/battle-ships/Frigate_01.png' },
+  { key:'cf_frigate_02', name:'Frigate Mk.II', cls:'frigate', tier:3, hp:135, model:'/assets/space/models/battle-ships/Frigate_02.fbx', fmt:'fbx', tex:'/assets/space/models/battle-ships/Frigate_02.png' },
+  { key:'cf_frigate_03', name:'Siege Frigate', cls:'frigate', tier:3, hp:150, model:'/assets/space/models/battle-ships/Frigate_03.fbx', fmt:'fbx', tex:'/assets/space/models/battle-ships/Frigate_03.png' },
+  { key:'cf_frigate_04', name:'Frigate Mk.IV', cls:'frigate', tier:3, hp:140, model:'/assets/space/models/battle-ships/Frigate_04.fbx', fmt:'fbx', tex:'/assets/space/models/battle-ships/Frigate_04.png' },
+  { key:'cf_frigate_05', name:'Frigate Mk.V', cls:'frigate', tier:3, hp:160, model:'/assets/space/models/battle-ships/Frigate_05.fbx', fmt:'fbx', tex:'/assets/space/models/battle-ships/Frigate_05.png' },
+  { key:'fp_frigate_01', name:'Corsair', cls:'frigate', tier:2, hp:130, model:'/assets/space/models/forge-prefabs/spaceship_6.fbx', fmt:'fbx' },
+  { key:'fp_frigate_02', name:'Buccaneer', cls:'frigate', tier:3, hp:155, model:'/assets/space/models/forge-prefabs/spaceship_7.fbx', fmt:'fbx' },
+  { key:'pirate_04', name:'Pirate Brigantine', cls:'frigate', tier:3, hp:150, model:'/assets/space/models/new-ships/Ship_enemy_07_Hull.fbx', fmt:'fbx', tex:'/assets/space/models/new-ships/Ship_enemy_07_Hull.png' },
+  { key:'warship', name:'Warship', cls:'frigate', tier:3, hp:150, model:'/assets/space/models/ships/Warship/Warship.obj', mtl:'/assets/space/models/ships/Warship/Warship.mtl', tex:'/assets/space/models/ships/Warship/Warship.png', fmt:'obj' },
+  { key:'pyramid_ship', name:'Pyramid Flagship', cls:'frigate', tier:3, hp:140, model:'/assets/space/models/ships/PyramidShip/PyramidShips.obj', mtl:'/assets/space/models/ships/PyramidShip/PyramidShips.mtl', tex:'/assets/space/models/ships/PyramidShip/PyramidShips.png', fmt:'obj' },
   // Transports
-  { key:'star_marine_trooper', name:'StarMarineTrooper', tier:3, hp:120, model:'/assets/space/models/ships/StarMarineTrooper/StarMarineTrooper.obj', mtl:'/assets/space/models/ships/StarMarineTrooper/StarMarineTrooper.mtl', tex:'/assets/space/models/ships/StarMarineTrooper/StarMarineTrooper.png', fmt:'obj', s:0.042 },
-  { key:'transtellar', name:'Transtellar', tier:2, hp:110, model:'/assets/space/models/ships/Transtellar/Transtellar.obj', mtl:'/assets/space/models/ships/Transtellar/Transtellar.mtl', tex:'/assets/space/models/ships/Transtellar/Transtellar.png', fmt:'obj', s:0.06 },
-  { key:'interstellar_runner', name:'InterstellarRunner', tier:2, hp:100, model:'/assets/space/models/ships/InterstellarRunner/InterstellarRunner.obj', mtl:'/assets/space/models/ships/InterstellarRunner/InterstellarRunner.mtl', tex:'/assets/space/models/ships/InterstellarRunner/InterstellarRunner.png', fmt:'obj', s:0.075 },
+  { key:'star_marine_trooper', name:'StarMarineTrooper', cls:'transport', tier:3, hp:120, model:'/assets/space/models/ships/StarMarineTrooper/StarMarineTrooper.obj', mtl:'/assets/space/models/ships/StarMarineTrooper/StarMarineTrooper.mtl', tex:'/assets/space/models/ships/StarMarineTrooper/StarMarineTrooper.png', fmt:'obj' },
+  { key:'transtellar', name:'Transtellar', cls:'transport', tier:2, hp:110, model:'/assets/space/models/ships/Transtellar/Transtellar.obj', mtl:'/assets/space/models/ships/Transtellar/Transtellar.mtl', tex:'/assets/space/models/ships/Transtellar/Transtellar.png', fmt:'obj' },
+  { key:'interstellar_runner', name:'InterstellarRunner', cls:'transport', tier:2, hp:100, model:'/assets/space/models/ships/InterstellarRunner/InterstellarRunner.obj', mtl:'/assets/space/models/ships/InterstellarRunner/InterstellarRunner.mtl', tex:'/assets/space/models/ships/InterstellarRunner/InterstellarRunner.png', fmt:'obj' },
   // Corvettes
-  { key:'cf_corvette_01', name:'Corvette Mk.I', tier:1, hp:55, model:'/assets/space/models/battle-ships/Corvette_01.fbx', fmt:'fbx', s:0.030, tex:'/assets/space/models/battle-ships/T_Spase_64.png' },
-  { key:'cf_corvette_02', name:'Corvette Mk.II', tier:2, hp:65, model:'/assets/space/models/battle-ships/Corvette_02.fbx', fmt:'fbx', s:0.030, tex:'/assets/space/models/battle-ships/T_Spase_64.png' },
-  { key:'cf_corvette_03', name:'Corvette Mk.III', tier:2, hp:75, model:'/assets/space/models/battle-ships/Corvette_03.fbx', fmt:'fbx', s:0.030, tex:'/assets/space/models/battle-ships/T_Spase_64.png' },
-  { key:'cf_corvette_04', name:'Tide Corvette', tier:2, hp:80, model:'/assets/space/models/battle-ships/Corvette_04.fbx', fmt:'fbx', s:0.030, tex:'/assets/space/models/battle-ships/T_Spase_blue.png' },
-  { key:'cf_corvette_05', name:'Phantom Corvette', tier:2, hp:60, model:'/assets/space/models/battle-ships/Corvette_05.fbx', fmt:'fbx', s:0.030, tex:'/assets/space/models/battle-ships/T_Spase_blue.png' },
-  // Heavy fighters
-  { key:'ultraviolet_intruder', name:'UltravioletIntruder', tier:3, hp:90, model:'/assets/space/models/ships/UltravioletIntruder/UltravioletIntruder.obj', mtl:'/assets/space/models/ships/UltravioletIntruder/UltravioletIntruder.mtl', tex:'/assets/space/models/ships/UltravioletIntruder/UltravioletIntruder.png', fmt:'obj', s:0.042 },
-  { key:'dual_striker', name:'DualStriker', tier:2, hp:80, model:'/assets/space/models/ships/DualStriker/DualStriker.obj', mtl:'/assets/space/models/ships/DualStriker/DualStriker.mtl', tex:'/assets/space/models/ships/DualStriker/DualStriker.png', fmt:'obj', s:0.036 },
+  { key:'cf_corvette_01', name:'Corvette Mk.I', cls:'corvette', tier:1, hp:55, model:'/assets/space/models/battle-ships/Corvette_01.fbx', fmt:'fbx', tex:'/assets/space/models/battle-ships/Corvette_01.png' },
+  { key:'cf_corvette_02', name:'Corvette Mk.II', cls:'corvette', tier:2, hp:65, model:'/assets/space/models/battle-ships/Corvette_02.fbx', fmt:'fbx', tex:'/assets/space/models/battle-ships/Corvette_02.png' },
+  { key:'cf_corvette_03', name:'Corvette Mk.III', cls:'corvette', tier:2, hp:75, model:'/assets/space/models/battle-ships/Corvette_03.fbx', fmt:'fbx', tex:'/assets/space/models/battle-ships/Corvette_03.png' },
+  { key:'cf_corvette_04', name:'Tide Corvette', cls:'corvette', tier:2, hp:80, model:'/assets/space/models/battle-ships/Corvette_04.fbx', fmt:'fbx', tex:'/assets/space/models/battle-ships/Corvette_04.png' },
+  { key:'cf_corvette_05', name:'Phantom Corvette', cls:'corvette', tier:2, hp:60, model:'/assets/space/models/battle-ships/Corvette_05.fbx', fmt:'fbx', tex:'/assets/space/models/battle-ships/Corvette_05.png' },
+  { key:'pirate_01', name:'Pirate Raider', cls:'corvette', tier:2, hp:80, model:'/assets/space/models/new-ships/Ship_enemy_01_Hull.fbx', fmt:'fbx', tex:'/assets/space/models/new-ships/Ship_enemy_01_Hull.png' },
   // Fighters
-  { key:'meteor_slicer', name:'MeteorSlicer', tier:2, hp:70, model:'/assets/space/models/ships/MeteorSlicer/MeteorSlicer.obj', mtl:'/assets/space/models/ships/MeteorSlicer/MeteorSlicer.mtl', tex:'/assets/space/models/ships/MeteorSlicer/MeteorSlicer.png', fmt:'obj', s:0.054 },
-  { key:'red_fighter', name:'RedFighter', tier:1, hp:60, model:'/assets/space/models/ships/RedFighter/RedFighter.obj', mtl:'/assets/space/models/ships/RedFighter/RedFighter.mtl', tex:'/assets/space/models/ships/RedFighter/RedFighter.png', fmt:'obj', s:0.045 },
-  // Stealth
-  { key:'infrared_furtive', name:'InfraredFurtive', tier:2, hp:55, model:'/assets/space/models/ships/InfraredFurtive/InfraredFurtive.obj', mtl:'/assets/space/models/ships/InfraredFurtive/InfraredFurtive.mtl', tex:'/assets/space/models/ships/InfraredFurtive/InfraredFurtive.png', fmt:'obj', s:0.075 },
-  { key:'camo_stellar_jet', name:'CamoStellarJet', tier:2, hp:50, model:'/assets/space/models/ships/CamoStellarJet/CamoStellarJet.obj', mtl:'/assets/space/models/ships/CamoStellarJet/CamoStellarJet.mtl', tex:'/assets/space/models/ships/CamoStellarJet/CamoStellarJet.png', fmt:'obj', s:0.06 },
-  // Interceptor
-  { key:'galactix_racer', name:'GalactixRacer', tier:1, hp:45, model:'/assets/space/models/ships/GalactixRacer/GalactixRacer.obj', mtl:'/assets/space/models/ships/GalactixRacer/GalactixRacer.mtl', tex:'/assets/space/models/ships/GalactixRacer/GalactixRacer.png', fmt:'obj', s:0.06 },
-  // Scout
-  { key:'micro_recon', name:'MicroRecon', tier:1, hp:30, model:'/assets/space/models/ships/MicroRecon/MicroRecon.obj', mtl:'/assets/space/models/ships/MicroRecon/MicroRecon.mtl', tex:'/assets/space/models/ships/MicroRecon/MicroRecon.png', fmt:'obj', s:0.06 },
+  { key:'ultraviolet_intruder', name:'UltravioletIntruder', cls:'fighter', tier:3, hp:90, model:'/assets/space/models/ships/UltravioletIntruder/UltravioletIntruder.obj', mtl:'/assets/space/models/ships/UltravioletIntruder/UltravioletIntruder.mtl', tex:'/assets/space/models/ships/UltravioletIntruder/UltravioletIntruder.png', fmt:'obj' },
+  { key:'dual_striker', name:'DualStriker', cls:'fighter', tier:2, hp:80, model:'/assets/space/models/ships/DualStriker/DualStriker.obj', mtl:'/assets/space/models/ships/DualStriker/DualStriker.mtl', tex:'/assets/space/models/ships/DualStriker/DualStriker.png', fmt:'obj' },
+  { key:'meteor_slicer', name:'MeteorSlicer', cls:'fighter', tier:2, hp:70, model:'/assets/space/models/ships/MeteorSlicer/MeteorSlicer.obj', mtl:'/assets/space/models/ships/MeteorSlicer/MeteorSlicer.mtl', tex:'/assets/space/models/ships/MeteorSlicer/MeteorSlicer.png', fmt:'obj' },
+  { key:'red_fighter', name:'RedFighter', cls:'fighter', tier:1, hp:60, model:'/assets/space/models/ships/RedFighter/RedFighter.obj', mtl:'/assets/space/models/ships/RedFighter/RedFighter.mtl', tex:'/assets/space/models/ships/RedFighter/RedFighter.png', fmt:'obj' },
+  { key:'fp_fighter_01', name:'Viper', cls:'fighter', tier:1, hp:55, model:'/assets/space/models/forge-prefabs/spaceship_1.fbx', fmt:'fbx' },
+  { key:'fp_fighter_02', name:'Hornet', cls:'fighter', tier:2, hp:75, model:'/assets/space/models/forge-prefabs/spaceship_2.fbx', fmt:'fbx' },
+  { key:'fp_fighter_03', name:'Talon', cls:'fighter', tier:2, hp:65, model:'/assets/space/models/forge-prefabs/spaceship_3.fbx', fmt:'fbx' },
+  { key:'pirate_02', name:'Pirate Interceptor', cls:'fighter', tier:1, hp:55, model:'/assets/space/models/new-ships/Ship_enemy_02_Hull.fbx', fmt:'fbx', tex:'/assets/space/models/new-ships/Ship_enemy_02_Hull.png' },
+  { key:'pirate_03', name:'Pirate Marauder', cls:'fighter', tier:2, hp:100, model:'/assets/space/models/new-ships/Ship_enemy_03_Hull.fbx', fmt:'fbx', tex:'/assets/space/models/new-ships/Ship_enemy_03_Hull.png' },
+  // Stealth / interceptor / scout
+  { key:'infrared_furtive', name:'InfraredFurtive', cls:'stealth', tier:2, hp:55, model:'/assets/space/models/ships/InfraredFurtive/InfraredFurtive.obj', mtl:'/assets/space/models/ships/InfraredFurtive/InfraredFurtive.mtl', tex:'/assets/space/models/ships/InfraredFurtive/InfraredFurtive.png', fmt:'obj' },
+  { key:'camo_stellar_jet', name:'CamoStellarJet', cls:'stealth', tier:2, hp:50, model:'/assets/space/models/ships/CamoStellarJet/CamoStellarJet.obj', mtl:'/assets/space/models/ships/CamoStellarJet/CamoStellarJet.mtl', tex:'/assets/space/models/ships/CamoStellarJet/CamoStellarJet.png', fmt:'obj' },
+  { key:'shadow_reaper', name:'Shadow Reaper', cls:'stealth', tier:5, hp:200, model:'/assets/space/models/new-ships/Spaceship_main_02_Hull.fbx', fmt:'fbx', tex:'/assets/space/models/new-ships/Spaceship_main_02_Hull.png' },
+  { key:'pirate_05', name:'Pirate Phantom', cls:'stealth', tier:2, hp:60, model:'/assets/space/models/new-ships/Ship_enemy_09_Hull.fbx', fmt:'fbx', tex:'/assets/space/models/new-ships/Ship_enemy_09_Hull.png' },
+  { key:'hero_void_wraith', name:'Void Wraith', cls:'stealth', tier:5, hp:220, model:'/assets/space/models/new-ships/Ship_enemy_06_Hull.fbx', fmt:'fbx', tex:'/assets/space/models/new-ships/Ship_enemy_06_Hull.png' },
+  { key:'galactix_racer', name:'GalactixRacer', cls:'fighter', tier:1, hp:45, model:'/assets/space/models/ships/GalactixRacer/GalactixRacer.obj', mtl:'/assets/space/models/ships/GalactixRacer/GalactixRacer.mtl', tex:'/assets/space/models/ships/GalactixRacer/GalactixRacer.png', fmt:'obj' },
+  { key:'micro_recon', name:'MicroRecon', cls:'scout', tier:1, hp:30, model:'/assets/space/models/ships/MicroRecon/MicroRecon.obj', mtl:'/assets/space/models/ships/MicroRecon/MicroRecon.mtl', tex:'/assets/space/models/ships/MicroRecon/MicroRecon.png', fmt:'obj' },
   // Voxel fleet
-  { key:'voxel_ship_1', name:'Voxel Ship 1', tier:1, hp:50, model:'/assets/space/models/voxel-fleet/Spaceship1.obj', mtl:'/assets/space/models/voxel-fleet/Spaceship1.mtl', fmt:'obj', s:0.009 },
-  { key:'voxel_ship_2', name:'Voxel Ship 2', tier:1, hp:50, model:'/assets/space/models/voxel-fleet/Spaceship2.obj', mtl:'/assets/space/models/voxel-fleet/Spaceship2.mtl', fmt:'obj', s:0.009 },
-  { key:'voxel_ship_3', name:'Voxel Ship 3', tier:1, hp:50, model:'/assets/space/models/voxel-fleet/Spaceship3.obj', mtl:'/assets/space/models/voxel-fleet/Spaceship3.mtl', fmt:'obj', s:0.009 },
-  { key:'voxel_ship_4', name:'Voxel Ship 4', tier:2, hp:60, model:'/assets/space/models/voxel-fleet/Spaceship4.obj', mtl:'/assets/space/models/voxel-fleet/Spaceship4.mtl', fmt:'obj', s:0.009 },
-  { key:'voxel_ship_5', name:'Voxel Ship 5', tier:2, hp:70, model:'/assets/space/models/voxel-fleet/Spaceship5.obj', mtl:'/assets/space/models/voxel-fleet/Spaceship5.mtl', fmt:'obj', s:0.009 },
-  { key:'voxel_ship_6', name:'Voxel Ship 6', tier:3, hp:80, model:'/assets/space/models/voxel-fleet/Spaceship6.obj', mtl:'/assets/space/models/voxel-fleet/Spaceship6.mtl', fmt:'obj', s:0.009 },
-  // Workers / Vehicles
-  { key:'mining_drone', name:'Mining Drone', tier:1, hp:25, model:'/assets/space/models/vehicles/Tracer/Tracer-0-Tracer.obj', mtl:'/assets/space/models/vehicles/Tracer/Tracer-0-Tracer.mtl', fmt:'obj', s:0.03 },
-  { key:'energy_skimmer', name:'Energy Skimmer', tier:1, hp:20, model:'/assets/space/models/vehicles/Scooter/Scooter-0-Scooter.obj', mtl:'/assets/space/models/vehicles/Scooter/Scooter-0-Scooter.mtl', fmt:'obj', s:0.03 },
+  { key:'voxel_ship_1', name:'Voxel Ship 1', cls:'fighter', tier:1, hp:50, model:'/assets/space/models/voxel-fleet/Spaceship1.obj', mtl:'/assets/space/models/voxel-fleet/Spaceship1.mtl', fmt:'obj' },
+  { key:'voxel_ship_2', name:'Voxel Ship 2', cls:'fighter', tier:1, hp:50, model:'/assets/space/models/voxel-fleet/Spaceship2.obj', mtl:'/assets/space/models/voxel-fleet/Spaceship2.mtl', fmt:'obj' },
+  { key:'voxel_ship_3', name:'Voxel Ship 3', cls:'fighter', tier:1, hp:50, model:'/assets/space/models/voxel-fleet/Spaceship3.obj', mtl:'/assets/space/models/voxel-fleet/Spaceship3.mtl', fmt:'obj' },
+  { key:'voxel_ship_4', name:'Voxel Ship 4', cls:'fighter', tier:2, hp:60, model:'/assets/space/models/voxel-fleet/Spaceship4.obj', mtl:'/assets/space/models/voxel-fleet/Spaceship4.mtl', fmt:'obj' },
+  { key:'voxel_ship_5', name:'Voxel Ship 5', cls:'fighter', tier:2, hp:70, model:'/assets/space/models/voxel-fleet/Spaceship5.obj', mtl:'/assets/space/models/voxel-fleet/Spaceship5.mtl', fmt:'obj' },
+  { key:'voxel_ship_6', name:'Voxel Ship 6', cls:'frigate', tier:3, hp:80, model:'/assets/space/models/voxel-fleet/Spaceship6.obj', mtl:'/assets/space/models/voxel-fleet/Spaceship6.mtl', fmt:'obj' },
+  // Workers
+  { key:'mining_drone', name:'Mining Drone', cls:'worker', tier:1, hp:25, model:'/assets/space/models/vehicles/Tracer/Tracer-0-Tracer.obj', mtl:'/assets/space/models/vehicles/Tracer/Tracer-0-Tracer.mtl', fmt:'obj' },
+  { key:'energy_skimmer', name:'Energy Skimmer', cls:'worker', tier:1, hp:20, model:'/assets/space/models/vehicles/Scooter/Scooter-0-Scooter.obj', mtl:'/assets/space/models/vehicles/Scooter/Scooter-0-Scooter.mtl', fmt:'obj' },
   // Enemies
-  { key:'enemy_mega_boss', name:'Enemy Mega Boss', tier:5, hp:3000, model:'/assets/space/models/enemies/Enemies/EnemyHuge2.fbx', fmt:'fbx', s:0.012 },
-  { key:'enemy_huge', name:'Enemy Huge', tier:4, hp:1500, model:'/assets/space/models/enemies/Enemies/EnemyHuge.fbx', fmt:'fbx', s:0.015 },
-  { key:'enemy_cruiser', name:'Enemy Cruiser', tier:3, hp:400, model:'/assets/space/models/enemies/Enemies/Enemy Cruiser.fbx', fmt:'fbx', s:0.024 },
-  { key:'enemy_destroyer', name:'Enemy Destroyer', tier:3, hp:250, model:'/assets/space/models/enemies/Enemies/Enemy destroyer.fbx', fmt:'fbx', s:0.027 },
-  { key:'enemy_fighter', name:'Enemy Fighter', tier:1, hp:60, model:'/assets/space/models/enemies/Enemies/Fighter/Fighter.fbx', fmt:'fbx', s:0.045 },
+  { key:'enemy_mega_boss', name:'Enemy Mega Boss', cls:'enemy', tier:5, hp:3000, model:'/assets/space/models/enemies/Enemies/EnemyHuge2.fbx', fmt:'fbx', tex:'/assets/space/models/enemies/Enemies/EnemyHuge2.png' },
+  { key:'enemy_huge', name:'Enemy Huge', cls:'enemy', tier:4, hp:1500, model:'/assets/space/models/enemies/Enemies/EnemyHuge.fbx', fmt:'fbx', tex:'/assets/space/models/enemies/Enemies/EnemyHuge.png' },
+  { key:'enemy_cruiser', name:'Enemy Cruiser', cls:'enemy', tier:3, hp:400, model:'/assets/space/models/new-ships/Ship_enemy_03_Hull.fbx', fmt:'fbx', tex:'/assets/space/models/new-ships/Ship_enemy_03_Hull.png' },
+  { key:'enemy_destroyer', name:'Enemy Destroyer', cls:'enemy', tier:3, hp:250, model:'/assets/space/models/new-ships/Ship_enemy_07_Hull.fbx', fmt:'fbx', tex:'/assets/space/models/new-ships/Ship_enemy_07_Hull.png' },
+  { key:'enemy_fighter', name:'Enemy Fighter', cls:'enemy', tier:1, hp:60, model:'/assets/space/models/new-ships/Ship_enemy_02_Hull.fbx', fmt:'fbx', tex:'/assets/space/models/new-ships/Ship_enemy_02_Hull.png' },
   // Stations
-  { key:'station', name:'Station', tier:3, hp:500, model:'/assets/space/models/stations/Station/Station.fbx', fmt:'fbx', s:0.045 },
-  { key:'energy_ship', name:'EnergyShip', tier:2, hp:200, model:'/assets/space/models/stations/EnergyShip/EnergyShip.fbx', fmt:'fbx', s:0.03 },
-  { key:'minador', name:'Minador', tier:2, hp:150, model:'/assets/space/models/stations/Minador/Minador.fbx', fmt:'fbx', s:0.024 },
+  { key:'station', name:'Station', cls:'station', tier:3, hp:500, model:'/assets/space/models/stations/Station/Station.fbx', fmt:'fbx', tex:'/assets/space/models/stations/Station/Station.png' },
+  { key:'energy_ship', name:'EnergyShip', cls:'station', tier:2, hp:200, model:'/assets/space/models/stations/EnergyShip/EnergyShip.fbx', fmt:'fbx', tex:'/assets/space/models/stations/EnergyShip/EnergyShip.png' },
+  { key:'minador', name:'Minador', cls:'station', tier:2, hp:150, model:'/assets/space/models/stations/Minador/Minador.obj', mtl:'/assets/space/models/stations/Minador/Minador.mtl', tex:'/assets/space/models/stations/Minador/Minador.png', fmt:'obj' },
 ];
 
-// Sort biggest first
-SHIPS.sort((a,b) => b.hp - a.hp);
+// Same-class stand-ins from the prefab / R2 registry when a hull fails to parse.
+const CLASS_FALLBACK = {
+  dreadnought: [
+    { model:'/assets/space/models/new-ships/Ship_Boss_02_Hull.fbx', fmt:'fbx', tex:'/assets/space/models/new-ships/Ship_Boss_02_Hull.png' },
+    { model:'/assets/space/models/forge-prefabs/spaceship_10.fbx', fmt:'fbx' },
+    { model:'/assets/space/models/forge-prefabs/heavy_ship_black.glb', fmt:'glb' },
+  ],
+  battleship: [
+    { model:'/assets/space/models/capital/Battleships/Battleship.fbx', fmt:'fbx', tex:'/assets/space/models/capital/Battleships/Battleship.png' },
+    { model:'/assets/space/models/new-ships/Spaceship_main_01_Hull.fbx', fmt:'fbx', tex:'/assets/space/models/new-ships/Spaceship_main_01_Hull.png' },
+    { model:'/assets/space/models/forge-prefabs/heavy_ship_black.glb', fmt:'glb' },
+  ],
+  cruiser: [
+    { model:'/assets/space/models/battle-ships/Light cruiser_01.fbx', fmt:'fbx', tex:'/assets/space/models/battle-ships/Light cruiser_01.png' },
+    { model:'/assets/space/models/capital/Cruiser/Cruiser.fbx', fmt:'fbx', tex:'/assets/space/models/capital/Cruiser/Cruiser.png' },
+    { model:'/assets/space/models/forge-prefabs/spaceship_4.fbx', fmt:'fbx' },
+  ],
+  destroyer: [
+    { model:'/assets/space/models/battle-ships/Destroyer_01.fbx', fmt:'fbx', tex:'/assets/space/models/battle-ships/Destroyer_01.png' },
+    { model:'/assets/space/models/capital/Destroyer/Destroyer.fbx', fmt:'fbx', tex:'/assets/space/models/capital/Destroyer/Destroyer.png' },
+    { model:'/assets/space/models/forge-prefabs/spaceship_8.fbx', fmt:'fbx' },
+  ],
+  bomber: [
+    { model:'/assets/space/models/capital/Bomber/Bomber.fbx', fmt:'fbx', tex:'/assets/space/models/capital/Bomber/Bomber.png' },
+    { model:'/assets/space/models/heavy-bomber/scene.gltf', fmt:'glb' },
+  ],
+  frigate: [
+    { model:'/assets/space/models/battle-ships/Frigate_01.fbx', fmt:'fbx', tex:'/assets/space/models/battle-ships/Frigate_01.png' },
+    { model:'/assets/space/models/forge-prefabs/spaceship_6.fbx', fmt:'fbx' },
+    { model:'/assets/space/models/ships/Warship/Warship.obj', mtl:'/assets/space/models/ships/Warship/Warship.mtl', tex:'/assets/space/models/ships/Warship/Warship.png', fmt:'obj' },
+  ],
+  transport: [
+    { model:'/assets/space/models/ships/Transtellar/Transtellar.obj', mtl:'/assets/space/models/ships/Transtellar/Transtellar.mtl', tex:'/assets/space/models/ships/Transtellar/Transtellar.png', fmt:'obj' },
+    { model:'/assets/space/models/cargo-transport/scene.gltf', fmt:'glb' },
+  ],
+  corvette: [
+    { model:'/assets/space/models/battle-ships/Corvette_01.fbx', fmt:'fbx', tex:'/assets/space/models/battle-ships/Corvette_01.png' },
+    { model:'/assets/space/models/forge-prefabs/spaceship_1.fbx', fmt:'fbx' },
+  ],
+  fighter: [
+    { model:'/assets/space/models/ships/RedFighter/RedFighter.obj', mtl:'/assets/space/models/ships/RedFighter/RedFighter.mtl', tex:'/assets/space/models/ships/RedFighter/RedFighter.png', fmt:'obj' },
+    { model:'/assets/space/models/forge-prefabs/spaceship_1.fbx', fmt:'fbx' },
+    { model:'/assets/space/models/new-ships/Ship_enemy_02_Hull.fbx', fmt:'fbx', tex:'/assets/space/models/new-ships/Ship_enemy_02_Hull.png' },
+  ],
+  stealth: [
+    { model:'/assets/space/models/ships/InfraredFurtive/InfraredFurtive.obj', mtl:'/assets/space/models/ships/InfraredFurtive/InfraredFurtive.mtl', tex:'/assets/space/models/ships/InfraredFurtive/InfraredFurtive.png', fmt:'obj' },
+    { model:'/assets/space/models/ships/CamoStellarJet/CamoStellarJet.obj', mtl:'/assets/space/models/ships/CamoStellarJet/CamoStellarJet.mtl', tex:'/assets/space/models/ships/CamoStellarJet/CamoStellarJet.png', fmt:'obj' },
+  ],
+  scout: [
+    { model:'/assets/space/models/ships/MicroRecon/MicroRecon.obj', mtl:'/assets/space/models/ships/MicroRecon/MicroRecon.mtl', tex:'/assets/space/models/ships/MicroRecon/MicroRecon.png', fmt:'obj' },
+    { model:'/assets/space/models/forge-prefabs/spaceship_1.fbx', fmt:'fbx' },
+  ],
+  worker: [
+    { model:'/assets/space/models/vehicles/Tracer/Tracer-0-Tracer.obj', mtl:'/assets/space/models/vehicles/Tracer/Tracer-0-Tracer.mtl', fmt:'obj' },
+    { model:'/assets/space/models/ships/MicroRecon/MicroRecon.obj', mtl:'/assets/space/models/ships/MicroRecon/MicroRecon.mtl', tex:'/assets/space/models/ships/MicroRecon/MicroRecon.png', fmt:'obj' },
+  ],
+  enemy: [
+    { model:'/assets/space/models/new-ships/Ship_enemy_01_Hull.fbx', fmt:'fbx', tex:'/assets/space/models/new-ships/Ship_enemy_01_Hull.png' },
+    { model:'/assets/space/models/enemies/Enemies/Fighter/Fighter.fbx', fmt:'fbx' },
+    { model:'/assets/space/models/forge-prefabs/spaceship_3.fbx', fmt:'fbx' },
+  ],
+  station: [
+    { model:'/assets/space/models/stations/Station/Station.fbx', fmt:'fbx', tex:'/assets/space/models/stations/Station/Station.png' },
+    { model:'/assets/space/models/stations/EnergyShip/EnergyShip.fbx', fmt:'fbx', tex:'/assets/space/models/stations/EnergyShip/EnergyShip.png' },
+    { model:'/assets/space/models/stations/Minador/Minador.obj', mtl:'/assets/space/models/stations/Minador/Minador.mtl', tex:'/assets/space/models/stations/Minador/Minador.png', fmt:'obj' },
+  ],
+};
+
+const LAST_RESORT = {
+  model:'/assets/space/models/ships/RedFighter/RedFighter.obj',
+  mtl:'/assets/space/models/ships/RedFighter/RedFighter.mtl',
+  tex:'/assets/space/models/ships/RedFighter/RedFighter.png',
+  fmt:'obj',
+};
 
 const TIER_COL = { 1:'#44cc88', 2:'#4488ff', 3:'#aa44ff', 4:'#ff8822', 5:'#ffcc00' };
 
-// ── Setup Three.js ──────────────────────────────────────────────
 const canvas = document.getElementById('c');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias:true, preserveDrawingBuffer:true });
 renderer.setSize(window.innerWidth, window.innerHeight);
@@ -142,17 +244,13 @@ renderer.setClearColor(0x020610);
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 
 const scene = new THREE.Scene();
-scene.fog = new THREE.FogExp2(0x020610, 0.003);
+scene.fog = new THREE.FogExp2(0x020610, 0.004);
 
-const camera = new THREE.PerspectiveCamera(50, window.innerWidth/window.innerHeight, 0.1, 2000);
-camera.position.set(0, 30, 80);
-
+const camera = new THREE.PerspectiveCamera(50, window.innerWidth/window.innerHeight, 0.1, 4000);
 const controls = new OrbitControls(camera, canvas);
 controls.enableDamping = true;
 controls.dampingFactor = 0.08;
-controls.target.set(0, 0, 0);
 
-// Lights
 scene.add(new THREE.AmbientLight(0x334466, 1.5));
 const dLight = new THREE.DirectionalLight(0xffffff, 2.0);
 dLight.position.set(20, 40, 30);
@@ -160,132 +258,220 @@ scene.add(dLight);
 const dLight2 = new THREE.DirectionalLight(0x4488ff, 0.8);
 dLight2.position.set(-20, 10, -20);
 scene.add(dLight2);
-const pLight = new THREE.PointLight(0x44ffcc, 1.0, 200);
+const pLight = new THREE.PointLight(0x44ffcc, 1.0, 400);
 pLight.position.set(0, 20, 0);
 scene.add(pLight);
 
-// Grid floor
-const grid = new THREE.GridHelper(400, 80, 0x112233, 0x0a1520);
+const rows = Math.ceil(SHIPS.length / COLS);
+const gridSpanX = Math.max(COLS * GAP_X, 80);
+const gridSpanZ = Math.max(rows * GAP_Z, 80);
+const grid = new THREE.GridHelper(Math.max(gridSpanX, gridSpanZ) + 40, 80, 0x112233, 0x0a1520);
 grid.position.y = -2;
 scene.add(grid);
 
-// Stars
 const starGeo = new THREE.BufferGeometry();
 const starVerts = [];
 for(let i=0; i<3000; i++) {
-  starVerts.push((Math.random()-0.5)*800, Math.random()*200+20, (Math.random()-0.5)*800);
+  starVerts.push((Math.random()-0.5)*1200, Math.random()*200+20, (Math.random()-0.5)*1200);
 }
 starGeo.setAttribute('position', new THREE.Float32BufferAttribute(starVerts, 3));
 scene.add(new THREE.Points(starGeo, new THREE.PointsMaterial({ size:0.3, color:0x668899 })));
 
-// ── Loaders ─────────────────────────────────────────────────────
-const objLoader = new OBJLoader();
-const mtlLoader = new MTLLoader();
-const fbxLoader = new FBXLoader();
-const gltfLoader = new GLTFLoader();
 const texLoader = new THREE.TextureLoader();
 
-const shipMeshes = []; // { mesh, worldPos, ship }
+const shipMeshes = [];
+const stats = { loaded: 0, fallback: 0, failed: 0, failedKeys: [], substituted: [] };
+window.GALLERY_STATS = stats;
 
-async function loadShip(ship, xPos) {
-  return new Promise((resolve) => {
-    const onLoad = (obj) => {
-      // Normalize scale: scale to fit a uniform bounding box, then multiply by tier-based size
-      const box = new THREE.Box3().setFromObject(obj);
-      const size = new THREE.Vector3();
-      box.getSize(size);
-      const maxDim = Math.max(size.x, size.y, size.z) || 1;
-      // Target display size scales with HP (logarithmic so big ships don't overwhelm)
-      const targetSize = 2 + Math.log2(Math.max(ship.hp, 10)) * 1.5;
-      const uniformScale = targetSize / maxDim;
-      obj.scale.setScalar(uniformScale);
+function slotPos(i) {
+  const col = i % COLS;
+  const row = Math.floor(i / COLS);
+  return {
+    x: (col - (COLS - 1) / 2) * GAP_X,
+    z: (row - (rows - 1) / 2) * GAP_Z,
+  };
+}
 
-      // Center vertically
-      const box2 = new THREE.Box3().setFromObject(obj);
-      const center = new THREE.Vector3();
-      box2.getCenter(center);
-      obj.position.set(xPos, -center.y + 2, 0);
+function encodeAsset(path) {
+  if (!path) return path;
+  return encodeURI(path);
+}
 
-      // Apply texture if provided
-      if (ship.tex) {
-        const texture = texLoader.load(ship.tex);
-        texture.colorSpace = THREE.SRGBColorSpace;
-        obj.traverse(c => {
-          if (c.isMesh) {
-            c.material = new THREE.MeshStandardMaterial({ map: texture, metalness:0.4, roughness:0.6 });
-          }
-        });
-      } else {
-        obj.traverse(c => {
-          if (c.isMesh && c.material) {
-            if (Array.isArray(c.material)) {
-              c.material.forEach(m => { m.metalness = 0.3; m.roughness = 0.6; });
-            } else {
-              c.material.metalness = 0.3;
-              c.material.roughness = 0.6;
+function cdnPath(path) {
+  const rel = path.replace(/^\/assets\//, '');
+  return `${CDN}/${encodeURI(rel)}`;
+}
+
+function candidateUrls(path) {
+  const local = encodeAsset(path);
+  const cdn = cdnPath(path);
+  return local === cdn ? [local] : [local, cdn];
+}
+
+function dirOf(path) {
+  const i = path.lastIndexOf('/');
+  return i >= 0 ? path.slice(0, i + 1) : '/';
+}
+
+function meshExtent(obj) {
+  const box = new THREE.Box3().setFromObject(obj);
+  const size = new THREE.Vector3();
+  box.getSize(size);
+  return Math.max(size.x, size.y, size.z);
+}
+
+function applyLook(obj, ship) {
+  const texUrl = ship.tex;
+  if (texUrl) {
+    const texture = texLoader.load(encodeAsset(texUrl));
+    texture.colorSpace = THREE.SRGBColorSpace;
+    obj.traverse(c => {
+      if (c.isMesh) {
+        c.material = new THREE.MeshStandardMaterial({ map: texture, metalness:0.4, roughness:0.6 });
+      }
+    });
+  } else {
+    obj.traverse(c => {
+      if (c.isMesh && c.material) {
+        const mats = Array.isArray(c.material) ? c.material : [c.material];
+        mats.forEach(m => { m.metalness = 0.3; m.roughness = 0.6; });
+      }
+    });
+  }
+}
+
+function placeShip(obj, ship, x, z) {
+  const maxDim = meshExtent(obj) || 1;
+  const targetSize = 2 + Math.log2(Math.max(ship.hp, 10)) * 1.5;
+  obj.scale.setScalar(targetSize / maxDim);
+  const box2 = new THREE.Box3().setFromObject(obj);
+  const center = new THREE.Vector3();
+  box2.getCenter(center);
+  obj.position.set(x - center.x, -center.y + 2, z - center.z);
+  applyLook(obj, ship);
+  scene.add(obj);
+  shipMeshes.push({ mesh: obj, worldPos: new THREE.Vector3(x, 4, z), ship });
+}
+
+function loadOnce(spec) {
+  return new Promise((resolve, reject) => {
+    const urls = candidateUrls(spec.model);
+    const tryUrl = (idx) => {
+      if (idx >= urls.length) { reject(new Error('all urls failed')); return; }
+      const url = urls[idx];
+      const fail = () => tryUrl(idx + 1);
+      const ok = (obj) => {
+        if (!obj || meshExtent(obj) < 0.001) { fail(); return; }
+        resolve(obj);
+      };
+      try {
+        if (spec.fmt === 'fbx') {
+          new FBXLoader().load(url, ok, undefined, fail);
+        } else if (spec.fmt === 'glb' || spec.fmt === 'gltf') {
+          new GLTFLoader().load(url, (gltf) => ok(gltf.scene), undefined, fail);
+        } else if (spec.fmt === 'obj' && spec.mtl) {
+          const mtlUrls = candidateUrls(spec.mtl);
+          const tryMtl = (mi) => {
+            if (mi >= mtlUrls.length) {
+              new OBJLoader().load(url, ok, undefined, fail);
+              return;
             }
-          }
-        });
-      }
-
-      scene.add(obj);
-      shipMeshes.push({ mesh: obj, worldPos: new THREE.Vector3(xPos, 4, 0), ship });
-      resolve(obj);
+            const mtl = new MTLLoader();
+            mtl.setResourcePath(encodeAsset(dirOf(spec.mtl)));
+            mtl.load(mtlUrls[mi], (materials) => {
+              materials.preload();
+              const loader = new OBJLoader();
+              loader.setMaterials(materials);
+              loader.load(url, ok, undefined, () => tryMtl(mi + 1));
+            }, undefined, () => tryMtl(mi + 1));
+          };
+          tryMtl(0);
+        } else {
+          new OBJLoader().load(url, ok, undefined, fail);
+        }
+      } catch (e) { fail(); }
     };
-
-    const onError = (err) => {
-      console.warn(`Failed to load ${ship.name}:`, err);
-      // Place a placeholder cube
-      const geo = new THREE.BoxGeometry(2,2,2);
-      const mat = new THREE.MeshStandardMaterial({ color: 0xff4444, wireframe:true });
-      const mesh = new THREE.Mesh(geo, mat);
-      mesh.position.set(xPos, 2, 0);
-      scene.add(mesh);
-      shipMeshes.push({ mesh, worldPos: new THREE.Vector3(xPos, 4, 0), ship });
-      resolve(mesh);
-    };
-
-    try {
-      if (ship.fmt === 'fbx') {
-        fbxLoader.load(ship.model, onLoad, undefined, onError);
-      } else if (ship.fmt === 'glb') {
-        gltfLoader.load(ship.model, (gltf) => onLoad(gltf.scene), undefined, onError);
-      } else if (ship.fmt === 'obj' && ship.mtl) {
-        mtlLoader.load(ship.mtl, (materials) => {
-          materials.preload();
-          const loader = new OBJLoader();
-          loader.setMaterials(materials);
-          loader.load(ship.model, onLoad, undefined, onError);
-        }, undefined, () => {
-          // MTL failed, try OBJ alone with texture
-          objLoader.load(ship.model, onLoad, undefined, onError);
-        });
-      } else {
-        objLoader.load(ship.model, onLoad, undefined, onError);
-      }
-    } catch(e) { onError(e); }
+    tryUrl(0);
   });
 }
 
-// ── Load all ships ──────────────────────────────────────────────
-let loaded = 0;
-const SPACING = 12;
-const startX = -(SHIPS.length * SPACING) / 2;
+async function loadShip(ship, x, z) {
+  const tried = new Set([ship.model]);
+  const queue = [{ model: ship.model, mtl: ship.mtl, tex: ship.tex, fmt: ship.fmt }];
+  for (const fb of (CLASS_FALLBACK[ship.cls] || [])) {
+    if (!tried.has(fb.model)) {
+      tried.add(fb.model);
+      queue.push(fb);
+    }
+  }
+  if (!tried.has(LAST_RESORT.model)) queue.push(LAST_RESORT);
+  for (let i = 0; i < queue.length; i++) {
+    try {
+      const obj = await loadOnce(queue[i]);
+      const used = { ...ship, tex: queue[i].tex || ship.tex };
+      placeShip(obj, used, x, z);
+      if (i > 0) {
+        stats.fallback++;
+        stats.substituted.push(`${ship.key} → ${queue[i].model}`);
+        console.warn(`Substituted ${ship.name} → ${queue[i].model}`);
+      }
+      stats.loaded++;
+      return;
+    } catch (err) {
+      console.warn(`Failed ${ship.name} hull ${queue[i].model}`, err);
+    }
+  }
+  const geo = new THREE.BoxGeometry(2,2,2);
+  const mat = new THREE.MeshStandardMaterial({ color: 0xff4444, wireframe:true });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.position.set(x, 2, z);
+  scene.add(mesh);
+  shipMeshes.push({ mesh, worldPos: new THREE.Vector3(x, 4, z), ship });
+  stats.failed++;
+  stats.failedKeys.push(ship.key);
+  stats.loaded++;
+}
+
+function frameCamera() {
+  const depth = Math.max((rows - 1) * GAP_Z, GAP_Z);
+  const width = Math.max((COLS - 1) * GAP_X, GAP_X);
+  const span = Math.max(width, depth);
+  camera.position.set(0, span * 1.28 + 18, span * 0.16);
+  controls.target.set(0, 1, 0);
+}
+
+function updateCount() {
+  const extra = [];
+  if (stats.fallback) extra.push(`${stats.fallback} substituted`);
+  if (stats.failed) extra.push(`${stats.failed} missing`);
+  const suffix = extra.length ? ` · ${extra.join(' · ')}` : '';
+  document.getElementById('count').textContent =
+    `${stats.loaded}/${SHIPS.length} · 8 / row${suffix}`;
+}
 
 async function loadAll() {
-  for (let i = 0; i < SHIPS.length; i++) {
-    const x = startX + i * SPACING;
-    await loadShip(SHIPS[i], x);
-    loaded++;
-    document.getElementById('count').textContent = `${loaded}/${SHIPS.length} loaded`;
+  frameCamera();
+  const CONCURRENCY = 4;
+  let next = 0;
+  async function worker() {
+    while (next < SHIPS.length) {
+      const i = next++;
+      const { x, z } = slotPos(i);
+      await loadShip(SHIPS[i], x, z);
+      updateCount();
+    }
   }
-  document.getElementById('count').textContent = `${SHIPS.length} ships loaded — orbit to explore`;
-  controls.target.set(0, 4, 0);
+  await Promise.all(Array.from({ length: CONCURRENCY }, worker));
+  const msg = stats.failed
+    ? `${SHIPS.length} slots · ${stats.failed} still missing (${stats.failedKeys.join(', ')})`
+    : `${SHIPS.length} ships · 8 per row`;
+  document.getElementById('count').textContent = stats.fallback
+    ? `${msg} · ${stats.fallback} from registry`
+    : msg;
 }
 
 loadAll();
 
-// ── Labels ──────────────────────────────────────────────────────
 const labelsDiv = document.getElementById('labels');
 function updateLabels() {
   labelsDiv.innerHTML = '';
@@ -306,7 +492,6 @@ function updateLabels() {
   }
 }
 
-// ── Render loop ─────────────────────────────────────────────────
 function animate() {
   requestAnimationFrame(animate);
   controls.update();
@@ -321,7 +506,6 @@ window.addEventListener('resize', () => {
   renderer.setSize(window.innerWidth, window.innerHeight);
 });
 
-// ── Screenshot ──────────────────────────────────────────────────
 window.captureAll = () => {
   renderer.render(scene, camera);
   const link = document.createElement('a');
@@ -331,8 +515,7 @@ window.captureAll = () => {
 };
 
 window.resetCamera = () => {
-  camera.position.set(0, 30, 80);
-  controls.target.set(0, 4, 0);
+  frameCamera();
 };
 </script>
 </body>
