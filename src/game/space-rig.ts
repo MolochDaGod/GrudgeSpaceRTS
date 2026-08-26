@@ -1,5 +1,18 @@
+import * as THREE from 'three';
 import type { SpaceShip, ShipClass } from './space-types';
 import { getShipPrefab } from './space-prefabs';
+
+/**
+ * Shared ship frame — same contract as Carrier `modelFit.ts` / Shipyard axes.
+ * Local +Z = nose (tip forward) · +X = starboard · +Y = up · −Z = boosters.
+ * Armada RTS and Carrier must keep this one resource; do not fork a second XYZ.
+ */
+export const SHIP_AXES = {
+  nose: 'z+' as const,
+  side: 'x+' as const,
+  up: 'y+' as const,
+  boosters: 'z-' as const,
+};
 
 export interface RigPoint {
   x: number;
@@ -117,7 +130,7 @@ export function getShipRigProfile(shipType: string): ShipRigProfile {
       shipType,
       source: 'class_default',
       quality: 'low',
-      axes: { nose: 'z+', side: 'x+', up: 'y+' },
+      axes: { nose: SHIP_AXES.nose, side: SHIP_AXES.side, up: SHIP_AXES.up },
       nose: clonePoint(DEFAULT_POINTS.nose),
       tail: clonePoint(DEFAULT_POINTS.tail),
       left: clonePoint(DEFAULT_POINTS.left),
@@ -166,7 +179,7 @@ export function getShipRigProfile(shipType: string): ShipRigProfile {
     shipType,
     source: hasEngines || hasWeapons ? 'prefab_points' : 'class_default',
     quality: hasEngines && hasWeapons ? 'high' : hasEngines || hasWeapons ? 'medium' : 'low',
-    axes: { nose: 'z+', side: 'x+', up: 'y+' },
+    axes: { nose: SHIP_AXES.nose, side: SHIP_AXES.side, up: SHIP_AXES.up },
     nose,
     tail,
     left,
@@ -260,6 +273,157 @@ export interface ShipRigWorldAnchors {
   muzzles: RigPoint[];
   boosters: RigPoint[];
   profile: ShipRigProfile;
+}
+
+const _aoBox = new THREE.Box3();
+const _aoSize = new THREE.Vector3();
+const _aoCenter = new THREE.Vector3();
+const _aoV = new THREE.Vector3();
+const _aoUp = new THREE.Vector3(0, 1, 0);
+const _aoQ = new THREE.Quaternion();
+const _wPos = new THREE.Vector3();
+
+/**
+ * Rotate a hull so its taper-detected nose faces local +Z.
+ * Parity with Carrier `artifacts/carrier/src/game/modelFit.ts` `autoOrientShip`.
+ */
+export function autoOrientShip(obj: THREE.Object3D): void {
+  obj.updateMatrixWorld(true);
+  _aoBox.setFromObject(obj);
+  _aoBox.getSize(_aoSize);
+  _aoBox.getCenter(_aoCenter);
+  const alongX = _aoSize.x >= _aoSize.z;
+  const half = (alongX ? _aoSize.x : _aoSize.z) * 0.5 || 1;
+  const cut = 0.45 * half;
+  const cLng = alongX ? _aoCenter.x : _aoCenter.z;
+  const cPer = alongX ? _aoCenter.z : _aoCenter.x;
+
+  let total = 0;
+  obj.traverse((o) => {
+    if (o instanceof THREE.Mesh) total += o.geometry.getAttribute('position')?.count ?? 0;
+  });
+  const step = total > 4000 ? Math.ceil(total / 4000) : 1;
+
+  let frontR = 0,
+    frontN = 0,
+    backR = 0,
+    backN = 0,
+    i = 0;
+  obj.traverse((o) => {
+    if (!(o instanceof THREE.Mesh)) return;
+    const pos = o.geometry.getAttribute('position') as THREE.BufferAttribute | undefined;
+    if (!pos) return;
+    for (let k = 0; k < pos.count; k++, i++) {
+      if (i % step !== 0) continue;
+      _aoV.fromBufferAttribute(pos, k).applyMatrix4(o.matrixWorld);
+      const lng = (alongX ? _aoV.x : _aoV.z) - cLng;
+      const r = Math.abs((alongX ? _aoV.z : _aoV.x) - cPer);
+      if (lng > cut) {
+        frontR += r;
+        frontN++;
+      } else if (lng < -cut) {
+        backR += r;
+        backN++;
+      }
+    }
+  });
+  const fAvg = frontN ? frontR / frontN : Infinity;
+  const bAvg = backN ? backR / backN : Infinity;
+  const noseSign = fAvg <= bAvg ? 1 : -1;
+  const nx = alongX ? noseSign : 0;
+  const nz = alongX ? 0 : noseSign;
+  _aoQ.setFromAxisAngle(_aoUp, -Math.atan2(nx, nz));
+  obj.quaternion.premultiply(_aoQ);
+  stampShipAxes(obj);
+}
+
+export function stampShipAxes(obj: THREE.Object3D): void {
+  obj.userData.shipAxes = { ...SHIP_AXES, source: 'carrier-modelFit' };
+}
+
+const BOOSTER_NAME = /engine|thruster|exhaust|booster|nozzle|jet|propuls|ember/i;
+
+function dedupePoints(pts: THREE.Vector3[], minDist: number): THREE.Vector3[] {
+  const out: THREE.Vector3[] = [];
+  for (const p of pts) {
+    if (out.some((q) => q.distanceToSquared(p) < minDist * minDist)) continue;
+    out.push(p);
+  }
+  return out;
+}
+
+/**
+ * Booster sockets on the *oriented* hull: named engine nodes first, else
+ * vertex clusters on the −Z tail cap. Never a floating point in empty space.
+ */
+export function findBoosterAnchors(root: THREE.Object3D): THREE.Vector3[] {
+  root.updateMatrixWorld(true);
+  const named: THREE.Vector3[] = [];
+  root.traverse((o) => {
+    if (!BOOSTER_NAME.test(o.name)) return;
+    o.getWorldPosition(_wPos);
+    named.push(root.worldToLocal(_wPos.clone()));
+  });
+  const uniqueNamed = dedupePoints(named, 0.04);
+  if (uniqueNamed.length > 0) return uniqueNamed.slice(0, 6);
+
+  _aoBox.setFromObject(root);
+  if (_aoBox.isEmpty()) return [new THREE.Vector3(0, 0, -1)];
+  _aoBox.getSize(_aoSize);
+  const zCut = _aoBox.min.z + Math.max(_aoSize.z * 0.12, 0.02);
+  const tail: THREE.Vector3[] = [];
+  let total = 0;
+  root.traverse((o) => {
+    if (o instanceof THREE.Mesh) total += o.geometry.getAttribute('position')?.count ?? 0;
+  });
+  const step = total > 3000 ? Math.ceil(total / 3000) : 1;
+  let i = 0;
+  root.traverse((o) => {
+    if (!(o instanceof THREE.Mesh)) return;
+    const pos = o.geometry.getAttribute('position') as THREE.BufferAttribute | undefined;
+    if (!pos) return;
+    for (let k = 0; k < pos.count; k++, i++) {
+      if (i % step !== 0) continue;
+      _aoV.fromBufferAttribute(pos, k).applyMatrix4(o.matrixWorld);
+      if (_aoV.z > zCut) continue;
+      tail.push(root.worldToLocal(_aoV.clone()));
+    }
+  });
+  if (tail.length === 0) {
+    const localMin = root.worldToLocal(new THREE.Vector3(_aoBox.getCenter(_aoCenter).x, _aoBox.getCenter(_aoCenter).y, _aoBox.min.z));
+    return [localMin];
+  }
+
+  let minX = Infinity,
+    maxX = -Infinity,
+    sx = 0,
+    sy = 0,
+    sz = 0;
+  for (const p of tail) {
+    minX = Math.min(minX, p.x);
+    maxX = Math.max(maxX, p.x);
+    sx += p.x;
+    sy += p.y;
+    sz += p.z;
+  }
+  const n = tail.length;
+  const spanX = maxX - minX;
+  if (spanX < Math.max(_aoSize.x * 0.25, 0.08)) {
+    return [new THREE.Vector3(sx / n, sy / n, sz / n)];
+  }
+  const mid = (minX + maxX) * 0.5;
+  const left: THREE.Vector3[] = [];
+  const right: THREE.Vector3[] = [];
+  for (const p of tail) (p.x < mid ? left : right).push(p);
+  const avgOf = (arr: THREE.Vector3[]) => {
+    const a = new THREE.Vector3();
+    for (const p of arr) a.add(p);
+    return a.multiplyScalar(1 / arr.length);
+  };
+  const sockets: THREE.Vector3[] = [];
+  if (left.length) sockets.push(avgOf(left));
+  if (right.length) sockets.push(avgOf(right));
+  return sockets.length ? sockets : [new THREE.Vector3(sx / n, sy / n, sz / n)];
 }
 
 export function getRigWorldAnchors(ship: Pick<SpaceShip, 'x' | 'y' | 'z' | 'facing' | 'shipType' | 'shipClass'>): ShipRigWorldAnchors {

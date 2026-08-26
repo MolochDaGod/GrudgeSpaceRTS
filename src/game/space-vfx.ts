@@ -165,16 +165,29 @@ export class VFXSystem {
    * Attach engine-trail particle systems to a ship group.
    * Should be called once when the ship mesh is created.
    */
-  attachEngineTrails(shipId: number, shipGroup: THREE.Group, teamColorHex: number, shipClass: string): void {
-    if (this.engineTrails.has(shipId)) return; // already attached
+  attachEngineTrails(
+    shipId: number,
+    shipGroup: THREE.Group,
+    teamColorHex: number,
+    shipClass: string,
+    positions?: THREE.Vector3[],
+  ): void {
+    if (this.engineTrails.has(shipId)) {
+      if (!positions) return;
+      this.removeEngineTrails(shipId);
+    }
 
-    // Collect thruster anchor positions from existing thruster sprites
+    // Prefer explicit hull sockets; else thruster sprites already on the group.
     const thrusterPositions: THREE.Vector3[] = [];
-    shipGroup.traverse((child) => {
-      if (child instanceof THREE.Sprite && (child.name === 'thruster' || child.name.startsWith('thruster_'))) {
-        thrusterPositions.push(child.position.clone());
-      }
-    });
+    if (positions && positions.length) {
+      for (const p of positions) thrusterPositions.push(p.clone());
+    } else {
+      shipGroup.traverse((child) => {
+        if (child instanceof THREE.Sprite && (child.name === 'thruster' || child.name.startsWith('thruster_'))) {
+          thrusterPositions.push(child.position.clone());
+        }
+      });
+    }
 
     // Fallback: one centred thruster if no anchors found
     if (thrusterPositions.length === 0) {
@@ -202,6 +215,17 @@ export class VFXSystem {
 
     this.engineTrails.set(shipId, systems);
     this.engineAnchors.set(shipId, anchors);
+  }
+
+  /** Move engine trails onto hull booster sockets after the real mesh loads. */
+  rebindEngineTrails(
+    shipId: number,
+    shipGroup: THREE.Group,
+    teamColorHex: number,
+    shipClass: string,
+    positions: THREE.Vector3[],
+  ): void {
+    this.attachEngineTrails(shipId, shipGroup, teamColorHex, shipClass, positions);
   }
 
   private makeEngineTrail(anchor: THREE.Group, colorHex: number, size: number, emitRate: number, lifetime: number): ParticleSystem {

@@ -28,7 +28,7 @@ import {
   SPRITE_TO_VOXEL_SHIPS,
 } from './space-voxel-builder';
 import { loadHeroShip, glbBlobToUrl } from './ship-storage';
-import { getBoosterVisualOffsets, getRigAudit, getRigWorldAnchors } from './space-rig';
+import { autoOrientShip, findBoosterAnchors, getBoosterVisualOffsets, getRigAudit, getRigWorldAnchors } from './space-rig';
 import { VFXSystem } from './space-vfx';
 import { resolvePathUrl } from './asset-registry';
 import { resolveUrl } from './asset-loader';
@@ -1110,6 +1110,7 @@ export class SpaceRenderer {
 
       // Apply authored rotation first (e.g. to fix source axis orientation)
       if (prefab.rotation) group.rotation.copy(prefab.rotation);
+      else autoOrientShip(group);
 
       // Auto-center: shift the model so its bounding box center sits at origin.
       // This ensures autoFit() scales symmetrically and the ship pivots from
@@ -1147,6 +1148,86 @@ export class SpaceRenderer {
         if (Math.abs(center.y) > 0.5) c.position.y -= center.y;
       }
     });
+  }
+
+  private static isJetObject(o: THREE.Object3D): boolean {
+    const n = o.name;
+    return (
+      n === 'thruster' ||
+      n.startsWith('thruster_') ||
+      n === 'thrusterCore' ||
+      n.startsWith('thrusterCore_') ||
+      n === 'thrusterTrail' ||
+      n.startsWith('thrusterTrail_')
+    );
+  }
+
+  private clearJetSprites(group: THREE.Group): void {
+    const rm = group.children.filter((c) => SpaceRenderer.isJetObject(c));
+    for (const c of rm) group.remove(c);
+  }
+
+  private addJetSprites(group: THREE.Group, locals: THREE.Vector3[], team: Team, size: number): void {
+    const thrusterCol = TEAM_COLORS[team] ?? 0x4488ff;
+    locals.forEach((p, i) => {
+      const suffix = i === 0 ? '' : `_${i}`;
+      const outerMat = new THREE.SpriteMaterial({
+        color: thrusterCol,
+        transparent: true,
+        opacity: 0,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      });
+      const outer = new THREE.Sprite(outerMat);
+      outer.scale.set(size * 0.5, size * 0.5, 1);
+      outer.position.copy(p);
+      outer.name = `thruster${suffix}`;
+      group.add(outer);
+
+      const coreMat = new THREE.SpriteMaterial({
+        color: 0xffffff,
+        transparent: true,
+        opacity: 0,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      });
+      const core = new THREE.Sprite(coreMat);
+      core.scale.set(size * 0.2, size * 0.2, 1);
+      core.position.set(p.x, p.y, p.z + size * 0.05);
+      core.name = `thrusterCore${suffix}`;
+      group.add(core);
+
+      const trailMat = new THREE.SpriteMaterial({
+        color: thrusterCol,
+        transparent: true,
+        opacity: 0,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      });
+      const trail = new THREE.Sprite(trailMat);
+      trail.scale.set(size * 0.25, size * 0.7, 1);
+      trail.position.set(p.x, p.y, p.z - size * 0.35);
+      trail.name = `thrusterTrail${suffix}`;
+      group.add(trail);
+    });
+  }
+
+  /** Bind jet sprites + VFX to hull booster sockets (mesh-sampled, not empty space). */
+  private bindHullJets(shipId: number, group: THREE.Group, hull: THREE.Object3D, team: Team, shipClass: string, shipType: string): void {
+    const size = SpaceRenderer.shipClassSize(shipClass);
+    group.updateMatrixWorld(true);
+    hull.updateMatrixWorld(true);
+    let sockets = findBoosterAnchors(hull);
+    if (sockets.length === 0) {
+      sockets = getBoosterVisualOffsets(shipType, shipClass as import('./space-types').ShipClass).map((p) => new THREE.Vector3(p.x, p.y, p.z));
+    }
+    const locals = sockets.map((p) => {
+      const w = hull.localToWorld(p.clone());
+      return group.worldToLocal(w);
+    });
+    this.clearJetSprites(group);
+    this.addJetSprites(group, locals.length ? locals : [new THREE.Vector3(0, 0, -size * 0.55)], team, size);
+    this.vfx.rebindEngineTrails(shipId, group, TEAM_COLORS[team] ?? 0x4488ff, shipClass, locals);
   }
 
   /**
@@ -1715,6 +1796,7 @@ export class SpaceRenderer {
               if (oldSprite) ex.group.remove(oldSprite);
               voxModel.name = 'voxelShip';
               ex.group.add(voxModel);
+              this.bindHullJets(shipId, ex.group, voxModel, shipTeamForVox, ship.shipClass, ship.shipType);
             })
             .catch(() => {
               // Voxel conversion failed — build procedural fallback
@@ -1724,6 +1806,7 @@ export class SpaceRenderer {
                 autoFit(proc);
                 removePlaceholder(ex2.group);
                 ex2.group.add(proc);
+                this.bindHullJets(shipId, ex2.group, proc, ship.team, ship.shipClass, ship.shipType);
               }
             });
         } else if (ship.shipType === 'custom_hero') {
@@ -1739,6 +1822,7 @@ export class SpaceRenderer {
               SpaceRenderer.tintModelToTeam(model, shipTeam);
               removePlaceholder(ex.group);
               ex.group.add(model);
+              this.bindHullJets(id, ex.group, model, shipTeam, ship.shipClass, ship.shipType);
             })
             .catch(() => {
               // Real model failed — fall back to procedural voxel, then universal
@@ -1754,6 +1838,7 @@ export class SpaceRenderer {
               autoFit(vox);
               removePlaceholder(ex.group);
               ex.group.add(vox);
+              this.bindHullJets(id, ex.group, vox, ship.team, ship.shipClass, ship.shipType);
             });
         } else if (hasVoxelShip(ship.shipType)) {
           // No prefab — build voxel immediately (no async load wait)
@@ -1762,6 +1847,7 @@ export class SpaceRenderer {
             autoFit(vox);
             removePlaceholder(meshData.group);
             meshData.group.add(vox);
+            this.bindHullJets(id, meshData.group, vox, ship.team, ship.shipClass, ship.shipType);
           }
         } else {
           // No prefab, no specific voxel — universal procedural fallback
@@ -1769,6 +1855,7 @@ export class SpaceRenderer {
           autoFit(proc);
           removePlaceholder(meshData.group);
           meshData.group.add(proc);
+          this.bindHullJets(id, meshData.group, proc, ship.team, ship.shipClass, ship.shipType);
         }
       }
 
@@ -1780,7 +1867,9 @@ export class SpaceRenderer {
         SpaceRenderer.SHIP_Y + ship.z * WORLD_SCALE, // elevated above ground
         ship.y * WORLD_SCALE,
       );
-      meshData.group.rotation.y = -ship.facing;
+      // Local +Z (nose) maps to game facing. facing=0 is +X in the 2D sim
+      // (space-rig localToWorld2D) so Three Y-rot is π/2 − facing.
+      meshData.group.rotation.y = Math.PI / 2 - ship.facing;
 
       // Apply procedural animation
       applyShipAnimation(meshData.group, ship, dt);
@@ -2632,6 +2721,7 @@ export class SpaceRenderer {
       if (!ex) return;
       const ship = this.engine.state.ships.get(shipId);
       const model = loaded.scene;
+      autoOrientShip(model);
       // Scale to match dreadnought size (≈24 Three.js units)
       const box = new THREE.Box3().setFromObject(model);
       const modelDiam = box.getSize(new THREE.Vector3()).length();
@@ -2639,6 +2729,7 @@ export class SpaceRenderer {
       if (ship) SpaceRenderer.tintModelToTeam(model, ship.team);
       removePlaceholderLocal(ex.group);
       ex.group.add(model);
+      if (ship) this.bindHullJets(shipId, ex.group, model, ship.team, ship.shipClass, ship.shipType);
     } catch {
       // GLB load failed — build procedural fallback
       const ex = this.shipMeshes.get(shipId);
@@ -2651,6 +2742,7 @@ export class SpaceRenderer {
           if (diam > 0) proc.scale.setScalar(24 / diam);
           removePlaceholderLocal(ex.group);
           ex.group.add(proc);
+          this.bindHullJets(shipId, ex.group, proc, ship.team, ship.shipClass, ship.shipType);
         }
       }
     }

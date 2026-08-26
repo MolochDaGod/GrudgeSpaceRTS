@@ -33,7 +33,7 @@
   <button onclick="resetCamera()">🎯 Reset View</button>
 </div>
 <div id="labels"></div>
-<div id="status">8 per row · Scroll to zoom · Drag to orbit</div>
+<div id="status">X red starboard · Y green up · Z blue nose (+Z tip-forward) · jets on hull boosters · 8 / row</div>
 <canvas id="c"></canvas>
 
 <script type="importmap">
@@ -320,6 +320,120 @@ function meshExtent(obj) {
   return Math.max(size.x, size.y, size.z);
 }
 
+// Parity with Carrier modelFit.autoOrientShip + Armada space-rig.ts
+function autoOrientShip(obj) {
+  obj.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(obj);
+  const size = new THREE.Vector3();
+  const center = new THREE.Vector3();
+  box.getSize(size);
+  box.getCenter(center);
+  const alongX = size.x >= size.z;
+  const half = (alongX ? size.x : size.z) * 0.5 || 1;
+  const cut = 0.45 * half;
+  const cLng = alongX ? center.x : center.z;
+  const cPer = alongX ? center.z : center.x;
+  let total = 0;
+  obj.traverse(o => { if (o.isMesh) total += o.geometry?.getAttribute('position')?.count || 0; });
+  const step = total > 4000 ? Math.ceil(total / 4000) : 1;
+  let frontR = 0, frontN = 0, backR = 0, backN = 0, i = 0;
+  const v = new THREE.Vector3();
+  obj.traverse(o => {
+    if (!o.isMesh) return;
+    const pos = o.geometry?.getAttribute('position');
+    if (!pos) return;
+    for (let k = 0; k < pos.count; k++, i++) {
+      if (i % step !== 0) continue;
+      v.fromBufferAttribute(pos, k).applyMatrix4(o.matrixWorld);
+      const lng = (alongX ? v.x : v.z) - cLng;
+      const r = Math.abs((alongX ? v.z : v.x) - cPer);
+      if (lng > cut) { frontR += r; frontN++; }
+      else if (lng < -cut) { backR += r; backN++; }
+    }
+  });
+  const fAvg = frontN ? frontR / frontN : Infinity;
+  const bAvg = backN ? backR / backN : Infinity;
+  const noseSign = fAvg <= bAvg ? 1 : -1;
+  const nx = alongX ? noseSign : 0;
+  const nz = alongX ? 0 : noseSign;
+  const q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), -Math.atan2(nx, nz));
+  obj.quaternion.premultiply(q);
+  obj.userData.shipAxes = { nose: 'z+', side: 'x+', up: 'y+', boosters: 'z-' };
+}
+
+function findBoosterAnchors(root) {
+  root.updateMatrixWorld(true);
+  const named = [];
+  const w = new THREE.Vector3();
+  const nameRe = /engine|thruster|exhaust|booster|nozzle|jet|propuls/i;
+  root.traverse(o => {
+    if (!nameRe.test(o.name)) return;
+    o.getWorldPosition(w);
+    named.push(root.worldToLocal(w.clone()));
+  });
+  if (named.length) return named.slice(0, 6);
+  const box = new THREE.Box3().setFromObject(root);
+  const size = new THREE.Vector3();
+  box.getSize(size);
+  const zCut = box.min.z + Math.max(size.z * 0.12, 0.02);
+  const tail = [];
+  const v = new THREE.Vector3();
+  let total = 0;
+  root.traverse(o => { if (o.isMesh) total += o.geometry?.getAttribute('position')?.count || 0; });
+  const step = total > 3000 ? Math.ceil(total / 3000) : 1;
+  let i = 0;
+  root.traverse(o => {
+    if (!o.isMesh) return;
+    const pos = o.geometry?.getAttribute('position');
+    if (!pos) return;
+    for (let k = 0; k < pos.count; k++, i++) {
+      if (i % step !== 0) continue;
+      v.fromBufferAttribute(pos, k).applyMatrix4(o.matrixWorld);
+      if (v.z > zCut) continue;
+      tail.push(root.worldToLocal(v.clone()));
+    }
+  });
+  if (!tail.length) {
+    const c = box.getCenter(new THREE.Vector3());
+    return [root.worldToLocal(new THREE.Vector3(c.x, c.y, box.min.z))];
+  }
+  let minX = Infinity, maxX = -Infinity, sx = 0, sy = 0, sz = 0;
+  for (const p of tail) {
+    minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x);
+    sx += p.x; sy += p.y; sz += p.z;
+  }
+  const n = tail.length;
+  if (maxX - minX < Math.max(size.x * 0.25, 0.08)) return [new THREE.Vector3(sx / n, sy / n, sz / n)];
+  const mid = (minX + maxX) * 0.5;
+  const left = tail.filter(p => p.x < mid);
+  const right = tail.filter(p => p.x >= mid);
+  const avg = arr => {
+    const a = new THREE.Vector3();
+    for (const p of arr) a.add(p);
+    return a.multiplyScalar(1 / arr.length);
+  };
+  const out = [];
+  if (left.length) out.push(avg(left));
+  if (right.length) out.push(avg(right));
+  return out.length ? out : [new THREE.Vector3(sx / n, sy / n, sz / n)];
+}
+
+function mountHullJets(obj, size) {
+  const sockets = findBoosterAnchors(obj);
+  const jetLen = Math.max(0.35, size * 0.16);
+  for (const p of sockets) {
+    const jet = new THREE.Mesh(
+      new THREE.ConeGeometry(jetLen * 0.22, jetLen, 8),
+      new THREE.MeshBasicMaterial({ color: 0x66eeff, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending, depthWrite: false })
+    );
+    jet.rotation.x = -Math.PI / 2;
+    jet.position.copy(p);
+    jet.position.z -= jetLen * 0.45;
+    jet.name = 'hullJet';
+    obj.add(jet);
+  }
+}
+
 function applyLook(obj, ship) {
   const texUrl = ship.tex;
   if (texUrl) {
@@ -341,6 +455,7 @@ function applyLook(obj, ship) {
 }
 
 function placeShip(obj, ship, x, z) {
+  autoOrientShip(obj);
   const maxDim = meshExtent(obj) || 1;
   const targetSize = 2 + Math.log2(Math.max(ship.hp, 10)) * 1.5;
   obj.scale.setScalar(targetSize / maxDim);
@@ -349,6 +464,10 @@ function placeShip(obj, ship, x, z) {
   box2.getCenter(center);
   obj.position.set(x - center.x, -center.y + 2, z - center.z);
   applyLook(obj, ship);
+  const axes = new THREE.AxesHelper(targetSize * 0.45);
+  axes.name = 'shipAxes';
+  obj.add(axes);
+  mountHullJets(obj, targetSize);
   scene.add(obj);
   shipMeshes.push({ mesh: obj, worldPos: new THREE.Vector3(x, 4, z), ship });
 }
@@ -495,6 +614,15 @@ function updateLabels() {
 function animate() {
   requestAnimationFrame(animate);
   controls.update();
+  const t = performance.now() * 0.001;
+  for (const { mesh } of shipMeshes) {
+    mesh.traverse(o => {
+      if (o.name !== 'hullJet' || !o.isMesh) return;
+      o.material.opacity = 0.4 + 0.45 * Math.abs(Math.sin(t * 9 + mesh.id));
+      const s = 0.85 + 0.28 * Math.abs(Math.sin(t * 11 + mesh.id));
+      o.scale.setScalar(s);
+    });
+  }
   renderer.render(scene, camera);
   updateLabels();
 }

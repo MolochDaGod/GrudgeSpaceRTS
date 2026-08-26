@@ -4,6 +4,10 @@
  * Source of truth: F:\GitHub\Carrier\artifacts\carrier\src\game\factionAssets.ts
  * Served from R2 under `carrier/models/` (upload via GrudgeBuilder asset pipeline)
  * with local `/assets/carrier/models/` fallback during dev.
+ *
+ * Hull frame is the same resource as Carrier Shipyard / modelFit:
+ * local +Z nose, +X starboard, +Y up, −Z boosters (`space-rig.ts` SHIP_AXES).
+ * Carrier is the micro of Armada RTS (zones + carrier environments galaxy-wide).
  */
 
 import { resolveUrl } from './asset-loader';

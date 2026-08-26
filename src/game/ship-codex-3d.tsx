@@ -12,6 +12,7 @@ import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { loadModel as loadModelCentral } from './model-loader';
 import { getShipPrefab, type SpacePrefab } from './space-prefabs';
+import { autoOrientShip, findBoosterAnchors } from './space-rig';
 import { TEAM_COLORS } from './space-types';
 import { hasVoxelShip, buildVoxelShip, buildCapitalVoxelFallback } from './space-voxel-builder';
 
@@ -196,6 +197,8 @@ export class CodexScene {
       return;
     }
 
+    if (!prefab?.rotation) autoOrientShip(model);
+
     // Auto-fit to showcase size
     const box = new THREE.Box3().setFromObject(model);
     const diam = box.getSize(new THREE.Vector3()).length();
@@ -204,6 +207,23 @@ export class CodexScene {
 
     // Team tint
     this.tintModel(model, 1);
+
+    const axes = new THREE.AxesHelper(2.4);
+    axes.name = 'shipAxes';
+    model.add(axes);
+    const sockets = findBoosterAnchors(model);
+    const jetLen = targetSize * 0.18;
+    for (const p of sockets) {
+      const jet = new THREE.Mesh(
+        new THREE.ConeGeometry(jetLen * 0.22, jetLen, 8),
+        new THREE.MeshBasicMaterial({ color: 0x66ddff, transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false }),
+      );
+      jet.rotation.x = -Math.PI / 2;
+      jet.position.copy(p);
+      jet.position.z -= jetLen * 0.45;
+      jet.name = 'hullJet';
+      model.add(jet);
+    }
 
     // Start fly-in from below
     model.position.set(0, this.startY, 0);
@@ -330,6 +350,13 @@ export class CodexScene {
       }
       // Slow rotation
       this.currentShip.rotation.y += dt * 0.3;
+      const t = this.idleTime + this.flyInProgress;
+      this.currentShip.traverse((o) => {
+        if (o.name !== 'hullJet' || !(o as THREE.Mesh).isMesh) return;
+        const mat = (o as THREE.Mesh).material as THREE.MeshBasicMaterial;
+        mat.opacity = 0.45 + 0.4 * Math.abs(Math.sin(t * 8));
+        o.scale.setScalar(0.85 + 0.25 * Math.abs(Math.sin(t * 10)));
+      });
     }
 
     this.renderer.render(this.scene, this.camera);

@@ -8,9 +8,9 @@ export interface SpacePrefab {
   scale: number;
   offset: THREE.Vector3;
   rotation?: THREE.Euler;
-  // Rigging convention (best-practice):
-  // - +Z = nose/front
-  // - -Z = tail/rear boosters
+  // Rigging convention — same resource as Carrier modelFit / Shipyard axes:
+  // - +Z = nose/front (tip forward)
+  // - -Z = tail/rear boosters (jets bind here, not empty space)
   // - +X = starboard/right wing
   // - -X = port/left wing
   // - +Y = up
