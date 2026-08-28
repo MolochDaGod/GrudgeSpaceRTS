@@ -5,6 +5,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { gameAudio } from './space-audio';
 import { GrudgeVideo } from './GrudgeVideo';
+import { shouldDismissIntroOnKey } from './play-path';
 
 export function IntroScreen({ onFinish }: { onFinish: () => void }) {
   const [fadeOut, setFadeOut] = useState(false);
@@ -12,12 +13,17 @@ export function IntroScreen({ onFinish }: { onFinish: () => void }) {
 
   useEffect(() => {
     // Warm Draco after splash paints. Dynamic import keeps Three out of the splash chunk.
-    const idle = window.requestIdleCallback ?? ((cb: () => void) => window.setTimeout(cb, 1));
-    const id = idle(() => {
-      void import('./model-loader').then((m) => m.warmupPlayPathLoaders());
-    });
+    const hasIdleCallback = typeof window.requestIdleCallback === 'function';
+    const id = hasIdleCallback
+      ? window.requestIdleCallback(() => {
+          void import('./model-loader').then((m) => m.warmupPlayPathLoaders());
+        })
+      : window.setTimeout(() => {
+          void import('./model-loader').then((m) => m.warmupPlayPathLoaders());
+        }, 1);
     return () => {
-      if (typeof window.cancelIdleCallback === 'function') window.cancelIdleCallback(id as number);
+      if (hasIdleCallback) window.cancelIdleCallback(id as number);
+      else window.clearTimeout(id);
     };
   }, []);
 
@@ -30,10 +36,8 @@ export function IntroScreen({ onFinish }: { onFinish: () => void }) {
   }, [onFinish]);
 
   useEffect(() => {
-    const isModifierOnly = (e: KeyboardEvent) =>
-      e.key === 'Shift' || e.key === 'Control' || e.key === 'Alt' || e.key === 'Meta';
     const onKey = (e: KeyboardEvent) => {
-      if (isModifierOnly(e)) return;
+      if (!shouldDismissIntroOnKey(e)) return;
       e.preventDefault();
       finish();
     };

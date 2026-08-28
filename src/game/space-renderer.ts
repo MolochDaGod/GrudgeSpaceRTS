@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { getShipPrefab, BACKGROUND_LAYERS, STATION_PREFABS, EFFECT_PREFABS, type SpacePrefab } from './space-prefabs';
-import { loadByFormat, loadFBX, loadGLB, getTexture } from './model-loader';
+import { loadGLB, getTexture, toRuntimeGlbPath } from './model-loader';
 import {
   type SpaceGameState,
   type SpaceShip,
@@ -168,6 +168,7 @@ export class SpaceRenderer {
   private raycasterPlanet = new THREE.Raycaster();
 
   private disposed = false;
+  private active = true;
   private animFrame = 0;
   private captureRings = new Map<number, THREE.Mesh>();
   private orbitRings = new Map<number, THREE.Mesh>();
@@ -212,20 +213,20 @@ export class SpaceRenderer {
 
   // Planet decoration assets (from provided props pack)
   private readonly ORBITAL_RING_MODELS = [
-    '/assets/space/models/new-ships/Props/_Orbital_structure_01.fbx',
-    '/assets/space/models/new-ships/Props/_Orbital_structure_02.fbx',
+    '/assets-glb/new-ships/Props/_Orbital_structure_01.glb',
+    '/assets-glb/new-ships/Props/_Orbital_structure_02.glb',
   ];
   private readonly ASTEROID_RING_MODELS = [
-    '/assets/space/models/new-ships/Props/_asteroid_01.fbx',
-    '/assets/space/models/new-ships/Props/_asteroid_02.fbx',
-    '/assets/space/models/new-ships/Props/_asteroid_03.fbx',
-    '/assets/space/models/new-ships/Props/_asteroid_04.fbx',
-    '/assets/space/models/new-ships/Props/_asteroid_05.fbx',
-    '/assets/space/models/new-ships/Props/_asteroid_06.fbx',
-    '/assets/space/models/new-ships/Props/_asteroid_07.fbx',
-    '/assets/space/models/new-ships/Props/_asteroid_08.fbx',
-    '/assets/space/models/new-ships/Props/_asteroid_09.fbx',
-    '/assets/space/models/new-ships/Props/_asteroid_010.fbx',
+    '/assets-glb/new-ships/Props/_asteroid_01.glb',
+    '/assets-glb/new-ships/Props/_asteroid_02.glb',
+    '/assets-glb/new-ships/Props/_asteroid_03.glb',
+    '/assets-glb/new-ships/Props/_asteroid_04.glb',
+    '/assets-glb/new-ships/Props/_asteroid_05.glb',
+    '/assets-glb/new-ships/Props/_asteroid_06.glb',
+    '/assets-glb/new-ships/Props/_asteroid_07.glb',
+    '/assets-glb/new-ships/Props/_asteroid_08.glb',
+    '/assets-glb/new-ships/Props/_asteroid_09.glb',
+    '/assets-glb/new-ships/Props/_asteroid_010.glb',
   ];
 
   // ── Animated background ─────────────────────────────────
@@ -552,12 +553,12 @@ export class SpaceRenderer {
     barren: '/assets/space/models/planets/planet_main.glb',
   };
 
-  /** Load FBX scene props (rings/asteroids) with cache + cloning. */
-  private async loadScenePropFbx(path: string): Promise<THREE.Group> {
+  /** Load GLB scene props (rings/asteroids) with cache + cloning. */
+  private async loadScenePropGLB(path: string): Promise<THREE.Group> {
     if (this.scenePropCache.has(path)) return this.scenePropCache.get(path)!.clone();
     if (this.scenePropLoads.has(path)) return (await this.scenePropLoads.get(path)!).clone();
     const promise = (async () => {
-      const loaded = await loadFBX(path);
+      const loaded = await loadGLB(path);
       const model = this.sanitizeScenePropModel(loaded.scene, path);
       this.scenePropCache.set(path, model);
       this.scenePropLoads.delete(path);
@@ -686,7 +687,7 @@ export class SpaceRenderer {
       planet.isStartingPlanet || planet.hasAsteroidField || planet.radius >= 180 || planet.planetType === 'gas_giant';
     if (hasRingStructure) {
       const ringPath = this.ORBITAL_RING_MODELS[planet.id % this.ORBITAL_RING_MODELS.length];
-      this.loadScenePropFbx(ringPath)
+      this.loadScenePropGLB(ringPath)
         .then((ringModel) => {
           if (this.disposed) return;
           const target = this.planetDecorMeshes.get(planet.id);
@@ -720,7 +721,7 @@ export class SpaceRenderer {
           target.add(ringModel);
         })
         .catch(() => {
-          // Safe procedural fallback ring (prevents scene break if FBX prop is malformed)
+          // Safe procedural fallback ring (prevents scene break if GLB prop is unavailable)
           const target = this.planetDecorMeshes.get(planet.id);
           if (!target) return;
           const torus = new THREE.Mesh(
@@ -745,7 +746,7 @@ export class SpaceRenderer {
     const beltMax = planetR * 2.35;
     for (let i = 0; i < asteroidCount; i++) {
       const path = this.ASTEROID_RING_MODELS[(planet.id * 11 + i * 7) % this.ASTEROID_RING_MODELS.length];
-      this.loadScenePropFbx(path)
+      this.loadScenePropGLB(path)
         .then((ast) => {
           if (this.disposed) return;
           const target = this.planetDecorMeshes.get(planet.id);
@@ -1076,7 +1077,9 @@ export class SpaceRenderer {
 
   // ── Model Loading ─────────────────────────────────────────────
   private async loadModel(prefab: SpacePrefab): Promise<THREE.Group> {
-    const key = prefab.modelPath;
+    const glbPath = toRuntimeGlbPath(prefab.modelPath);
+    if (!glbPath) throw new Error(`Space play path requires GLB assets: ${prefab.modelPath}`);
+    const key = glbPath;
     if (this.modelCache.has(key)) return this.modelCache.get(key)!.clone();
     if (this.loadingModels.has(key)) {
       const model = await this.loadingModels.get(key)!;
@@ -1084,14 +1087,11 @@ export class SpaceRenderer {
     }
 
     const promise = (async () => {
-      const loaded = await loadByFormat(prefab.modelPath, prefab.format, {
-        mtlPath: prefab.mtlPath,
-        texturePath: prefab.texturePath,
-      });
+      const loaded = await loadGLB(glbPath);
       const group = loaded.scene;
 
-      // Apply emissive space-ship look for FBX/OBJ models with textures
-      if (prefab.texturePath && prefab.format !== 'glb' && prefab.format !== 'gltf') {
+      // Legacy converted GLB mirrors can still use sidecar textures if present.
+      if (prefab.texturePath && prefab.modelPath !== glbPath) {
         const tex = getTexture(prefab.texturePath);
         group.traverse((c) => {
           if ((c as THREE.Mesh).isMesh) {
@@ -1219,7 +1219,9 @@ export class SpaceRenderer {
     hull.updateMatrixWorld(true);
     let sockets = findBoosterAnchors(hull);
     if (sockets.length === 0) {
-      sockets = getBoosterVisualOffsets(shipType, shipClass as import('./space-types').ShipClass).map((p) => new THREE.Vector3(p.x, p.y, p.z));
+      sockets = getBoosterVisualOffsets(shipType, shipClass as import('./space-types').ShipClass).map(
+        (p) => new THREE.Vector3(p.x, p.y, p.z),
+      );
     }
     const locals = sockets.map((p) => {
       const w = hull.localToWorld(p.clone());
@@ -2063,7 +2065,7 @@ export class SpaceRenderer {
 
   // ── Main Loop ───────────────────────────────────────────────
   private animate = () => {
-    if (this.disposed) return;
+    if (this.disposed || !this.active) return;
     this.animFrame = requestAnimationFrame(this.animate);
 
     const dt = Math.min(this.clock.getDelta(), 0.05);
@@ -2147,6 +2149,18 @@ export class SpaceRenderer {
     // Render through postprocessing pipeline (bloom + tone mapping + SMAA)
     this.composer.render(dt);
   };
+
+  setActive(active: boolean) {
+    if (this.disposed || this.active === active) return;
+    this.active = active;
+    if (active) {
+      this.clock.getDelta();
+      this.animate();
+    } else {
+      cancelAnimationFrame(this.animFrame);
+      this.animFrame = 0;
+    }
+  }
 
   // ── Mine VFX Sync ──────────────────────────────────────────────
   private syncMines(state: SpaceGameState): void {

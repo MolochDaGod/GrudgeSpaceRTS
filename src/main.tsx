@@ -2,6 +2,7 @@ import { lazy, Suspense, useCallback, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { ErrorBoundary } from './ErrorBoundary';
 import { IntroScreen } from './game/IntroScreen';
+import { PLAY_PATH_INTRO_TARGET } from './game/play-path';
 
 // Keep splash off the space/ground graph. App + Three only download after click-through.
 const App = lazy(() => import('./App'));
@@ -32,7 +33,8 @@ function Root() {
   const leaveSplash = useCallback(() => {
     const url = new URL(window.location.href);
     url.searchParams.set('skipIntro', '1');
-    window.history.replaceState({ screen: 'menu' }, '', url);
+    if (PLAY_PATH_INTRO_TARGET.commanderSelectOpen) url.searchParams.set('commanderSelect', '1');
+    window.history.replaceState({ screen: PLAY_PATH_INTRO_TARGET.screen }, '', url);
     setSplash(false);
   }, []);
 

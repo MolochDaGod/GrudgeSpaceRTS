@@ -7,7 +7,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
-import { SkeletonUtils } from 'three/examples/jsm/utils/SkeletonUtils.js';
+import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { resolveModelUrl, resolveTextureUrl } from './asset-loader';
 
 export interface LoadedModel {
@@ -35,9 +35,14 @@ export function toGlbPath(path: string): string {
     .replace('/assets/space/models/', '/assets-glb/')
     .replace(/\.(obj|fbx|gltf)$/i, '.glb');
 }
+export function toRuntimeGlbPath(path: string): string | null {
+  if (/\.glb$/i.test(path)) return path;
+  const glb = toGlbPath(path);
+  return /\.glb$/i.test(glb) ? glb : null;
+}
 
 export function assertPlayPathGlb(path: string): string {
-  if (/\.(obj|fbx)$/i.test(path)) return toGlbPath(path);
+  if (/\.(obj|fbx|gltf)$/i.test(path)) return toGlbPath(path);
   return path;
 }
 
@@ -47,11 +52,11 @@ export function warmupPlayPathLoaders(): void {
   try {
     dracoLoader.preload();
   } catch {
-    useDracoJsFallback();
+    applyDracoJsFallback();
   }
 }
 
-function useDracoJsFallback(): void {
+function applyDracoJsFallback(): void {
   if (dracoJsFallback) return;
   dracoJsFallback = true;
   dracoLoader.setDecoderConfig({ type: 'js' });
@@ -107,7 +112,7 @@ export async function loadGLB(path: string): Promise<LoadedModel> {
     })
     .catch((err) => {
       if (!dracoJsFallback && /draco|wasm|WebAssembly/i.test(String(err))) {
-        useDracoJsFallback();
+        applyDracoJsFallback();
         return gltfLoader.loadAsync(resolved).then((gltf) => {
           enhanceGLTFMaterials(gltf.scene);
           const model: LoadedModel = { scene: gltf.scene, animations: gltf.animations };
@@ -161,13 +166,10 @@ export async function loadOBJ(objPath: string, _mtlPath?: string, _texturePath?:
 
 export async function loadByFormat(
   modelPath: string,
-  format: 'obj' | 'fbx' | 'glb' | 'gltf',
+  _format: 'obj' | 'fbx' | 'glb' | 'gltf',
   _opts?: { mtlPath?: string; texturePath?: string },
 ): Promise<LoadedModel> {
-  if (format === 'obj' || format === 'fbx' || /\.(obj|fbx)$/i.test(modelPath)) {
-    return loadGLB(assertPlayPathGlb(modelPath));
-  }
-  return loadGLB(modelPath);
+  return loadGLB(assertPlayPathGlb(modelPath));
 }
 
 export async function loadModel(glbPath: string): Promise<LoadedModel> {
@@ -188,7 +190,7 @@ export async function loadPrefabGLB(modelPath: string, targetSize?: number): Pro
 }
 
 export async function loadAnimationClip(path: string): Promise<THREE.AnimationClip | null> {
-  const glbPath = /\.(glb|gltf)$/i.test(path) ? path : toGlbPath(path);
+  const glbPath = assertPlayPathGlb(path);
   const resolved = resolveModelUrl(glbPath);
   if (animClipCache.has(resolved)) return animClipCache.get(resolved)!;
   if (modelCache.has(resolved) && modelCache.get(resolved)!.animations[0]) {
