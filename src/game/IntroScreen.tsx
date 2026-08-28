@@ -5,15 +5,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { gameAudio } from './space-audio';
 import { GrudgeVideo } from './GrudgeVideo';
+import { warmupPlayPathLoaders } from './model-loader';
 
 export function IntroScreen({ onFinish }: { onFinish: () => void }) {
   const [fadeOut, setFadeOut] = useState(false);
-  const [showLogo, setShowLogo] = useState(false);
   const finishingRef = useRef(false);
 
   useEffect(() => {
-    const logoTimer = setTimeout(() => setShowLogo(true), 80);
-    return () => clearTimeout(logoTimer);
+    warmupPlayPathLoaders();
   }, []);
 
   const finish = useCallback(() => {
@@ -21,7 +20,7 @@ export function IntroScreen({ onFinish }: { onFinish: () => void }) {
     finishingRef.current = true;
     gameAudio.resume();
     setFadeOut(true);
-    setTimeout(onFinish, 180);
+    window.setTimeout(onFinish, 120);
   }, [onFinish]);
 
   useEffect(() => {
@@ -33,8 +32,8 @@ export function IntroScreen({ onFinish }: { onFinish: () => void }) {
       finish();
     };
     const onPointer = () => finish();
-    window.addEventListener('keydown', onKey);
-    window.addEventListener('pointerdown', onPointer);
+    window.addEventListener('keydown', onKey, { passive: false });
+    window.addEventListener('pointerdown', onPointer, { passive: true });
     return () => {
       window.removeEventListener('keydown', onKey);
       window.removeEventListener('pointerdown', onPointer);
@@ -53,7 +52,7 @@ export function IntroScreen({ onFinish }: { onFinish: () => void }) {
         background: '#000',
         cursor: 'pointer',
         opacity: fadeOut ? 0 : 1,
-        transition: 'opacity 0.18s ease-out',
+        transition: 'opacity 0.12s ease-out',
         pointerEvents: 'auto',
       }}
     >
@@ -73,37 +72,37 @@ export function IntroScreen({ onFinish }: { onFinish: () => void }) {
         }}
       />
 
-      {showLogo && (
-        <div
+      <div
+        style={{
+          position: 'absolute',
+          inset: 0,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          pointerEvents: 'none',
+        }}
+      >
+        <img
+          src="/assets/space/ui/logo.webp"
+          alt="GRUDA ARMADA"
+          fetchPriority="high"
+          decoding="async"
           style={{
-            position: 'absolute',
-            inset: 0,
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            pointerEvents: 'none',
+            width: 420,
+            maxWidth: '88vw',
+            display: 'block',
+            mixBlendMode: 'screen',
+            filter: 'drop-shadow(0 0 50px rgba(68,136,255,0.6)) drop-shadow(0 0 24px rgba(200,30,30,0.35))',
+            animation: 'logoFadeIn 0.6s ease-out forwards',
           }}
-        >
-          <img
-            src="/assets/space/ui/logo.webp"
-            alt="GRUDA ARMADA"
-            style={{
-              width: 420,
-              maxWidth: '88vw',
-              display: 'block',
-              mixBlendMode: 'screen',
-              filter: 'drop-shadow(0 0 50px rgba(68,136,255,0.6)) drop-shadow(0 0 24px rgba(200,30,30,0.35))',
-              animation: 'logoFadeIn 2s ease-out forwards',
-            }}
-            onError={(e) => {
-              const t = e.target as HTMLImageElement;
-              if (!t.src.endsWith('.svg')) t.src = '/assets/space/ui/logo.svg';
-              else t.style.display = 'none';
-            }}
-          />
-        </div>
-      )}
+          onError={(e) => {
+            const t = e.target as HTMLImageElement;
+            if (!t.src.endsWith('.svg')) t.src = '/assets/space/ui/logo.svg';
+            else t.style.display = 'none';
+          }}
+        />
+      </div>
 
       <div
         style={{
@@ -125,7 +124,7 @@ export function IntroScreen({ onFinish }: { onFinish: () => void }) {
 
       <style>{`
         @keyframes logoFadeIn {
-          0% { opacity: 0; transform: scale(0.85); }
+          0% { opacity: 0; transform: scale(0.92); }
           100% { opacity: 1; transform: scale(1); }
         }
       `}</style>

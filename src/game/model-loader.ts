@@ -1,19 +1,13 @@
 /**
  * model-loader.ts — Centralized 3D model + animation loading.
  *
- * Single source of truth for all loaders, caches, and format handling.
- * Play path is GLB via GLTFLoader + DRACO only. OBJ/FBX paths are
- * rewritten to .glb — no OBJ/FBX decode at runtime.
- *
- * Usage:
- *   import { loadModel, loadAnimationClip } from './model-loader';
- *   const ship = await loadModel('/assets-glb/space/models/ships/RedFighter.glb');
- *   scene.add(ship.scene);
+ * Play path is GLB via GLTFLoader + DRACO only. OBJ/FBX paths remap to .glb.
+ * Draco prefers WASM (faster inflate) and falls back to JS if WASM cannot start.
  */
-
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
+import { SkeletonUtils } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { resolveModelUrl, resolveTextureUrl } from './asset-loader';
 
 export interface LoadedModel {
@@ -21,28 +15,51 @@ export interface LoadedModel {
   animations: THREE.AnimationClip[];
 }
 
+const DRACO_DECODER = 'https://www.gstatic.com/draco/versioned/decoders/1.5.7/';
+
 const dracoLoader = new DRACOLoader();
-dracoLoader.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5.7/');
-dracoLoader.setDecoderConfig({ type: 'js' });
+dracoLoader.setDecoderPath(DRACO_DECODER);
+dracoLoader.setDecoderConfig({
+  type: typeof WebAssembly !== 'undefined' ? 'wasm' : 'js',
+});
 
 const gltfLoader = new GLTFLoader();
 gltfLoader.setDRACOLoader(dracoLoader);
 
 const textureLoader = new THREE.TextureLoader();
+let dracoWarmed = false;
+let dracoJsFallback = false;
 
-function toGlbPath(path: string): string {
+export function toGlbPath(path: string): string {
   return path
     .replace('/assets/space/models/', '/assets-glb/')
     .replace(/\.(obj|fbx|gltf)$/i, '.glb');
 }
 
-function assertPlayPathGlb(path: string): string {
-  if (/\.(obj|fbx)$/i.test(path)) {
-    const glb = toGlbPath(path);
-    console.warn('[GRUDA] Play path is GLB-only; remapping', path, '→', glb);
-    return glb;
-  }
+export function assertPlayPathGlb(path: string): string {
+  if (/\.(obj|fbx)$/i.test(path)) return toGlbPath(path);
   return path;
+}
+
+export function warmupPlayPathLoaders(): void {
+  if (dracoWarmed) return;
+  dracoWarmed = true;
+  try {
+    dracoLoader.preload();
+  } catch {
+    useDracoJsFallback();
+  }
+}
+
+function useDracoJsFallback(): void {
+  if (dracoJsFallback) return;
+  dracoJsFallback = true;
+  dracoLoader.setDecoderConfig({ type: 'js' });
+  try {
+    dracoLoader.preload();
+  } catch {
+    /* decoder will retry on first mesh */
+  }
 }
 
 const modelCache = new Map<string, LoadedModel>();
@@ -56,38 +73,63 @@ export function getTexture(path: string): THREE.Texture {
   if (textureCache.has(resolved)) return textureCache.get(resolved)!;
   const tex = textureLoader.load(resolved);
   tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 4;
   textureCache.set(resolved, tex);
   return tex;
 }
 
+function cloneScene(scene: THREE.Group): THREE.Group {
+  let skinned = false;
+  scene.traverse((child) => {
+    if ((child as THREE.SkinnedMesh).isSkinnedMesh) skinned = true;
+  });
+  return (skinned ? SkeletonUtils.clone(scene) : scene.clone()) as THREE.Group;
+}
+
+function cloneLoaded(model: LoadedModel): LoadedModel {
+  return { scene: cloneScene(model.scene), animations: model.animations };
+}
+
 export async function loadGLB(path: string): Promise<LoadedModel> {
-  const resolved = resolveModelUrl(path);
-  if (modelCache.has(resolved)) {
-    const cached = modelCache.get(resolved)!;
-    return { scene: cached.scene.clone(), animations: cached.animations };
-  }
+  const resolved = resolveModelUrl(assertPlayPathGlb(path));
+  if (modelCache.has(resolved)) return cloneLoaded(modelCache.get(resolved)!);
   if (loadingPromises.has(resolved)) {
-    const cached = await loadingPromises.get(resolved)!;
-    return { scene: cached.scene.clone(), animations: cached.animations };
+    return cloneLoaded(await loadingPromises.get(resolved)!);
   }
 
-  const promise = gltfLoader.loadAsync(resolved).then((gltf) => {
-    enhanceGLTFMaterials(gltf.scene);
-    const model: LoadedModel = { scene: gltf.scene, animations: gltf.animations };
-    modelCache.set(resolved, model);
-    loadingPromises.delete(resolved);
-    return model;
-  });
+  const promise = gltfLoader
+    .loadAsync(resolved)
+    .then((gltf) => {
+      enhanceGLTFMaterials(gltf.scene);
+      const model: LoadedModel = { scene: gltf.scene, animations: gltf.animations };
+      modelCache.set(resolved, model);
+      return model;
+    })
+    .catch((err) => {
+      if (!dracoJsFallback && /draco|wasm|WebAssembly/i.test(String(err))) {
+        useDracoJsFallback();
+        return gltfLoader.loadAsync(resolved).then((gltf) => {
+          enhanceGLTFMaterials(gltf.scene);
+          const model: LoadedModel = { scene: gltf.scene, animations: gltf.animations };
+          modelCache.set(resolved, model);
+          return model;
+        });
+      }
+      throw err;
+    })
+    .finally(() => {
+      loadingPromises.delete(resolved);
+    });
 
   loadingPromises.set(resolved, promise);
-  const result = await promise;
-  return { scene: result.scene.clone(), animations: result.animations };
+  return cloneLoaded(await promise);
 }
 
 function enhanceGLTFMaterials(scene: THREE.Group): void {
   scene.traverse((child) => {
     if (!(child as THREE.Mesh).isMesh) return;
     const mesh = child as THREE.Mesh;
+    mesh.frustumCulled = true;
     const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
     const enhanced = materials.map((mat) => {
       if (!(mat as THREE.MeshStandardMaterial).isMeshStandardMaterial) return mat;
@@ -146,46 +188,35 @@ export async function loadPrefabGLB(modelPath: string, targetSize?: number): Pro
 }
 
 export async function loadAnimationClip(path: string): Promise<THREE.AnimationClip | null> {
-  const resolved = resolveModelUrl(path);
+  const glbPath = /\.(glb|gltf)$/i.test(path) ? path : toGlbPath(path);
+  const resolved = resolveModelUrl(glbPath);
   if (animClipCache.has(resolved)) return animClipCache.get(resolved)!;
+  if (modelCache.has(resolved) && modelCache.get(resolved)!.animations[0]) {
+    const clip = modelCache.get(resolved)!.animations[0];
+    animClipCache.set(resolved, clip);
+    return clip;
+  }
   if (animLoadingPromises.has(resolved)) return animLoadingPromises.get(resolved)!;
-
-  const isGLB = /\.glb$/i.test(path) || /\.gltf$/i.test(path);
 
   const promise = (async (): Promise<THREE.AnimationClip | null> => {
     try {
-      if (isGLB) {
-        const gltf = await gltfLoader.loadAsync(resolved);
-        if (gltf.animations.length > 0) {
-          const clip = gltf.animations[0];
-          const name =
-            path
-              .split('/')
-              .pop()
-              ?.replace(/\.(glb|gltf)$/i, '')
-              .toLowerCase() ?? 'unknown';
-          clip.name = name;
-          animClipCache.set(resolved, clip);
-          animLoadingPromises.delete(resolved);
-          return clip;
-        }
-      } else {
-        const glbPath = toGlbPath(path);
-        const gltf = await gltfLoader.loadAsync(resolveModelUrl(glbPath));
-        if (gltf.animations.length > 0) {
-          const clip = gltf.animations[0];
-          const name = path.split('/').pop()?.replace(/\.(fbx|obj|glb|gltf)$/i, '').toLowerCase() ?? 'unknown';
-          clip.name = name;
-          animClipCache.set(resolved, clip);
-          animLoadingPromises.delete(resolved);
-          return clip;
-        }
+      const model = await loadGLB(glbPath);
+      const clip = model.animations[0] ?? null;
+      if (clip) {
+        clip.name =
+          path
+            .split('/')
+            .pop()
+            ?.replace(/\.(fbx|obj|glb|gltf)$/i, '')
+            .toLowerCase() ?? 'unknown';
+        animClipCache.set(resolved, clip);
       }
+      return clip;
     } catch {
-      // Clip failed to load
+      return null;
+    } finally {
+      animLoadingPromises.delete(resolved);
     }
-    animLoadingPromises.delete(resolved);
-    return null;
   })();
 
   animLoadingPromises.set(resolved, promise);
@@ -206,7 +237,7 @@ export async function loadAnimationSet(paths: Record<string, string>): Promise<M
 }
 
 export function cloneModel(model: LoadedModel): LoadedModel {
-  return { scene: model.scene.clone(), animations: model.animations };
+  return cloneLoaded(model);
 }
 
 export function disposeAllCaches(): void {
@@ -227,4 +258,5 @@ export function disposeAllCaches(): void {
   animClipCache.clear();
   animLoadingPromises.clear();
   dracoLoader.dispose();
+  dracoWarmed = false;
 }
