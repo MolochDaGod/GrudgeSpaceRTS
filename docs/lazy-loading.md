@@ -99,6 +99,20 @@ manualChunks(id) {
 }
 ```
 
+## 5. Inspect the graph
+
+Dev only — `vite-plugin-inspect` mounts at `/__inspect` while `npm run dev` is up. Confirm `IntroScreen` does not list `three` or `App` in its importers.
+
+Production treemap (does not run on a normal `vite build`):
+
+```bash
+npm run analyze   # writes stats.html, gitignored
+```
+
+Open `stats.html` and check: splash / `index` has **no** `three`, `rapier`, or `App`. Those belong in the lazy chunk plus the `three` / `rapier` vendor files.
+
+Pinned for Vite 6: `vite-plugin-inspect@0.8.9` (v12 needs Vite 8). Visualizer is `rollup-plugin-visualizer@7`.
+
 ## Rules
 
 | Do | Don't |
@@ -107,3 +121,4 @@ manualChunks(id) {
 | `void import('./model-loader')` on idle | `import { warmupPlayPathLoaders } from './model-loader'` in `IntroScreen` |
 | Preload logo.webp | Preload every GLB on `/` |
 | One renderer tick after menu | Second physics world to hide a load hitch |
+| `npm run analyze` when chunks look wrong | Ship `stats.html` or gzip plugins on Vercel |
