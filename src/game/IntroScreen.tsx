@@ -5,14 +5,20 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { gameAudio } from './space-audio';
 import { GrudgeVideo } from './GrudgeVideo';
-import { warmupPlayPathLoaders } from './model-loader';
 
 export function IntroScreen({ onFinish }: { onFinish: () => void }) {
   const [fadeOut, setFadeOut] = useState(false);
   const finishingRef = useRef(false);
 
   useEffect(() => {
-    warmupPlayPathLoaders();
+    // Warm Draco after splash paints. Dynamic import keeps Three out of the splash chunk.
+    const idle = window.requestIdleCallback ?? ((cb: () => void) => window.setTimeout(cb, 1));
+    const id = idle(() => {
+      void import('./model-loader').then((m) => m.warmupPlayPathLoaders());
+    });
+    return () => {
+      if (typeof window.cancelIdleCallback === 'function') window.cancelIdleCallback(id as number);
+    };
   }, []);
 
   const finish = useCallback(() => {
