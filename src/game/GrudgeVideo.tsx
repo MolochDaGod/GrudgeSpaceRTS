@@ -71,6 +71,7 @@ export function GrudgeVideo({
           inset: 0,
           background: 'radial-gradient(ellipse at 30% 20%, #0a1830 0%, #010308 70%)',
           opacity,
+          pointerEvents: 'none',
           ...style,
         }}
       />
@@ -96,6 +97,7 @@ export function GrudgeVideo({
         height: '100%',
         objectFit,
         opacity,
+        pointerEvents: 'none',
         ...style,
       }}
     >
