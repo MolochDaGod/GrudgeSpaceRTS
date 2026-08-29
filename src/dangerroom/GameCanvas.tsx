@@ -2,6 +2,7 @@ import { Canvas } from "@react-three/fiber";
 import { KeyboardControls } from "@react-three/drei";
 import { Physics } from "@react-three/rapier";
 import { Suspense } from "react";
+import { BasicShadowMap } from "three";
 import { Arena } from "./components/Arena";
 import { Player } from "./components/Player";
 import { VfxLayer } from "./components/Vfx";
@@ -30,11 +31,14 @@ export function GameCanvas() {
         <CameraControls />
         <CombatInput />
         <Canvas
-          shadows
+          dpr={[1, 1.5]}
+          frameloop="always"
+          shadows={{ type: BasicShadowMap }}
           camera={{ position: [0, 8.5, 17.5], fov: 50 }}
           gl={{
-            antialias: true,
-            powerPreference: "default",
+            antialias: false,
+            powerPreference: "high-performance",
+            stencil: false,
             failIfMajorPerformanceCaveat: false,
           }}
         >
@@ -44,11 +48,11 @@ export function GameCanvas() {
               position={[30, 45, 20]}
               intensity={1.25}
               castShadow
-              shadow-mapSize={[2048, 2048]}
-              shadow-camera-left={-40}
-              shadow-camera-right={40}
-              shadow-camera-top={40}
-              shadow-camera-bottom={-40}
+              shadow-mapSize={[1024, 1024]}
+              shadow-camera-left={-24}
+              shadow-camera-right={24}
+              shadow-camera-top={24}
+              shadow-camera-bottom={-24}
             />
             <hemisphereLight args={["#bcd4e8", "#3a2f22", 0.5]} />
             <fog attach="fog" args={["#bcd4e8", 55, 160]} />

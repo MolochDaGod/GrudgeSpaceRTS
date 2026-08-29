@@ -2068,6 +2068,10 @@ export class SpaceRenderer {
     if (this.disposed || !this.active) return;
     this.animFrame = requestAnimationFrame(this.animate);
 
+    if (this.renderer.domElement.width <= 1 && this.container.clientWidth > 1) {
+      this.onResize();
+    }
+
     const dt = Math.min(this.clock.getDelta(), 0.05);
 
     // Update game logic
@@ -2155,10 +2159,14 @@ export class SpaceRenderer {
     this.active = active;
     if (active) {
       this.clock.getDelta();
+      if (this.container.clientWidth > 1) this.onResize();
       this.animate();
     } else {
       cancelAnimationFrame(this.animFrame);
       this.animFrame = 0;
+      // Drop the HDR backbuffer so Nexus Ground's R3F canvas can take VRAM.
+      this.renderer.setSize(1, 1, false);
+      this.composer?.setSize(1, 1);
     }
   }
 
