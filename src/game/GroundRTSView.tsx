@@ -1,19 +1,20 @@
 /**
- * GroundRTSView.tsx — Hero Ground RTS launcher.
+ * GroundRTSView.tsx — /ground-rts launcher.
  *
- * /ground-rts offers two embeds:
- *   • Warlord Genesis — full MOBA/RTS (warlord-genesis.vercel.app/play)
- *   • Hero Commander — D1 roster + R2 models (play.grudge-studio.com)
+ * Default: Micro Wars on this Armada deploy.
+ * Optional iframes: Warlord Genesis, Hero Commander.
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, lazy, Suspense } from 'react';
 import {
   fetchWarlordsCharacters,
   raceLabel,
   type WarlordsCharacter,
 } from './warlords-characters';
 
-type RtsMode = 'warlord' | 'commander';
+type RtsMode = 'micro' | 'warlord' | 'commander';
+
+const LazyMicroWars = lazy(() => import('./GroundRTSView.microwars-legacy'));
 
 const WARLORD_GENESIS_URL =
   import.meta.env.VITE_WARLORD_GENESIS_URL ?? 'https://warlord-genesis.vercel.app/play';
@@ -26,7 +27,7 @@ interface Props {
 }
 
 export default function GroundRTSView({ onExit }: Props) {
-  const [mode, setMode] = useState<RtsMode>('warlord');
+  const [mode, setMode] = useState<RtsMode>('micro');
   const [characters, setCharacters] = useState<WarlordsCharacter[]>([]);
   const [selected, setSelected] = useState<WarlordsCharacter | null>(null);
   const [launched, setLaunched] = useState(false);
@@ -87,24 +88,23 @@ export default function GroundRTSView({ onExit }: Props) {
             Choose Battle Mode
           </div>
 
-          <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
-            <button
-              type="button"
-              onClick={() => setMode('warlord')}
-              style={modeBtn(mode === 'warlord')}
-            >
-              ⚔️ Warlord Genesis
+          <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
+            <button type="button" onClick={() => setMode('micro')} style={modeBtn(mode === 'micro')}>
+              Micro Wars
             </button>
-            <button
-              type="button"
-              onClick={() => setMode('commander')}
-              style={modeBtn(mode === 'commander')}
-            >
-              🗺️ Hero Commander
+            <button type="button" onClick={() => setMode('warlord')} style={modeBtn(mode === 'warlord')}>
+              Warlord Genesis
+            </button>
+            <button type="button" onClick={() => setMode('commander')} style={modeBtn(mode === 'commander')}>
+              Hero Commander
             </button>
           </div>
 
-          {mode === 'warlord' ? (
+          {mode === 'micro' ? (
+            <div style={{ fontSize: 11, color: '#567', lineHeight: 1.6, marginBottom: 20 }}>
+              Native ground RTS on this Armada deploy — squad roster, build, and battle. No iframe.
+            </div>
+          ) : mode === 'warlord' ? (
             <div style={{ fontSize: 11, color: '#567', lineHeight: 1.6, marginBottom: 20 }}>
               Lane MOBA/RTS — build turrets, command units, and siege the enemy Citadel.
               Character select and combat run inside Warlord Genesis.
@@ -167,11 +167,23 @@ export default function GroundRTSView({ onExit }: Props) {
               onClick={() => setLaunched(true)}
               style={{ ...rtsBtn('#335566'), flex: 1 }}
             >
-              {mode === 'warlord' ? 'LAUNCH WARLORD GENESIS' : 'LAUNCH HERO COMMANDER'}
+              {mode === 'micro'
+                ? 'LAUNCH MICRO WARS'
+                : mode === 'warlord'
+                  ? 'LAUNCH WARLORD GENESIS'
+                  : 'LAUNCH HERO COMMANDER'}
             </button>
           </div>
         </div>
       </div>
+    );
+  }
+
+  if (mode === 'micro') {
+    return (
+      <Suspense fallback={<div style={{ position: 'fixed', inset: 0, background: '#111' }} />}>
+        <LazyMicroWars onExit={onExit} />
+      </Suspense>
     );
   }
 

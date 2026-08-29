@@ -6,6 +6,15 @@ A real-time strategy game set in space. Build fleets, capture planets, train com
 **Admin:** [grudge-space-rts.vercel.app/admin.html](https://grudge-space-rts.vercel.app/admin.html)  
 **By:** Racalvin The Pirate King · Grudge Studio
 
+| Mode | Path | What boots |
+| --- | --- | --- |
+| Space RTS | [/space](https://grudge-space-rts.vercel.app/space) (`/play`, `/game`) | Commander select → Gruda Armada |
+| Ground combat | [/ground](https://grudge-space-rts.vercel.app/ground) | Danger Room / Nexus toons |
+| Ground RTS | [/ground-rts](https://grudge-space-rts.vercel.app/ground-rts) | Micro Wars on this deploy (Warlord Genesis / Hero Command as extras) |
+| Splash / hub | [/](https://grudge-space-rts.vercel.app/) | GRUDA ARMADA intro |
+
+SPA fallback in `vercel.json` serves `index.html` for every play path. Deep links skip the splash.
+
 ## Quick Start
 
 ```bash

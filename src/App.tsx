@@ -41,7 +41,7 @@ import { GalaxyMap, STAR_SYSTEMS } from './game/GalaxyMap';
 import { EngagementLobby } from './game/EngagementLobby';
 import type { EngagementKind } from './game/engagement-rooms';
 import { GrudgeVideo } from './game/GrudgeVideo';
-import { PLAY_PATH_INTRO_TARGET, shouldDismissIntroOnKey } from './game/play-path';
+import { PLAY_PATH_INTRO_TARGET, SCREEN_TO_ROUTE, isSpacePlayPath, screenFromPath, shouldDismissIntroOnKey } from './game/play-path';
 
 // ── Lazy-loaded heavy modules (code-split) ────────────────────────
 // These chunks only download when the user navigates to the relevant screen.
@@ -61,31 +61,7 @@ import type { PlanetType } from './game/space-types';
 
 type Screen = 'intro' | 'menu' | 'codex' | 'howto' | 'editor' | 'playing' | 'ground_combat' | 'ground_rts' | 'universe';
 
-// ── URL Routing ──────────────────────────────────────
-const ROUTE_TO_SCREEN: Record<string, Screen> = {
-  '/': 'menu',
-  '/codex': 'codex',
-  '/editor': 'editor',
-  '/howto': 'howto',
-  '/game': 'playing',
-  '/ground': 'ground_combat',
-  '/ground-rts': 'ground_rts',
-  '/universe': 'universe',
-};
-const SCREEN_TO_ROUTE: Partial<Record<Screen, string>> = {
-  menu: '/',
-  codex: '/codex',
-  editor: '/editor',
-  howto: '/howto',
-  playing: '/game',
-  ground_combat: '/ground',
-  ground_rts: '/ground-rts',
-  universe: '/universe',
-};
-
-function screenFromPath(path: string): Screen {
-  return ROUTE_TO_SCREEN[path] ?? 'menu';
-}
+// ── URL Routing (see play-path.ts) ──────────────────────────────────
 
 // ── Space Background: stars + nebulae + comets ────────────────────
 const StarfieldCanvas = memo(function StarfieldCanvas() {
@@ -364,7 +340,7 @@ export default function App() {
   const initialPath = window.location.pathname;
   const initialParams = new URLSearchParams(window.location.search);
   const skipIntro = initialParams.has('skipIntro') || initialParams.has('hub');
-  const initialCommanderSelect = initialParams.has('commanderSelect');
+  const initialCommanderSelect = initialParams.has('commanderSelect') || isSpacePlayPath(initialPath);
   const initialScreen = (initialPath === '/' || initialPath === '') && !skipIntro ? 'intro' : screenFromPath(initialPath);
   const [screen, setScreenRaw] = useState<Screen>(initialScreen);
   const [authUser, setAuthUser] = useState<GrudgeUser | null>(null);
@@ -595,7 +571,10 @@ export default function App() {
           aiDifficulty={aiDifficulty}
           setAiDifficulty={setAiDifficulty}
           onConfirm={() => launchWithSpec(gameMode, selectedSpec, { playerColorIdx, enemyColorMode, enemyColorIdx }, aiDifficulty)}
-          onCancel={() => setShowCmdModal(false)}
+          onCancel={() => {
+            setShowCmdModal(false);
+            if (!rendererRef.current) setScreen('menu');
+          }}
         />
       )}
       {showMechBuilder && (
