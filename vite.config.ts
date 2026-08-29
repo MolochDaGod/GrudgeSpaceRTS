@@ -9,6 +9,42 @@ const __dirname = fileURLToPath(new URL('.', import.meta.url));
 
 const base = process.env.VITE_BASE_PATH ?? '/';
 
+/** Last node_modules package in the id. Safe for npm and pnpm nested paths. */
+function npmPkg(id: string): string | undefined {
+  const m = id.match(/[/\\]node_modules[/\\](?!\.pnpm[/\\])((?:@[^/\\]+[/\\])?[^/\\]+)/);
+  return m?.[1]?.replace(/\\/g, '/');
+}
+
+/**
+ * Load-wave buckets. Return undefined for src/ -- those split via import().
+ * Order is specific -> general so @react-three/rapier does not land in r3f.
+ */
+function manualChunks(id: string): string | undefined {
+  const pkg = npmPkg(id);
+  if (!pkg) return;
+
+  if (pkg === 'react' || pkg === 'react-dom' || pkg === 'scheduler') return 'react';
+
+  if (pkg === '@dimforge/rapier3d-compat' || pkg === '@react-three/rapier') return 'rapier';
+
+  if (pkg.startsWith('@react-three')) return 'r3f';
+
+  if (pkg === 'three') return 'three';
+
+  if (
+    pkg === 'postprocessing' ||
+    pkg === 'three-mesh-bvh' ||
+    pkg === 'troika-three-text' ||
+    pkg === 'three.quarks' ||
+    pkg === 'camera-controls'
+  ) {
+    return 'three-addons';
+  }
+
+  if (pkg === 'howler') return 'audio';
+  if (pkg === 'framer-motion') return 'motion';
+}
+
 export default defineConfig(({ command, mode }) => {
   const plugins: PluginOption[] = [react()];
 
@@ -55,13 +91,11 @@ export default defineConfig(({ command, mode }) => {
           info: resolve(__dirname, 'info.html'),
         },
         output: {
-          manualChunks(id) {
-            if (id.includes('node_modules/three')) return 'three';
-            if (id.includes('node_modules/@react-three')) return 'r3f';
-            if (id.includes('node_modules/@dimforge') || id.includes('rapier')) return 'rapier';
-            if (id.includes('node_modules/framer-motion')) return 'motion';
-            if (id.includes('node_modules/three-mesh-bvh')) return 'bvh';
-          },
+          manualChunks,
+          experimentalMinChunkSize: 20_000,
+          chunkFileNames: 'assets/[name]-[hash].js',
+          entryFileNames: 'assets/[name]-[hash].js',
+          assetFileNames: 'assets/[name]-[hash][extname]',
         },
       },
       outDir: 'dist',
