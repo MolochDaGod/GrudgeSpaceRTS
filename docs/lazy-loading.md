@@ -43,22 +43,32 @@ const LazyStarMap = lazy(() =>
 );
 ```
 
-## 2. Dynamic import on idle (never on the splash module graph)
+## 2. Dynamic import **after click** (never on the splash module graph)
 
-A **static** `import './model-loader'` pulls Three + Draco into the splash chunk. Warm after first paint:
+A **static** `import './space-audio'` pulls `space-prefabs` → **Three** into splash. Idle `import('./model-loader')` is still a static `import()` — Vite **modulepreloads** it in `index.html`.
+
+Warm Draco only after the splash is dismissed:
 
 ```tsx
-useEffect(() => {
-  const idle = window.requestIdleCallback ?? ((cb: () => void) => window.setTimeout(cb, 1));
-  const id = idle(() => {
-    void import('./model-loader').then((m) => m.warmupPlayPathLoaders());
-  });
-  return () => {
-    if (typeof window.cancelIdleCallback === 'function') {
-      window.cancelIdleCallback(id as number);
-    }
-  };
+const leaveSplash = useCallback(() => {
+  setSplash(false);
+  void import('./game/model-loader').then((m) => m.warmupPlayPathLoaders());
 }, []);
+```
+
+Vite still injects `<link rel="modulepreload">` for every async chunk the HTML entry can see. Filter it in `vite.config.ts` so splash HTML only preloads `react` + `main`:
+
+```ts
+modulePreload: {
+  polyfill: false,
+  resolveDependencies(_filename, deps, { hostType }) {
+    if (hostType !== 'html') return deps;
+    return deps.filter((dep) => {
+      const file = dep.split('/').pop() ?? '';
+      return file.endsWith('.css') || file.startsWith('react-') || file.startsWith('main-');
+    });
+  },
+},
 ```
 
 On-demand GLB (user action, not boot):

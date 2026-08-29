@@ -82,7 +82,18 @@ export default defineConfig(({ command, mode }) => {
       target: 'es2022',
       sourcemap: false,
       cssCodeSplit: true,
-      modulePreload: { polyfill: false },
+      // Default Vite HTML modulepreload follows async import() and would
+      // fetch three/r3f on splash. Only preload the splash graph.
+      modulePreload: {
+        polyfill: false,
+        resolveDependencies(_filename, deps, { hostType }) {
+          if (hostType !== 'html') return deps;
+          return deps.filter((dep) => {
+            const file = dep.split('/').pop() ?? '';
+            return file.endsWith('.css') || file.startsWith('react-') || file.startsWith('main-');
+          });
+        },
+      },
       chunkSizeWarningLimit: 1200,
       rollupOptions: {
         input: {

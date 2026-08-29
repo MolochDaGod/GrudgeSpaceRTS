@@ -36,6 +36,7 @@ function Root() {
     if (PLAY_PATH_INTRO_TARGET.commanderSelectOpen) url.searchParams.set('commanderSelect', '1');
     window.history.replaceState({ screen: PLAY_PATH_INTRO_TARGET.screen }, '', url);
     setSplash(false);
+    void import('./game/model-loader').then((m) => m.warmupPlayPathLoaders());
   }, []);
 
   if (splash) {

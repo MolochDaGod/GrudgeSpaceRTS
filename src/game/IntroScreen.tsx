@@ -1,9 +1,9 @@
 /**
  * GRUDA ARMADA splash. First click / pointer / any-key must leave
  * this overlay and enter the commander menu. No stuck skip lock.
+ * Do not statically import space-audio or model-loader — both pull Three.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { gameAudio } from './space-audio';
 import { GrudgeVideo } from './GrudgeVideo';
 import { shouldDismissIntroOnKey } from './play-path';
 
@@ -11,26 +11,10 @@ export function IntroScreen({ onFinish }: { onFinish: () => void }) {
   const [fadeOut, setFadeOut] = useState(false);
   const finishingRef = useRef(false);
 
-  useEffect(() => {
-    // Warm Draco after splash paints. Dynamic import keeps Three out of the splash chunk.
-    const hasIdleCallback = typeof window.requestIdleCallback === 'function';
-    const id = hasIdleCallback
-      ? window.requestIdleCallback(() => {
-          void import('./model-loader').then((m) => m.warmupPlayPathLoaders());
-        })
-      : window.setTimeout(() => {
-          void import('./model-loader').then((m) => m.warmupPlayPathLoaders());
-        }, 1);
-    return () => {
-      if (hasIdleCallback) window.cancelIdleCallback(id as number);
-      else window.clearTimeout(id);
-    };
-  }, []);
-
   const finish = useCallback(() => {
     if (finishingRef.current) return;
     finishingRef.current = true;
-    gameAudio.resume();
+    void import('./space-audio').then((m) => m.gameAudio.resume());
     setFadeOut(true);
     window.setTimeout(onFinish, 120);
   }, [onFinish]);
