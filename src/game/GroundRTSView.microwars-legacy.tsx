@@ -24,7 +24,7 @@ import {
 } from './ground-rts-controls';
 
 // ── Roster Selection Screen ──────────────────────────────────────────
-function RosterSelect({ onStart }: { onStart: (roster: UnitClass[]) => void }) {
+function RosterSelect({ onStart, onBack }: { onStart: (roster: UnitClass[]) => void; onBack?: () => void }) {
   const [selected, setSelected] = useState<UnitClass[]>(['man_gun', 'man_rifle', 'man_bat', 'man_knife', 'man_flamethrower']);
 
   const toggle = (uc: UnitClass) => {
@@ -50,7 +50,7 @@ function RosterSelect({ onStart }: { onStart: (roster: UnitClass[]) => void }) {
       }}
     >
       <h1 style={{ color: '#ff8844', marginBottom: 8 }}>MICRO WARS</h1>
-      <p style={{ color: '#888', marginBottom: 24 }}>Select 5-8 units for your squad</p>
+      <p style={{ color: '#888', marginBottom: 24 }}>Select 5-8 units for your squad · this Armada deploy</p>
 
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, maxWidth: 700, justifyContent: 'center' }}>
         {PLAYER_UNITS.map((def) => {
@@ -82,24 +82,41 @@ function RosterSelect({ onStart }: { onStart: (roster: UnitClass[]) => void }) {
         })}
       </div>
 
-      <button
-        disabled={selected.length < 5}
-        onClick={() => onStart(selected)}
-        style={{
-          marginTop: 32,
-          padding: '14px 48px',
-          fontSize: 18,
-          fontFamily: 'monospace',
-          background: selected.length >= 5 ? '#ff6622' : '#333',
-          color: '#fff',
-          border: 'none',
-          borderRadius: 8,
-          cursor: selected.length >= 5 ? 'pointer' : 'default',
-          fontWeight: 'bold',
-        }}
-      >
-        DEPLOY ({selected.length}/8)
-      </button>
+      <div style={{ display: 'flex', gap: 12, marginTop: 32 }}>
+        <button
+          type="button"
+          onClick={() => onBack?.()}
+          style={{
+            padding: '14px 28px',
+            fontSize: 14,
+            fontFamily: 'monospace',
+            background: 'transparent',
+            color: '#888',
+            border: '1px solid #444',
+            borderRadius: 8,
+            cursor: 'pointer',
+          }}
+        >
+          BACK
+        </button>
+        <button
+          disabled={selected.length < 5}
+          onClick={() => onStart(selected)}
+          style={{
+            padding: '14px 48px',
+            fontSize: 18,
+            fontFamily: 'monospace',
+            background: selected.length >= 5 ? '#ff6622' : '#333',
+            color: '#fff',
+            border: 'none',
+            borderRadius: 8,
+            cursor: selected.length >= 5 ? 'pointer' : 'default',
+            fontWeight: 'bold',
+          }}
+        >
+          DEPLOY ({selected.length}/8)
+        </button>
+      </div>
     </div>
   );
 }
@@ -480,7 +497,7 @@ function BattleCanvas({ roster, onRestart }: { roster: UnitClass[]; onRestart: (
 }
 
 // ── Main Component ───────────────────────────────────────────────────
-export default function GroundRTSView() {
+export default function GroundRTSView({ onExit }: { onExit?: () => void } = {}) {
   const [phase, setPhase] = useState<'roster' | 'battle'>('roster');
   const [roster, setRoster] = useState<UnitClass[]>([]);
 
@@ -496,7 +513,7 @@ export default function GroundRTSView() {
 
   return (
     <div style={{ position: 'relative', width: '100vw', height: '100vh', overflow: 'hidden', background: '#111' }}>
-      {phase === 'roster' && <RosterSelect onStart={handleStart} />}
+      {phase === 'roster' && <RosterSelect onStart={handleStart} onBack={onExit} />}
       {phase === 'battle' && <BattleCanvas roster={roster} onRestart={handleRestart} />}
     </div>
   );

@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { toRuntimeGlbPath } from '../model-loader';
-import { PLAY_PATH_INTRO_TARGET, shouldDismissIntroOnKey } from '../play-path';
+import {
+  PLAY_PATH_INTRO_TARGET,
+  SCREEN_TO_ROUTE,
+  isSpacePlayPath,
+  screenFromPath,
+  shouldDismissIntroOnKey,
+  shouldShowSplash,
+} from '../play-path';
 
 describe('play path entry', () => {
   it('opens commander select as soon as the splash is dismissed', () => {
@@ -21,6 +28,29 @@ describe('play path entry', () => {
     expect(shouldDismissIntroOnKey({ key: 'Control' })).toBe(false);
     expect(shouldDismissIntroOnKey({ key: 'Alt' })).toBe(false);
     expect(shouldDismissIntroOnKey({ key: 'Meta' })).toBe(false);
+  });
+});
+
+describe('play routes', () => {
+  it('maps space RTS aliases onto the playing screen', () => {
+    expect(screenFromPath('/space')).toBe('playing');
+    expect(screenFromPath('/play')).toBe('playing');
+    expect(screenFromPath('/game')).toBe('playing');
+    expect(isSpacePlayPath('/space')).toBe(true);
+    expect(SCREEN_TO_ROUTE.playing).toBe('/space');
+  });
+
+  it('maps ground combat and ground RTS onto their own screens', () => {
+    expect(screenFromPath('/ground')).toBe('ground_combat');
+    expect(screenFromPath('/ground-rts')).toBe('ground_rts');
+  });
+
+  it('skips splash on deep game links', () => {
+    expect(shouldShowSplash('/', '')).toBe(true);
+    expect(shouldShowSplash('/', 'skipIntro=1')).toBe(false);
+    expect(shouldShowSplash('/space', '')).toBe(false);
+    expect(shouldShowSplash('/ground', '')).toBe(false);
+    expect(shouldShowSplash('/ground-rts', '')).toBe(false);
   });
 });
 

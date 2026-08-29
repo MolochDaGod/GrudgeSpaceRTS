@@ -2,16 +2,13 @@ import { lazy, Suspense, useCallback, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { ErrorBoundary } from './ErrorBoundary';
 import { IntroScreen } from './game/IntroScreen';
-import { PLAY_PATH_INTRO_TARGET } from './game/play-path';
+import { PLAY_PATH_INTRO_TARGET, shouldShowSplash as splashFromLocation } from './game/play-path';
 
 // Keep splash off the space/ground graph. App + Three only download after click-through.
 const App = lazy(() => import('./App'));
 
 function shouldShowSplash(): boolean {
-  const path = window.location.pathname;
-  const params = new URLSearchParams(window.location.search);
-  if (params.has('skipIntro') || params.has('hub')) return false;
-  return path === '/' || path === '';
+  return splashFromLocation(window.location.pathname, window.location.search);
 }
 
 function BootFallback() {
