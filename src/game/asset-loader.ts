@@ -10,14 +10,15 @@
  *   - Progress callback for UI
  *   - Cache-aware: immutable CDN assets with hash-busted URLs
  *   - Graceful CDN failure: falls back to local Vercel assets
+ *   - Play-path models resolve as GLB only
  */
 
 const CDN_BASE = import.meta.env.VITE_ASSET_CDN ?? '';
 const CDN_PREFIX = import.meta.env.VITE_ASSET_CDN_PREFIX ?? 'gruda-armada';
 const ASSET_VERSION = import.meta.env.VITE_ASSET_VERSION ?? '';
-const MAX_CONCURRENT = 6; // browser limit per origin is typically 6
+// HTTP/2 CDN can pipeline more than the classic 6-per-origin cap.
+const MAX_CONCURRENT = CDN_BASE ? 8 : 6;
 
-// ── Types ─────────────────────────────────────────────────────────
 export interface AssetLoadProgress {
   loaded: number;
   total: number;
@@ -28,7 +29,6 @@ export interface AssetLoadProgress {
 
 export type ProgressCallback = (progress: AssetLoadProgress) => void;
 
-// ── WebP support detection ────────────────────────────────────────
 let _webpSupported: boolean | null = null;
 
 async function supportsWebP(): Promise<boolean> {
@@ -47,47 +47,29 @@ async function supportsWebP(): Promise<boolean> {
   return _webpSupported;
 }
 
-// ── URL Resolution ────────────────────────────────────────────────
-
-/**
- * Resolve the best URL for an asset.
- * If CDN is configured, tries CDN first. Falls back to local path.
- * For textures: tries .webp on CDN if browser supports it.
- */
 export function resolveUrl(localPath: string, isTexture = false): string {
   if (!CDN_BASE) return localPath;
 
-  // CDN path: strip leading /assets/ prefix and map to CDN structure
   const cdnPath = localPath.replace(/^\/assets\//, '');
   const versionSuffix = ASSET_VERSION ? `?v=${ASSET_VERSION}` : '';
 
   if (isTexture && _webpSupported) {
-    // Try WebP version first (uploaded by R2 script with .webp extension)
     return `${CDN_BASE}/${CDN_PREFIX}/${cdnPath.replace(/\.png$/i, '.webp')}${versionSuffix}`;
   }
 
   return `${CDN_BASE}/${CDN_PREFIX}/${cdnPath}${versionSuffix}`;
 }
 
-/**
- * Resolve a texture URL with WebP preference.
- * Must call initAssetLoader() first to detect WebP support.
- */
 export function resolveTextureUrl(localPath: string): string {
   return resolveUrl(localPath, true);
 }
 
-/**
- * Resolve a model URL (OBJ/FBX/GLB).
- */
+/** Resolve a model URL. Play path is GLB — rewrite leftover OBJ/FBX keys. */
 export function resolveModelUrl(localPath: string): string {
-  return resolveUrl(localPath, false);
+  const glbPath = localPath.replace(/\.(obj|fbx|gltf)$/i, '.glb');
+  return resolveUrl(glbPath, false);
 }
 
-/**
- * Resolve a video URL (MP4/WebM cutscenes, intros, producer reels).
- * Videos are large — always prefer R2 CDN in production; never bundle in Vercel.
- */
 export function resolveVideoUrl(localPath: string): string {
   const cdnBase =
     CDN_BASE || (import.meta.env.PROD ? 'https://assets.grudge-studio.com' : '');
@@ -98,7 +80,6 @@ export function resolveVideoUrl(localPath: string): string {
   return `${cdnBase}/${CDN_PREFIX}/${cdnPath}${versionSuffix}`;
 }
 
-// ── CDN Health Check ──────────────────────────────────────────────
 let _cdnHealthy = true;
 
 async function checkCdnHealth(): Promise<boolean> {
@@ -115,18 +96,10 @@ async function checkCdnHealth(): Promise<boolean> {
   return _cdnHealthy;
 }
 
-/** Whether CDN is available (set after init). */
 export function isCdnAvailable(): boolean {
   return _cdnHealthy && !!CDN_BASE;
 }
 
-// ── Batch Loading with Progress ───────────────────────────────────
-
-/**
- * Load multiple assets in parallel with a concurrency limit.
- * Each item is a { url, loader } pair where loader is an async function
- * that fetches/processes the asset.
- */
 export async function loadBatch<T>(
   items: Array<{ key: string; load: () => Promise<T> }>,
   onProgress?: ProgressCallback,
@@ -165,9 +138,6 @@ export async function loadBatch<T>(
   return results;
 }
 
-/**
- * Fetch a URL with CDN fallback. If CDN fails, retries with local path.
- */
 export async function fetchWithFallback(cdnUrl: string, localUrl: string): Promise<Response> {
   if (_cdnHealthy && CDN_BASE) {
     try {
@@ -180,9 +150,6 @@ export async function fetchWithFallback(cdnUrl: string, localUrl: string): Promi
   return fetch(localUrl);
 }
 
-// ── Preload helpers ───────────────────────────────────────────────
-
-/** Preload an image (texture) — returns a promise that resolves when loaded. */
 export function preloadImage(url: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const img = new Image();
@@ -193,7 +160,6 @@ export function preloadImage(url: string): Promise<HTMLImageElement> {
   });
 }
 
-/** Preload a list of texture URLs in parallel with progress. */
 export async function preloadTextures(urls: string[], onProgress?: ProgressCallback): Promise<HTMLImageElement[]> {
   const items = urls.map((url, i) => ({
     key: `tex_${i}`,
@@ -203,9 +169,6 @@ export async function preloadTextures(urls: string[], onProgress?: ProgressCallb
   return urls.map((_, i) => results.get(`tex_${i}`)!).filter(Boolean);
 }
 
-// ── Init ──────────────────────────────────────────────────────────
-
-/** Initialize the asset loader: detect WebP, check CDN health. */
 export async function initAssetLoader(): Promise<void> {
   await Promise.all([supportsWebP(), checkCdnHealth()]);
   console.log(`[asset-loader] CDN: ${_cdnHealthy ? CDN_BASE : 'unavailable'} | WebP: ${_webpSupported ? 'yes' : 'no'}`);

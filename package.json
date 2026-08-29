@@ -8,6 +8,7 @@
     "build": "vite build",
     "build:strict": "tsc -b && vite build",
     "preview": "vite preview",
+    "analyze": "vite build --mode analyze",
     "check": "tsc --noEmit",
     "check:assets": "node scripts/verify-assets.mjs",
     "lint": "eslint src/",
@@ -70,10 +71,12 @@
     "lint-staged": "^16.4.0",
     "obj2gltf": "^3.2.0",
     "prettier": "^3.8.1",
+    "rollup-plugin-visualizer": "^7.1.1",
     "sharp": "^0.34.5",
     "typescript": "~5.8.3",
     "typescript-eslint": "^8.57.1",
     "vite": "^6.4.1",
+    "vite-plugin-inspect": "^0.8.9",
     "vitest": "^4.1.0"
   }
 }

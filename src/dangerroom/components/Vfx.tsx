@@ -14,6 +14,10 @@ const LIFETIME_MS: Record<VfxEvent["kind"], number> = {
   dash: 260,
 };
 
+const _from = new THREE.Vector3();
+const _to = new THREE.Vector3();
+const _lift = new THREE.Vector3(0, 1.1, 0);
+
 function VfxItem({ vfx, onDone }: { vfx: VfxEvent; onDone: () => void }) {
   const meshRef = useRef<Mesh>(null);
   const start = useRef(performance.now());
@@ -29,20 +33,27 @@ function VfxItem({ vfx, onDone }: { vfx: VfxEvent; onDone: () => void }) {
     const life = LIFETIME_MS[vfx.kind];
     const t = Math.min(1, elapsed / life);
 
-    const from = worldPositions.player.clone().add(new THREE.Vector3(0, 1.1, 0));
-    const to = vfx.toId
-      ? worldPositions.dummies.get(vfx.toId)?.clone().add(new THREE.Vector3(0, 1.1, 0)) ?? from
-      : from.clone().add(new THREE.Vector3(0, 0.6, 0));
+    _from.copy(worldPositions.player).add(_lift);
+    const dummy = vfx.toId ? worldPositions.dummies.get(vfx.toId) : undefined;
+    if (dummy) {
+      _to.copy(dummy).add(_lift);
+    } else if (vfx.toId) {
+      _to.copy(_from);
+    } else {
+      _to.copy(_from);
+      _to.y += 0.6;
+    }
 
     if (vfx.kind === "ranged") {
-      meshRef.current.position.lerpVectors(from, to, t);
+      meshRef.current.position.lerpVectors(_from, _to, t);
       meshRef.current.scale.setScalar(1 - t * 0.3);
     } else if (vfx.kind === "melee" || vfx.kind === "dash") {
-      meshRef.current.position.lerpVectors(from, to, Math.min(1, t * 1.6));
+      meshRef.current.position.lerpVectors(_from, _to, Math.min(1, t * 1.6));
       const scale = 1 + Math.sin(t * Math.PI) * 0.6;
       meshRef.current.scale.setScalar(scale);
     } else if (vfx.kind === "heal" || vfx.kind === "shield") {
-      meshRef.current.position.copy(from).add(new THREE.Vector3(0, t * 1.2, 0));
+      meshRef.current.position.copy(_from);
+      meshRef.current.position.y += t * 1.2;
       meshRef.current.scale.setScalar(1 + t * 1.4);
       const material = meshRef.current.material as THREE.MeshBasicMaterial;
       material.opacity = 1 - t;

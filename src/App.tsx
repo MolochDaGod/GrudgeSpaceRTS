@@ -41,6 +41,7 @@ import { GalaxyMap, STAR_SYSTEMS } from './game/GalaxyMap';
 import { EngagementLobby } from './game/EngagementLobby';
 import type { EngagementKind } from './game/engagement-rooms';
 import { GrudgeVideo } from './game/GrudgeVideo';
+import { PLAY_PATH_INTRO_TARGET, shouldDismissIntroOnKey } from './game/play-path';
 
 // ── Lazy-loaded heavy modules (code-split) ────────────────────────
 // These chunks only download when the user navigates to the relevant screen.
@@ -361,11 +362,10 @@ export default function App() {
   const rendererRef = useRef<import('./game/space-renderer').SpaceRenderer | null>(null);
   // Resolve initial screen from URL — skip intro if deep-linking or launcher hub embed
   const initialPath = window.location.pathname;
-  const skipIntro =
-    new URLSearchParams(window.location.search).has('skipIntro')
-    || new URLSearchParams(window.location.search).has('hub');
-  const initialScreen =
-    (initialPath === '/' || initialPath === '') && !skipIntro ? 'intro' : screenFromPath(initialPath);
+  const initialParams = new URLSearchParams(window.location.search);
+  const skipIntro = initialParams.has('skipIntro') || initialParams.has('hub');
+  const initialCommanderSelect = initialParams.has('commanderSelect');
+  const initialScreen = (initialPath === '/' || initialPath === '') && !skipIntro ? 'intro' : screenFromPath(initialPath);
   const [screen, setScreenRaw] = useState<Screen>(initialScreen);
   const [authUser, setAuthUser] = useState<GrudgeUser | null>(null);
 
@@ -408,7 +408,7 @@ export default function App() {
   const [renderer, setRenderer] = useState<import('./game/space-renderer').SpaceRenderer | null>(null);
   const [gameMode, setGameMode] = useState<GameMode>('1v1');
   const [starMapOpen, setStarMapOpen] = useState(false);
-  const [showCmdModal, setShowCmdModal] = useState(false);
+  const [showCmdModal, setShowCmdModal] = useState(initialCommanderSelect);
   const [showEngagementLobby, setShowEngagementLobby] = useState<EngagementKind | null>(null);
   const [engagementRoomId, setEngagementRoomId] = useState<string | null>(null);
   const [engagementKind, setEngagementKind] = useState<EngagementKind | null>(null);
@@ -433,6 +433,11 @@ export default function App() {
   const [aiDifficulty, setAiDifficulty] = useState(3); // 1=Passive, 3=Balanced, 5=Aggressive
   const [groundPlanetType, setGroundPlanetType] = useState<PlanetType>('barren');
   const [groundPlanetName, setGroundPlanetName] = useState('Unknown');
+
+  const enterCommanderSelect = useCallback(() => {
+    setScreen(PLAY_PATH_INTRO_TARGET.screen);
+    setShowCmdModal(PLAY_PATH_INTRO_TARGET.commanderSelectOpen);
+  }, [setScreen]);
 
   // Star Map hotkey — driven through the hotkeys config
   useEffect(() => {
@@ -527,7 +532,7 @@ export default function App() {
         style={{ width: '100%', height: '100%', display: screen === 'playing' ? 'block' : 'none' }}
         // ground_combat + ground_rts use their own R3F / iframe views
       />
-      {screen === 'intro' && <IntroScreen onFinish={() => setScreen('menu')} />}
+      {screen === 'intro' && <IntroScreen onFinish={enterCommanderSelect} />}
       {screen === 'menu' && (
         <MainMenu
           onStart={() => setShowEngagementLobby('quick')}
@@ -645,6 +650,7 @@ export default function App() {
             onDeployGround={(pType, pName) => {
               setGroundPlanetType(pType);
               setGroundPlanetName(pName);
+              rendererRef.current?.setActive(false);
               setScreen('ground_combat');
             }}
           />
@@ -662,7 +668,12 @@ export default function App() {
             planetName={groundPlanetName}
             onExit={(result) => {
               console.log('[GROUND] Mission result:', result);
-              setScreen(rendererRef.current ? 'playing' : 'menu');
+              if (rendererRef.current) {
+                rendererRef.current.setActive(true);
+                setScreen('playing');
+              } else {
+                setScreen('menu');
+              }
             }}
           />
         </Suspense>
@@ -1268,10 +1279,7 @@ function MainMenu({
             <button onClick={() => launchWithZoom(onStart)} style={launchBtn('#2255cc', 'rgba(34,85,204,0.3)')}>
               LAUNCH QUICK GAME
             </button>
-            <button
-              onClick={() => launchWithZoom(onDogfight)}
-              style={{ ...launchBtn('#aa2244', 'rgba(170,34,68,0.25)'), marginTop: 10 }}
-            >
+            <button onClick={() => launchWithZoom(onDogfight)} style={{ ...launchBtn('#aa2244', 'rgba(170,34,68,0.25)'), marginTop: 10 }}>
               CARRIER DOGFIGHT PvP
             </button>
           </div>
@@ -1336,10 +1344,7 @@ function MainMenu({
                 Wave survival · Dodge & parry
               </div>
             </div>
-            <button
-              onClick={() => launchWithZoom(onSouls)}
-              style={{ ...launchBtn('#1a7744', 'rgba(26,119,68,0.3)'), marginBottom: 8 }}
-            >
+            <button onClick={() => launchWithZoom(onSouls)} style={{ ...launchBtn('#1a7744', 'rgba(26,119,68,0.3)'), marginBottom: 8 }}>
               SOULS PvP LOBBY
             </button>
             <button
@@ -2593,32 +2598,28 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 // ── Intro Video Screen ────────────────────────────────────────────
 function IntroScreen({ onFinish }: { onFinish: () => void }) {
   const [fadeOut, setFadeOut] = useState(false);
-  const [canSkip, setCanSkip] = useState(false);
   const [showLogo, setShowLogo] = useState(false);
+  const finishingRef = useRef(false);
 
   useEffect(() => {
-    // Allow skip after a short delay so users see at least a moment
-    const skipTimer = setTimeout(() => setCanSkip(true), 1500);
     // Delay logo by 5 seconds so the video plays clean first
     const logoTimer = setTimeout(() => setShowLogo(true), 5000);
-    return () => {
-      clearTimeout(skipTimer);
-      clearTimeout(logoTimer);
-    };
+    return () => clearTimeout(logoTimer);
   }, []);
 
   const handleSkip = useCallback(() => {
-    if (!canSkip) return;
+    if (finishingRef.current) return;
+    finishingRef.current = true;
     // First user gesture — init & resume audio (browser autoplay policy)
     gameAudio.resume();
     setFadeOut(true);
     setTimeout(onFinish, 600);
-  }, [canSkip, onFinish]);
+  }, [onFinish]);
 
-  // Click or key to skip
+  // First click or any key leaves the splash.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' || e.key === 'Enter' || e.key === ' ') handleSkip();
+      if (shouldDismissIntroOnKey(e)) handleSkip();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -2626,6 +2627,8 @@ function IntroScreen({ onFinish }: { onFinish: () => void }) {
 
   // Auto-advance when video ends
   const handleVideoEnd = useCallback(() => {
+    if (finishingRef.current) return;
+    finishingRef.current = true;
     setFadeOut(true);
     setTimeout(onFinish, 600);
   }, [onFinish]);
@@ -2638,16 +2641,12 @@ function IntroScreen({ onFinish }: { onFinish: () => void }) {
         inset: 0,
         zIndex: 150,
         background: '#000',
-        cursor: canSkip ? 'pointer' : 'default',
+        cursor: 'pointer',
         opacity: fadeOut ? 0 : 1,
         transition: 'opacity 0.6s ease-out',
       }}
     >
-      <GrudgeVideo
-        intro
-        poster="/assets/space/ui/logo.webp"
-        onEnded={handleVideoEnd}
-      />
+      <GrudgeVideo intro poster="/assets/space/ui/logo.webp" onEnded={handleVideoEnd} />
 
       {/* Dark vignette overlay for logo readability */}
       <div
@@ -2703,7 +2702,7 @@ function IntroScreen({ onFinish }: { onFinish: () => void }) {
           fontSize: 12,
           letterSpacing: 3,
           color: 'rgba(160,200,255,0.5)',
-          opacity: canSkip ? 1 : 0,
+          opacity: 1,
           transition: 'opacity 0.8s',
           textTransform: 'uppercase',
           textShadow: '0 0 10px rgba(0,0,0,0.9)',

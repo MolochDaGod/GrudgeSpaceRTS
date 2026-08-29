@@ -8,6 +8,9 @@ tsconfig.tsbuildinfo
 .env.local
 .env\ -\ Copy*
 
+# Bundle analysis (npm run analyze)
+stats.html
+
 # Large asset source files (AI/EPS/PSD/TIFF/SCML) — not needed at runtime
 *.ai
 *.eps
