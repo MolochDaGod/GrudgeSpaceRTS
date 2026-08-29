@@ -87,17 +87,23 @@ export async function loadShip(path: string) {
 
 Video under the logo stays `pointer-events: none` so the first click always leaves splash.
 
-## 4. Split vendor chunks so a HUD click does not re-download Three
+## 4. Split vendor chunks by load wave
 
-```ts
-// vite.config.ts — build.rollupOptions.output.manualChunks
-manualChunks(id) {
-  if (id.includes('node_modules/three')) return 'three';
-  if (id.includes('node_modules/@react-three')) return 'r3f';
-  if (id.includes('rapier')) return 'rapier';
-  if (id.includes('framer-motion')) return 'motion';
-}
-```
+`manualChunks` does not create split points — `React.lazy` / `import()` do. The function only **groups** modules already in the graph.
+
+Match **npm package names** under `node_modules` (pnpm-safe). Never `id.includes('rapier')`: that pulls `src/**/rapier*.ts` into a vendor chunk and creates circular chunk deps.
+
+See `vite.config.ts` for the live `npmPkg` / `manualChunks` helpers. Summary:
+
+| Chunk | Load wave | Why |
+| --- | --- | --- |
+| `react` | 0 — splash | Shared by `main` / `admin` / `info` |
+| `three` + `r3f` | 1 — after click | Renderer; must not sit in splash |
+| `rapier` | 2 — space/ground | Bindings stay with `@dimforge`, not with drei |
+| `three-addons` | 1/3 — with renderer | One extra request beats five tiny ones |
+| `audio` / `motion` | independent | Survive a renderer hotfix |
+
+Do **not** dump all of `node_modules` into `vendor`. Vite dropped that default because it pulls Three onto the splash download.
 
 ## 5. Inspect the graph
 
@@ -109,7 +115,14 @@ Production treemap (does not run on a normal `vite build`):
 npm run analyze   # writes stats.html, gitignored
 ```
 
-Open `stats.html` and check: splash / `index` has **no** `three`, `rapier`, or `App`. Those belong in the lazy chunk plus the `three` / `rapier` vendor files.
+Open `stats.html` and check:
+
+| Good | Bad |
+| --- | --- |
+| Entry `main` has **no** `three`, `rapier`, `postprocessing` | `three` inside the splash entry |
+| `App-*.js` imports `three-*.js` + `r3f-*.js` | One `App` chunk > 1.2 MB |
+| `rapier-*.js` only from space/ground modules | Cycle: circular chunk dependency |
+| Three HTML entries share `react-*.js` | Separate React copies per HTML |
 
 Pinned for Vite 6: `vite-plugin-inspect@0.8.9` (v12 needs Vite 8). Visualizer is `rollup-plugin-visualizer@7`.
 
@@ -122,3 +135,4 @@ Pinned for Vite 6: `vite-plugin-inspect@0.8.9` (v12 needs Vite 8). Visualizer is
 | Preload logo.webp | Preload every GLB on `/` |
 | One renderer tick after menu | Second physics world to hide a load hitch |
 | `npm run analyze` when chunks look wrong | Ship `stats.html` or gzip plugins on Vercel |
+| Match `npmPkg(id)` under `node_modules` | `id.includes('rapier')` or a catch-all `vendor` chunk |
