@@ -66,7 +66,7 @@ export function resolveTextureUrl(localPath: string): string {
 
 /** Resolve a model URL. Play path is GLB — rewrite leftover OBJ/FBX keys. */
 export function resolveModelUrl(localPath: string): string {
-  const glbPath = localPath.replace(/\.(obj|fbx)$/i, '.glb');
+  const glbPath = localPath.replace(/\.(obj|fbx|gltf)$/i, '.glb');
   return resolveUrl(glbPath, false);
 }
 

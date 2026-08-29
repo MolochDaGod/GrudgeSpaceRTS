@@ -10,6 +10,7 @@
  */
 
 import { AUDIO_ASSETS } from './space-prefabs';
+import { getSharedAudioContext } from './audio-gesture';
 
 type SfxKey = keyof typeof AUDIO_ASSETS.sfx;
 type MusicKey = keyof typeof AUDIO_ASSETS.music;
@@ -73,7 +74,7 @@ class SpaceAudio {
   /** Initialize AudioContext (call after first user gesture) */
   init() {
     if (this.ctx) return;
-    this.ctx = new AudioContext();
+    this.ctx = getSharedAudioContext();
     this.masterGain = this.ctx.createGain();
     this.masterGain.gain.value = this._muted ? 0 : this.masterVol;
     this.masterGain.connect(this.ctx.destination);
@@ -98,12 +99,20 @@ class SpaceAudio {
 
   /** Resume AudioContext after user interaction (required by browser policy) */
   resume() {
-    if (this.resumed) return;
     if (!this.ctx) this.init();
-    if (this.ctx?.state === 'suspended') {
-      this.ctx.resume();
+    if (!this.ctx) return;
+    if (this.ctx.state === 'running') {
+      this.resumed = true;
+      return;
     }
-    this.resumed = true;
+    void this.ctx
+      .resume()
+      .then(() => {
+        this.resumed = this.ctx?.state === 'running';
+      })
+      .catch(() => {
+        this.resumed = false;
+      });
   }
 
   /** Play a one-shot SFX */

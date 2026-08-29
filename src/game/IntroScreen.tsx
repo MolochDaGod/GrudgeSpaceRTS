@@ -6,6 +6,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { GrudgeVideo } from './GrudgeVideo';
 import { shouldDismissIntroOnKey } from './play-path';
+import { unlockAudio } from './audio-gesture';
 
 export function IntroScreen({ onFinish }: { onFinish: () => void }) {
   const [fadeOut, setFadeOut] = useState(false);
@@ -14,6 +15,7 @@ export function IntroScreen({ onFinish }: { onFinish: () => void }) {
   const finish = useCallback(() => {
     if (finishingRef.current) return;
     finishingRef.current = true;
+    unlockAudio();
     void import('./space-audio').then((m) => m.gameAudio.resume());
     setFadeOut(true);
     window.setTimeout(onFinish, 120);
